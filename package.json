@@ -1,0 +1,30 @@
+{
+  "name": "baretext",
+  "version": "1.0.0",
+  "description": "A distraction-free writing app",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --mac"
+  },
+  "build": {
+    "appId": "com.baretext.app",
+    "productName": "Baretext",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "icon": "src/icon.icns",
+      "category": "public.app-category.productivity",
+      "target": "dir"
+    }
+  },
+  "devDependencies": {
+    "electron": "28.3.3",
+    "electron-builder": "24.13.3"
+  }
+}
