@@ -57,8 +57,8 @@ them. Files always save as plain markdown regardless of view mode.
 - ⌘⇧F — change font
 - ⌘. — focus mode (hide status bar)
 
-Themes (dark / light / miasma / ayu / panda / gruvbox / dracula) are in the
-command palette, along with everything else.
+Themes (dark / light / ayu / dracula) are in the command palette, along with
+everything else.
 
 Files auto-save to ~/Documents/Barebones/ (change via "Set save location" in
 the command palette). The app reopens your most recently edited file on launch.

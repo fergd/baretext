@@ -48,36 +48,12 @@
       --cursor: #b8820a; --sel: rgba(184,130,10,0.20); --placeholder: #b0a898;
     }
 
-    /* ── MIASMA — murky greens, earthy organics (xero/miasma.nvim) ── */
-    [data-theme="miasma"] {
-      --bg: #1c1c1c;  --bg-alt: #161616;
-      --text: #c2c2b0; --text-dim: #78824b; --text-dimmer: #3a3a28;
-      --accent: #6e9a59; --border: #2e2e2e;
-      --cursor: #6e9a59; --sel: rgba(110,154,89,0.22); --placeholder: #3a3a28;
-    }
-
     /* ── AYU DARK — deep blue-black, warm amber (ayu-theme) ── */
     [data-theme="ayu"] {
       --bg: #0f1419;  --bg-alt: #0d1016;
       --text: #e6e1cf; --text-dim: #5c6773; --text-dimmer: #2d3640;
       --accent: #f29718; --border: #1d2630;
       --cursor: #f29718; --sel: rgba(242,151,24,0.20); --placeholder: #2d3640;
-    }
-
-    /* ── PANDA — very dark gray, pink & teal accents (PandaTheme) ── */
-    [data-theme="panda"] {
-      --bg: #242526;  --bg-alt: #1b1c1d;
-      --text: #e6e6e6; --text-dim: #676b79; --text-dimmer: #3c3d40;
-      --accent: #ff75b5; --border: #333435;
-      --cursor: #ff75b5; --sel: rgba(255,117,181,0.18); --placeholder: #3c3d40;
-    }
-
-    /* ── GRUVBOX — retro warm, hard contrast (morhetz/gruvbox) ── */
-    [data-theme="gruvbox"] {
-      --bg: #282828;  --bg-alt: #1d2021;
-      --text: #ebdbb2; --text-dim: #928374; --text-dimmer: #504945;
-      --accent: #fabd2f; --border: #3c3836;
-      --cursor: #fabd2f; --sel: rgba(250,189,47,0.22); --placeholder: #504945;
     }
 
     /* ── DRACULA — purple midnight, vivid neons (draculatheme.com) ── */
@@ -431,7 +407,7 @@
     <div class="status-group">
       <span class="status-item" id="word-count">0 words</span>
       <span class="status-item dimmer" id="char-count">0 chars</span>
-      <span class="status-item dimmer" id="md-mode">source</span>
+      <span class="status-item dimmer" id="md-mode">preview</span>
     </div>
     <div class="status-group">
       <div id="save-error" title="save failed"></div>
@@ -480,7 +456,7 @@ const pList      = document.getElementById('palette-list');
 const fontPicker = document.getElementById('font-picker');
 const toastEl    = document.getElementById('toast');
 
-const state = { theme: 'dark', font: 'mono', typewriter: false, focusMode: false, filePath: null, renderedMode: false };
+const state = { theme: 'dark', font: 'mono', typewriter: false, focusMode: false, filePath: null, sourceMode: false };
 
 const fontVars = {
   mono:  "'IBM Plex Mono', 'SF Mono', monospace",
@@ -577,12 +553,12 @@ document.addEventListener('keydown', (e) => {
 // ── Theme ──
 // Text/accent colors per theme — used to color theme names in the palette
 const themeTextColors = {
-  dark: '#faf2d6', light: '#2a2218', miasma: '#c2c2b0',
-  ayu: '#e6e1cf', panda: '#e6e6e6', gruvbox: '#ebdbb2', dracula: '#f8f8f2',
+  dark: '#faf2d6', light: '#2a2218',
+  ayu: '#e6e1cf', dracula: '#f8f8f2',
 };
 const themeAccentColors = {
-  dark: '#f8c537', light: '#b8820a', miasma: '#6e9a59',
-  ayu: '#f29718', panda: '#ff75b5', gruvbox: '#fabd2f', dracula: '#bd93f9',
+  dark: '#f8c537', light: '#b8820a',
+  ayu: '#f29718', dracula: '#bd93f9',
 };
 
 function setTheme(t) {
@@ -627,10 +603,12 @@ function insertSceneBreak() {
 }
 
 // ── Markdown mode ──
+// sourceMode false (default) = live preview: markdown syntax is concealed except
+// on the line the cursor is on. sourceMode true = raw markdown always visible.
 function toggleRenderedMode() {
-  state.renderedMode = !state.renderedMode;
+  state.sourceMode = !state.sourceMode;
   // Apply mode change IMMEDIATELY so it's never out of sync with user actions
-  window.BaretextEditor.setRenderedMode(view, state.renderedMode);
+  window.BaretextEditor.setRenderedMode(view, state.sourceMode);
   // Cosmetic crossfade — opacity only, no state changes inside the timeout
   const scroller = host.querySelector('.cm-scroller');
   if (scroller) {
@@ -643,8 +621,8 @@ function toggleRenderedMode() {
     });
   }
   const elMode = document.getElementById('md-mode');
-  if (elMode) elMode.textContent = state.renderedMode ? 'rendered' : 'source';
-  showToast(state.renderedMode ? 'markdown hidden' : 'markdown visible');
+  if (elMode) elMode.textContent = state.sourceMode ? 'source' : 'preview';
+  showToast(state.sourceMode ? 'markdown visible' : 'markdown hidden');
 }
 function toggleTypewriter() {
   state.typewriter = !state.typewriter;
@@ -765,10 +743,7 @@ const commands = [
     items: [
       { label: 'Dark',    icon: 'ti-moon',    keys: [], themeKey: 'dark',    fn: () => setTheme('dark') },
       { label: 'Light',   icon: 'ti-sun',     keys: [], themeKey: 'light',   fn: () => setTheme('light') },
-      { label: 'Miasma',  icon: 'ti-trees',   keys: [], themeKey: 'miasma',  fn: () => setTheme('miasma') },
       { label: 'Ayu',     icon: 'ti-sunrise', keys: [], themeKey: 'ayu',     fn: () => setTheme('ayu') },
-      { label: 'Panda',   icon: 'ti-heart',   keys: [], themeKey: 'panda',   fn: () => setTheme('panda') },
-      { label: 'Gruvbox', icon: 'ti-flame',   keys: [], themeKey: 'gruvbox', fn: () => setTheme('gruvbox') },
       { label: 'Dracula', icon: 'ti-ghost',   keys: [], themeKey: 'dracula', fn: () => setTheme('dracula') },
     ]
   },
@@ -781,8 +756,8 @@ let activeIdx = 0;
 // Palette bg colors per theme (approx --bg-alt at 82% opacity over --bg)
 // Used to contrast-check theme label colors before applying them
 const themePaletteBg = {
-  dark:    '#1e1e1e', light:   '#e8e3db', miasma:  '#191919',
-  ayu:     '#0e1318', panda:   '#1e1f20', gruvbox: '#222020', dracula: '#1e2030',
+  dark:    '#1e1e1e', light:   '#e8e3db',
+  ayu:     '#0e1318', dracula: '#1e2030',
 };
 
 // Relative luminance from a hex color
