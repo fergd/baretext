@@ -3,7 +3,7 @@ import { getOutline } from './outline.js';
 import { insertSceneBreak } from './scene-breaks.js';
 import { setRenderedMode } from './live-preview.js';
 import { setSearchQuery, findNext, findPrevious, replaceCurrent, replaceAll, clearSearch } from './search.js';
-import { setSpellcheck, wordAt, getSuggestions } from './spellcheck.js';
+import { setSpellcheck, wordAt, getSuggestions, ignoreWord, setIgnoredWords, getIgnoredWords, clearIgnoredWords } from './spellcheck.js';
 import { undo, redo } from './history-commands.js';
 
 window.BaretextEditor = {
@@ -28,6 +28,10 @@ window.BaretextEditor = {
   setSpellcheck,
   spellcheckWordAt: wordAt,
   getSpellingSuggestions: getSuggestions,
+  ignoreWord,
+  setIgnoredWords,
+  getIgnoredWords,
+  clearIgnoredWords,
   undo,
   redo,
 };

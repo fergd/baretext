@@ -55,12 +55,13 @@ function focusEditor() { window.BaretextEditor.focus(view); }
 
 // ── IPC from main ──
 window.api.onThemeChanged(() => {});
-window.api.onFileLoaded(({ content, filePath, cursorPos, typewriter }) => {
+window.api.onFileLoaded(({ content, filePath, cursorPos, typewriter, ignoredWords }) => {
   if (content !== null && content !== undefined) setDoc(content);
   state.filePath = filePath;
   setFileName(filePath);
   updateCounts(getDoc());
   if (typeof typewriter === 'boolean') setTypewriter(typewriter, { silent: true });
+  if (Array.isArray(ignoredWords)) window.BaretextEditor.setIgnoredWords(view, ignoredWords);
   requestAnimationFrame(() => {
     if (typeof cursorPos === 'number' && cursorPos >= 0) {
       window.BaretextEditor.setCursorPos(view, cursorPos);

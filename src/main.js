@@ -117,7 +117,10 @@ app.whenReady().then(() => {
     currentFilePath = filePath;
     // Restore cursor position too — only meaningful if it's the SAME file as last session
     const cursorPos = (lastPath && filePath === lastPath) ? (settings.lastCursorPos || null) : null;
-    mainWindow.webContents.send('file-loaded', { content, filePath, cursorPos, typewriter: !!settings.typewriter });
+    mainWindow.webContents.send('file-loaded', {
+      content, filePath, cursorPos, typewriter: !!settings.typewriter,
+      ignoredWords: Array.isArray(settings.ignoredWords) ? settings.ignoredWords : [],
+    });
   });
 
   nativeTheme.on('updated', () => {
@@ -228,6 +231,13 @@ ipcMain.on('mode-changed', (event, newMode) => {
 // Typewriter mode — persisted so the app reopens with it in the same state
 ipcMain.on('typewriter-changed', (event, on) => {
   settings.typewriter = !!on;
+  saveSettings(settings);
+});
+
+// Spellcheck ignore list (names, jargon, ...) — global, not per-file, so it
+// persists across whatever document is open next.
+ipcMain.on('ignored-words-changed', (event, words) => {
+  settings.ignoredWords = Array.isArray(words) ? words : [];
   saveSettings(settings);
 });
 

@@ -29,6 +29,9 @@ contextBridge.exposeInMainWorld('api', {
   // Typewriter mode — persisted across launches
   setTypewriter: (on) => ipcRenderer.send('typewriter-changed', on),
 
+  // Spellcheck ignore list — persisted across launches
+  setIgnoredWords: (words) => ipcRenderer.send('ignored-words-changed', words),
+
   // File loaded / auto-saved feedback
   onFileLoaded: (cb) => ipcRenderer.on('file-loaded', (_, data) => cb(data)),
   onAutoSaved: (cb) => ipcRenderer.on('auto-saved', (_, path) => cb(path)),

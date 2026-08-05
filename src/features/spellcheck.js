@@ -40,6 +40,9 @@ function injectStyle() {
 }
 .spell-suggest-item:hover { background: var(--wash-accent); color: var(--accent); }
 .spell-suggest-empty { padding: 6px 9px; font-size: 12px; color: var(--text-dimmer); font-style: italic; }
+.spell-suggest-divider { height: 1px; margin: 4px 2px; background: var(--glass-border); }
+.spell-suggest-ignore { color: var(--text-dim); }
+.spell-suggest-ignore:hover { background: var(--wash-accent); color: var(--text); }
 `;
   document.head.appendChild(style);
 }
@@ -53,6 +56,13 @@ function toggle() {
   apply();
   ctx.showToast(enabled ? 'spellcheck on' : 'spellcheck off');
   if (!enabled) hidePopup();
+}
+
+function clearIgnoredWords() {
+  const count = ctx.editor.getIgnoredWords().length;
+  ctx.editor.clearIgnoredWords(ctx.view);
+  ctx.api.setIgnoredWords(ctx.editor.getIgnoredWords());
+  ctx.showToast(count ? `cleared ${count} ignored ${count === 1 ? 'word' : 'words'}` : 'no ignored words to clear');
 }
 
 function hidePopup() {
@@ -71,6 +81,16 @@ function applySuggestion(from, to, suggestion) {
   ctx.focusEditor();
 }
 
+// Ignoring persists globally (not per-file) — names and jargon come up
+// across whatever you're writing, not just this document.
+function ignoreWord(word) {
+  ctx.editor.ignoreWord(ctx.view, word);
+  ctx.api.setIgnoredWords(ctx.editor.getIgnoredWords());
+  hidePopup();
+  ctx.showToast(`ignoring "${word}"`);
+  ctx.focusEditor();
+}
+
 function showPopup(x, y, hit) {
   const suggestions = ctx.editor.getSpellingSuggestions(hit.word);
   panelEl.innerHTML = '';
@@ -84,6 +104,11 @@ function showPopup(x, y, hit) {
       panelEl.appendChild(item);
     });
   }
+
+  panelEl.appendChild(el('div', 'spell-suggest-divider'));
+  const ignoreItem = el('div', 'spell-suggest-item spell-suggest-ignore', `ignore "${hit.word}"`);
+  ignoreItem.addEventListener('mousedown', (e) => { e.preventDefault(); ignoreWord(hit.word); });
+  panelEl.appendChild(ignoreItem);
 
   panelEl.style.left = x + 'px';
   panelEl.style.top = y + 'px';
@@ -147,6 +172,7 @@ export default {
       { group: 'Editor',
         items: [
           { label: 'Toggle spellcheck', icon: 'ti-a-b-2', keys: ['⌘','⇧','P'], checked: enabled, fn: toggle },
+          { label: 'Clear ignored words', icon: 'ti-eraser', fn: clearIgnoredWords },
         ]
       },
     ];
