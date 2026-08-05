@@ -3,8 +3,9 @@ import core from './features/core.js';
 import sprintTimer from './features/sprint-timer.js';
 import findReplace from './features/find-replace.js';
 import spellcheck from './features/spellcheck.js';
+import sceneNav from './features/scene-nav/index.js';
 
-const FEATURES = { core, 'sprint-timer': sprintTimer, 'find-replace': findReplace, spellcheck };
+const FEATURES = { core, 'sprint-timer': sprintTimer, 'find-replace': findReplace, spellcheck, 'scene-nav': sceneNav };
 
 const app        = document.getElementById('app');
 const host       = document.getElementById('editor-host');

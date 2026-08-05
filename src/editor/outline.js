@@ -1,7 +1,12 @@
 // Scans the document for headings (# / ## / ###) and scene breaks
 // (---/***/___), plus an implicit "Scene 1" at the first content after a
-// heading (before any explicit scene break) so the outline always has a
-// jump target for a chapter's opening.
+// CHAPTER heading (#, before any explicit scene break) so the outline
+// always has a jump target for a chapter's opening. Only # resets this —
+// ## / ### headings are themselves scene-level markers (their own text IS
+// the scene title), so content right after one belongs to that heading, not
+// a synthesized sibling "Scene 1". (Originally this fired for any heading
+// level 1-3; harmless for outline-jump's extra entry, but wrong once scene
+// content ranges are derived from it — see src/features/scene-nav/model.js.)
 export function getOutline(view) {
   const doc = view.state.doc;
   const items = [];
@@ -16,8 +21,12 @@ export function getOutline(view) {
 
     if (headingMatch) {
       items.push({ type: 'h' + headingMatch[1].length, text: headingMatch[2].trim(), line: lineNum, pos: line.from });
-      sceneCount = 0;
-      awaitingFirstContent = true;
+      if (headingMatch[1].length === 1) {
+        sceneCount = 0;
+        awaitingFirstContent = true;
+      } else {
+        awaitingFirstContent = false;
+      }
       continue;
     }
     if (/^(-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {

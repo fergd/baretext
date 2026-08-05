@@ -54,6 +54,7 @@
       --text-body: 15px;
       --lh-body: 1.9;
       --editor-measure: 620px;
+      --rail-w: 250px;
     }
 
     /* ── DARK (original baretext dark) ── */
@@ -137,6 +138,38 @@
       height: 38px;
       flex-shrink: 0;
       -webkit-app-region: drag;
+    }
+
+    /* Row wrapper so the scene rail can sit beside the editor — #editor-host
+       keeps flex:1 (now sharing horizontal space with the rail instead of
+       being the sole vertical flex child of #app), and every existing
+       #editor-host .cm-* selector keeps resolving unchanged. */
+    #content-row {
+      flex: 1;
+      display: flex;
+      flex-direction: row;
+      overflow: hidden;
+      position: relative;
+    }
+
+    #scene-rail {
+      display: none;
+      flex-direction: column;
+      flex: none;
+      width: var(--rail-w);
+      background: var(--bg-alt);
+      border-right: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    /* Full-window scene-card view, replaces #content-row (not a floating
+       overlay) — visibility toggled by scene-nav/corkboard.js. */
+    #corkboard {
+      display: none;
+      flex: 1;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--bg);
     }
 
     #editor-host {
@@ -486,11 +519,15 @@
 
 <div id="app">
   <div id="titlebar"></div>
-  <div id="editor-host">
-    <div id="tw-fade"></div>
-    <div id="tw-guide"></div>
-    <div id="tw-marker">typewriter</div>
+  <div id="content-row">
+    <div id="scene-rail"></div>
+    <div id="editor-host">
+      <div id="tw-fade"></div>
+      <div id="tw-guide"></div>
+      <div id="tw-marker">typewriter</div>
+    </div>
   </div>
+  <div id="corkboard"></div>
   <div id="statusbar">
     <div class="status-group">
       <span class="status-item" id="word-count">0 words</span>

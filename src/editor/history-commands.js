@@ -1,4 +1,4 @@
-import { history, historyKeymap, defaultKeymap, indentWithTab } from '@codemirror/commands';
+import { history, historyKeymap, defaultKeymap, indentWithTab, undo, redo } from '@codemirror/commands';
 import { keymap } from '@codemirror/view';
 
 export function historyAndKeymaps() {
@@ -7,6 +7,12 @@ export function historyAndKeymaps() {
     keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap]),
   ];
 }
+
+// Re-exported so app-level code can trigger undo/redo directly (e.g. from
+// the corkboard, which isn't the CodeMirror content DOM and so never sees
+// historyKeymap's own Mod-z/Mod-Shift-z bindings — those only fire when the
+// editor itself has focus).
+export { undo, redo };
 
 // Wraps (or, if the selection is already wrapped, unwraps) the selection in
 // a markdown delimiter — e.g. Mod-b -> **bold**, Mod-i -> *italic*, toggling
