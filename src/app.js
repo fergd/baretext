@@ -20,6 +20,7 @@ const fontPicker = document.getElementById('font-picker');
 const toastEl    = document.getElementById('toast');
 const statusbar  = document.getElementById('statusbar');
 const statusLeft = statusbar.querySelector('.status-group');
+const twIndicator = document.getElementById('tw-status-indicator');
 
 const state = {
   theme: document.documentElement.getAttribute('data-theme'),
@@ -222,6 +223,7 @@ document.addEventListener('mousedown', (e) => {
     fontPicker.classList.remove('open');
   }
 });
+twIndicator.addEventListener('mousedown', (e) => { e.preventDefault(); toggleTypewriter(); });
 
 // ── Mode-agnostic editor helpers ──
 function insertSceneBreak() {
@@ -249,6 +251,7 @@ function setTypewriter(on, opts = {}) {
   state.typewriter = on;
   const apply = () => {
     app.classList.toggle('typewriter', state.typewriter);
+    twIndicator.classList.toggle('tw-on', state.typewriter);
     if (state.typewriter) window.BaretextEditor.centerCursor(view);
   };
   const scroller = host.querySelector('.cm-scroller');

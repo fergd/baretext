@@ -217,10 +217,13 @@
       color: color-mix(in srgb, var(--syntax-2, var(--accent)) 40%, transparent);
     }
 
-    /* Typewriter status-bar indicator — hidden unless active */
-    #tw-status-indicator { display: none; align-items: center; gap: 6px; }
-    #app.typewriter #tw-status-indicator { display: flex; }
-    #tw-status-indicator .ti { color: var(--syntax-2, var(--accent)); font-size: 13px; }
+    /* Typewriter status-bar toggle — always present, click flips typewriter mode */
+    #tw-status-indicator { display: flex; align-items: center; gap: 6px; cursor: pointer; transition: color 0.15s ease; }
+    #tw-status-indicator .ti { color: var(--text-dimmer); font-size: 13px; transition: color 0.15s ease; }
+    #tw-status-indicator:hover { color: var(--text); }
+    #tw-status-indicator:hover .ti { color: var(--text-dim); }
+    #tw-status-indicator.tw-on { color: var(--text); }
+    #tw-status-indicator.tw-on .ti { color: var(--syntax-2, var(--accent)); }
 
     #statusbar {
       height: 30px;

@@ -130,8 +130,12 @@ function injectStyle() {
 }
 .sprint-edge-fill { height: 100%; width: 0%; background: var(--accent); box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 70%, transparent); }
 
-.sprint-chip-status { display: none; align-items: center; gap: 6px; cursor: pointer; }
-.sprint-chip-status .ti-run { color: var(--accent); font-size: 13px; }
+.sprint-chip-status { display: flex; align-items: center; gap: 6px; cursor: pointer; transition: color .15s ease; }
+.sprint-chip-status .ti-run { color: var(--text-dimmer); font-size: 13px; transition: color .15s ease; }
+.sprint-chip-status:hover { color: var(--text); }
+.sprint-chip-status:hover .ti-run { color: var(--text-dim); }
+.sprint-chip-status.running { color: var(--text); font-variant-numeric: tabular-nums; }
+.sprint-chip-status.running .ti-run { color: var(--accent); animation: sprint-pulse 2s ease-in-out infinite; }
 `;
   document.head.appendChild(style);
 }
@@ -146,7 +150,24 @@ function hint(key, label) {
 function updateVisibility() {
   panelEl.style.display = (evokeOpen || (sprint && sprint.view === 'active')) ? 'block' : 'none';
   edgeEl.style.display = (sprint && sprint.view === 'edge') ? 'block' : 'none';
-  chipEl.style.display = (sprint && (sprint.view === 'edge' || sprint.view === 'hidden')) ? 'flex' : 'none';
+  updateChipContent();
+}
+
+// Chip is a permanent footer fixture (idle "sprint" label / running countdown),
+// not just a minimized-state affordance — always reflects current sprint state.
+function updateChipContent() {
+  if (!chipEl) return;
+  chipEl.innerHTML = '';
+  chipEl.appendChild(icon('ti-run'));
+  if (sprint) {
+    chipEl.classList.add('running');
+    chipEl.appendChild(document.createTextNode(' ' + mmss(sprint.remaining)));
+    chipEl.title = sprint.view === 'active' ? 'sprint in progress' : 'click to show sprint';
+  } else {
+    chipEl.classList.remove('running');
+    chipEl.appendChild(document.createTextNode(' sprint'));
+    chipEl.title = 'click to start a sprint';
+  }
 }
 
 function buildEvoke() {
@@ -302,6 +323,7 @@ function tick() {
   if (sprint.remaining <= 0) { complete(); return; }
   if (sprint.view === 'active') updateActiveVisuals();
   else if (sprint.view === 'edge') updateEdgeVisuals();
+  updateChipContent();
 }
 
 function complete() {
@@ -354,11 +376,7 @@ export default {
     ctx.dom.app.appendChild(edgeEl);
 
     chipEl = el('span', 'status-item sprint-chip-status');
-    chipEl.title = 'show sprint timer';
-    const runIcon = document.createElement('i');
-    runIcon.className = 'ti ti-run';
-    chipEl.append(runIcon, document.createTextNode(' Sprinting'));
-    chipEl.addEventListener('click', () => setView('active'));
+    chipEl.addEventListener('mousedown', (e) => { e.preventDefault(); handleStartCommand(); });
     ctx.dom.statusLeft.appendChild(chipEl);
 
     sprint = null;
