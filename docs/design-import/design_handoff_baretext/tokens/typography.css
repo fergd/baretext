@@ -1,0 +1,32 @@
+/* Baretext typography tokens.
+   IBM Plex only. The editor font is user-switchable (mono / serif / sans);
+   UI chrome — status bar, palette, buttons — stays MONO always. */
+
+:root {
+  --font-mono:  'IBM Plex Mono', 'SF Mono', 'Menlo', monospace;
+  --font-serif: 'IBM Plex Serif', 'Georgia', serif;
+  --font-sans:  'IBM Plex Sans', -apple-system, sans-serif;
+
+  /* the editor surface points at one of the three above at runtime */
+  --font-editor: var(--font-mono);
+  /* all chrome uses this — never changes */
+  --font-ui:     var(--font-mono);
+
+  --fw-regular: 400;
+  --fw-bold:    700;
+
+  /* type scale (px) */
+  --text-h1:     26px;   /* chapter heading */
+  --text-h2:     16px;   /* date / subhead */
+  --text-body:   15px;   /* prose */
+  --text-ui:     13px;   /* command items, buttons */
+  --text-status: 11px;   /* status bar */
+  --text-label:  10px;   /* section labels */
+
+  --lh-body: 1.9;
+  --lh-ui:   1.4;
+
+  --ls-label:  .12em;    /* uppercase section labels */
+  --ls-status: .03em;    /* status bar */
+  --ls-cap:    .05em;
+}

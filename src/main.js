@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog, nativeTheme, Menu } = require('elec
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const backup = require('./backup');
 
 // Set the app name BEFORE anything else — this controls the menu bar label
 // (next to the Apple logo) and the name shown in Activity Monitor / Force Quit.
@@ -33,6 +34,17 @@ let defaultDir = settings.saveDir || path.join(os.homedir(), 'Documents', 'Bareb
 if (!fs.existsSync(defaultDir)) {
   fs.mkdirSync(defaultDir, { recursive: true });
 }
+backup.init(defaultDir);
+
+// Accent theme (command palette: dark / light / ayu / dracula) — validated
+// against the current theme set so a stale saved value (e.g. a removed
+// theme) can't leave the app stuck on an unknown data-theme.
+const VALID_ACCENT_THEMES = ['dark', 'light', 'ayu', 'dracula'];
+const accentTheme = VALID_ACCENT_THEMES.includes(settings.accentTheme) ? settings.accentTheme : 'dark';
+
+// Mode (Sprinter / Editor) — same validate-then-persist pattern as accent theme.
+const VALID_MODES = ['sprinter', 'editor'];
+const mode = VALID_MODES.includes(settings.mode) ? settings.mode : 'sprinter';
 
 function getDefaultFilePath() {
   const now = new Date();
@@ -56,7 +68,10 @@ function createWindow() {
     }
   });
 
-  mainWindow.loadFile(path.join(__dirname, 'index.html'));
+  // Pass the saved accent theme via query string so index.html can apply
+  // it synchronously on first paint — no flash of the default theme while
+  // waiting on an IPC round-trip.
+  mainWindow.loadFile(path.join(__dirname, 'index.html'), { query: { theme: accentTheme, mode } });
   Menu.setApplicationMenu(null);
 }
 
@@ -98,7 +113,7 @@ app.whenReady().then(() => {
     currentFilePath = filePath;
     // Restore cursor position too — only meaningful if it's the SAME file as last session
     const cursorPos = (lastPath && filePath === lastPath) ? (settings.lastCursorPos || null) : null;
-    mainWindow.webContents.send('file-loaded', { content, filePath, cursorPos });
+    mainWindow.webContents.send('file-loaded', { content, filePath, cursorPos, typewriter: !!settings.typewriter });
   });
 
   nativeTheme.on('updated', () => {
@@ -108,6 +123,20 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
+});
+
+// Flush a final backup commit before actually quitting, so the last few
+// minutes of a session (inside the normal commit interval) aren't lost.
+// Bounded by a timeout so a stuck git process can never hang app quit.
+let quitting = false;
+app.on('before-quit', (event) => {
+  if (quitting) return;
+  quitting = true;
+  event.preventDefault();
+  let finished = false;
+  const finish = () => { if (finished) return; finished = true; app.quit(); };
+  backup.flush(defaultDir, currentFilePath, finish);
+  setTimeout(finish, 2500);
 });
 
 // Auto-save: debounced 500ms after last keystroke
@@ -178,6 +207,26 @@ ipcMain.on('set-theme', (event, theme) => {
   nativeTheme.themeSource = theme; // 'dark' | 'light' | 'system'
 });
 
+// Accent theme — persisted so the app reopens in the same theme
+ipcMain.on('accent-theme-changed', (event, theme) => {
+  if (!VALID_ACCENT_THEMES.includes(theme)) return;
+  settings.accentTheme = theme;
+  saveSettings(settings);
+});
+
+// Mode — persisted so the app reopens in the same mode (Sprinter/Editor)
+ipcMain.on('mode-changed', (event, newMode) => {
+  if (!VALID_MODES.includes(newMode)) return;
+  settings.mode = newMode;
+  saveSettings(settings);
+});
+
+// Typewriter mode — persisted so the app reopens with it in the same state
+ipcMain.on('typewriter-changed', (event, on) => {
+  settings.typewriter = !!on;
+  saveSettings(settings);
+});
+
 function saveToFile(content) {
   if (!currentFilePath) currentFilePath = getDefaultFilePath();
   try {
@@ -185,6 +234,7 @@ function saveToFile(content) {
     // Remember this file so next launch reopens it
     settings.lastFilePath = currentFilePath;
     saveSettings(settings);
+    backup.onSave(defaultDir, currentFilePath);
     mainWindow.webContents.send('auto-saved', currentFilePath);
   } catch (e) {
     console.error('Save failed:', e);
@@ -201,6 +251,7 @@ ipcMain.handle('choose-save-dir', async () => {
     defaultDir = result.filePaths[0];
     settings.saveDir = defaultDir;
     saveSettings(settings);
+    backup.init(defaultDir);
 
     // Repoint the current file into the new directory using its existing filename
     const fileName = currentFilePath ? path.basename(currentFilePath) : path.basename(getDefaultFilePath());

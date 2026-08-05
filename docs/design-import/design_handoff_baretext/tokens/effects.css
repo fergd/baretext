@@ -1,0 +1,50 @@
+/* Baretext effects — radii, elevation, the glass recipe, and motion. */
+
+:root {
+  /* corner radii (per surface, from the spec) */
+  --radius-toast:   5px;
+  --radius-picker:  8px;
+  --radius-card:    10px;
+  --radius-panel:   12px;
+  --radius-palette: 14px;
+  --radius-kbd:     4px;
+  --radius-item:    6px;
+
+  /* elevation — large soft black shadows, no mid-tones */
+  --shadow-window:  0 40px 110px rgba(0, 0, 0, .55);
+  --shadow-palette: 0 28px 90px rgba(0, 0, 0, .55);
+  --shadow-panel:   0 22px 60px rgba(0, 0, 0, .50);
+  --shadow-toast:   0 16px 44px rgba(0, 0, 0, .50);
+
+  /* glass blur is color-independent — stays here */
+  --glass-blur:      blur(22px) saturate(160%);
+
+  /* motion */
+  --ease-panel: cubic-bezier(0.16, 1, 0.3, 1); /* fast-out, no overshoot */
+  --dur-panel:  .2s;    /* panel open/close */
+  --dur-theme:  .35s;   /* theme wash — deliberately slow */
+  --dur-micro:  .1s;    /* hover / press */
+}
+
+/* Color-DERIVED tokens must be declared on the themed element itself
+   (:root for the default, [data-theme] for any themed container) so their
+   nested var(--bg-alt)/var(--accent)/... recompose from THAT scope's colors.
+   Declaring them only on :root would bake in the dark defaults and every
+   other theme's glass/washes/keycaps would render dark. */
+:root,
+[data-theme] {
+  /* glass panels: translucent over whatever is behind, never a solid card */
+  --glass-bg:        color-mix(in srgb, var(--bg-alt) 86%, transparent);
+  --glass-border:    color-mix(in srgb, var(--border) 65%, transparent);
+  --glass-highlight: inset 0 1px 0 color-mix(in srgb, var(--text) 8%, transparent);
+  --glass-edge:      color-mix(in srgb, var(--accent) 40%, transparent); /* accent top edge on palette */
+
+  /* accent washes — item hover / active */
+  --wash-accent:        color-mix(in srgb, var(--accent) 9%,  transparent);
+  --wash-accent-strong: color-mix(in srgb, var(--accent) 15%, transparent);
+  --stripe-accent:      inset 3px 0 0 var(--accent); /* inset active stripe, no layout shift */
+
+  /* keycap "lip" */
+  --kbd-bg:     color-mix(in srgb, var(--bg) 55%, transparent);
+  --kbd-border: color-mix(in srgb, var(--border) 80%, transparent);
+}

@@ -1,0 +1,62 @@
+/* Baretext color tokens.
+   Four themes, all keyed off the same semantic names so every component
+   is theme-agnostic. Warm/analog language (parchment, amber, ink) — never
+   corporate blue. Two surface levels only: --bg (canvas) and --bg-alt
+   (status bar / panels). Floating glass goes translucent over --bg-alt.
+
+   Set the theme with [data-theme="dark|light|ayu|dracula"] on any ancestor.
+   :root defaults to Dark — the native theme. */
+
+:root,
+[data-theme="dark"] {
+  --bg:          #242424;
+  --bg-alt:      #191919;
+  --text:        #faf2d6;
+  --text-dim:    #bdae93;
+  --text-dimmer: #5a5040;
+  --accent:      #f8c537;
+  --border:      #3a3a3a;
+  --cursor:      var(--accent);
+  --sel:         rgba(248, 197, 55, .22);
+  /* syntax accent — headings/dates in the preview renderer (theme-specific) */
+  --syntax-2:    #f8c537;
+}
+
+[data-theme="light"] {
+  --bg:          #f5f0e8;
+  --bg-alt:      #ede8de;
+  --text:        #2a2218;
+  --text-dim:    #6b5f4a;
+  --text-dimmer: #b0a898;
+  --accent:      #b8820a;
+  --border:      #d0c8b8;
+  --cursor:      var(--accent);
+  --sel:         rgba(184, 130, 10, .20);
+  --syntax-2:    #b8820a;
+}
+
+[data-theme="ayu"] {
+  --bg:          #0d130d;
+  --bg-alt:      #0a0f0a;
+  --text:        #c8e6b0;
+  --text-dim:    #5f7a55;
+  --text-dimmer: #2d3d29;
+  --accent:      #7dc45a;
+  --border:      #1c281a;
+  --cursor:      var(--accent);
+  --sel:         rgba(125, 196, 90, .18);
+  --syntax-2:    #7dc45a;
+}
+
+[data-theme="dracula"] {
+  --bg:          #282a36;
+  --bg-alt:      #21222c;
+  --text:        #f8f8f2;
+  --text-dim:    #6272a4;
+  --text-dimmer: #44475a;
+  --accent:      #bd93f9;
+  --border:      #44475a;
+  --cursor:      var(--text);   /* Dracula is the exception: cursor = text */
+  --sel:         rgba(68, 71, 90, .70);
+  --syntax-2:    #8be9fd;       /* Dracula cyan — dates/subheads in preview */
+}

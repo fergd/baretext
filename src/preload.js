@@ -20,6 +20,15 @@ contextBridge.exposeInMainWorld('api', {
   setTheme: (theme) => ipcRenderer.send('set-theme', theme),
   onThemeChanged: (cb) => ipcRenderer.on('theme-changed', (_, t) => cb(t)),
 
+  // Accent theme (dark/light/ayu/dracula) — persisted across launches
+  setAccentTheme: (theme) => ipcRenderer.send('accent-theme-changed', theme),
+
+  // Mode (sprinter/editor) — persisted across launches
+  setMode: (mode) => ipcRenderer.send('mode-changed', mode),
+
+  // Typewriter mode — persisted across launches
+  setTypewriter: (on) => ipcRenderer.send('typewriter-changed', on),
+
   // File loaded / auto-saved feedback
   onFileLoaded: (cb) => ipcRenderer.on('file-loaded', (_, data) => cb(data)),
   onAutoSaved: (cb) => ipcRenderer.on('auto-saved', (_, path) => cb(path)),
