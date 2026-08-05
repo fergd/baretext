@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xcrun simctl list *)",
+      "mcp__claude-in-chrome__tabs_context_mcp",
+      "mcp__claude_ai_Figma__get_design_context",
+      "mcp__claude_ai_Figma__search_design_system",
+      "mcp__claude_ai_Figma__get_screenshot",
+      "mcp__claude_ai_Figma__get_metadata"
+    ]
+  }
+}
