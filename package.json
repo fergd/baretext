@@ -6,7 +6,7 @@
   "scripts": {
     "start": "electron .",
     "build": "electron-builder --mac",
-    "build:editor": "esbuild src/editor/index.js --bundle --minify --format=iife --outfile=src/editor-bundle.js"
+    "build:editor": "esbuild src/editor/index.js --bundle --minify --format=iife --loader:.aff=text --loader:.dic=text --outfile=src/editor-bundle.js"
   },
   "build": {
     "appId": "com.baretext.app",
@@ -35,6 +35,7 @@
     "@lezer/markdown": "^1.7.2",
     "electron": "^28.3.3",
     "electron-builder": "24.13.3",
-    "esbuild": "^0.28.1"
+    "esbuild": "^0.28.1",
+    "nspell": "^2.1.5"
   }
 }
