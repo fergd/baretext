@@ -39,6 +39,21 @@ entirely — just open Baretext from Launchpad or Spotlight.
 Re-run `npm run build` any time you want to update the packaged app after
 making changes.
 
+## Editor internals (src/editor/)
+The text-editing engine (markdown live-preview, scene-break/block-spacing
+rendering, search, spellcheck, typewriter focus-dimming) is real source in
+`src/editor/`, built with CodeMirror 6 packages and compiled to
+`src/editor-bundle.js` via esbuild:
+
+```
+npm run build:editor
+```
+
+`src/editor-bundle.js` is committed, so a plain `npm install && npm start`
+works without this step — only run `build:editor` after changing anything
+under `src/editor/`. The rest of the app (`src/app.js`, `src/features/`)
+reads `src/editor-bundle.js` directly and doesn't need rebuilding.
+
 ## Markdown styling
 Type markdown and it styles live — `# Heading` becomes a large heading, `**bold**`
 shows bold, `*italic*` italic, `` `code` `` is tinted, etc. Press ⌘⇧M to toggle
@@ -53,9 +68,16 @@ them. Files always save as plain markdown regardless of view mode.
 - ⌘O — open file
 - ⌘⇧E — export markdown
 - ⌘⇧M — toggle markdown symbols visible/hidden
+- ⌘⇧O — jump to chapter or scene
+- ⌘⇧— — insert scene break
 - ⌘⇧T — typewriter mode
 - ⌘⇧F — change font
 - ⌘. — focus mode (hide status bar)
+- ⌘⇧D — switch between Sprinter and Editor mode
+- ⌘⇧S — start (or restore) a writing sprint, Sprinter mode
+- ⌘⇧H — hide the sprint timer, Sprinter mode
+- ⌘F — find & replace, Editor mode
+- ⌘⇧P — toggle spellcheck, Editor mode
 
 Themes (dark / light / ayu / dracula) are in the command palette, along with
 everything else.

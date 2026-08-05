@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, nativeTheme, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, nativeTheme, Menu, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -64,6 +64,7 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      spellcheck: true,
       preload: path.join(__dirname, 'preload.js')
     }
   });
@@ -76,6 +77,9 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  session.defaultSession.setSpellCheckerEnabled(true);
+  session.defaultSession.setSpellCheckerLanguages(['en-US']);
+
   // In dev mode (electron .) the Dock icon defaults to Electron's icon.
   // app.dock.setIcon() overrides it at runtime — only needed pre-packaging;
   // a proper `npm run build` bakes the icon into the .app bundle permanently.

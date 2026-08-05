@@ -5,7 +5,8 @@
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder --mac"
+    "build": "electron-builder --mac",
+    "build:editor": "esbuild src/editor/index.js --bundle --minify --format=iife --outfile=src/editor-bundle.js"
   },
   "build": {
     "appId": "com.baretext.app",
@@ -24,7 +25,16 @@
     }
   },
   "devDependencies": {
+    "@codemirror/commands": "^6.10.4",
+    "@codemirror/lang-markdown": "^6.5.2",
+    "@codemirror/language": "^6.12.4",
+    "@codemirror/search": "^6.7.1",
+    "@codemirror/state": "^6.7.1",
+    "@codemirror/view": "^6.43.8",
+    "@lezer/highlight": "^1.2.3",
+    "@lezer/markdown": "^1.7.2",
     "electron": "^28.3.3",
-    "electron-builder": "24.13.3"
+    "electron-builder": "24.13.3",
+    "esbuild": "^0.28.1"
   }
 }

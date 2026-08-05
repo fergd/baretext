@@ -1,8 +1,10 @@
 import { MODES, DEFAULT_MODE } from './modes.js';
 import core from './features/core.js';
 import sprintTimer from './features/sprint-timer.js';
+import findReplace from './features/find-replace.js';
+import spellcheck from './features/spellcheck.js';
 
-const FEATURES = { core, 'sprint-timer': sprintTimer };
+const FEATURES = { core, 'sprint-timer': sprintTimer, 'find-replace': findReplace, spellcheck };
 
 const app        = document.getElementById('app');
 const host       = document.getElementById('editor-host');
@@ -40,6 +42,10 @@ let view = window.BaretextEditor.create(
   },
   'start writing...'
 );
+// Force native spellcheck on the editable surface, regardless of what the
+// bundle's own extensions set — belt and suspenders alongside webPreferences.
+const cmContent = host.querySelector('.cm-content');
+if (cmContent) cmContent.setAttribute('spellcheck', 'true');
 
 function getDoc()      { return window.BaretextEditor.getDoc(view); }
 function setDoc(text)  { window.BaretextEditor.setDoc(view, text); }
@@ -190,7 +196,7 @@ const fontVars = {
 };
 function setFont(f) {
   state.font = f;
-  document.documentElement.style.setProperty('--editor-font', fontVars[f]);
+  document.documentElement.style.setProperty('--font-editor', fontVars[f]);
   document.querySelectorAll('.fbtn').forEach(b => b.classList.toggle('active', b.dataset.font === f));
 }
 let fontPickerOpenedAt = 0;

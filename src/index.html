@@ -45,7 +45,15 @@
       --font-mono: 'IBM Plex Mono', 'SF Mono', 'Menlo', monospace;
       --font-serif: 'IBM Plex Serif', 'Georgia', serif;
       --font-sans: 'IBM Plex Sans', -apple-system, sans-serif;
-      --editor-font: var(--font-mono);
+      /* editor prose font is user-switchable (mono/serif/sans); chrome always uses --font-mono */
+      --font-editor: var(--font-mono);
+
+      /* Editor typography/spacing tokens — documented values are ground truth,
+         referenced by src/editor/theme.js instead of hardcoding pixel values there. */
+      --text-h1: 26px;
+      --text-body: 15px;
+      --lh-body: 1.9;
+      --editor-measure: 620px;
     }
 
     /* ── DARK (original baretext dark) ── */
@@ -142,6 +150,13 @@
     /* editable surface fills the whole height, so the entire area is the writing space */
     #editor-host .cm-content { min-height: 100% !important; }
 
+    /* Native spellcheck styling (Electron/Chromium ::spelling-error) — no
+       decoration API needed from the editor bundle for this one. */
+    #editor-host .cm-content::spelling-error {
+      text-decoration: underline wavy #ff5555;
+      text-underline-offset: 3px;
+    }
+
     /* typewriter mode: room so last lines can center, opened-up line-height */
     #app.typewriter .cm-content { padding-bottom: 50vh !important; }
     #app.typewriter #editor-host .cm-line { line-height: 2.1; }
@@ -150,9 +165,13 @@
     #tw-fade, #tw-guide, #tw-marker { display: none; pointer-events: none; }
     #app.typewriter #tw-fade, #app.typewriter #tw-guide, #app.typewriter #tw-marker { display: block; }
 
+    /* Continuous fade centered on the typewriter line (50%) — no flat clear
+       zone, starts fading immediately above/below the line itself. All text
+       stays the default color; this overlay is what creates the fade, not
+       any per-line/per-sentence styling. */
     #tw-fade {
       position: absolute; inset: 0; z-index: 2;
-      background: linear-gradient(var(--bg) 0%, transparent 22%, transparent 78%, var(--bg) 100%);
+      background: linear-gradient(var(--bg) 0%, transparent 50%, var(--bg) 100%);
     }
     #tw-guide {
       position: absolute; left: 0; right: 0; top: 50%; height: 1px; z-index: 1;

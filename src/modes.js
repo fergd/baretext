@@ -4,5 +4,5 @@ export const DEFAULT_MODE = 'sprinter';
 
 export const MODES = {
   sprinter: { id: 'sprinter', label: 'Sprinter', features: ['core', 'sprint-timer'] },
-  editor:   { id: 'editor',   label: 'Editor',   features: ['core'] },
+  editor:   { id: 'editor',   label: 'Editor',   features: ['core', 'find-replace', 'spellcheck'] },
 };
