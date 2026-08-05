@@ -6,7 +6,10 @@
   "scripts": {
     "start": "electron .",
     "build": "electron-builder --mac",
-    "build:editor": "esbuild src/editor/index.js --bundle --minify --format=iife --loader:.aff=text --loader:.dic=text --outfile=src/editor-bundle.js"
+    "build:editor": "esbuild src/editor/index.js --bundle --minify --format=iife --loader:.aff=text --loader:.dic=text --outfile=src/editor-bundle.js",
+    "test:unit": "node --test test/unit/*.test.js",
+    "test:e2e": "node --test test/e2e/*.test.js",
+    "test": "npm run test:unit && npm run test:e2e"
   },
   "build": {
     "appId": "com.baretext.app",
