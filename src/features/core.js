@@ -52,10 +52,12 @@ export default {
       },
       { group: 'Theme',
         items: [
-          { label: 'Dark',    icon: 'ti-moon',    keys: [], themeKey: 'dark',    fn: () => ctx.setTheme('dark') },
-          { label: 'Light',   icon: 'ti-sun',     keys: [], themeKey: 'light',   fn: () => ctx.setTheme('light') },
-          { label: 'Ayu',     icon: 'ti-sunrise', keys: [], themeKey: 'ayu',     fn: () => ctx.setTheme('ayu') },
-          { label: 'Dracula', icon: 'ti-ghost',   keys: [], themeKey: 'dracula', fn: () => ctx.setTheme('dracula') },
+          { label: 'Change theme…', icon: 'ti-palette', keys: [], fn: ctx.openThemePicker },
+          { label: 'Ember (dark)',      icon: 'ti-moon',       keys: [], themeKey: 'dark',    fn: () => ctx.setTheme('dark') },
+          { label: 'Parchment (light)', icon: 'ti-sun',        keys: [], themeKey: 'light',   fn: () => ctx.setTheme('light') },
+          { label: 'Amstrad',           icon: 'ti-terminal-2', keys: [], themeKey: 'amstrad', fn: () => ctx.setTheme('amstrad') },
+          { label: 'Grove',             icon: 'ti-trees',      keys: [], themeKey: 'grove',   fn: () => ctx.setTheme('grove') },
+          { label: 'Dracula',           icon: 'ti-ghost',      keys: [], themeKey: 'dracula', fn: () => ctx.setTheme('dracula') },
         ]
       },
     ];

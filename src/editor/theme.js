@@ -22,7 +22,8 @@ export function injectHeadingColors() {
   style.textContent = `
 [data-theme="dark"]    { --h1: #e8c97a; --h2: #c4a85a; --h3: #a08844; --h4: #7a6832; }
 [data-theme="light"]   { --h1: #8b5e0a; --h2: #b07820; --h3: #7a5515; --h4: #5a3e0e; }
-[data-theme="ayu"]     { --h1: #ffb454; --h2: #f29718; --h3: #e6b673; --h4: #c49a52; }
+[data-theme="amstrad"] { --h1: #8fd670; --h2: #6fb050; --h3: #549040; --h4: #3d6c30; }
+[data-theme="grove"]   { --h1: #a7c080; --h2: #e69875; --h3: #dbbc7f; --h4: #83c092; }
 [data-theme="dracula"] { --h1: #bd93f9; --h2: #ff79c6; --h3: #8be9fd; --h4: #50fa7b; }
 `;
   document.head.appendChild(style);

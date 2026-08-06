@@ -1,0 +1,57 @@
+<!-- @dsCard group="Components" viewport="700x560" subtitle="the Baretext UI primitives" name="Core components" -->
+<link rel="stylesheet" href="../../styles.css">
+<link href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3/dist/tabler-icons.min.css" rel="stylesheet">
+<div data-theme="dark" style="font-family:var(--font-ui);background:var(--bg);padding:22px;display:flex;flex-direction:column;gap:20px;color:var(--text);">
+
+  <div>
+    <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:600;opacity:.85;margin-bottom:9px;">keycaps &amp; section label</div>
+    <div style="display:flex;gap:7px;align-items:center;">
+      <span style="background:var(--kbd-bg);border:1px solid var(--kbd-border);border-bottom-width:2px;border-radius:var(--radius-kbd);padding:2px 6px;font-size:10px;color:var(--text-dim);">⌘</span>
+      <span style="background:var(--kbd-bg);border:1px solid var(--kbd-border);border-bottom-width:2px;border-radius:var(--radius-kbd);padding:2px 6px;font-size:10px;color:var(--text-dim);">⇧</span>
+      <span style="background:var(--kbd-bg);border:1px solid var(--kbd-border);border-bottom-width:2px;border-radius:var(--radius-kbd);padding:2px 6px;font-size:10px;color:var(--text-dim);">S</span>
+      <span style="background:var(--kbd-bg);border:1px solid var(--kbd-border);border-bottom-width:2px;border-radius:var(--radius-kbd);padding:2px 6px;font-size:10px;color:var(--text-dim);">esc</span>
+    </div>
+  </div>
+
+  <div>
+    <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:600;opacity:.85;margin-bottom:9px;">buttons — ghost / active</div>
+    <div style="display:flex;gap:8px;">
+      <button style="font-family:var(--font-ui);font-size:13px;border:none;border-radius:var(--radius-item);padding:6px 14px;background:transparent;color:var(--text-dim);">mono</button>
+      <button style="font-family:var(--font-ui);font-size:13px;border:none;border-radius:var(--radius-item);padding:6px 14px;background:var(--wash-accent-strong);color:var(--text);">serif</button>
+      <button style="font-family:var(--font-ui);font-size:13px;border:none;border-radius:var(--radius-item);padding:6px 14px;background:var(--accent);color:var(--bg);font-weight:700;">sans</button>
+    </div>
+  </div>
+
+  <div>
+    <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:600;opacity:.85;margin-bottom:6px;">command items</div>
+    <div style="background:var(--bg-alt);border:1px solid var(--border);border-radius:var(--radius-panel);overflow:hidden;padding:6px 0;">
+      <div style="display:flex;align-items:center;gap:12px;padding:8px 18px;font-size:13px;color:var(--text);background:var(--wash-accent);box-shadow:var(--stripe-accent);"><i class="ti ti-run" style="font-size:16px;width:16px;color:var(--accent);"></i><span style="flex:1;">Start sprint</span><span style="display:flex;gap:4px;"><span style="background:var(--kbd-bg);border:1px solid var(--kbd-border);border-bottom-width:2px;border-radius:var(--radius-kbd);padding:2px 6px;font-size:10px;color:var(--text-dim);">⌘</span><span style="background:var(--kbd-bg);border:1px solid var(--kbd-border);border-bottom-width:2px;border-radius:var(--radius-kbd);padding:2px 6px;font-size:10px;color:var(--text-dim);">⇧</span><span style="background:var(--kbd-bg);border:1px solid var(--kbd-border);border-bottom-width:2px;border-radius:var(--radius-kbd);padding:2px 6px;font-size:10px;color:var(--text-dim);">S</span></span></div>
+      <div style="display:flex;align-items:center;gap:12px;padding:8px 18px;font-size:13px;color:var(--text-dim);"><i class="ti ti-folder-open" style="font-size:16px;width:16px;color:var(--text-dim);"></i><span style="flex:1;">Open file</span><span style="display:flex;gap:4px;"><span style="background:var(--kbd-bg);border:1px solid var(--kbd-border);border-bottom-width:2px;border-radius:var(--radius-kbd);padding:2px 6px;font-size:10px;color:var(--text-dim);">⌘</span><span style="background:var(--kbd-bg);border:1px solid var(--kbd-border);border-bottom-width:2px;border-radius:var(--radius-kbd);padding:2px 6px;font-size:10px;color:var(--text-dim);">O</span></span></div>
+      <div style="display:flex;align-items:center;gap:12px;padding:8px 18px;font-size:13px;color:var(--text-dim);"><i class="ti ti-run" style="font-size:16px;width:16px;color:var(--text-dim);"></i><span style="flex:1;">Switch to Sprinter</span><i class="ti ti-check" style="font-size:15px;color:var(--accent);"></i></div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;">
+    <div>
+      <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:600;opacity:.85;margin-bottom:9px;">sprint timer</div>
+      <div style="width:300px;background:var(--glass-bg);border:1px solid var(--glass-border);border-top:1px solid var(--glass-edge);border-radius:var(--radius-panel);box-shadow:var(--shadow-panel),var(--glass-highlight);padding:16px 18px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:600;">sprint</span><span style="font-size:11px;color:var(--text-dim);">+180 · goal 500</span></div>
+        <div style="font-size:34px;font-weight:700;letter-spacing:1px;font-variant-numeric:tabular-nums;margin-top:12px;">14:32</div>
+        <div style="height:3px;border-radius:2px;overflow:hidden;margin-top:12px;background:color-mix(in srgb,var(--border) 60%,transparent);"><div style="height:100%;width:42%;background:var(--accent);"></div></div>
+      </div>
+    </div>
+    <div>
+      <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:600;opacity:.85;margin-bottom:9px;">toast &amp; minimized chip</div>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <span style="display:inline-flex;align-self:flex-start;align-items:center;gap:9px;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-toast);box-shadow:var(--shadow-toast),var(--glass-highlight);padding:10px 15px;font-size:13px;"><i class="ti ti-run" style="font-size:15px;color:var(--accent);"></i>sprint complete <span style="color:var(--text-dim);">· +342 words</span></span>
+        <span style="display:inline-flex;align-self:flex-start;align-items:center;gap:6px;font-size:11px;color:var(--text-dim);"><i class="ti ti-run" style="font-size:13px;color:var(--accent);"></i> Sprinting</span>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:600;opacity:.85;margin-bottom:6px;">status bar</div>
+    <div style="height:30px;background:var(--bg-alt);border-top:1px solid var(--border);border-radius:0 0 8px 8px;display:flex;align-items:center;gap:16px;padding:0 18px;font-size:11px;letter-spacing:.03em;color:var(--text-dim);"><span>2064 words</span><span style="color:var(--text-dimmer);">10922 chars</span><span style="color:var(--text-dimmer);">source</span><span style="flex:1;"></span><span style="color:var(--syntax-2);">editor</span><span style="color:var(--text-dimmer);">ch1.md</span></div>
+  </div>
+
+</div>

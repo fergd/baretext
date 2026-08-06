@@ -36,6 +36,20 @@ function el(tag, className, text) {
   return e;
 }
 
+// Real <button>s instead of span/div+mousedown: focusable, keyboard-operable
+// (Enter/Space fire click for free), and announced with a role by default.
+// mousedown still gets preventDefault() (keeps the trick that stops the
+// button from stealing focus from the editor); the actual action binds to
+// click, which fires for both mouse and keyboard activation.
+function btn(className, text) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  if (className) b.className = className;
+  if (text !== undefined) b.textContent = text;
+  b.addEventListener('mousedown', (e) => e.preventDefault());
+  return b;
+}
+
 function icon(cls) {
   const i = document.createElement('i');
   i.className = 'ti ' + cls;
@@ -77,8 +91,10 @@ function injectStyle() {
 
 .sprint-chips { display: flex; gap: 8px; margin-top: 13px; }
 .sprint-chip-opt {
+  all: unset; box-sizing: border-box;
   flex: 1; text-align: center; padding: 7px 0; border-radius: 6px;
   border: 1px solid var(--glass-border); color: var(--text-dim); font-size: 13px; cursor: pointer;
+  font-family: var(--font-mono);
   transition: background .1s ease, color .1s ease;
 }
 .sprint-chip-opt:hover { background: var(--wash-accent); color: var(--text); }
@@ -95,8 +111,16 @@ function injectStyle() {
 }
 .sprint-goal-input::-webkit-outer-spin-button,
 .sprint-goal-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-.sprint-goal-stepper { display: flex; flex-direction: column; cursor: pointer; }
-.sprint-goal-step { font-size: 9px; line-height: 1; padding: 1px 2px; color: var(--text-dimmer); transition: color .1s ease; }
+.sprint-goal-stepper { display: flex; flex-direction: column; gap: 2px; }
+.sprint-goal-step {
+  all: unset; box-sizing: border-box; position: relative; display: flex;
+  cursor: pointer; font-size: 9px; line-height: 1; padding: 1px 2px;
+  color: var(--text-dimmer); transition: color .1s ease;
+}
+/* Invisible hit-layer: keeps the compact 9px glyph's visual footprint while
+   giving the button a real ~24px target, per the audit's "grow the hit area
+   without growing the ink" guidance. */
+.sprint-goal-step::before { content: ''; position: absolute; inset: -8px; }
 .sprint-goal-step:hover { color: var(--accent); }
 
 .sprint-evoke-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 14px; padding-top: 11px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text-dim); }
@@ -109,7 +133,9 @@ function injectStyle() {
 .sprint-dot.paused { animation: none; opacity: .4; background: var(--text-dimmer); }
 .sprint-header-right { display: flex; gap: 6px; }
 .sprint-pill {
-  font-size: 11px; color: var(--text-dim); padding: 3px 10px;
+  all: unset; box-sizing: border-box; font-family: var(--font-mono);
+  font-size: 11px; color: var(--text-dim); padding: 3px 10px; min-height: 28px;
+  display: inline-flex; align-items: center;
   border: 1px solid var(--glass-border); border-radius: 5px; cursor: pointer;
   transition: background .1s ease, color .1s ease;
 }
@@ -132,7 +158,15 @@ function injectStyle() {
 .sprint-edge-fill { height: 100%; width: 0%; background: var(--accent); box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 70%, transparent); }
 .sprint-edge.paused .sprint-edge-fill { opacity: .4; box-shadow: none; }
 
-.sprint-chip-status { display: flex; align-items: center; gap: 6px; cursor: pointer; transition: color .15s ease; }
+.sprint-chip-status {
+  /* all:unset would also wipe out the shared .status-item rule (font-size/
+     color/letter-spacing from index.html) since this JS-injected stylesheet
+     lands after it in cascade order -- re-declare them here explicitly. */
+  all: unset; box-sizing: border-box;
+  font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); letter-spacing: 0.03em;
+  display: flex; align-items: center; gap: 6px; padding: 4px 6px; margin: -4px -6px;
+  cursor: pointer; transition: color .15s ease;
+}
 .sprint-chip-status .ti-run { color: var(--text-dimmer); font-size: 13px; transition: color .15s ease; }
 .sprint-chip-status:hover { color: var(--text); }
 .sprint-chip-status:hover .ti-run { color: var(--text-dim); }
@@ -175,6 +209,9 @@ function updateChipContent() {
     chipEl.appendChild(document.createTextNode(' sprint'));
     chipEl.title = 'click to start a sprint';
   }
+  // title isn't a reliable accessible name (not consistently exposed, invisible
+  // to touch) -- mirror it into aria-label, and announce changes politely.
+  chipEl.setAttribute('aria-label', chipEl.title);
 }
 
 function buildEvoke() {
@@ -182,20 +219,40 @@ function buildEvoke() {
   panelEl.appendChild(el('div', 'sprint-label', 'start sprint'));
 
   const chipsRow = el('div', 'sprint-chips');
+  chipsRow.setAttribute('role', 'radiogroup');
+  chipsRow.setAttribute('aria-label', 'Sprint duration');
   DURATIONS.forEach(min => {
-    const chip = el('div', 'sprint-chip-opt' + (min === selectedMinutes ? ' active' : ''), String(min));
-    chip.addEventListener('mousedown', (e) => { e.preventDefault(); selectedMinutes = min; buildEvoke(); });
+    const isActive = min === selectedMinutes;
+    const chip = btn('sprint-chip-opt' + (isActive ? ' active' : ''), String(min));
+    chip.setAttribute('role', 'radio');
+    chip.setAttribute('aria-checked', String(isActive));
+    chip.addEventListener('click', () => {
+      // buildEvoke() below fully rebuilds the panel (replacing this button),
+      // so a keyboard activation would otherwise lose focus to nowhere --
+      // restore it to the newly-active chip.
+      const hadFocus = document.activeElement === chip;
+      selectedMinutes = min;
+      buildEvoke();
+      if (hadFocus) {
+        const newActive = panelEl.querySelector('.sprint-chip-opt.active');
+        if (newActive) newActive.focus();
+      }
+    });
     chipsRow.appendChild(chip);
   });
   panelEl.appendChild(chipsRow);
   panelEl.appendChild(el('div', 'sprint-minutes-label', 'minutes'));
 
   const goalRow = el('div', 'sprint-goal-row');
-  goalRow.appendChild(document.createTextNode('word goal'));
+  const goalLabel = document.createElement('label');
+  goalLabel.htmlFor = 'sprint-goal-input';
+  goalLabel.textContent = 'word goal';
+  goalRow.appendChild(goalLabel);
 
   const goalControl = el('div', 'sprint-goal-control');
   goalInputEl = document.createElement('input');
   goalInputEl.type = 'number';
+  goalInputEl.id = 'sprint-goal-input';
   goalInputEl.className = 'sprint-goal-input';
   goalInputEl.min = '0';
   goalInputEl.step = String(GOAL_STEP);
@@ -207,12 +264,14 @@ function buildEvoke() {
   goalControl.appendChild(goalInputEl);
 
   const stepper = el('div', 'sprint-goal-stepper');
-  const up = el('span', 'sprint-goal-step');
+  const up = btn('sprint-goal-step');
+  up.setAttribute('aria-label', 'Increase word goal');
   up.appendChild(icon('ti-chevron-up'));
-  up.addEventListener('mousedown', (e) => { e.preventDefault(); bumpGoal(GOAL_STEP); });
-  const down = el('span', 'sprint-goal-step');
+  up.addEventListener('click', () => bumpGoal(GOAL_STEP));
+  const down = btn('sprint-goal-step');
+  down.setAttribute('aria-label', 'Decrease word goal');
   down.appendChild(icon('ti-chevron-down'));
-  down.addEventListener('mousedown', (e) => { e.preventDefault(); bumpGoal(-GOAL_STEP); });
+  down.addEventListener('click', () => bumpGoal(-GOAL_STEP));
   stepper.append(up, down);
   goalControl.appendChild(stepper);
 
@@ -225,6 +284,11 @@ function buildEvoke() {
 }
 
 function buildActive() {
+  // Rebuilding replaces the pill buttons wholesale (e.g. pause -> resume
+  // changes label) -- capture which one had keyboard focus so it can be
+  // restored at the same position after rebuild, instead of losing focus.
+  const focusedPillIndex = Array.from(panelEl.querySelectorAll('.sprint-pill')).indexOf(document.activeElement);
+
   panelEl.innerHTML = '';
 
   const header = el('div', 'sprint-header');
@@ -234,15 +298,20 @@ function buildActive() {
     el('span', 'sprint-label', sprint.paused ? 'paused' : 'sprint')
   );
   const right = el('div', 'sprint-header-right');
-  const minBtn = el('span', 'sprint-pill', 'minimize');
-  minBtn.addEventListener('mousedown', (e) => { e.preventDefault(); setView('edge'); });
-  const pauseBtn = el('span', 'sprint-pill', sprint.paused ? 'resume' : 'pause');
-  pauseBtn.addEventListener('mousedown', (e) => { e.preventDefault(); togglePause(); });
-  const endBtn = el('span', 'sprint-pill', 'end');
-  endBtn.addEventListener('mousedown', (e) => { e.preventDefault(); endSprint(); });
+  const minBtn = btn('sprint-pill', 'minimize');
+  minBtn.addEventListener('click', () => setView('edge'));
+  const pauseBtn = btn('sprint-pill', sprint.paused ? 'resume' : 'pause');
+  pauseBtn.addEventListener('click', () => togglePause());
+  const endBtn = btn('sprint-pill', 'end');
+  endBtn.addEventListener('click', () => endSprint());
   right.append(minBtn, pauseBtn, endBtn);
   header.append(left, right);
   panelEl.appendChild(header);
+
+  if (focusedPillIndex !== -1) {
+    const newPills = right.querySelectorAll('.sprint-pill');
+    if (newPills[focusedPillIndex]) newPills[focusedPillIndex].focus();
+  }
 
   const timeRow = el('div', 'sprint-time-row');
   timeEl = el('span', 'sprint-time', '00:00');
@@ -397,8 +466,9 @@ export default {
     edgeEl.appendChild(edgeFillEl);
     ctx.dom.app.appendChild(edgeEl);
 
-    chipEl = el('span', 'status-item sprint-chip-status');
-    chipEl.addEventListener('mousedown', (e) => { e.preventDefault(); handleStartCommand(); });
+    chipEl = btn('status-item sprint-chip-status');
+    chipEl.setAttribute('aria-live', 'polite');
+    chipEl.addEventListener('click', () => handleStartCommand());
     ctx.dom.statusLeft.appendChild(chipEl);
 
     sprint = null;

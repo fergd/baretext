@@ -144,6 +144,7 @@ describe('Baretext E2E smoke test', () => {
       await new Promise(r => setTimeout(r, 100));
       const target = [...document.querySelectorAll('.pitem')].find(e => e.textContent.includes('Clear ignored'));
       target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       // closePalette() defers overlay.classList.remove('open') by 200ms —
       // wait it out so the next test's Mod-key shortcuts aren't swallowed
       // by app.js's "palette still open" guard.
@@ -184,6 +185,7 @@ describe('Baretext E2E smoke test', () => {
       const rows = [...document.querySelectorAll('.rail-scene-row')];
       const target = rows.find(r => r.innerText.includes('A Turning Point'));
       target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
       const active = document.querySelector('.rail-scene-row.active');
       return active ? active.innerText : null;
@@ -195,6 +197,7 @@ describe('Baretext E2E smoke test', () => {
     await app.client.evaluate(`
       const editBtn = document.querySelector('.rail-chapter-row .rail-edit-btn');
       editBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      editBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 100));
       const input = document.querySelector('.inline-rename-input');
       input.value = 'The Harbor';
@@ -213,6 +216,7 @@ describe('Baretext E2E smoke test', () => {
       const target = rows.find(r => r.innerText.startsWith('Scene 1'));
       const editBtn = target.querySelector('.rail-edit-btn');
       editBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      editBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 100));
       const input = document.querySelector('.inline-rename-input');
       input.value = 'The Harbor Opens';
@@ -229,6 +233,7 @@ describe('Baretext E2E smoke test', () => {
     const result = await app.client.evaluate(`
       const btn = document.querySelector('.rail-corkboard-btn');
       btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
       const cork = document.getElementById('corkboard');
       const titles = [...cork.querySelectorAll('.scene-card-title')].map(e => e.innerText);
@@ -259,6 +264,7 @@ describe('Baretext E2E smoke test', () => {
   test('drag-reordering a scene within a chapter updates the document', async () => {
     const result = await app.client.evaluate(`
       document.querySelector('.rail-corkboard-btn').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      document.querySelector('.rail-corkboard-btn').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
       const cork = document.getElementById('corkboard');
       const cards = [...cork.querySelectorAll('.scene-card')];
@@ -291,6 +297,7 @@ describe('Baretext E2E smoke test', () => {
       const cork = document.getElementById('corkboard');
       const undoBtn = document.querySelector('.corkboard-tool-btn');
       undoBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      undoBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
       return [...cork.querySelectorAll('.scene-card-title')].map(e => e.innerText);
     `);
@@ -325,7 +332,9 @@ describe('Baretext E2E smoke test', () => {
     const after = await app.client.evaluate(`
       const cork = document.getElementById('corkboard');
       const section = cork.querySelector('.corkboard-chapter');
-      section.querySelector('.scene-card-new').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      const newSceneBtn = section.querySelector('.scene-card-new');
+      newSceneBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      newSceneBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
       const newSection = document.getElementById('corkboard').querySelector('.corkboard-chapter');
       return {
@@ -382,12 +391,14 @@ describe('Baretext E2E smoke test', () => {
       // Self-sufficient regardless of whether the previous test left the
       // corkboard open or closed.
       document.querySelector('.rail-corkboard-btn').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      document.querySelector('.rail-corkboard-btn').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
       const cork = document.getElementById('corkboard');
       const card = [...cork.querySelectorAll('.scene-card')][0];
       const openBtn = [...card.querySelectorAll('.corkboard-edit-btn')][1];
       const title = openBtn.title;
       openBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      openBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
       return { title, corkDisplayAfter: getComputedStyle(cork).display };
     `);
@@ -400,6 +411,7 @@ describe('Baretext E2E smoke test', () => {
       // Self-sufficient regardless of what state the previous test left
       // things in — reopen first so this genuinely exercises Escape-close.
       document.querySelector('.rail-corkboard-btn').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      document.querySelector('.rail-corkboard-btn').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
@@ -414,6 +426,7 @@ describe('Baretext E2E smoke test', () => {
     const result = await app.client.evaluate(`
       const btn = document.querySelector('.rail-scene-row .rail-delete-btn');
       btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 100));
       const armedText = btn.innerText;
       const armedClass = btn.classList.contains('confirm');
@@ -433,9 +446,11 @@ describe('Baretext E2E smoke test', () => {
       const btns = [...document.querySelectorAll('.rail-scene-row .rail-delete-btn')];
       const [first, second] = btns;
       first.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      first.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 100));
       const firstArmed = first.classList.contains('confirm');
       second.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      second.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 100));
       const out = { firstArmed, firstStillArmed: first.classList.contains('confirm'), secondArmed: second.classList.contains('confirm') };
       // Leave nothing armed behind — a lingering armed button (with its own
@@ -458,8 +473,10 @@ describe('Baretext E2E smoke test', () => {
       const label = row.querySelector('.rail-scene-name').innerText;
       const btn = row.querySelector('.rail-delete-btn');
       btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 100));
       btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
       const after = document.getElementById('scene-rail').querySelectorAll('.rail-scene-row').length;
       const stillOnPage = [...document.querySelectorAll('.cm-line')].some(l => l.textContent === label && label !== 'Scene 1' && label !== 'Scene 2');
@@ -474,13 +491,16 @@ describe('Baretext E2E smoke test', () => {
   test('deleting a scene from the corkboard does not close it', async () => {
     const result = await app.client.evaluate(`
       document.querySelector('.rail-corkboard-btn').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      document.querySelector('.rail-corkboard-btn').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
       const cork = document.getElementById('corkboard');
       const before = cork.querySelectorAll('.scene-card').length;
       const btn = cork.querySelector('.scene-card .corkboard-delete-btn');
       btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 100));
       btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
       return { before, after: cork.querySelectorAll('.scene-card').length, display: getComputedStyle(cork).display };
     `);
@@ -496,8 +516,10 @@ describe('Baretext E2E smoke test', () => {
       const chapterLabel = lastSection.querySelector('.corkboard-chapter-num').innerText;
       const btn = lastSection.querySelector('.corkboard-chapter-title-group .corkboard-delete-btn');
       btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 100));
       btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
       return { chaptersBefore, chaptersAfter: cork.querySelectorAll('.corkboard-chapter').length, display: getComputedStyle(cork).display };
     `);
@@ -523,6 +545,7 @@ describe('Baretext E2E smoke test', () => {
       await new Promise(r => setTimeout(r, 100));
       const target = [...document.querySelectorAll('.pitem')].find(e => e.textContent.includes('Sprinter'));
       target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 250));
       const evokeVisible = getComputedStyle(document.querySelector('.sprint-panel')).display;
       // Cancel back to idle so the following tests' assumptions hold.
@@ -545,6 +568,7 @@ describe('Baretext E2E smoke test', () => {
       const tw = document.getElementById('tw-status-indicator');
       const before = document.getElementById('app').classList.contains('typewriter');
       tw.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      tw.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 250));
       const after = document.getElementById('app').classList.contains('typewriter');
       return { before, after };
@@ -586,6 +610,7 @@ describe('Baretext E2E smoke test', () => {
     const result = await app.client.evaluate(`
       const chip = document.querySelector('.sprint-chip-status');
       chip.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      chip.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
       const evokeVisible = getComputedStyle(document.querySelector('.sprint-panel')).display;
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
@@ -603,9 +628,12 @@ describe('Baretext E2E smoke test', () => {
     const result = await app.client.evaluate(`
       const minBtn = [...document.querySelectorAll('.sprint-pill')].find(b => b.innerText === 'minimize');
       minBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      minBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
       const panelHiddenWhileMinimized = getComputedStyle(document.querySelector('.sprint-panel')).display;
-      document.querySelector('.sprint-chip-status').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      const chipStatus = document.querySelector('.sprint-chip-status');
+      chipStatus.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      chipStatus.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
       const panelRestored = getComputedStyle(document.querySelector('.sprint-panel')).display;
       return { panelHiddenWhileMinimized, panelRestored };
@@ -630,6 +658,7 @@ describe('Baretext E2E smoke test', () => {
 
       // Restore to active so the next test can find the panel's "end" button.
       chip.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      chip.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
       const panelRestored = getComputedStyle(document.querySelector('.sprint-panel')).display;
 
@@ -646,6 +675,7 @@ describe('Baretext E2E smoke test', () => {
     const result = await app.client.evaluate(`
       const endBtn = [...document.querySelectorAll('.sprint-pill')].find(b => b.innerText === 'end');
       endBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      endBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
       const chip = document.querySelector('.sprint-chip-status');
       return { text: chip.innerText, running: chip.classList.contains('running') };
@@ -739,6 +769,7 @@ describe('Baretext E2E: chapter placeholders and per-chapter scene targeting', (
       const rows = [...document.querySelectorAll('.rail-scene-add')];
       const chapterTwoRow = rows.find(r => r.title.includes('Chapter Two'));
       chapterTwoRow.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      chapterTwoRow.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
       return [...document.querySelectorAll('.cm-line')].map(l => l.textContent);
     `);
@@ -809,7 +840,9 @@ describe('Baretext E2E: sprint pause/resume', () => {
   test('pausing freezes the countdown and resuming continues it, reflected in the panel, chip, and edge line', async () => {
     // Start a sprint the same way a user would: chip -> evoke -> Enter.
     await app.client.evaluate(`
-      document.querySelector('.sprint-chip-status').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      const chipStatus = document.querySelector('.sprint-chip-status');
+      chipStatus.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      chipStatus.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
@@ -819,6 +852,7 @@ describe('Baretext E2E: sprint pause/resume', () => {
       const timeBefore = document.querySelector('.sprint-time').textContent;
       const pauseBtn = [...document.querySelectorAll('.sprint-pill')].find(b => b.innerText === 'pause');
       pauseBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      pauseBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
       const pillLabels = [...document.querySelectorAll('.sprint-pill')].map(b => b.innerText);
       const dotPaused = document.querySelector('.sprint-dot').classList.contains('paused');
@@ -836,6 +870,7 @@ describe('Baretext E2E: sprint pause/resume', () => {
       const timeBefore = document.querySelector('.sprint-time').textContent;
       const resumeBtn = [...document.querySelectorAll('.sprint-pill')].find(b => b.innerText === 'resume');
       resumeBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      resumeBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
       const pillLabels = [...document.querySelectorAll('.sprint-pill')].map(b => b.innerText);
       const dotPaused = document.querySelector('.sprint-dot').classList.contains('paused');
@@ -855,9 +890,11 @@ describe('Baretext E2E: sprint pause/resume', () => {
     await app.client.evaluate(`
       const pauseBtn = [...document.querySelectorAll('.sprint-pill')].find(b => b.innerText === 'pause');
       pauseBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      pauseBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
       const minBtn = [...document.querySelectorAll('.sprint-pill')].find(b => b.innerText === 'minimize');
       minBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      minBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
     `);
     const result = await app.client.evaluate(`
@@ -878,7 +915,9 @@ describe('Baretext E2E: sprint pause/resume', () => {
   // views show.
   test('the hidden view still says "sprinting", not "paused", while paused', async () => {
     await app.client.evaluate(`
-      document.querySelector('.sprint-chip-status').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      const chipStatus = document.querySelector('.sprint-chip-status');
+      chipStatus.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      chipStatus.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'H', metaKey: true, shiftKey: true, bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
@@ -1010,15 +1049,444 @@ describe('Baretext E2E: rail drag-and-drop', () => {
       const row = [...document.querySelectorAll('.rail-chapter-row')].find(r => r.textContent.includes('Chapter One'));
       const before = document.querySelectorAll('.rail-scene-row').length;
       row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      row.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 100));
       const collapsed = document.querySelectorAll('.rail-scene-row').length;
       row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      row.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 100));
       const restored = document.querySelectorAll('.rail-scene-row').length;
       return { before, collapsed, restored };
     `);
     assert.ok(result.collapsed < result.before);
     assert.equal(result.restored, result.before);
+  });
+
+  test('no console errors in this suite', () => {
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+});
+
+describe('Baretext E2E: theme picker', () => {
+  let app;
+
+  before(async () => {
+    app = await launchApp({ fixtureContent: 'Some prose.', mode: 'editor' });
+    await new Promise((r) => setTimeout(r, 400));
+  });
+
+  after(async () => {
+    if (app) await app.close();
+  });
+
+  function openViaPalette(query) {
+    return `
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 150));
+      document.getElementById('palette-input').value = ${JSON.stringify(query)};
+      document.getElementById('palette-input').dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 100));
+      const target = [...document.querySelectorAll('.pitem')].find(el => el.querySelector('.pitem-label').textContent.includes(${JSON.stringify(query)}));
+      target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 300));
+    `;
+  }
+
+  test('"Change theme…" opens a 5-card gallery, each card resolving its own theme\'s tokens', async () => {
+    const result = await app.client.evaluate(`
+      ${openViaPalette('Change theme')}
+      return {
+        pickerDisplay: getComputedStyle(document.getElementById('theme-picker')).display,
+        contentRowDisplay: getComputedStyle(document.getElementById('content-row')).display,
+        cards: [...document.querySelectorAll('.tp-card')].map(c => ({
+          theme: c.dataset.theme,
+          bg: getComputedStyle(c).backgroundColor,
+          role: c.getAttribute('role'),
+        })),
+      };
+    `);
+    assert.equal(result.pickerDisplay, 'flex');
+    assert.equal(result.contentRowDisplay, 'none');
+    assert.deepEqual(result.cards.map((c) => c.theme), ['dark', 'light', 'amstrad', 'grove', 'dracula']);
+    assert.ok(result.cards.every((c) => c.role === 'radio'));
+    // Each card must render its OWN theme's --bg, not the app's actual
+    // active theme -- the whole point of the nested data-theme scope trick.
+    assert.equal(result.cards[0].bg, 'rgb(36, 36, 36)');   // dark --bg #242424
+    assert.equal(result.cards[3].bg, 'rgb(47, 56, 62)');   // grove --bg #2f383e
+    const distinctBgs = new Set(result.cards.map((c) => c.bg));
+    assert.equal(distinctBgs.size, 5);
+  });
+
+  test('clicking a card applies + persists the theme and keeps the picker open', async () => {
+    const result = await app.client.evaluate(`
+      const groveCard = document.querySelector('.tp-card[data-theme="grove"]');
+      groveCard.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 400));
+      return {
+        appTheme: document.documentElement.getAttribute('data-theme'),
+        groveApplied: groveCard.classList.contains('applied'),
+        groveAriaChecked: groveCard.getAttribute('aria-checked'),
+        darkApplied: document.querySelector('.tp-card[data-theme="dark"]').classList.contains('applied'),
+        pickerStillOpen: getComputedStyle(document.getElementById('theme-picker')).display,
+      };
+    `);
+    assert.equal(result.appTheme, 'grove');
+    assert.equal(result.groveApplied, true);
+    assert.equal(result.groveAriaChecked, 'true');
+    assert.equal(result.darkApplied, false);
+    assert.equal(result.pickerStillOpen, 'flex');
+    assert.equal(app.readSettings().accentTheme, 'grove');
+  });
+
+  test('arrow keys move keyboard focus, Enter applies the focused card, Esc closes and refocuses the editor', async () => {
+    const kbd = await app.client.evaluate(`
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 100));
+      const focused = document.querySelector('.tp-card.kbd-focus');
+      const focusedTheme = focused ? focused.dataset.theme : null;
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 400));
+      return { focusedTheme, appThemeAfterEnter: document.documentElement.getAttribute('data-theme') };
+    `);
+    assert.equal(kbd.focusedTheme, 'dracula'); // grove -> next card in DOM order
+    assert.equal(kbd.appThemeAfterEnter, 'dracula');
+
+    const esc = await app.client.evaluate(`
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 300));
+      return {
+        pickerDisplay: getComputedStyle(document.getElementById('theme-picker')).display,
+        contentRowDisplay: getComputedStyle(document.getElementById('content-row')).display,
+        editorFocused: document.activeElement && document.activeElement.classList.contains('cm-content'),
+      };
+    `);
+    assert.equal(esc.pickerDisplay, 'none');
+    assert.equal(esc.contentRowDisplay, 'flex');
+    assert.equal(esc.editorFocused, true);
+  });
+
+  test('reopening does not duplicate cards and resets keyboard focus to the applied theme', async () => {
+    const result = await app.client.evaluate(`
+      ${openViaPalette('Change theme')}
+      const dracula = document.querySelector('.tp-card[data-theme="dracula"]');
+      return {
+        cardCount: document.querySelectorAll('.tp-card').length,
+        draculaApplied: dracula.classList.contains('applied'),
+        draculaKbdFocus: dracula.classList.contains('kbd-focus'),
+      };
+    `);
+    assert.equal(result.cardCount, 5);
+    assert.equal(result.draculaApplied, true);
+    assert.equal(result.draculaKbdFocus, true);
+  });
+
+  test('the live specimen uses --typewriter-focus for the active line and .28 opacity for its neighbors', async () => {
+    const result = await app.client.evaluate(`
+      const darkCard = document.querySelector('.tp-card[data-theme="dark"]');
+      const focusLine = darkCard.querySelector('.tp-specimen-line.focus');
+      const dimLine = darkCard.querySelector('.tp-specimen-line.dim');
+      return {
+        focusLineColor: getComputedStyle(focusLine).color,
+        dimLineOpacity: getComputedStyle(dimLine).opacity,
+        caretWidth: getComputedStyle(darkCard.querySelector('.tp-caret')).width,
+      };
+    `);
+    assert.equal(result.focusLineColor, 'rgb(251, 230, 160)'); // dark --typewriter-focus #fbe6a0
+    assert.equal(result.dimLineOpacity, '0.28');
+    assert.equal(result.caretWidth, '2px');
+  });
+
+  test('the direct per-theme palette entries (quick-switch) still work alongside the picker', async () => {
+    const result = await app.client.evaluate(`
+      ${openViaPalette('Amstrad')}
+      return { appTheme: document.documentElement.getAttribute('data-theme') };
+    `);
+    assert.equal(result.appTheme, 'amstrad');
+  });
+
+  test('no console errors in this suite', () => {
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+});
+
+// Accessibility pass (design_handoff_baretext/ACCESSIBILITY.md): real
+// <button>s instead of span/div+mousedown, keyboard-operable everywhere,
+// hit targets, contrast, ARIA. Own instance so tabbing/keyboard-focus
+// checks here can't be thrown off by state the other suites leave behind.
+describe('Baretext E2E: accessibility pass', () => {
+  let app;
+  const fixture = [
+    '# Chapter One',
+    '',
+    'A1 opening prose here, plenty of words so it is not a draft scene for testing.',
+    '',
+    '---',
+    '',
+    'A2 second scene prose here, plenty of words so it is not a draft scene either.',
+  ].join('\n');
+
+  before(async () => {
+    app = await launchApp({ fixtureContent: fixture, mode: 'editor' });
+    await new Promise((r) => setTimeout(r, 400));
+  });
+
+  after(async () => {
+    if (app) await app.close();
+  });
+
+  test('rail/corkboard/sprint controls are real, focusable <button>s, not span/div+mousedown', async () => {
+    const result = await app.client.evaluate(`
+      const selectors = [
+        '.rail-corkboard-btn', '.rail-edit-btn', '.rail-delete-btn', '.rail-drag-handle',
+        '.rail-scene-add', '.rail-footer', '#tw-status-indicator',
+      ];
+      return selectors.map(sel => {
+        const el = document.querySelector(sel);
+        return { sel, found: !!el, tag: el ? el.tagName : null, type: el ? el.type : null };
+      });
+    `);
+    for (const r of result) {
+      assert.ok(r.found, `${r.sel} should exist`);
+      assert.equal(r.tag, 'BUTTON', `${r.sel} should be a real <button>`);
+      assert.equal(r.type, 'button', `${r.sel} should have type="button"`);
+    }
+  });
+
+  test('chapter and scene rows are keyboard-focusable tree items with the right ARIA roles', async () => {
+    const result = await app.client.evaluate(`
+      const tree = document.querySelector('#scene-rail [role="tree"]');
+      const chRow = document.querySelector('.rail-chapter-row');
+      const sceneRow = document.querySelector('.rail-scene-row');
+      return {
+        treeRole: tree ? tree.getAttribute('role') : null,
+        chRole: chRow.getAttribute('role'),
+        chTabIndex: chRow.tabIndex,
+        chAriaExpanded: chRow.getAttribute('aria-expanded'),
+        sceneRole: sceneRow.getAttribute('role'),
+        sceneTabIndex: sceneRow.tabIndex,
+      };
+    `);
+    assert.equal(result.treeRole, 'tree');
+    assert.equal(result.chRole, 'treeitem');
+    assert.equal(result.chTabIndex, 0);
+    assert.ok(result.chAriaExpanded === 'true' || result.chAriaExpanded === 'false');
+    assert.equal(result.sceneRole, 'treeitem');
+    assert.equal(result.sceneTabIndex, 0);
+  });
+
+  test('Enter on a focused chapter row toggles it; arrow keys move focus between rows', async () => {
+    const result = await app.client.evaluate(`
+      const chRow = document.querySelector('.rail-chapter-row');
+      const before = document.querySelectorAll('.rail-scene-row').length;
+      chRow.focus();
+      chRow.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 100));
+      const collapsed = document.querySelectorAll('.rail-scene-row').length;
+      const stillFocused = document.activeElement && document.activeElement.classList.contains('rail-chapter-row');
+
+      const chRowAfter = document.querySelector('.rail-chapter-row');
+      chRowAfter.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 100));
+      const restored = document.querySelectorAll('.rail-scene-row').length;
+
+      document.querySelector('.rail-chapter-row').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 50));
+      const focusedAfterArrow = document.activeElement ? document.activeElement.className : null;
+
+      return { before, collapsed, restored, stillFocused, focusedAfterArrow };
+    `);
+    assert.ok(result.collapsed < result.before, 'Enter should collapse the chapter');
+    assert.equal(result.stillFocused, true, 'focus should stay on the row after toggling, not get lost');
+    assert.equal(result.restored, result.before, 'a second Enter should expand it back');
+    assert.match(result.focusedAfterArrow || '', /rail-scene-row|rail-chapter-row/);
+  });
+
+  test('F2 renames and Delete arms the delete button on the focused row', async () => {
+    const renamed = await app.client.evaluate(`
+      const row = document.querySelector('.rail-scene-row');
+      row.focus();
+      row.dispatchEvent(new KeyboardEvent('keydown', { key: 'F2', bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 100));
+      const input = document.querySelector('.inline-rename-input');
+      return { inputPresent: !!input, inputFocused: document.activeElement === input };
+    `);
+    assert.equal(renamed.inputPresent, true);
+    assert.equal(renamed.inputFocused, true);
+    await app.client.evaluate(`
+      document.querySelector('.inline-rename-input').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 100));
+    `);
+
+    const armed = await app.client.evaluate(`
+      const row = document.querySelector('.rail-scene-row');
+      row.focus();
+      row.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 100));
+      const btn = row.querySelector('.rail-delete-btn');
+      const isArmed = btn.classList.contains('confirm');
+      btn._testDisarm = true;
+      return { isArmed, ariaLabel: btn.getAttribute('aria-label') };
+    `);
+    assert.equal(armed.isArmed, true);
+    assert.match(armed.ariaLabel, /^Confirm delete/);
+    // Let the 3s auto-revert clear the armed state before the next test.
+    await new Promise((r) => setTimeout(r, 3200));
+  });
+
+  test('⌥↑/⌥↓ on a focused scene row reorders it within the chapter (keyboard alternative to drag)', async () => {
+    const before = await app.client.evaluate('return document.querySelector(".cm-content").innerText;');
+    assert.ok(before.indexOf('A1 opening') < before.indexOf('A2 second'));
+
+    await app.client.evaluate(`
+      const rows = [...document.querySelectorAll('.rail-scene-row')];
+      const second = rows[1]; // A2
+      second.focus();
+      second.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', altKey: true, bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 200));
+    `);
+    const after = await app.client.evaluate('return document.querySelector(".cm-content").innerText;');
+    assert.ok(after.indexOf('A2 second') < after.indexOf('A1 opening'), 'A2 should now come before A1');
+  });
+
+  test('a global :focus-visible ring and a prefers-reduced-motion rule are registered app-wide', async () => {
+    const result = await app.client.evaluate(`
+      let hasFocusVisible = false, hasReducedMotion = false;
+      for (const sheet of document.styleSheets) {
+        let rules;
+        try { rules = sheet.cssRules; } catch (e) { continue; }
+        for (const rule of rules) {
+          if (rule.selectorText && rule.selectorText.includes(':focus-visible')) hasFocusVisible = true;
+          if (rule.media && rule.conditionText && rule.conditionText.includes('prefers-reduced-motion')) hasReducedMotion = true;
+        }
+      }
+      return { hasFocusVisible, hasReducedMotion };
+    `);
+    assert.equal(result.hasFocusVisible, true);
+    assert.equal(result.hasReducedMotion, true);
+  });
+
+  // The worst offenders from ACCESSIBILITY.md's P0 hit-target table --
+  // effective size counts the invisible ::before hit-layer some of these
+  // use to grow the click target without growing the visible glyph.
+  test('the smallest icon-only controls have a real ~28px+ hit target, not just their visible glyph', async () => {
+    const result = await app.client.evaluate(`
+      function effectiveSize(sel) {
+        const el = document.querySelector(sel);
+        const rect = el.getBoundingClientRect();
+        const before = getComputedStyle(el, '::before');
+        const inset = parseFloat(before.inset || before.top || '0') || 0;
+        return { w: rect.width - inset * 2, h: rect.height - inset * 2 };
+      }
+      return {
+        corkboardBtn: effectiveSize('.rail-corkboard-btn'),
+        editBtn: effectiveSize('.rail-edit-btn'),
+        deleteBtn: effectiveSize('.rail-delete-btn'),
+        dragHandle: effectiveSize('.rail-drag-handle'),
+        footerMinHeight: getComputedStyle(document.querySelector('.rail-footer')).minHeight,
+      };
+    `);
+    for (const [name, size] of Object.entries(result)) {
+      if (name === 'footerMinHeight') continue;
+      assert.ok(size.w >= 24 && size.h >= 24, `${name} effective hit target should be >= 24px (got ${size.w}x${size.h})`);
+    }
+    assert.equal(result.footerMinHeight, '44px');
+  });
+
+  // P0-hover: rename/delete/drag-handle must never be hover-only -- a
+  // keyboard/touch/screen-reader user can't hover, so they'd otherwise be
+  // permanently unreachable.
+  test('rail action buttons are visible (not hover-gated to invisible) even without hovering', async () => {
+    const result = await app.client.evaluate(`
+      const editBtn = document.querySelector('.rail-edit-btn');
+      return { opacity: parseFloat(getComputedStyle(editBtn).opacity) };
+    `);
+    assert.ok(result.opacity > 0, 'edit button must have nonzero opacity by default, not opacity:0 until hover');
+  });
+
+  test('the command palette is a dialog+combobox+listbox: roles, aria-activedescendant tracks the highlighted option', async () => {
+    const result = await app.client.evaluate(`
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 150));
+      const palette = document.getElementById('palette');
+      const input = document.getElementById('palette-input');
+      const list = document.getElementById('palette-list');
+      const firstOption = document.querySelector('.pitem');
+      const before = {
+        dialogRole: palette.getAttribute('role'),
+        ariaModal: palette.getAttribute('aria-modal'),
+        inputRole: input.getAttribute('role'),
+        inputControls: input.getAttribute('aria-controls'),
+        listRole: list.getAttribute('role'),
+        firstOptionRole: firstOption.getAttribute('role'),
+        activeDescendantMatchesFirst: input.getAttribute('aria-activedescendant') === firstOption.id,
+      };
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 50));
+      const options = [...document.querySelectorAll('.pitem')];
+      const activeOpt = options.find(o => o.getAttribute('aria-selected') === 'true');
+      const afterArrow = {
+        onlySelectedCount: options.filter(o => o.getAttribute('aria-selected') === 'true').length,
+        activeDescendantMatchesActive: input.getAttribute('aria-activedescendant') === (activeOpt && activeOpt.id),
+      };
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 300));
+      return { before, afterArrow, closedAfterEsc: !document.getElementById('overlay').classList.contains('open') };
+    `);
+    assert.equal(result.before.dialogRole, 'dialog');
+    assert.equal(result.before.ariaModal, 'true');
+    assert.equal(result.before.inputRole, 'combobox');
+    assert.equal(result.before.inputControls, 'palette-list');
+    assert.equal(result.before.listRole, 'listbox');
+    assert.equal(result.before.firstOptionRole, 'option');
+    assert.equal(result.before.activeDescendantMatchesFirst, true);
+    assert.equal(result.afterArrow.onlySelectedCount, 1);
+    assert.equal(result.afterArrow.activeDescendantMatchesActive, true);
+    assert.equal(result.closedAfterEsc, true);
+  });
+
+  test('Tab does not escape the palette while it is open (focus trap)', async () => {
+    const result = await app.client.evaluate(`
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 150));
+      const input = document.getElementById('palette-input');
+      input.focus();
+      const before = document.activeElement === input;
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 50));
+      const after = document.activeElement === input;
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 300));
+      return { before, after };
+    `);
+    assert.equal(result.before, true);
+    assert.equal(result.after, true, 'focus should stay on the palette input, not escape to the dimmed content behind it');
+  });
+
+  test('the font picker is a radiogroup and the status bar is a labeled region', async () => {
+    const result = await app.client.evaluate(`
+      const group = document.getElementById('font-picker');
+      const serifBtn = document.querySelector('.fbtn.serif');
+      serifBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      serifBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 100));
+      return {
+        groupRole: group.getAttribute('role'),
+        groupLabel: group.getAttribute('aria-label'),
+        monoChecked: document.querySelector('.fbtn.mono').getAttribute('aria-checked'),
+        serifChecked: document.querySelector('.fbtn.serif').getAttribute('aria-checked'),
+        statusbarRole: document.getElementById('statusbar').getAttribute('role'),
+        statusbarLabel: document.getElementById('statusbar').getAttribute('aria-label'),
+      };
+    `);
+    assert.equal(result.groupRole, 'radiogroup');
+    assert.equal(result.groupLabel, 'Editor font');
+    assert.equal(result.monoChecked, 'false');
+    assert.equal(result.serifChecked, 'true');
+    assert.equal(result.statusbarRole, 'region');
+    assert.equal(result.statusbarLabel, 'Status');
   });
 
   test('no console errors in this suite', () => {

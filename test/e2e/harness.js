@@ -69,7 +69,14 @@ async function spawnElectron(userDataDir) {
   const child = spawn(
     process.execPath,
     [electronCli, '.', `--user-data-dir=${userDataDir}`, `--remote-debugging-port=${port}`],
-    { cwd: projectRoot, stdio: ['ignore', 'pipe', 'pipe'], detached: true }
+    {
+      cwd: projectRoot, stdio: ['ignore', 'pipe', 'pipe'], detached: true,
+      // Never show or steal focus -- CDP drives the renderer directly and
+      // doesn't need a visible window. Without this, every test/scratch
+      // launch pops a real window that grabs focus from whatever the
+      // developer is doing.
+      env: { ...process.env, BARETEXT_HIDDEN: '1' },
+    }
   );
   let stderr = '';
   child.stderr.on('data', (d) => { stderr += d.toString(); });

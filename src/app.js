@@ -4,6 +4,7 @@ import sprintTimer from './features/sprint-timer.js';
 import findReplace from './features/find-replace.js';
 import spellcheck from './features/spellcheck.js';
 import sceneNav from './features/scene-nav/index.js';
+import * as themePicker from './theme-picker.js';
 
 const FEATURES = { core, 'sprint-timer': sprintTimer, 'find-replace': findReplace, spellcheck, 'scene-nav': sceneNav };
 
@@ -166,11 +167,11 @@ async function cmdSaveDir() {
 // ── Theme ──
 const themeTextColors = {
   dark: '#faf2d6', light: '#2a2218',
-  ayu: '#c8e6b0', dracula: '#f8f8f2',
+  amstrad: '#c8e6b0', grove: '#d3c6aa', dracula: '#f8f8f2',
 };
 const themeAccentColors = {
   dark: '#f8c537', light: '#b8820a',
-  ayu: '#7dc45a', dracula: '#bd93f9',
+  amstrad: '#7dc45a', grove: '#a7c080', dracula: '#bd93f9',
 };
 
 function setTheme(t) {
@@ -200,7 +201,11 @@ const fontVars = {
 function setFont(f) {
   state.font = f;
   document.documentElement.style.setProperty('--font-editor', fontVars[f]);
-  document.querySelectorAll('.fbtn').forEach(b => b.classList.toggle('active', b.dataset.font === f));
+  document.querySelectorAll('.fbtn').forEach(b => {
+    const isActive = b.dataset.font === f;
+    b.classList.toggle('active', isActive);
+    b.setAttribute('aria-checked', String(isActive));
+  });
 }
 let fontPickerOpenedAt = 0;
 function toggleFontPicker() {
@@ -224,7 +229,8 @@ document.addEventListener('mousedown', (e) => {
     fontPicker.classList.remove('open');
   }
 });
-twIndicator.addEventListener('mousedown', (e) => { e.preventDefault(); toggleTypewriter(); });
+twIndicator.addEventListener('mousedown', (e) => e.preventDefault());
+twIndicator.addEventListener('click', () => toggleTypewriter());
 
 // ── Mode-agnostic editor helpers ──
 function insertSceneBreak() {
@@ -253,6 +259,7 @@ function setTypewriter(on, opts = {}) {
   const apply = () => {
     app.classList.toggle('typewriter', state.typewriter);
     twIndicator.classList.toggle('tw-on', state.typewriter);
+    twIndicator.setAttribute('aria-pressed', String(state.typewriter));
     if (state.typewriter) window.BaretextEditor.centerCursor(view);
   };
   const scroller = host.querySelector('.cm-scroller');
@@ -289,7 +296,7 @@ let paletteClosing = false;
 
 const themePaletteBg = {
   dark: '#1e1e1e', light: '#e8e3db',
-  ayu: '#0c110c', dracula: '#1e2030',
+  amstrad: '#0c110c', grove: '#282f34', dracula: '#1e2030',
 };
 function hexLuminance(hex) {
   const r = parseInt(hex.slice(1,3),16)/255;
@@ -343,6 +350,9 @@ function render(q) {
       const el = document.createElement('div');
       el.className = 'pitem' + (idx === 0 ? ' active' : '');
       el.dataset.idx = idx;
+      el.id = 'pitem-' + idx;
+      el.setAttribute('role', 'option');
+      el.setAttribute('aria-selected', String(idx === 0));
 
       const left = document.createElement('div');
       left.className = 'pitem-left';
@@ -379,7 +389,8 @@ function render(q) {
       el.appendChild(left);
       el.appendChild(right);
 
-      el.addEventListener('mousedown', (ev) => { ev.preventDefault(); item.fn(); if (!item.keepOpen) closePalette(); });
+      el.addEventListener('mousedown', (ev) => ev.preventDefault());
+      el.addEventListener('click', () => { item.fn(); if (!item.keepOpen) closePalette(); });
       el.addEventListener('mousemove', () => { activeIdx = idx; updateActive(); });
       pList.appendChild(el);
     });
@@ -427,6 +438,9 @@ function renderOutline(q) {
     const el = document.createElement('div');
     el.className = 'pitem' + (idx === 0 ? ' active' : '');
     el.dataset.idx = idx;
+    el.id = 'pitem-' + idx;
+    el.setAttribute('role', 'option');
+    el.setAttribute('aria-selected', String(idx === 0));
 
     const left = document.createElement('div');
     left.className = 'pitem-left';
@@ -454,7 +468,8 @@ function renderOutline(q) {
     el.appendChild(left);
     el.appendChild(right);
 
-    el.addEventListener('mousedown', (ev) => { ev.preventDefault(); jumpToOutlineItem(item); closePalette(); });
+    el.addEventListener('mousedown', (ev) => ev.preventDefault());
+    el.addEventListener('click', () => { jumpToOutlineItem(item); closePalette(); });
     el.addEventListener('mousemove', () => { activeIdx = idx; updateActive(); });
     pList.appendChild(el);
   });
@@ -482,7 +497,11 @@ function updateActive() {
   [...pList.querySelectorAll('.pitem')].forEach(el => {
     const isActive = Number(el.dataset.idx) === activeIdx;
     el.classList.toggle('active', isActive);
-    if (isActive) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    el.setAttribute('aria-selected', String(isActive));
+    if (isActive) {
+      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      pInput.setAttribute('aria-activedescendant', el.id);
+    }
   });
 }
 
@@ -511,6 +530,10 @@ function closePalette(refocus = true) {
 
 pInput.addEventListener('input', () => render(pInput.value));
 pInput.addEventListener('keydown', (e) => {
+  // Focus trap: the input is the only real tab stop inside the dialog
+  // (options are virtually-selected via aria-activedescendant, not real
+  // tab stops) -- keep Tab from escaping to the dimmed content behind it.
+  if (e.key === 'Tab') { e.preventDefault(); return; }
   if (e.key === 'Escape') { closePalette(); return; }
   if (e.key === 'ArrowDown') { e.preventDefault(); activeIdx = Math.min(activeIdx + 1, flatItems.length - 1); updateActive(); return; }
   if (e.key === 'ArrowUp')   { e.preventDefault(); activeIdx = Math.max(activeIdx - 1, 0); updateActive(); return; }
@@ -543,7 +566,12 @@ const ctx = {
   cmdSave, cmdOpen, cmdNew, cmdExport, cmdSaveDir,
   setTheme, setFont, toggleFontPicker,
   setTypewriter, toggleTypewriter, toggleFocus, toggleRenderedMode, insertSceneBreak,
+  openThemePicker: () => themePicker.show(),
 };
+
+// Mode-agnostic (themes apply in both Sprinter and Editor), so this mounts
+// once here rather than through the per-mode feature init/destroy cycle.
+themePicker.mount(ctx);
 
 let activeFeatures = [];
 let currentKeybindings = {};

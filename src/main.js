@@ -36,10 +36,10 @@ if (!fs.existsSync(defaultDir)) {
 }
 backup.init(defaultDir);
 
-// Accent theme (command palette: dark / light / ayu / dracula) — validated
-// against the current theme set so a stale saved value (e.g. a removed
-// theme) can't leave the app stuck on an unknown data-theme.
-const VALID_ACCENT_THEMES = ['dark', 'light', 'ayu', 'dracula'];
+// Accent theme (command palette: dark / light / amstrad / grove / dracula) —
+// validated against the current theme set so a stale saved value (e.g. a
+// removed theme) can't leave the app stuck on an unknown data-theme.
+const VALID_ACCENT_THEMES = ['dark', 'light', 'amstrad', 'grove', 'dracula'];
 const accentTheme = VALID_ACCENT_THEMES.includes(settings.accentTheme) ? settings.accentTheme : 'dark';
 
 // Mode (Sprinter / Editor) — same validate-then-persist pattern as accent theme.
@@ -61,6 +61,11 @@ function createWindow() {
     titleBarStyle: 'hiddenInset',
     backgroundColor: '#1a1a1a',
     icon: path.join(__dirname, process.platform === 'darwin' ? 'icon.icns' : 'icon.png'),
+    // CDP-driven E2E/scratch-verification launches (test/e2e/harness.js) set
+    // this so the window never shows or steals focus — DevTools Protocol
+    // drives the renderer directly and doesn't need the native window
+    // visible. Normal `npm start` / packaged-app launches are unaffected.
+    show: process.env.BARETEXT_HIDDEN !== '1',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,

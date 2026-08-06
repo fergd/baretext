@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  /* real Baretext Dark tokens */
+  .stage{
+    --bg:#242424;--bg-alt:#191919;--text:#faf2d6;--text-dim:#bdae93;--text-dimmer:#5a5040;
+    --accent:#f8c537;--border:#3a3a3a;--cursor:#f8c537;
+    --wash-accent:color-mix(in srgb,var(--accent) 9%,transparent);
+    --wash-accent-strong:color-mix(in srgb,var(--accent) 15%,transparent);
+    --kbd-bg:color-mix(in srgb,var(--bg) 55%,transparent);
+    --kbd-border:color-mix(in srgb,var(--border) 80%,transparent);
+  }
+  /* hit-area overlay: dashed 44px min box drawn behind demo controls */
+  .stage.hit [data-hit]{position:relative}
+  .stage.hit [data-hit]::after{
+    content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    min-width:44px;min-height:44px;width:100%;height:100%;
+    outline:1px dashed color-mix(in srgb,#e05c5c 70%,transparent);
+    border-radius:6px;pointer-events:none;z-index:5;
+  }
+  /* simulated keyboard focus ring on the AFTER controls */
+  .stage.kbd [data-focusable]{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+</style>
+</helmet>
+<div class="stage" data-theme="dark" style="min-height:100vh;background:var(--bg);color:var(--text);font-family:'IBM Plex Mono',monospace;padding:34px 40px 60px;">
+
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:8px;">
+    <div>
+      <div style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:600;">Baretext · accessibility</div>
+      <h1 style="font-size:24px;font-weight:700;margin-top:6px;letter-spacing:.01em;">Hit targets & focus — before / after</h1>
+      <p style="font-size:13px;color:var(--text-dim);margin-top:8px;max-width:70ch;line-height:1.6;">The worst offenders from the live app, rebuilt with real controls. Toggle the overlays to see the 44px target box and the keyboard focus ring the current build is missing.</p>
+    </div>
+    <div style="display:flex;gap:10px;flex-shrink:0;">
+      <button type="button" onClick="{{ toggleHit }}" style="{{ hitBtnStyle }}">
+        <i class="ti ti-viewfinder"></i> 44px targets
+      </button>
+      <button type="button" onClick="{{ toggleKbd }}" style="{{ kbdBtnStyle }}">
+        <i class="ti ti-keyboard"></i> focus ring
+      </button>
+    </div>
+  </div>
+
+  <sc-for list="{{ rows }}" as="r" hint-placeholder-count="4">
+    <div style="margin-top:26px;">
+      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:12px;">
+        <span style="font-size:14px;font-weight:700;color:var(--text);">{{ r.title }}</span>
+        <span style="font-size:11px;color:var(--text-dim);">{{ r.note }}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+        <!-- BEFORE -->
+        <div style="border:1px solid var(--border);border-radius:12px;background:var(--bg-alt);overflow:hidden;">
+          <div style="padding:8px 14px;border-bottom:1px solid var(--border);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#e0806a;display:flex;align-items:center;gap:6px;">
+            <i class="ti ti-alert-triangle"></i> before · {{ r.beforeMeta }}
+          </div>
+          <div style="padding:26px 20px;display:flex;align-items:center;justify-content:center;min-height:110px;">
+            <div ref="{{ r.beforeRef }}"></div>
+          </div>
+        </div>
+        <!-- AFTER -->
+        <div style="border:1px solid color-mix(in srgb,var(--accent) 45%,var(--border));border-radius:12px;background:var(--bg-alt);overflow:hidden;">
+          <div style="padding:8px 14px;border-bottom:1px solid var(--border);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);display:flex;align-items:center;gap:6px;">
+            <i class="ti ti-check"></i> after · {{ r.afterMeta }}
+          </div>
+          <div style="padding:26px 20px;display:flex;align-items:center;justify-content:center;min-height:110px;">
+            <div ref="{{ r.afterRef }}"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-for>
+
+  <div style="margin-top:34px;padding:16px 20px;border:1px solid var(--border);border-radius:12px;background:var(--bg-alt);font-size:12px;color:var(--text-dim);line-height:1.7;">
+    <span style="color:var(--text);font-weight:700;">Full findings:</span> see <span style="color:var(--accent);">design_handoff_baretext/ACCESSIBILITY.md</span> — this view covers the four highest-impact hit-target/focus fixes; the doc adds contrast, ARIA roles for the palette &amp; scene tree, keyboard reorder, and reduced-motion.
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { hit: false, kbd: false };
+
+  renderVals() {
+    const { hit, kbd } = this.state;
+    const btn = (on) => `display:inline-flex;align-items:center;gap:7px;font-family:'IBM Plex Mono',monospace;font-size:12px;padding:9px 14px;min-height:38px;border-radius:8px;cursor:pointer;transition:background .12s ease,color .12s ease;border:1px solid ${on ? 'transparent' : 'var(--border)'};background:${on ? 'var(--accent)' : 'transparent'};color:${on ? 'var(--bg)' : 'var(--text-dim)'};font-weight:${on ? 700 : 400};`;
+
+    return {
+      hitBtnStyle: btn(hit),
+      kbdBtnStyle: btn(kbd),
+      toggleHit: () => { this.setState(s => ({ hit: !s.hit })); this.sync(); },
+      toggleKbd: () => { this.setState(s => ({ kbd: !s.kbd })); this.sync(); },
+      rows: [
+        { title: "Sprint goal stepper", note: "sprint-timer.js · .sprint-goal-step",
+          beforeMeta: "~11px tall", afterMeta: "24px + number field",
+          beforeRef: (n)=>this.mountStepperBefore(n), afterRef: (n)=>this.mountStepperAfter(n) },
+        { title: "Sprint controls", note: "sprint-timer.js · .sprint-pill",
+          beforeMeta: "~21px · span+mousedown", afterMeta: "36px buttons",
+          beforeRef: (n)=>this.mountPillBefore(n), afterRef: (n)=>this.mountPillAfter(n) },
+        { title: "Status-bar chip", note: "index.html · #tw-status-indicator",
+          beforeMeta: "text-only target", afterMeta: "padded, focusable",
+          beforeRef: (n)=>this.mountChipBefore(n), afterRef: (n)=>this.mountChipAfter(n) },
+        { title: "Scene row actions", note: "rail.js · .rail-scene-row (hover-gated)",
+          beforeMeta: "opacity:0 until hover", afterMeta: "always present, in tab order",
+          beforeRef: (n)=>this.mountRowBefore(n), afterRef: (n)=>this.mountRowAfter(n) },
+      ],
+    };
+  }
+
+  componentDidUpdate() { this.sync(); }
+  componentDidMount() { this.sync(); }
+  sync() {
+    const stage = this.el && this.el.querySelector ? this.el.querySelector('.stage') : document.querySelector('.stage');
+    const root = document.querySelector('.stage');
+    if (root) { root.classList.toggle('hit', this.state.hit); root.classList.toggle('kbd', this.state.kbd); }
+  }
+
+  // ---- helpers ----
+  ic(cls){ const i=document.createElement('i'); i.className='ti '+cls; return i; }
+  once(node, fn){ if(!node || node._done) return; node._done = true; fn(node); }
+
+  // BEFORE: faithful reproductions of the live app's markup/sizing
+  mountStepperBefore(n){ this.once(n, ()=>{
+    n.innerHTML='';
+    const wrap=document.createElement('div');
+    wrap.style.cssText="display:flex;align-items:center;gap:3px;color:var(--text-dim);font-size:12px;";
+    wrap.append(document.createTextNode('word goal'));
+    const val=document.createElement('span'); val.textContent='500';
+    val.style.cssText="width:52px;text-align:right;color:var(--text);";
+    const step=document.createElement('div'); step.style.cssText="display:flex;flex-direction:column;cursor:pointer;";
+    const up=document.createElement('span'), dn=document.createElement('span');
+    [up,dn].forEach(s=>{ s.style.cssText="font-size:9px;line-height:1;padding:1px 2px;color:var(--text-dimmer);"; s.setAttribute('data-hit',''); });
+    up.appendChild(this.ic('ti-chevron-up')); dn.appendChild(this.ic('ti-chevron-down'));
+    step.append(up,dn); wrap.append(val,step); n.appendChild(wrap);
+  });}
+
+  mountStepperAfter(n){ this.once(n, ()=>{
+    n.innerHTML='';
+    const wrap=document.createElement('div');
+    wrap.style.cssText="display:flex;align-items:center;gap:8px;color:var(--text-dim);font-size:12px;";
+    wrap.append(document.createTextNode('word goal'));
+    const mk=(cls,lbl)=>{ const b=document.createElement('button'); b.type='button';
+      b.setAttribute('aria-label',lbl); b.setAttribute('data-hit',''); b.setAttribute('data-focusable','');
+      b.style.cssText="display:flex;align-items:center;justify-content:center;min-width:24px;min-height:24px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--text-dim);cursor:pointer;";
+      b.appendChild(this.ic(cls)); return b; };
+    const val=document.createElement('span'); val.textContent='500';
+    val.style.cssText="width:48px;text-align:center;color:var(--text);font-variant-numeric:tabular-nums;";
+    wrap.append(mk('ti-minus','decrease word goal'), val, mk('ti-plus','increase word goal'));
+    n.appendChild(wrap);
+  });}
+
+  mountPillBefore(n){ this.once(n, ()=>{
+    n.innerHTML='';
+    const row=document.createElement('div'); row.style.cssText="display:flex;gap:6px;";
+    ['minimize','pause','end'].forEach(t=>{ const s=document.createElement('span');
+      s.textContent=t; s.setAttribute('data-hit','');
+      s.style.cssText="font-size:11px;color:var(--text-dim);padding:3px 10px;border:1px solid var(--border);border-radius:5px;cursor:pointer;";
+      row.appendChild(s); });
+    n.appendChild(row);
+  });}
+
+  mountPillAfter(n){ this.once(n, ()=>{
+    n.innerHTML='';
+    const row=document.createElement('div'); row.style.cssText="display:flex;gap:8px;";
+    [['ti-minimize','minimize'],['ti-player-pause','pause'],['ti-square','end']].forEach(([ic,t])=>{
+      const b=document.createElement('button'); b.type='button';
+      b.setAttribute('data-hit',''); b.setAttribute('data-focusable','');
+      b.style.cssText="display:inline-flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text-dim);padding:0 14px;min-height:36px;background:transparent;border:1px solid var(--border);border-radius:7px;cursor:pointer;";
+      b.append(this.ic(ic), document.createTextNode(t)); row.appendChild(b); });
+    n.appendChild(row);
+  });}
+
+  mountChipBefore(n){ this.once(n, ()=>{
+    n.innerHTML='';
+    const bar=document.createElement('div');
+    bar.style.cssText="display:flex;align-items:center;height:30px;padding:0 12px;background:var(--bg);border:1px solid var(--border);border-radius:7px;";
+    const chip=document.createElement('span'); chip.setAttribute('data-hit','');
+    chip.style.cssText="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-dim);cursor:pointer;";
+    const i=this.ic('ti-align-left'); i.style.fontSize='13px'; i.style.color='var(--text-dimmer)';
+    chip.append(i, document.createTextNode('typewriter')); bar.appendChild(chip); n.appendChild(bar);
+  });}
+
+  mountChipAfter(n){ this.once(n, ()=>{
+    n.innerHTML='';
+    const bar=document.createElement('div');
+    bar.style.cssText="display:flex;align-items:center;height:34px;padding:0 6px;background:var(--bg);border:1px solid var(--border);border-radius:7px;";
+    const chip=document.createElement('button'); chip.type='button';
+    chip.setAttribute('aria-label','Toggle typewriter mode'); chip.setAttribute('aria-pressed','false');
+    chip.setAttribute('data-hit',''); chip.setAttribute('data-focusable','');
+    chip.style.cssText="display:flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text-dim);padding:6px 10px;min-height:28px;background:transparent;border:none;border-radius:6px;cursor:pointer;";
+    chip.onmouseenter=()=>chip.style.background='var(--wash-accent)';
+    chip.onmouseleave=()=>chip.style.background='transparent';
+    const i=this.ic('ti-align-left'); i.style.fontSize='13px'; i.style.color='var(--text-dimmer)';
+    chip.append(i, document.createTextNode('typewriter')); bar.appendChild(chip); n.appendChild(bar);
+  });}
+
+  mountRowBefore(n){ this.once(n, ()=>{
+    n.innerHTML='';
+    const row=document.createElement('div');
+    row.style.cssText="width:280px;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;background:var(--wash-accent-strong);box-shadow:inset 2px 0 0 var(--accent);";
+    const name=document.createElement('span'); name.textContent='The lighthouse';
+    name.style.cssText="font-size:12px;color:var(--text);";
+    const actions=document.createElement('div'); actions.style.cssText="display:flex;align-items:center;gap:6px;opacity:.25;";
+    ['ti-pencil','ti-trash','ti-grip-vertical'].forEach(c=>{ const s=document.createElement('span');
+      s.setAttribute('data-hit',''); s.style.cssText="font-size:11px;color:var(--text-dimmer);cursor:pointer;"; s.appendChild(this.ic(c)); actions.appendChild(s); });
+    const count=document.createElement('span'); count.textContent='1,240'; count.style.cssText="font-size:11px;color:var(--text-dimmer);";
+    row.append(name, actions, count); n.appendChild(row);
+    const cap=document.createElement('div'); cap.textContent='(actions invisible until hover — unreachable by keyboard/touch)';
+    cap.style.cssText="font-size:10px;color:#e0806a;margin-top:10px;text-align:center;"; n.appendChild(cap);
+  });}
+
+  mountRowAfter(n){ this.once(n, ()=>{
+    n.innerHTML='';
+    const row=document.createElement('div');
+    row.style.cssText="width:280px;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 8px 8px 10px;border-radius:6px;background:var(--wash-accent-strong);box-shadow:inset 2px 0 0 var(--accent);";
+    const name=document.createElement('button'); name.type='button'; name.textContent='The lighthouse';
+    name.setAttribute('data-focusable',''); name.setAttribute('aria-current','true');
+    name.style.cssText="flex:1;text-align:left;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text);background:transparent;border:none;cursor:pointer;padding:6px 0;min-height:32px;";
+    const actions=document.createElement('div'); actions.style.cssText="display:flex;align-items:center;gap:4px;";
+    [['ti-pencil','Rename scene'],['ti-trash','Delete scene'],['ti-grip-vertical','Reorder scene']].forEach(([c,lbl])=>{
+      const b=document.createElement('button'); b.type='button'; b.setAttribute('aria-label',lbl);
+      b.setAttribute('data-hit',''); b.setAttribute('data-focusable','');
+      b.style.cssText="display:flex;align-items:center;justify-content:center;min-width:28px;min-height:28px;border-radius:5px;border:none;background:transparent;color:var(--text-dim);opacity:.7;cursor:pointer;";
+      b.onmouseenter=()=>{b.style.opacity='1';b.style.background='var(--wash-accent)';};
+      b.onmouseleave=()=>{b.style.opacity='.7';b.style.background='transparent';};
+      b.appendChild(this.ic(c)); actions.appendChild(b); });
+    row.append(name, actions); n.appendChild(row);
+    const cap=document.createElement('div'); cap.textContent='(quiet by default, always present + tab-focusable)';
+    cap.style.cssText="font-size:10px;color:var(--accent);margin-top:10px;text-align:center;"; n.appendChild(cap);
+  });}
+}
+</script>
+</body>
+</html>

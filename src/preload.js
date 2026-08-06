@@ -20,7 +20,7 @@ contextBridge.exposeInMainWorld('api', {
   setTheme: (theme) => ipcRenderer.send('set-theme', theme),
   onThemeChanged: (cb) => ipcRenderer.on('theme-changed', (_, t) => cb(t)),
 
-  // Accent theme (dark/light/ayu/dracula) — persisted across launches
+  // Accent theme (dark/light/amstrad/grove/dracula) — persisted across launches
   setAccentTheme: (theme) => ipcRenderer.send('accent-theme-changed', theme),
 
   // Mode (sprinter/editor) — persisted across launches

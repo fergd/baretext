@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  .stage{
+    --bg:#242424;--bg-alt:#191919;--text:#faf2d6;--text-dim:#bdae93;--text-dimmer:#5a5040;
+    --accent:#f8c537;--border:#3a3a3a;
+    --wash-accent:color-mix(in srgb,var(--accent) 9%,transparent);
+    --wash-accent-strong:color-mix(in srgb,var(--accent) 15%,transparent);
+  }
+  .stage[data-theme="light"]{--bg:#f5f0e8;--bg-alt:#ede8de;--text:#2a2218;--text-dim:#6b5f4a;--text-dimmer:#b0a898;--accent:#b8820a;--border:#d0c8b8;}
+  .stage[data-theme="amstrad"]{--bg:#0d130d;--bg-alt:#0a0f0a;--text:#c8e6b0;--text-dim:#5f7a55;--text-dimmer:#2d3d29;--accent:#7dc45a;--border:#1c281a;}
+  .stage[data-theme="grove"]{--bg:#2f383e;--bg-alt:#272f34;--text:#d3c6aa;--text-dim:#9aa79d;--text-dimmer:#859289;--accent:#a7c080;--border:#525c62;}
+  .stage[data-theme="dracula"]{--bg:#282a36;--bg-alt:#21222c;--text:#f8f8f2;--text-dim:#6272a4;--text-dimmer:#44475a;--accent:#bd93f9;--border:#44475a;}
+</style>
+</helmet>
+<div class="stage" data-theme="{{ theme }}" style="min-height:100vh;background:var(--bg);color:var(--text);font-family:'IBM Plex Mono',monospace;padding:34px 40px 60px;transition:background .35s ease,color .35s ease;">
+
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;">
+    <div>
+      <div style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:600;">Baretext · status bar</div>
+      <h1 style="font-size:24px;font-weight:700;margin-top:6px;">Mode switcher in the bottom bar</h1>
+      <p style="font-size:13px;color:var(--text-dim);margin-top:8px;max-width:66ch;line-height:1.6;">A centered Sprinter / Editor tab pair, replacing the palette-only mode switch. Click a tab to switch; the bar's left cluster swaps to that mode's items. Theme it to check every palette.</p>
+    </div>
+    <div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;">
+      <sc-for list="{{ themes }}" as="t" hint-placeholder-count="4">
+        <button type="button" onClick="{{ t.pick }}" style="{{ t.style }}">{{ t.name }}</button>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- App frame -->
+  <div style="margin-top:28px;border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 22px 60px rgba(0,0,0,.4);background:var(--bg);">
+    <div style="height:34px;background:var(--bg-alt);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 14px;gap:8px;">
+      <span style="width:11px;height:11px;border-radius:50%;background:#ff5f57;"></span>
+      <span style="width:11px;height:11px;border-radius:50%;background:#febc2e;"></span>
+      <span style="width:11px;height:11px;border-radius:50%;background:#28c840;"></span>
+    </div>
+    <div style="height:300px;display:flex;align-items:center;justify-content:center;padding:0 40px;background:var(--bg);">
+      <p style="font-family:'IBM Plex Mono',monospace;font-size:15px;line-height:1.9;color:var(--text);max-width:60ch;">
+        <span style="color:var(--accent);font-weight:700;">Chapter 1</span><br>
+        The bar below carries the mode switch now — {{ modeLabel }} is active. {{ modeBlurb }}
+      </p>
+    </div>
+
+    <!-- STATUS BAR — 3-column grid: left cluster | centered tabs | right cluster -->
+    <div style="height:34px;background:var(--bg-alt);border-top:1px solid var(--border);display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 16px;transition:background .35s ease,border-color .35s ease;">
+      <!-- left -->
+      <div style="display:flex;align-items:center;gap:14px;min-width:0;">
+        <span style="font-size:11px;color:var(--text-dim);letter-spacing:.03em;">1,240 words</span>
+        <sc-if value="{{ isSprinter }}" hint-placeholder-val="{{ true }}">
+          <span style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text);letter-spacing:.03em;"><i class="ti ti-run" style="font-size:13px;color:var(--accent);"></i>24:18</span>
+        </sc-if>
+        <sc-if value="{{ isEditor }}" hint-placeholder-val="{{ false }}">
+          <span style="font-size:11px;color:var(--text-dimmer);letter-spacing:.03em;">preview</span>
+        </sc-if>
+      </div>
+
+      <!-- CENTER: mode tabs -->
+      <div role="tablist" aria-label="Mode" style="display:flex;align-items:center;gap:2px;background:color-mix(in srgb,var(--bg-alt) 60%,transparent);border-radius:8px;padding:2px;">
+        <sc-for list="{{ tabs }}" as="tab" hint-placeholder-count="2">
+          <button type="button" role="tab" aria-selected="{{ tab.selected }}" onClick="{{ tab.pick }}" style="{{ tab.style }}">
+            <i class="ti {{ tab.icon }}" style="font-size:13px;"></i>{{ tab.name }}
+          </button>
+        </sc-for>
+      </div>
+
+      <!-- right -->
+      <div style="display:flex;align-items:center;justify-content:flex-end;gap:14px;min-width:0;">
+        <span style="font-size:11px;color:var(--text-dimmer);letter-spacing:.03em;">the-lighthouse.md</span>
+      </div>
+    </div>
+  </div>
+
+  <p style="font-size:12px;color:var(--text-dim);margin-top:20px;line-height:1.7;max-width:80ch;">
+    <span style="color:var(--text);font-weight:700;">Behavior:</span> the switcher is a <span style="color:var(--accent);">role="tablist"</span> of two real buttons — keyboard: ←/→ to move, Enter to activate; ⌘K still switches modes too. Selecting a tab sets <span style="color:var(--accent);">data-mode</span> on the app root (same attr the app already reads) and swaps the mode's feature set. The active tab is a quiet raised chip (a subtle background lift, no accent fill) — legible but calm, so nothing in the bar competes with the writing.
+  </p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { mode: 'sprinter', theme: 'dark' };
+
+  renderVals() {
+    const { mode, theme } = this.state;
+    const isSprinter = mode === 'sprinter';
+
+    const tabStyle = (on) => `display:inline-flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:${on?600:400};letter-spacing:.02em;padding:0 14px;min-height:26px;border-radius:6px;cursor:pointer;border:none;transition:background .12s ease,color .12s ease;background:${on?'var(--bg)':'transparent'};color:${on?'var(--text)':'var(--text-dimmer)'};box-shadow:${on?'0 1px 2px rgba(0,0,0,.25)':'none'};`;
+
+    const themeBtn = (id) => `font-family:'IBM Plex Mono',monospace;font-size:11px;padding:6px 12px;min-height:32px;border-radius:7px;cursor:pointer;border:1px solid ${theme===id?'transparent':'var(--border)'};background:${theme===id?'var(--accent)':'transparent'};color:${theme===id?'var(--bg)':'var(--text-dim)'};font-weight:${theme===id?700:400};`;
+
+    return {
+      theme,
+      isSprinter,
+      isEditor: !isSprinter,
+      modeLabel: isSprinter ? 'Sprinter' : 'Editor',
+      modeBlurb: isSprinter ? 'The sprint timer and its status chip live in the left cluster.' : 'Scene navigation, find & replace, and spellcheck come online.',
+      tabs: [
+        { name: 'Sprinter', icon: 'ti-run', selected: String(isSprinter), style: tabStyle(isSprinter), pick: () => this.setState({ mode: 'sprinter' }) },
+        { name: 'Editor', icon: 'ti-edit', selected: String(!isSprinter), style: tabStyle(!isSprinter), pick: () => this.setState({ mode: 'editor' }) },
+      ],
+      themes: ['dark','light','amstrad','grove','dracula'].map(id => ({
+        name: id, style: themeBtn(id), pick: () => this.setState({ theme: id }),
+      })),
+    };
+  }
+}
+</script>
+</body>
+</html>

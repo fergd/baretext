@@ -1,0 +1,19 @@
+/* Baretext spacing scale — a plain 4px base ramp.
+   Chrome is tight (status bar, palette rows); prose breathes (line-height). */
+
+:root {
+  --space-0:  0;
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-12: 48px;
+
+  --statusbar-h: 30px;
+  --titlebar-h:  44px;
+  --editor-measure: 620px;   /* max prose column width */
+  --rail-w: 250px;           /* scene tree sidebar */
+}

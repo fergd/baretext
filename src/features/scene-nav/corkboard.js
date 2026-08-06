@@ -12,6 +12,18 @@ function el(tag, className, text) {
   if (text !== undefined) e.textContent = text;
   return e;
 }
+// Real <button>s instead of span/div+mousedown: focusable, keyboard-operable
+// (Enter/Space fire click for free), announced with a role by default.
+// mousedown still gets preventDefault() (keeps editor focus from being
+// stolen); bind the actual action to click.
+function btn(className, text) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  if (className) b.className = className;
+  if (text !== undefined) b.textContent = text;
+  b.addEventListener('mousedown', (e) => e.preventDefault());
+  return b;
+}
 function icon(cls) {
   const i = document.createElement('i');
   i.className = 'ti ' + cls;
@@ -32,11 +44,18 @@ function injectStyle() {
 .corkboard-toolbar-left .ti-layout-grid { font-size: 15px; color: var(--syntax-2, var(--accent)); }
 .corkboard-label { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--syntax-2, var(--accent)); font-weight: 600; }
 .corkboard-meta { font-size: 12px; color: var(--text-dimmer); }
-.corkboard-back { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-dim); cursor: pointer; }
+.corkboard-back {
+  all: unset; box-sizing: border-box; cursor: pointer; padding: 4px 6px; margin: -4px -6px;
+  display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-dim);
+}
 .corkboard-back:hover { color: var(--text); }
 .corkboard-back kbd { background: var(--kbd-bg); border: 1px solid var(--kbd-border); border-bottom-width: 2px; border-radius: 4px; padding: 1px 6px; font-size: 10px; color: var(--text-dim); }
 .corkboard-toolbar-right { display: flex; align-items: center; gap: 16px; }
-.corkboard-tool-btn { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-dim); cursor: pointer; transition: color .15s ease; }
+.corkboard-tool-btn {
+  all: unset; box-sizing: border-box; cursor: pointer; padding: 4px 6px; margin: -4px -6px;
+  display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-dim);
+  transition: color .15s ease;
+}
 .corkboard-tool-btn:hover { color: var(--syntax-2, var(--accent)); }
 .corkboard-body { flex: 1; overflow: auto; padding: 22px 26px; }
 .corkboard-chapter { margin-bottom: 24px; }
@@ -47,17 +66,28 @@ function injectStyle() {
 .corkboard-chapter-title-text { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-dim); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .corkboard-chapter-title-text.placeholder { font-style: italic; opacity: .55; font-weight: 600; }
 .corkboard-edit-btn {
-  font-size: 12px; color: var(--text-dimmer); opacity: 0; cursor: pointer; flex-shrink: 0;
+  all: unset; box-sizing: border-box; position: relative;
+  font-size: 12px; color: var(--text-dimmer); opacity: .5; cursor: pointer; flex-shrink: 0;
   transition: opacity .12s ease, color .12s ease;
 }
-.corkboard-chapter-header:hover .corkboard-edit-btn, .scene-card:hover .corkboard-edit-btn { opacity: 1; }
+.corkboard-edit-btn::before { content: ''; position: absolute; inset: -8px; }
+/* Rename/delete/open are core scene-management actions -- hover-only
+   visibility would make them permanently unreachable by keyboard, touch, or
+   screen reader. Stay visually quiet by default, come to full strength on
+   hover AND :focus-within (so tabbing to a button inside a card reveals it
+   too, not just mouse hover). */
+.corkboard-chapter-header:hover .corkboard-edit-btn, .scene-card:hover .corkboard-edit-btn,
+.corkboard-chapter-header:focus-within .corkboard-edit-btn, .scene-card:focus-within .corkboard-edit-btn { opacity: 1; }
 .corkboard-edit-btn:hover { color: var(--syntax-2, var(--accent)); }
 .corkboard-delete-btn {
-  font-size: 12px; color: var(--text-dimmer); opacity: 0; cursor: pointer; flex-shrink: 0;
+  all: unset; box-sizing: border-box; position: relative;
+  font-size: 12px; color: var(--text-dimmer); opacity: .5; cursor: pointer; flex-shrink: 0;
   padding: 2px 5px; border-radius: 4px; display: flex; align-items: center; gap: 4px;
   transition: opacity .12s ease, color .12s ease, background .12s ease;
 }
-.corkboard-chapter-header:hover .corkboard-delete-btn, .scene-card:hover .corkboard-delete-btn { opacity: 1; }
+.corkboard-delete-btn::before { content: ''; position: absolute; inset: -6px; }
+.corkboard-chapter-header:hover .corkboard-delete-btn, .scene-card:hover .corkboard-delete-btn,
+.corkboard-chapter-header:focus-within .corkboard-delete-btn, .scene-card:focus-within .corkboard-delete-btn { opacity: 1; }
 .corkboard-delete-btn:hover { color: #e05c5c; }
 .corkboard-delete-btn.confirm {
   opacity: 1; color: #e05c5c; font-weight: 600;
@@ -89,9 +119,10 @@ function injectStyle() {
   color: var(--text); font-family: var(--font-mono); font-size: 12px; outline: none;
 }
 .scene-card-new {
+  all: unset; box-sizing: border-box; width: 100%; cursor: pointer;
   border: 1px dashed color-mix(in srgb, var(--text-dim) 50%, transparent); border-radius: var(--radius-card, 10px);
   padding: 13px; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 8px; min-height: 120px; color: var(--text-dim); cursor: pointer;
+  gap: 8px; min-height: 120px; color: var(--text-dim);
 }
 .scene-card-new:hover { color: var(--text); border-color: var(--text-dim); }
 .scene-card-new .ti-plus { font-size: 18px; }
@@ -107,20 +138,22 @@ function injectStyle() {
 // app never using one, but still real friction against a stray click, on
 // top of undo already being available as the last line of defense.
 function makeDeleteButton(label, onConfirm) {
-  const btn = el('span', 'corkboard-delete-btn');
+  const button = btn('corkboard-delete-btn');
   let armed = false;
   let timer = null;
 
   function paint() {
-    btn.innerHTML = '';
-    btn.appendChild(icon('ti-trash'));
+    button.innerHTML = '';
+    button.appendChild(icon('ti-trash'));
     if (armed) {
-      btn.appendChild(document.createTextNode(' delete?'));
-      btn.title = 'click again to delete ' + label;
+      button.appendChild(document.createTextNode(' delete?'));
+      button.title = 'click again to delete ' + label;
+      button.setAttribute('aria-label', 'Confirm delete ' + label);
     } else {
-      btn.title = 'delete ' + label;
+      button.title = 'delete ' + label;
+      button.setAttribute('aria-label', 'Delete ' + label);
     }
-    btn.classList.toggle('confirm', armed);
+    button.classList.toggle('confirm', armed);
   }
 
   function disarm() {
@@ -128,24 +161,24 @@ function makeDeleteButton(label, onConfirm) {
     armed = false;
     paint();
   }
-  btn._disarm = disarm;
+  button._disarm = disarm;
 
-  btn.addEventListener('mousedown', (e) => {
-    e.preventDefault();
+  button.addEventListener('mousedown', (e) => e.stopPropagation());
+  button.addEventListener('click', (e) => {
     e.stopPropagation();
     if (armed) {
       disarm();
       onConfirm();
       return;
     }
-    document.querySelectorAll('.corkboard-delete-btn').forEach((b) => { if (b !== btn && b._disarm) b._disarm(); });
+    document.querySelectorAll('.corkboard-delete-btn').forEach((b) => { if (b !== button && b._disarm) b._disarm(); });
     armed = true;
     paint();
     timer = setTimeout(disarm, 3000);
   });
 
   paint();
-  return btn;
+  return button;
 }
 
 function jumpTo(scene) {
@@ -201,22 +234,22 @@ export function render() {
   left.append(icon('ti-layout-grid'), el('span', 'corkboard-label', 'corkboard'), el('span', 'corkboard-meta', totalScenes + ' scenes'));
 
   const right = el('div', 'corkboard-toolbar-right');
-  const undoBtn = el('div', 'corkboard-tool-btn');
+  const undoBtn = btn('corkboard-tool-btn');
   undoBtn.appendChild(icon('ti-arrow-back-up'));
   undoBtn.appendChild(document.createTextNode(' undo'));
   undoBtn.title = 'undo (⌘Z)';
-  undoBtn.addEventListener('mousedown', (e) => { e.preventDefault(); ctx.editor.undo(ctx.view); ctx.refreshNav(); });
-  const redoBtn = el('div', 'corkboard-tool-btn');
+  undoBtn.addEventListener('click', () => { ctx.editor.undo(ctx.view); ctx.refreshNav(); });
+  const redoBtn = btn('corkboard-tool-btn');
   redoBtn.appendChild(icon('ti-arrow-forward-up'));
   redoBtn.appendChild(document.createTextNode(' redo'));
   redoBtn.title = 'redo (⌘⇧Z)';
-  redoBtn.addEventListener('mousedown', (e) => { e.preventDefault(); ctx.editor.redo(ctx.view); ctx.refreshNav(); });
+  redoBtn.addEventListener('click', () => { ctx.editor.redo(ctx.view); ctx.refreshNav(); });
 
-  const back = el('div', 'corkboard-back');
+  const back = btn('corkboard-back');
   const kbd = document.createElement('kbd');
   kbd.textContent = 'esc';
   back.append(kbd, document.createTextNode(' back to writing'));
-  back.addEventListener('mousedown', (e) => { e.preventDefault(); close(); });
+  back.addEventListener('click', () => close());
 
   right.append(undoBtn, redoBtn, back);
   toolbar.append(left, right);
@@ -232,18 +265,18 @@ export function render() {
     // The number badge already reads "Chapter N" in full — echoing that
     // again as the title when there isn't one yet would just duplicate it,
     // so this gets its own distinct placeholder wording instead.
+    const chLabel = chHasTitle ? chapter.title : 'Chapter ' + chapter.number;
     const chTitleText = el('span', 'corkboard-chapter-title-text' + (chHasTitle ? '' : ' placeholder'), chHasTitle ? chapter.title : 'untitled');
-    const chEditBtn = el('span', 'corkboard-edit-btn');
+    const chEditBtn = btn('corkboard-edit-btn');
     chEditBtn.appendChild(icon('ti-pencil'));
     chEditBtn.title = 'rename chapter';
-    chEditBtn.addEventListener('mousedown', (e) => {
-      e.preventDefault(); e.stopPropagation();
+    chEditBtn.setAttribute('aria-label', 'Rename ' + chLabel);
+    chEditBtn.addEventListener('mousedown', (e) => e.stopPropagation());
+    chEditBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
       beginEdit(chTitleText, chapter.title, (newTitle) => ctx.renameTitle(chapter, newTitle));
     });
-    const chDeleteBtn = makeDeleteButton(
-      chHasTitle ? chapter.title : 'Chapter ' + chapter.number,
-      () => ctx.deleteChapter(ci, chapters)
-    );
+    const chDeleteBtn = makeDeleteButton(chLabel, () => ctx.deleteChapter(ci, chapters));
     const chTitleGroup = el('div', 'corkboard-chapter-title-group');
     chTitleGroup.append(el('span', 'corkboard-chapter-num', 'Chapter ' + chapter.number), chTitleText, chEditBtn, chDeleteBtn);
 
@@ -261,20 +294,24 @@ export function render() {
       const card = el('div', 'scene-card' + (isActive ? ' active' : '') + (scene.isDraft ? ' draft' : ''));
 
       const titleTextSpan = el('span', 'scene-card-title-text', scene.title);
-      const editBtn = el('span', 'corkboard-edit-btn');
+      const editBtn = btn('corkboard-edit-btn');
       editBtn.appendChild(icon('ti-pencil'));
       editBtn.title = 'rename scene';
-      editBtn.addEventListener('mousedown', (e) => {
-        e.preventDefault(); e.stopPropagation();
+      editBtn.setAttribute('aria-label', 'Rename ' + scene.title);
+      editBtn.addEventListener('mousedown', (e) => e.stopPropagation());
+      editBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
         beginEdit(titleTextSpan, scene.title, (newTitle) => ctx.renameTitle(scene, newTitle));
       });
       // Explicit, deliberate navigation control — double-click also jumps,
       // but this is the discoverable version so no interaction with a card
       // (editing, dragging, adding) ever navigates away by surprise.
-      const openBtn = el('span', 'corkboard-edit-btn');
+      const openBtn = btn('corkboard-edit-btn');
       openBtn.appendChild(icon('ti-arrow-up-right'));
       openBtn.title = 'open in manuscript';
-      openBtn.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); jumpTo(scene); });
+      openBtn.setAttribute('aria-label', 'Open ' + scene.title + ' in manuscript');
+      openBtn.addEventListener('mousedown', (e) => e.stopPropagation());
+      openBtn.addEventListener('click', (e) => { e.stopPropagation(); jumpTo(scene); });
       const deleteBtn = makeDeleteButton(scene.title, () => ctx.deleteScene(ci, si, chapters));
       const titleRow = el('div', 'scene-card-title');
       titleRow.append(el('span', undefined, (si + 1) + ' · '), titleTextSpan, editBtn, openBtn, deleteBtn);
@@ -322,9 +359,10 @@ export function render() {
       grid.appendChild(card);
     });
 
-    const newTile = el('div', 'scene-card-new');
+    const newTile = btn('scene-card-new');
     newTile.append(icon('ti-plus'), el('span', undefined, 'new scene'));
-    newTile.addEventListener('mousedown', (e) => { e.preventDefault(); ctx.addNewScene(ci, chapters); });
+    newTile.setAttribute('aria-label', 'Add a scene to ' + chLabel);
+    newTile.addEventListener('click', () => ctx.addNewScene(ci, chapters));
     grid.appendChild(newTile);
 
     grid.addEventListener('dragover', (e) => {

@@ -1,0 +1,86 @@
+/* Baretext color tokens.
+   Five themes, all keyed off the same semantic names so every component
+   is theme-agnostic. Warm/analog language (parchment, amber, ink) — never
+   corporate blue. Two surface levels only: --bg (canvas) and --bg-alt
+   (status bar / panels). Floating glass goes translucent over --bg-alt.
+
+   Set the theme with [data-theme="dark|light|amstrad|grove|dracula"] on any
+   ancestor. :root defaults to Dark — the native theme.
+
+   --typewriter-focus: the active-line color in Typewriter mode — each theme's
+   body --text punched up (more saturated / vivid) so the line under the caret
+   stands proud of the dimmed surrounding prose. */
+
+:root,
+[data-theme="dark"] {
+  --bg:          #242424;
+  --bg-alt:      #191919;
+  --text:        #faf2d6;
+  --text-dim:    #bdae93;
+  --text-dimmer: #5a5040;
+  --accent:      #f8c537;
+  --border:      #3a3a3a;
+  --cursor:      var(--accent);
+  --sel:         rgba(248, 197, 55, .22);
+  --syntax-2:    #f8c537;
+  --typewriter-focus: #fbe6a0;   /* text punched up — warm gold */
+}
+
+[data-theme="light"] {
+  --bg:          #f5f0e8;
+  --bg-alt:      #ede8de;
+  --text:        #2a2218;
+  --text-dim:    #6b5f4a;
+  --text-dimmer: #b0a898;
+  --accent:      #b8820a;
+  --border:      #d0c8b8;
+  --cursor:      var(--accent);
+  --sel:         rgba(184, 130, 10, .20);
+  --syntax-2:    #b8820a;
+  --typewriter-focus: #1a1206;   /* text punched up — deeper ink */
+}
+
+/* Amstrad — toned-down Amstrad CPC green-phosphor terminal. */
+[data-theme="amstrad"] {
+  --bg:          #0d130d;
+  --bg-alt:      #0a0f0a;
+  --text:        #c8e6b0;
+  --text-dim:    #5f7a55;
+  --text-dimmer: #2d3d29;
+  --accent:      #7dc45a;
+  --border:      #1c281a;
+  --cursor:      var(--accent);
+  --sel:         rgba(125, 196, 90, .18);
+  --syntax-2:    #7dc45a;
+  --typewriter-focus: #b6e85a;   /* vivid lime — active-line focus */
+}
+
+/* Grove — Everforest Dark (0xGlitchbyte's Obsidian port), verbatim palette.
+   Green-based, warm-toned. Caret is Everforest blue, not the accent. */
+[data-theme="grove"] {
+  --bg:          #2f383e;   /* bg (background-primary) */
+  --bg-alt:      #272f34;   /* bg1 — status bar / panels / titlebar */
+  --text:        #d3c6aa;   /* fg */
+  --text-dim:    #9aa79d;   /* grey2 (text-muted) */
+  --text-dimmer: #859289;   /* grey1 (text-faint) */
+  --accent:      #a7c080;   /* faded green — signature */
+  --border:      #525c62;   /* bg5 (background-modifier-border) */
+  --cursor:      #7fbbb3;   /* faded blue — Everforest caret */
+  --sel:         rgba(82, 92, 98, .55);   /* bg5 text-selection */
+  --syntax-2:    #e69875;   /* faded orange — dates / subheads */
+  --typewriter-focus: #e0c583;   /* text punched up — vivid wheat */
+}
+
+[data-theme="dracula"] {
+  --bg:          #282a36;
+  --bg-alt:      #21222c;
+  --text:        #f8f8f2;
+  --text-dim:    #6272a4;
+  --text-dimmer: #44475a;
+  --accent:      #bd93f9;
+  --border:      #44475a;
+  --cursor:      var(--text);   /* Dracula is the exception: cursor = text */
+  --sel:         rgba(68, 71, 90, .70);
+  --syntax-2:    #8be9fd;       /* Dracula cyan — dates/subheads in preview */
+  --typewriter-focus: #ffffff;   /* text punched up — pure white */
+}

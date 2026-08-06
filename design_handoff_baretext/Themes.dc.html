@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="styles.css">
+</helmet>
+<div style="min-height:100vh;background:#111;padding:40px;display:grid;grid-template-columns:repeat(2,1fr);gap:28px;font-family:var(--font-mono, ui-monospace, monospace);">
+  <sc-for list="{{ themes }}" as="t" hint-placeholder-count="4">
+    <div data-theme="{{ t.id }}" style="border-radius:14px;overflow:hidden;border:1px solid var(--border);background:var(--bg);box-shadow:0 14px 40px rgba(0,0,0,.45);">
+      <div style="padding:16px 20px;background:var(--bg-alt);border-bottom:1px solid var(--border);display:flex;align-items:baseline;justify-content:space-between;">
+        <span style="color:var(--text);font-size:15px;font-weight:600;letter-spacing:.02em;">{{ t.name }}</span>
+        <span style="color:var(--text-dim);font-size:11px;">{{ t.id }}</span>
+      </div>
+      <div style="padding:20px;display:flex;flex-direction:column;gap:18px;">
+        <div style="display:flex;gap:8px;">
+          <sc-for list="{{ t.swatches }}" as="s" hint-placeholder-count="7">
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;">
+              <div style="height:52px;border-radius:7px;background:{{ s.hex }};border:1px solid var(--border);"></div>
+              <div style="font-size:10px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ s.name }}</div>
+              <div style="font-size:9px;color:var(--text-dim);white-space:nowrap;">{{ s.hex }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="font-size:14px;line-height:1.9;color:var(--text);">
+          <span style="color:var(--accent);font-weight:700;">Chapter 1</span> &nbsp;<span style="color:var(--syntax-2);font-weight:700;">January 22, 2026</span><br>a line of prose with a <span style="background:var(--sel);">selected phrase</span> and the<span style="display:inline-block;width:2px;height:1.05em;background:var(--cursor);vertical-align:text-bottom;margin:0 1px;"></span>cursor.
+          <div style="margin-top:12px;display:flex;gap:8px;font-size:11px;color:var(--text-dim);">
+            <span style="padding:3px 9px;border-radius:6px;background:var(--wash-accent-strong);color:var(--text);">accent wash</span>
+            <span style="padding:3px 9px;border-radius:6px;box-shadow:var(--stripe-accent);background:var(--wash-accent);">active stripe</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const sw = (bg, ba, t, td, tdd, a, s2, tw, b) => [
+      { name: "bg", hex: bg }, { name: "bg-alt", hex: ba }, { name: "text", hex: t },
+      { name: "text-dim", hex: td }, { name: "text-dimmer", hex: tdd },
+      { name: "accent", hex: a }, { name: "syntax-2", hex: s2 },
+      { name: "tw-focus", hex: tw }, { name: "border", hex: b },
+    ];
+    return {
+      themes: [
+        { id: "dark", name: "Ember", swatches: sw("#242424", "#191919", "#faf2d6", "#bdae93", "#5a5040", "#f8c537", "#f8c537", "#fbe6a0", "#3a3a3a") },
+        { id: "light", name: "Parchment", swatches: sw("#f5f0e8", "#ede8de", "#2a2218", "#6b5f4a", "#b0a898", "#b8820a", "#b8820a", "#1a1206", "#d0c8b8") },
+        { id: "amstrad", name: "Amstrad", swatches: sw("#0d130d", "#0a0f0a", "#c8e6b0", "#5f7a55", "#2d3d29", "#7dc45a", "#7dc45a", "#b6e85a", "#1c281a") },
+        { id: "grove", name: "Grove", swatches: sw("#2f383e", "#272f34", "#d3c6aa", "#9aa79d", "#859289", "#a7c080", "#e69875", "#e0c583", "#525c62") },
+        { id: "dracula", name: "Dracula", swatches: sw("#282a36", "#21222c", "#f8f8f2", "#6272a4", "#44475a", "#bd93f9", "#8be9fd", "#ffffff", "#44475a") },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

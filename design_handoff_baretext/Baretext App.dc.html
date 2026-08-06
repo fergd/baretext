@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="../../styles.css">
+  <link href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3/dist/tabler-icons.min.css" rel="stylesheet">
+  <style>
+    body{margin:0;background:#0c0d10;-webkit-font-smoothing:antialiased;}
+    ::-webkit-scrollbar{width:4px;height:4px;}
+    ::-webkit-scrollbar-thumb{background:var(--text-dimmer);border-radius:2px;}
+    ::-webkit-scrollbar-track{background:transparent;}
+    a{color:var(--accent);text-decoration:none;}
+  </style>
+</helmet>
+
+<div style="min-height:100vh;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;font-family:var(--font-mono);padding:24px;background:#0c0d10;">
+
+  <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;justify-content:center;">
+    <div style="display:flex;gap:6px;align-items:center;">
+      <span style="font-size:10px;color:#5b6172;letter-spacing:.1em;text-transform:uppercase;">theme</span>
+      <sc-for list="{{ themes }}" as="t" hint-placeholder-count="4">
+        <button onClick="{{ t.set }}" title="{{ t.name }}" style="width:18px;height:18px;border-radius:50%;border:{{ t.ring }};background:{{ t.color }};cursor:pointer;padding:0;"></button>
+      </sc-for>
+    </div>
+    <div style="display:flex;gap:6px;">
+      <button onClick="{{ setSprinter }}" style="{{ btnSprinter }}">sprinter</button>
+      <button onClick="{{ setEditor }}" style="{{ btnEditor }}">editor</button>
+    </div>
+    <div style="display:flex;gap:6px;">
+      <button onClick="{{ togglePalette }}" style="{{ btnPalette }}">⌘K palette</button>
+      <sc-if value="{{ isEditor }}" hint-placeholder-val="{{ false }}">
+        <button onClick="{{ toggleBoard }}" style="{{ btnBoard }}">corkboard</button>
+      </sc-if>
+    </div>
+    <div style="display:flex;gap:6px;">
+      <sc-if value="{{ noSprint }}" hint-placeholder-val="{{ true }}">
+        <button onClick="{{ startSprint }}" style="{{ btnGhost }}">start sprint</button>
+      </sc-if>
+      <sc-if value="{{ hasSprint }}" hint-placeholder-val="{{ false }}">
+        <span style="display:flex;gap:6px;">
+          <button onClick="{{ viewPanel }}" style="{{ btnPanel }}">panel</button>
+          <button onClick="{{ viewEdge }}" style="{{ btnEdge }}">minimize</button>
+          <button onClick="{{ viewHidden }}" style="{{ btnHidden }}">hide</button>
+          <button onClick="{{ endSprint }}" style="{{ btnGhost }}">end</button>
+        </span>
+      </sc-if>
+    </div>
+  </div>
+
+  <div data-theme="{{ theme }}" style="width:940px;height:560px;background:var(--bg);border-radius:12px;border:1px solid rgba(0,0,0,.45);box-shadow:var(--shadow-window);overflow:hidden;position:relative;display:flex;flex-direction:column;">
+
+    <div style="height:44px;flex:none;display:flex;align-items:center;gap:8px;padding:0 18px;">
+      <span style="width:12px;height:12px;border-radius:50%;background:#ff5f56;"></span>
+      <span style="width:12px;height:12px;border-radius:50%;background:#febc2e;"></span>
+      <span style="width:12px;height:12px;border-radius:50%;background:#27c93f;"></span>
+    </div>
+
+    <sc-if value="{{ showBoard }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;">
+        <div style="height:42px;flex:none;background:var(--bg-alt);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 20px;">
+          <span style="display:flex;align-items:center;gap:10px;"><i class="ti ti-layout-grid" style="font-size:15px;color:var(--syntax-2);"></i><span style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--syntax-2);font-weight:600;">corkboard</span><span style="font-size:12px;color:var(--text-dimmer);">the strange woman · 9 scenes</span></span>
+          <span onClick="{{ toggleBoard }}" style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-dim);cursor:pointer;"><span style="background:var(--kbd-bg);border:1px solid var(--kbd-border);border-bottom-width:2px;border-radius:var(--radius-kbd);padding:2px 6px;font-size:10px;">esc</span> back to writing</span>
+        </div>
+        <div style="flex:1;overflow:auto;padding:22px 26px;">
+          <sc-for list="{{ boardChapters }}" as="ch" hint-placeholder-count="2">
+            <div style="margin-bottom:24px;">
+              <div style="display:flex;align-items:center;gap:11px;margin-bottom:13px;">
+                <i class="ti ti-chevron-down" style="font-size:15px;color:var(--text-dim);"></i>
+                <span style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--syntax-2);font-weight:700;">{{ ch.title }}</span>
+                <span style="font-size:13px;color:var(--text-dim);">{{ ch.sub }}</span>
+                <span style="flex:1;height:1px;background:color-mix(in srgb,var(--border) 70%,transparent);"></span>
+                <span style="font-size:11px;color:var(--text-dimmer);">{{ ch.meta }}</span>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;padding-left:26px;">
+                <sc-for list="{{ ch.cards }}" as="c" hint-placeholder-count="4">
+                  <div style="{{ c.style }}">
+                    <div style="font-size:13px;font-weight:700;color:{{ c.titleColor }};">{{ c.n }}</div>
+                    <div style="font-size:11px;line-height:1.55;color:var(--text-dim);flex:1;font-style:{{ c.fs }};">{{ c.s }}</div>
+                    <div style="font-size:10px;color:var(--text-dimmer);letter-spacing:.05em;">{{ c.meta }}</div>
+                  </div>
+                </sc-for>
+                <div style="border:1px dashed color-mix(in srgb,var(--text-dim) 50%,transparent);border-radius:var(--radius-card);padding:13px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-height:120px;color:var(--text-dim);"><i class="ti ti-plus" style="font-size:18px;"></i><span style="font-size:11px;">new scene</span></div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showWriting }}" hint-placeholder-val="{{ true }}">
+      <div style="flex:1;display:flex;overflow:hidden;">
+        <sc-if value="{{ isEditor }}" hint-placeholder-val="{{ false }}">
+          <div style="width:var(--rail-w);flex:none;background:var(--bg-alt);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px 10px;"><span style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:600;opacity:.85;">manuscript</span><span style="font-size:11px;color:var(--text-dimmer);">3 ch · 9</span></div>
+            <div style="flex:1;overflow:auto;padding:0 8px;">
+              <div style="display:flex;align-items:center;gap:7px;padding:8px;"><i class="ti ti-chevron-down" style="font-size:14px;color:var(--syntax-2);"></i><span style="font-size:12px;color:var(--text);font-weight:700;flex:1;">Chapter 1</span><span style="font-size:10px;color:var(--text-dimmer);">4</span></div>
+              <div style="margin:1px 0 8px 16px;padding-left:11px;border-left:1px solid color-mix(in srgb,var(--border) 90%,transparent);display:flex;flex-direction:column;gap:1px;">
+                <sc-for list="{{ railScenes }}" as="s" hint-placeholder-count="4">
+                  <div style="{{ s.style }}"><span style="font-size:12px;color:{{ s.color }};font-style:{{ s.fs }};">{{ s.name }}</span><span style="font-size:10px;color:var(--text-dimmer);">{{ s.w }}</span></div>
+                </sc-for>
+              </div>
+              <div style="display:flex;align-items:center;gap:7px;padding:8px;"><i class="ti ti-chevron-right" style="font-size:14px;color:var(--text-dim);"></i><span style="font-size:12px;color:var(--text-dim);font-weight:700;flex:1;">Chapter 2</span><span style="font-size:10px;color:var(--text-dimmer);">3</span></div>
+              <div style="display:flex;align-items:center;gap:7px;padding:8px;"><i class="ti ti-chevron-right" style="font-size:14px;color:var(--text-dim);"></i><span style="font-size:12px;color:var(--text-dim);font-weight:700;flex:1;">Chapter 3</span><span style="font-size:10px;color:var(--text-dimmer);">2</span></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-top:1px solid color-mix(in srgb,var(--border) 70%,transparent);color:var(--text-dim);font-size:12px;"><i class="ti ti-plus" style="font-size:14px;"></i> new scene</div>
+          </div>
+        </sc-if>
+        <div style="flex:1;position:relative;overflow:hidden;padding:20px 48px 40px;">
+          <div style="max-width:{{ measure }};margin:0 auto;">
+            <h2 style="margin:0 0 14px;font-size:26px;font-weight:700;color:var(--accent);letter-spacing:.5px;">Chapter 1</h2>
+            <div style="margin:0 0 22px;font-size:16px;font-weight:700;color:var(--syntax-2);letter-spacing:.5px;">January 22, 2026</div>
+            <p style="margin:0 0 18px;font-size:15px;line-height:1.9;color:var(--text);">I met a strange woman today. Turns out she's the teacher in the little class I'm going to take. More on that in a moment. She was lecturing a customer, but I don't think she did it out of superiority — more like she was just incredibly passionate.</p>
+            <p style="margin:0;font-size:15px;line-height:1.9;color:var(--text);font-style:italic;">"They spray the insecticides. Then pesticides. They don't need them. Aphids on the tomatoes? Plant marigolds. The people who lived here first knew this. They planted beans with maize and squash."</p>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showEdge }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;left:0;right:0;bottom:30px;height:2px;background:color-mix(in srgb,var(--border) 45%,transparent);z-index:3;"><div style="height:100%;width:{{ pct }}%;background:var(--accent);box-shadow:0 0 10px color-mix(in srgb,var(--accent) 70%,transparent);"></div></div>
+    </sc-if>
+
+    <div style="height:30px;flex:none;background:var(--bg-alt);border-top:1px solid var(--border);display:flex;align-items:center;gap:16px;padding:0 18px;font-size:11px;letter-spacing:.03em;color:var(--text-dim);position:relative;z-index:2;">
+      <span>2064 words</span><span style="color:var(--text-dimmer);">10922 chars</span><span style="color:var(--text-dimmer);">{{ sourceLabel }}</span>
+      <sc-if value="{{ showChip }}" hint-placeholder-val="{{ false }}">
+        <span onClick="{{ viewPanel }}" title="show sprint timer" style="display:flex;align-items:center;gap:6px;cursor:pointer;"><i class="ti ti-run" style="font-size:13px;color:var(--accent);"></i><span style="color:var(--text-dim);">Sprinting</span></span>
+      </sc-if>
+      <span style="flex:1;"></span>
+      <sc-if value="{{ isEditor }}" hint-placeholder-val="{{ false }}"><span style="color:var(--syntax-2);">editor</span></sc-if>
+      <span style="color:var(--text-dimmer);">ch1.md</span>
+    </div>
+
+    <sc-if value="{{ showPanel }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;left:50%;bottom:52px;transform:translateX(-50%);z-index:5;width:340px;background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border:1px solid var(--glass-border);border-top:1px solid var(--glass-edge);border-radius:var(--radius-panel);box-shadow:var(--shadow-palette),var(--glass-highlight);padding:16px 18px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div style="display:flex;align-items:center;gap:8px;"><span style="width:6px;height:6px;border-radius:50%;background:var(--accent);"></span><span style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:600;">sprint</span></div>
+          <div style="display:flex;gap:6px;">
+            <span onClick="{{ viewEdge }}" style="font-size:11px;color:var(--text-dim);padding:3px 10px;border:1px solid var(--glass-border);border-radius:5px;cursor:pointer;">minimize</span>
+            <span onClick="{{ endSprint }}" style="font-size:11px;color:var(--text-dim);padding:3px 10px;border:1px solid var(--glass-border);border-radius:5px;cursor:pointer;">end</span>
+          </div>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:10px;margin-top:13px;"><span style="font-size:34px;font-weight:700;color:var(--text);letter-spacing:1px;font-variant-numeric:tabular-nums;">{{ timeStr }}</span><span style="font-size:11px;color:var(--text-dimmer);">remaining</span></div>
+        <div style="height:3px;border-radius:2px;background:color-mix(in srgb,var(--border) 60%,transparent);margin-top:13px;overflow:hidden;"><div style="height:100%;width:{{ pct }}%;background:var(--accent);"></div></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:11px;font-size:11px;color:var(--text-dim);"><span>+180 words · goal 500</span><span style="background:var(--kbd-bg);border:1px solid var(--kbd-border);border-bottom-width:2px;border-radius:var(--radius-kbd);padding:2px 6px;font-size:10px;">⌘⇧M</span></div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showPalette }}" hint-placeholder-val="{{ false }}">
+      <div onClick="{{ togglePalette }}" style="position:absolute;inset:0;z-index:9;display:flex;justify-content:center;padding-top:34px;">
+        <div onClick="{{ stop }}" style="width:560px;height:fit-content;max-height:440px;background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border:1px solid var(--glass-border);border-top:1px solid var(--glass-edge);border-radius:var(--radius-palette);box-shadow:var(--shadow-palette),var(--glass-highlight);overflow:hidden;display:flex;flex-direction:column;">
+          <div style="display:flex;align-items:center;gap:11px;padding:15px 18px;border-bottom:1px solid color-mix(in srgb,var(--border) 70%,transparent);"><i class="ti ti-search" style="font-size:15px;color:var(--text-dimmer);"></i><span style="font-size:14px;color:var(--text-dimmer);">type a command...</span></div>
+          <div style="overflow:auto;padding:8px 0;">
+            <div style="padding:8px 18px 5px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:600;opacity:.85;">sprint</div>
+            <div onClick="{{ startSprint }}" style="display:flex;align-items:center;gap:12px;padding:8px 18px;font-size:13px;color:var(--text);background:var(--wash-accent);box-shadow:var(--stripe-accent);cursor:pointer;"><i class="ti ti-run" style="font-size:16px;width:16px;color:var(--accent);"></i><span style="flex:1;">Start sprint</span><span style="display:flex;gap:4px;"><span style="background:var(--kbd-bg);border:1px solid var(--kbd-border);border-bottom-width:2px;border-radius:var(--radius-kbd);padding:2px 6px;font-size:10px;">⌘</span><span style="background:var(--kbd-bg);border:1px solid var(--kbd-border);border-bottom-width:2px;border-radius:var(--radius-kbd);padding:2px 6px;font-size:10px;">⇧</span><span style="background:var(--kbd-bg);border:1px solid var(--kbd-border);border-bottom-width:2px;border-radius:var(--radius-kbd);padding:2px 6px;font-size:10px;">S</span></span></div>
+            <div onClick="{{ hideFromPalette }}" style="display:flex;align-items:center;gap:12px;padding:8px 18px;font-size:13px;color:var(--text-dim);cursor:pointer;"><i class="ti ti-eye-off" style="font-size:16px;width:16px;color:var(--text-dim);"></i><span style="flex:1;">Hide sprint timer</span><span style="display:flex;gap:4px;"><span style="background:var(--kbd-bg);border:1px solid var(--kbd-border);border-bottom-width:2px;border-radius:var(--radius-kbd);padding:2px 6px;font-size:10px;">⌘</span><span style="background:var(--kbd-bg);border:1px solid var(--kbd-border);border-bottom-width:2px;border-radius:var(--radius-kbd);padding:2px 6px;font-size:10px;">⇧</span><span style="background:var(--kbd-bg);border:1px solid var(--kbd-border);border-bottom-width:2px;border-radius:var(--radius-kbd);padding:2px 6px;font-size:10px;">H</span></span></div>
+            <div style="padding:12px 18px 5px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:600;opacity:.85;">view</div>
+            <div style="display:flex;align-items:center;gap:12px;padding:8px 18px;font-size:13px;color:var(--text-dim);"><i class="ti ti-align-left" style="font-size:16px;width:16px;color:var(--text-dim);"></i><span style="flex:1;">Typewriter mode</span><span style="display:flex;gap:4px;"><span style="background:var(--kbd-bg);border:1px solid var(--kbd-border);border-bottom-width:2px;border-radius:var(--radius-kbd);padding:2px 6px;font-size:10px;">⌘</span><span style="background:var(--kbd-bg);border:1px solid var(--kbd-border);border-bottom-width:2px;border-radius:var(--radius-kbd);padding:2px 6px;font-size:10px;">⇧</span><span style="background:var(--kbd-bg);border:1px solid var(--kbd-border);border-bottom-width:2px;border-radius:var(--radius-kbd);padding:2px 6px;font-size:10px;">T</span></span></div>
+            <div style="padding:12px 18px 5px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:600;opacity:.85;">mode</div>
+            <div onClick="{{ pickSprinter }}" style="display:flex;align-items:center;gap:12px;padding:8px 18px;font-size:13px;color:var(--text-dim);cursor:pointer;"><i class="ti ti-run" style="font-size:16px;width:16px;color:var(--text-dim);"></i><span style="flex:1;">Switch to Sprinter</span><sc-if value="{{ isSprinter }}" hint-placeholder-val="{{ true }}"><i class="ti ti-check" style="font-size:15px;color:var(--accent);"></i></sc-if></div>
+            <div onClick="{{ pickEditor }}" style="display:flex;align-items:center;gap:12px;padding:8px 18px;font-size:13px;color:var(--text-dim);cursor:pointer;"><i class="ti ti-layout-columns" style="font-size:16px;width:16px;color:var(--text-dim);"></i><span style="flex:1;">Switch to Editor</span><sc-if value="{{ isEditor }}" hint-placeholder-val="{{ false }}"><i class="ti ti-check" style="font-size:15px;color:var(--accent);"></i></sc-if></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:16px;padding:11px 18px;border-top:1px solid color-mix(in srgb,var(--border) 70%,transparent);font-size:11px;color:var(--text-dim);">
+            <span style="display:flex;align-items:center;gap:6px;"><span style="background:var(--kbd-bg);border:1px solid var(--kbd-border);border-bottom-width:2px;border-radius:var(--radius-kbd);padding:2px 6px;font-size:10px;">↑↓</span> navigate</span>
+            <span style="display:flex;align-items:center;gap:6px;"><span style="background:var(--kbd-bg);border:1px solid var(--kbd-border);border-bottom-width:2px;border-radius:var(--radius-kbd);padding:2px 6px;font-size:10px;">↵</span> select</span>
+            <span style="display:flex;align-items:center;gap:6px;"><span style="background:var(--kbd-bg);border:1px solid var(--kbd-border);border-bottom-width:2px;border-radius:var(--radius-kbd);padding:2px 6px;font-size:10px;">esc</span> close</span>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+  </div>
+
+  <div style="font-size:11px;color:#5b6172;">pick a theme · toggle ⌘K palette · start a sprint, then minimize or hide it · switch to editor for the scene rail &amp; corkboard</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1000,&quot;height&quot;:680}}">
+class Component extends DCLogic {
+  state = { theme: 'dark', mode: 'sprinter', palette: false, board: false, sprint: null };
+
+  componentDidMount() {
+    this._key = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); this.setState(s => ({ palette: !s.palette })); }
+      if (e.key === 'Escape') this.setState({ palette: false, board: false });
+    };
+    window.addEventListener('keydown', this._key);
+    this._iv = setInterval(() => {
+      this.setState(s => (s.sprint && s.sprint.rem > 0) ? { sprint: { ...s.sprint, rem: s.sprint.rem - 1 } } : {});
+    }, 1000);
+  }
+  componentWillUnmount() { window.removeEventListener('keydown', this._key); clearInterval(this._iv); }
+
+  start = () => { const total = 25 * 60; this.setState({ sprint: { rem: Math.round(total * 0.581), total, view: 'active' }, palette: false }); };
+  setView = (v) => this.setState(s => ({ sprint: s.sprint ? { ...s.sprint, view: v } : { rem: 872, total: 1500, view: v } }));
+
+  renderVals() {
+    const s = this.state;
+    const sp = s.sprint;
+    const total = sp ? sp.total : 1500;
+    const rem = sp ? sp.rem : 872;
+    const pct = ((total - rem) / total) * 100;
+    const isEditor = s.mode === 'editor';
+    const view = sp && sp.view;
+
+    const btn = (on) => `font-family:var(--font-mono);font-size:11px;padding:5px 11px;border-radius:6px;cursor:pointer;border:1px solid ${on ? 'transparent' : '#2a2c38'};background:${on ? 'var(--accent)' : 'transparent'};color:${on ? '#111' : '#8b93b8'};font-weight:${on ? 700 : 400};`;
+
+    const themes = [['dark', '#f8c537'], ['light', '#b8820a'], ['amstrad', '#7dc45a'], ['grove', '#a7c080'], ['dracula', '#bd93f9']].map(t => ({
+      name: t[0], color: t[1],
+      ring: s.theme === t[0] ? '2px solid #fff' : '1px solid #3a3d4a',
+      set: () => this.setState({ theme: t[0] }),
+    }));
+
+    const cardStyle = (active, draft) => `background:var(--bg-alt);border:1px solid ${active ? 'var(--syntax-2)' : 'var(--border)'};border-radius:var(--radius-card);padding:13px;display:flex;flex-direction:column;gap:7px;min-height:120px;${active ? 'box-shadow:0 0 0 3px color-mix(in srgb,var(--syntax-2) 12%,transparent);' : ''}${draft ? 'opacity:.7;' : ''}`;
+    const mkCard = (n, str, w, active, draft) => ({
+      n, s: str, style: cardStyle(active, draft),
+      titleColor: draft ? 'var(--text-dim)' : 'var(--text)',
+      fs: draft ? 'italic' : 'normal',
+      meta: draft ? 'draft' : w + ' words',
+    });
+    const boardChapters = [
+      { title: 'Chapter 1', sub: 'The strange woman', meta: '4 scenes · 1410 words', cards: [
+        mkCard('1 · Opening', 'She meets the teacher in the little class.', 420, true),
+        mkCard('2 · The lesson', 'Marigolds keep the aphids off. The old way.', 610),
+        mkCard('3 · Drive home', 'Suburbs and strip malls. Dry country.', 380),
+      ]},
+      { title: 'Chapter 2', sub: 'The class', meta: '3 scenes · 980 words', cards: [
+        mkCard('1 · The arrival', 'First day. The room smells of soil and old paper.', 340),
+        mkCard('2 · Marrow', 'She talks about control, and what belongs where.', 470),
+        mkCard('3 · After', 'empty · a few notes', 0, false, true),
+      ]},
+    ];
+
+    const railScenes = [['Opening', '420', true], ['The lesson', '610'], ['Drive home', '380'], ['Nightfall', 'draft']].map(r => ({
+      name: r[0], w: r[1],
+      color: r[2] ? 'var(--text)' : 'var(--text-dim)',
+      fs: r[1] === 'draft' ? 'italic' : 'normal',
+      style: `padding:7px 10px;border-radius:var(--radius-item);display:flex;justify-content:space-between;align-items:baseline;gap:8px;${r[2] ? 'background:color-mix(in srgb,var(--syntax-2) 10%,transparent);box-shadow:inset 2px 0 0 var(--syntax-2);' : ''}${r[1] === 'draft' ? 'opacity:.7;' : ''}`,
+    }));
+
+    return {
+      theme: s.theme, isEditor, isSprinter: s.mode === 'sprinter',
+      noSprint: !sp, hasSprint: !!sp,
+      showBoard: s.board && isEditor,
+      showWriting: !(s.board && isEditor),
+      showEdge: view === 'edge',
+      showChip: view === 'edge' || view === 'hidden',
+      showPanel: view === 'active',
+      showPalette: s.palette,
+      measure: isEditor ? '560px' : 'var(--editor-measure)',
+      sourceLabel: isEditor ? 'source' : 'preview',
+      pct, timeStr: String(Math.floor(rem / 60)).padStart(2, '0') + ':' + String(rem % 60).padStart(2, '0'),
+      themes, boardChapters, railScenes,
+      btnSprinter: btn(s.mode === 'sprinter'), btnEditor: btn(isEditor),
+      btnPalette: btn(s.palette), btnBoard: btn(s.board), btnGhost: btn(false),
+      btnPanel: btn(view === 'active'), btnEdge: btn(view === 'edge'), btnHidden: btn(view === 'hidden'),
+      setSprinter: () => this.setState({ mode: 'sprinter', board: false }),
+      setEditor: () => this.setState({ mode: 'editor' }),
+      togglePalette: () => this.setState(st => ({ palette: !st.palette })),
+      toggleBoard: () => this.setState(st => ({ board: !st.board })),
+      startSprint: this.start, endSprint: () => this.setState({ sprint: null }),
+      viewPanel: () => this.setView('active'), viewEdge: () => this.setView('edge'), viewHidden: () => this.setView('hidden'),
+      hideFromPalette: () => { this.setView('hidden'); this.setState({ palette: false }); },
+      pickSprinter: () => this.setState({ mode: 'sprinter', board: false, palette: false }),
+      pickEditor: () => this.setState({ mode: 'editor', palette: false }),
+      stop: (e) => e.stopPropagation(),
+    };
+  }
+}
+</script>
+</body>
+</html>

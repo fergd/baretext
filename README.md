@@ -82,7 +82,10 @@ title). Two views onto the same manuscript model:
   it. Drag the grip handle on a chapter or scene row to reorder — drag a
   scene onto another chapter's header to move it there (the easiest way to
   get a scene into a currently-empty chapter), or onto another scene row for
-  precise positioning within a chapter.
+  precise positioning within a chapter. Fully keyboard-operable too: it's a
+  real ARIA tree — ↑/↓ move between rows, ←/→ collapse/expand a chapter,
+  Enter/Space activates, F2 renames, Delete arms the delete confirm, and
+  ⌥↑/⌥↓ reorders the focused row without touching the mouse.
 - **Corkboard** (⌘⇧C) — a full-window card view for restructuring: drag
   scene cards to reorder within or across chapters. Interacting with a card
   (creating, editing, dragging, deleting) never navigates away — the
@@ -121,18 +124,36 @@ provider module with the same `init`/`onSave`/`flush` shape.
 - ⌘⇧D — switch between Sprinter and Editor mode
 - ⌘⇧S — start (or restore) a writing sprint, Sprinter mode
 - ⌘⇧H — hide the sprint timer, Sprinter mode
+- ⌘F — find & replace, Editor mode
+- ⌘⇧P — toggle spellcheck, Editor mode
+- ⌘⇧C — toggle corkboard, Editor mode
 
 The active sprint panel also has a **pause** button (next to minimize/end)
 for stopping the countdown without ending the sprint — no shortcut, click
 it or use the palette's "Pause sprint" entry. Paused state carries through
 minimized and hidden views (the chip reads "paused"; "hidden" still shows
 nothing more specific than "sprinting", by design).
-- ⌘F — find & replace, Editor mode
-- ⌘⇧P — toggle spellcheck, Editor mode
-- ⌘⇧C — toggle corkboard, Editor mode
 
-Themes (dark / light / ayu / dracula) are in the command palette, along with
-everything else.
+## Themes
+Five themes, all keyed off the same semantic CSS custom properties
+(`tokens/colors.css`-derived — see `src/index.html`'s `:root`/`[data-theme]`
+blocks) so every component is theme-agnostic:
+
+| id | display name | one-liner |
+|---|---|---|
+| `dark` | Ember (native) | amber lamp on charcoal |
+| `light` | Parchment | warm parchment, never white |
+| `amstrad` | Amstrad | toned-down Amstrad CPC green-phosphor terminal |
+| `grove` | Grove | Everforest Dark, verbatim palette |
+| `dracula` | Dracula | the standard Dracula palette |
+
+Switch instantly from the command palette (each theme is its own quick-switch
+entry), or open the full **Theme Picker** — palette → "Change theme…" — a
+gallery of all five, each card rendered live in its own theme with a swatch
+row and a mini writing-surface specimen (including the Typewriter focus
+line) so you can judge a theme in context, not just as color chips. Click a
+card to apply it immediately (picker stays open so you can keep comparing);
+arrow keys move between cards, Enter applies, Esc closes.
 
 Files auto-save to ~/Documents/Barebones/ (change via "Set save location" in
 the command palette). The app reopens your most recently edited file on launch.
@@ -151,6 +172,11 @@ the command palette). The app reopens your most recently edited file on launch.
   `ctx` gives it the CodeMirror view, `window.api`, and shared helpers like
   `getDoc`/`setDoc`. Adding a new feature means adding one file here plus
   one line in `modes.js`.
+- `src/theme-picker.js` — the Theme Picker view. Mode-agnostic (themes apply
+  in both Sprinter and Editor), so unlike `src/features/`, it's mounted once
+  at boot directly by `app.js` rather than through the per-mode feature
+  lifecycle. Same `mount`/`show`/`close`/`toggle`/`isOpen` shape as
+  `scene-nav/corkboard.js`.
 - `src/editor/` — the CodeMirror 6 engine itself (markdown live-preview,
   scene-break/block-spacing rendering, search, spellcheck, outline
   parsing, typewriter focus-dimming), compiled to `src/editor-bundle.js`
@@ -162,6 +188,19 @@ the command palette). The app reopens your most recently edited file on launch.
   of what's been built and what's next, meant to be read at the start of a
   new session.
 
+## Accessibility
+Every interactive control is a real, keyboard-operable `<button>` (or, for
+the rail's rows, a proper ARIA `treeitem`) — nothing is mouse-only. A global
+`:focus-visible` ring shows on keyboard focus (never on a mouse click), and
+`prefers-reduced-motion` collapses animations/transitions to near-instant
+system-wide, including stopping the sprint panel's pulsing dot. The command
+palette is a `dialog`/`combobox`/`listbox` with a focus trap; the font
+picker is a `radiogroup`; the scene rail is a full `tree` (see the rail
+bullet above for its keyboard model). All 5 themes' `--text-dimmer` clears
+WCAG AA (4.5:1) against both `--bg` and `--bg-alt` — regression-tested in
+`test/unit/theme-contrast.test.js` against the actual theme values, not a
+hand-copied table.
+
 ## Testing
 ```
 npm test          # unit + E2E
@@ -170,3 +209,6 @@ npm run test:e2e  # drives a real Electron instance via CDP (test/e2e/)
 ```
 E2E tests launch the app with an isolated scratch user-data/save
 directory — they never touch your real settings or `~/Documents/Barebones/`.
+The window also never shows or steals focus (`BARETEXT_HIDDEN=1`, read in
+`src/main.js`) — CDP drives the renderer directly and doesn't need it
+visible.

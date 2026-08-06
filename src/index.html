@@ -9,7 +9,7 @@
     // below is parsed, so there's no flash of the default theme on launch.
     (function () {
       var m = /[?&]theme=([a-z]+)/.exec(location.search);
-      var valid = ['dark', 'light', 'ayu', 'dracula'];
+      var valid = ['dark', 'light', 'amstrad', 'grove', 'dracula'];
       if (m && valid.indexOf(m[1]) !== -1) {
         document.documentElement.setAttribute('data-theme', m[1]);
       }
@@ -55,51 +55,95 @@
       --lh-body: 1.9;
       --editor-measure: 75ch; /* line measure — tune this one value to adjust editor line width */
       --rail-w: 250px;
+
+      /* corner radii (per surface) */
+      --radius-toast:   5px;
+      --radius-picker:  8px;
+      --radius-card:    10px;
+      --radius-panel:   12px;
+      --radius-palette: 14px;
+      --radius-kbd:     4px;
+      --radius-item:    6px;
+
+      /* elevation — large soft black shadows, no mid-tones */
+      --shadow-window:  0 40px 110px rgba(0, 0, 0, .55);
+      --shadow-palette: 0 28px 90px rgba(0, 0, 0, .55);
+      --shadow-panel:   0 22px 60px rgba(0, 0, 0, .50);
+      --shadow-toast:   0 16px 44px rgba(0, 0, 0, .50);
+
+      /* glass blur is color-independent */
+      --glass-blur: blur(22px) saturate(160%);
+
+      /* motion */
+      --ease-panel: cubic-bezier(0.16, 1, 0.3, 1);
+      --dur-panel:  .2s;
+      --dur-theme:  .35s;   /* theme wash — deliberately slow */
+      --dur-micro:  .1s;
     }
 
-    /* ── DARK (original baretext dark) ── */
+    /* ── Ember (dark, native) ── */
     [data-theme="dark"] {
       --bg: #242424;  --bg-alt: #191919;
-      --text: #faf2d6; --text-dim: #bdae93; --text-dimmer: #5a5040;
+      /* --text-dimmer lifted from #5a5040 (ACCESSIBILITY.md: ~2.0:1 against
+         --bg-alt, fails WCAG AA) to #968d78 -- clears 4.5:1 against both
+         --bg and --bg-alt. Applies everywhere via var(), including
+         --placeholder below (was a separate duplicate hex, now derived). */
+      --text: #faf2d6; --text-dim: #bdae93; --text-dimmer: #968d78;
       --accent: #f8c537; --border: #3a3a3a;
-      --cursor: #f8c537; --sel: rgba(248,197,55,0.22); --placeholder: #5a5040;
+      --cursor: #f8c537; --sel: rgba(248,197,55,0.22); --placeholder: var(--text-dimmer);
       --syntax-2: #f8c537;
+      --typewriter-focus: #fbe6a0;
     }
 
-    /* ── LIGHT (warm parchment) ── */
+    /* ── Parchment (light) — warm parchment, never white ── */
     [data-theme="light"] {
       --bg: #f5f0e8;  --bg-alt: #ede8de;
-      --text: #2a2218; --text-dim: #6b5f4a; --text-dimmer: #b0a898;
+      --text: #2a2218; --text-dim: #6b5f4a; --text-dimmer: #70685b;
       --accent: #b8820a; --border: #d0c8b8;
-      --cursor: #b8820a; --sel: rgba(184,130,10,0.20); --placeholder: #b0a898;
+      --cursor: #b8820a; --sel: rgba(184,130,10,0.20); --placeholder: var(--text-dimmer);
       --syntax-2: #b8820a;
+      --typewriter-focus: #1a1206;
     }
 
-    /* ── AYU — green terminal (ayu-theme) ── */
-    [data-theme="ayu"] {
+    /* ── Amstrad — toned-down Amstrad CPC green-phosphor terminal.
+       --text-dim also lifted here (was 4.05:1, still under 4.5:1 on its
+       own) so it stays visibly more prominent than the lifted --text-dimmer
+       rather than the two colliding. ── */
+    [data-theme="amstrad"] {
       --bg: #0d130d;  --bg-alt: #0a0f0a;
-      --text: #c8e6b0; --text-dim: #5f7a55; --text-dimmer: #2d3d29;
+      --text: #c8e6b0; --text-dim: #79956c; --text-dimmer: #6f8562;
       --accent: #7dc45a; --border: #1c281a;
-      --cursor: #7dc45a; --sel: rgba(125,196,90,0.18); --placeholder: #2d3d29;
+      --cursor: #7dc45a; --sel: rgba(125,196,90,0.18); --placeholder: var(--text-dimmer);
       --syntax-2: #7dc45a;
+      --typewriter-focus: #b6e85a;
     }
 
-    /* ── DRACULA — purple midnight, vivid neons (draculatheme.com) ── */
+    /* ── Grove — Everforest Dark (Obsidian port), verbatim palette.
+       Caret is Everforest blue, not the accent. ── */
+    [data-theme="grove"] {
+      --bg: #2f383e;  --bg-alt: #272f34;
+      --text: #d3c6aa; --text-dim: #9aa79d; --text-dimmer: #9ca293;
+      --accent: #a7c080; --border: #525c62;
+      --cursor: #7fbbb3; --sel: rgba(82,92,98,0.55); --placeholder: var(--text-dimmer);
+      --syntax-2: #e69875;
+      --typewriter-focus: #e0c583;
+    }
+
+    /* ── Dracula — the standard Dracula palette. Cursor = text, not accent.
+       --text-dim also lifted (was 3.36:1) for the same reason as Amstrad. ── */
     [data-theme="dracula"] {
       --bg: #282a36;  --bg-alt: #21222c;
-      --text: #f8f8f2; --text-dim: #6272a4; --text-dimmer: #44475a;
+      --text: #f8f8f2; --text-dim: #97a1bf; --text-dimmer: #91929b;
       --accent: #bd93f9; --border: #44475a;
-      --cursor: #f8f8f2; --sel: rgba(68,71,90,0.70); --placeholder: #44475a;
+      --cursor: #f8f8f2; --sel: rgba(68,71,90,0.70); --placeholder: var(--text-dimmer);
       --syntax-2: #8be9fd;
+      --typewriter-focus: #ffffff;
     }
 
     /* ── Derived tokens — glass, washes, keycap. MUST be redeclared on every
        themed container (not :root alone) so nested var()s recompose from
        that scope's own colors instead of baking in the dark defaults. ── */
     :root, [data-theme] {
-      --radius-panel: 12px;
-      --shadow-panel: 0 22px 60px rgba(0,0,0,.50);
-      --shadow-toast: 0 16px 44px rgba(0,0,0,.50);
       --glass-bg:           color-mix(in srgb, var(--bg-alt) 86%, transparent);
       --glass-border:       color-mix(in srgb, var(--border) 65%, transparent);
       --glass-highlight:    inset 0 1px 0 color-mix(in srgb, var(--text) 8%, transparent);
@@ -120,7 +164,7 @@
       -webkit-font-smoothing: antialiased;
       user-select: none;
       /* Smooth theme transitions on root colors */
-      transition: background 0.35s ease, color 0.35s ease;
+      transition: background var(--dur-theme) ease, color var(--dur-theme) ease;
     }
 
     #app {
@@ -129,7 +173,7 @@
       height: 100vh;
       background: var(--bg);
       /* Theme color transitions ripple through the whole app */
-      transition: background 0.35s ease;
+      transition: background var(--dur-theme) ease;
       /* anchor for absolutely-positioned overlays (sprint panel/edge line, etc.) */
       position: relative;
     }
@@ -165,6 +209,16 @@
     /* Full-window scene-card view, replaces #content-row (not a floating
        overlay) — visibility toggled by scene-nav/corkboard.js. */
     #corkboard {
+      display: none;
+      flex: 1;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--bg);
+    }
+
+    /* Full-window theme gallery, same replaces-#content-row technique as
+       #corkboard — visibility toggled by theme-picker.js. */
+    #theme-picker {
       display: none;
       flex: 1;
       flex-direction: column;
@@ -219,8 +273,16 @@
       color: color-mix(in srgb, var(--syntax-2, var(--accent)) 40%, transparent);
     }
 
-    /* Typewriter status-bar toggle — always present, click flips typewriter mode */
-    #tw-status-indicator { display: flex; align-items: center; gap: 6px; cursor: pointer; transition: color 0.15s ease; }
+    /* Typewriter status-bar toggle — always present, click flips typewriter mode.
+       all:unset resets browser <button> chrome; re-declares what the shared
+       .status-item rule below would otherwise have provided, since #id beats
+       .class regardless of source order. */
+    #tw-status-indicator {
+      all: unset; box-sizing: border-box; cursor: pointer;
+      font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.03em; color: var(--text-dim);
+      display: flex; align-items: center; gap: 6px; padding: 4px 6px; margin: -4px -6px;
+      transition: color 0.15s ease;
+    }
     #tw-status-indicator .ti { color: var(--text-dimmer); font-size: 13px; transition: color 0.15s ease; }
     #tw-status-indicator:hover { color: var(--text); }
     #tw-status-indicator:hover .ti { color: var(--text-dim); }
@@ -236,7 +298,7 @@
       flex-shrink: 0;
       border-top: 1px solid var(--border);
       background: var(--bg-alt);
-      transition: background 0.35s ease, border-color 0.35s ease,
+      transition: background var(--dur-theme) ease, border-color var(--dur-theme) ease,
                   opacity 0.25s ease, transform 0.25s ease;
     }
     /* Focus mode: slide the statusbar down out of view */
@@ -251,7 +313,7 @@
       font-family: var(--font-mono);
       color: var(--text-dim);
       letter-spacing: 0.03em;
-      transition: color 0.35s ease;
+      transition: color var(--dur-theme) ease;
     }
     .status-item.dimmer { color: var(--text-dimmer); }
 
@@ -518,6 +580,31 @@
     ::-webkit-scrollbar { width: 4px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--text-dimmer); border-radius: 2px; }
+
+    /* Global keyboard-focus ring. :focus-visible (not :focus) so a mouse
+       click doesn't show it, only keyboard/programmatic focus -- covers
+       every interactive pattern in the app, including the JS-injected
+       feature stylesheets (rail/corkboard/sprint-timer/theme-picker), since
+       this is a single app-wide rule rather than one per component. */
+    :where(button, a, input, textarea, select,
+           [role="option"], [role="treeitem"], [role="radio"], [role="tab"], [tabindex]):focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+
+    /* Respect the OS-level "reduce motion" preference: collapse every
+       animation/transition to effectively instant, and stop the sprint
+       panel's infinite pulsing dot entirely -- continuous motion is a
+       vestibular/attention trigger some users have this setting on for. */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: .001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .001ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
   </style>
 </head>
 <body>
@@ -533,12 +620,13 @@
     </div>
   </div>
   <div id="corkboard"></div>
-  <div id="statusbar">
+  <div id="theme-picker"></div>
+  <div id="statusbar" role="region" aria-label="Status">
     <div class="status-group">
       <span class="status-item" id="word-count">0 words</span>
       <span class="status-item dimmer" id="char-count">0 chars</span>
       <span class="status-item dimmer" id="md-mode">preview</span>
-      <span class="status-item" id="tw-status-indicator"><i class="ti ti-align-left"></i>typewriter</span>
+      <button type="button" class="status-item" id="tw-status-indicator" aria-pressed="false" aria-label="Toggle typewriter mode"><i class="ti ti-align-left" aria-hidden="true"></i>typewriter</button>
     </div>
     <div class="status-group">
       <div id="save-error" title="save failed"></div>
@@ -548,12 +636,13 @@
 </div>
 
 <div id="overlay">
-  <div id="palette">
+  <div id="palette" role="dialog" aria-modal="true" aria-label="Command palette">
     <div id="palette-search-row">
       <i class="ti ti-search" id="palette-search-icon" aria-hidden="true"></i>
-      <input id="palette-input" type="text" placeholder="type a command..." autocomplete="off" spellcheck="false">
+      <input id="palette-input" type="text" placeholder="type a command..." autocomplete="off" spellcheck="false"
+             role="combobox" aria-expanded="true" aria-controls="palette-list" aria-autocomplete="list" aria-activedescendant="">
     </div>
-    <div id="palette-list"></div>
+    <div id="palette-list" role="listbox" aria-label="Commands"></div>
     <div id="palette-footer">
       <span class="p-hint"><kbd class="phkey">↑↓</kbd> navigate</span>
       <span class="p-hint"><kbd class="phkey">↵</kbd> select</span>
@@ -562,10 +651,10 @@
   </div>
 </div>
 
-<div id="font-picker">
-  <button class="fbtn mono active" data-font="mono">mono</button>
-  <button class="fbtn serif" data-font="serif">serif</button>
-  <button class="fbtn sans" data-font="sans">sans</button>
+<div id="font-picker" role="radiogroup" aria-label="Editor font">
+  <button class="fbtn mono active" data-font="mono" role="radio" aria-checked="true">mono</button>
+  <button class="fbtn serif" data-font="serif" role="radio" aria-checked="false">serif</button>
+  <button class="fbtn sans" data-font="sans" role="radio" aria-checked="false">sans</button>
 </div>
 
 <div id="toast"></div>
