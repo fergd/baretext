@@ -45,12 +45,24 @@ function injectStyle() {
 .corkboard-chapter-title-group { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
 .corkboard-chapter-num { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--syntax-2, var(--accent)); font-weight: 700; white-space: nowrap; }
 .corkboard-chapter-title-text { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-dim); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.corkboard-chapter-title-text.placeholder { font-style: italic; opacity: .55; font-weight: 600; }
 .corkboard-edit-btn {
   font-size: 12px; color: var(--text-dimmer); opacity: 0; cursor: pointer; flex-shrink: 0;
   transition: opacity .12s ease, color .12s ease;
 }
 .corkboard-chapter-header:hover .corkboard-edit-btn, .scene-card:hover .corkboard-edit-btn { opacity: 1; }
 .corkboard-edit-btn:hover { color: var(--syntax-2, var(--accent)); }
+.corkboard-delete-btn {
+  font-size: 12px; color: var(--text-dimmer); opacity: 0; cursor: pointer; flex-shrink: 0;
+  padding: 2px 5px; border-radius: 4px; display: flex; align-items: center; gap: 4px;
+  transition: opacity .12s ease, color .12s ease, background .12s ease;
+}
+.corkboard-chapter-header:hover .corkboard-delete-btn, .scene-card:hover .corkboard-delete-btn { opacity: 1; }
+.corkboard-delete-btn:hover { color: #e05c5c; }
+.corkboard-delete-btn.confirm {
+  opacity: 1; color: #e05c5c; font-weight: 600;
+  background: color-mix(in srgb, #e05c5c 15%, transparent);
+}
 .corkboard-chapter-rule { flex: 1; height: 1px; background: var(--border); }
 .corkboard-chapter-meta { font-size: 11px; color: var(--text-dimmer); letter-spacing: .04em; white-space: nowrap; }
 .corkboard-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; padding-left: 26px; }
@@ -86,6 +98,54 @@ function injectStyle() {
 .scene-card-new span { font-size: 11px; }
 `;
   document.head.appendChild(style);
+}
+
+// Two-click confirm: first click arms it (icon turns danger-colored, shows
+// "delete?"), a second click on the SAME button within 3s actually deletes.
+// Clicking elsewhere, arming a different delete button, or the timeout
+// disarms it — no native confirm() dialog, consistent with the rest of this
+// app never using one, but still real friction against a stray click, on
+// top of undo already being available as the last line of defense.
+function makeDeleteButton(label, onConfirm) {
+  const btn = el('span', 'corkboard-delete-btn');
+  let armed = false;
+  let timer = null;
+
+  function paint() {
+    btn.innerHTML = '';
+    btn.appendChild(icon('ti-trash'));
+    if (armed) {
+      btn.appendChild(document.createTextNode(' delete?'));
+      btn.title = 'click again to delete ' + label;
+    } else {
+      btn.title = 'delete ' + label;
+    }
+    btn.classList.toggle('confirm', armed);
+  }
+
+  function disarm() {
+    clearTimeout(timer);
+    armed = false;
+    paint();
+  }
+  btn._disarm = disarm;
+
+  btn.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (armed) {
+      disarm();
+      onConfirm();
+      return;
+    }
+    document.querySelectorAll('.corkboard-delete-btn').forEach((b) => { if (b !== btn && b._disarm) b._disarm(); });
+    armed = true;
+    paint();
+    timer = setTimeout(disarm, 3000);
+  });
+
+  paint();
+  return btn;
 }
 
 function jumpTo(scene) {
@@ -168,7 +228,11 @@ export function render() {
     const header = el('div', 'corkboard-chapter-header');
     const chapterWords = chapter.scenes.reduce((sum, s) => sum + s.wordCount, 0);
 
-    const chTitleText = el('span', 'corkboard-chapter-title-text', chapter.title);
+    const chHasTitle = chapter.title.trim() !== '';
+    // The number badge already reads "Chapter N" in full — echoing that
+    // again as the title when there isn't one yet would just duplicate it,
+    // so this gets its own distinct placeholder wording instead.
+    const chTitleText = el('span', 'corkboard-chapter-title-text' + (chHasTitle ? '' : ' placeholder'), chHasTitle ? chapter.title : 'untitled');
     const chEditBtn = el('span', 'corkboard-edit-btn');
     chEditBtn.appendChild(icon('ti-pencil'));
     chEditBtn.title = 'rename chapter';
@@ -176,8 +240,12 @@ export function render() {
       e.preventDefault(); e.stopPropagation();
       beginEdit(chTitleText, chapter.title, (newTitle) => ctx.renameTitle(chapter, newTitle));
     });
+    const chDeleteBtn = makeDeleteButton(
+      chHasTitle ? chapter.title : 'Chapter ' + chapter.number,
+      () => ctx.deleteChapter(ci, chapters)
+    );
     const chTitleGroup = el('div', 'corkboard-chapter-title-group');
-    chTitleGroup.append(el('span', 'corkboard-chapter-num', 'Chapter ' + chapter.number), chTitleText, chEditBtn);
+    chTitleGroup.append(el('span', 'corkboard-chapter-num', 'Chapter ' + chapter.number), chTitleText, chEditBtn, chDeleteBtn);
 
     header.append(
       icon('ti-chevron-down'),
@@ -200,8 +268,16 @@ export function render() {
         e.preventDefault(); e.stopPropagation();
         beginEdit(titleTextSpan, scene.title, (newTitle) => ctx.renameTitle(scene, newTitle));
       });
+      // Explicit, deliberate navigation control — double-click also jumps,
+      // but this is the discoverable version so no interaction with a card
+      // (editing, dragging, adding) ever navigates away by surprise.
+      const openBtn = el('span', 'corkboard-edit-btn');
+      openBtn.appendChild(icon('ti-arrow-up-right'));
+      openBtn.title = 'open in manuscript';
+      openBtn.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); jumpTo(scene); });
+      const deleteBtn = makeDeleteButton(scene.title, () => ctx.deleteScene(ci, si, chapters));
       const titleRow = el('div', 'scene-card-title');
-      titleRow.append(el('span', undefined, (si + 1) + ' · '), titleTextSpan, editBtn);
+      titleRow.append(el('span', undefined, (si + 1) + ' · '), titleTextSpan, editBtn, openBtn, deleteBtn);
 
       card.append(
         titleRow,

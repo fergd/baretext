@@ -35,13 +35,23 @@ test('groups chapters and scenes with correct numbering and titles', () => {
   assert.equal(chapters[1].scenes[0].title, 'Scene 1');
 });
 
-test('content before any heading becomes a synthesized Untitled chapter', () => {
+test('content before any heading becomes a synthesized chapter with a placeholder display title', () => {
   const text = `${LONG_ENOUGH}\n\n# Chapter Two\n\n${LONG_ENOUGH}`;
   const chapters = getManuscript(makeView(text));
-  assert.equal(chapters[0].title, 'Untitled');
+  assert.equal(chapters[0].title, ''); // nothing real to prefill a rename with
+  assert.equal(chapters[0].displayTitle, 'Chapter 1'); // placeholder shown in the UI only
   assert.equal(chapters[0].synthetic, true);
   assert.equal(chapters[0].number, 1);
   assert.equal(chapters[1].number, 2);
+});
+
+test('a real h1 heading with no title text yet gets a placeholder displayTitle', () => {
+  const text = `# \n\n${LONG_ENOUGH}\n\n# Chapter Two\n\n${LONG_ENOUGH}`;
+  const chapters = getManuscript(makeView(text));
+  assert.equal(chapters[0].title, ''); // raw heading text really is empty
+  assert.equal(chapters[0].displayTitle, 'Chapter 1');
+  assert.equal(chapters[0].synthetic, undefined); // a real heading exists, unlike the no-heading-at-all case
+  assert.equal(chapters[1].displayTitle, 'Chapter Two'); // a real title is never overridden
 });
 
 test('scenes under the draft word threshold are flagged isDraft', () => {

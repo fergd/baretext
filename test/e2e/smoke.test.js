@@ -59,6 +59,17 @@ describe('Baretext E2E smoke test', () => {
     assert.match(railText, /A Turning Point/);
   });
 
+  test('editor line measure is 75ch, tunable from one CSS variable', async () => {
+    const result = await app.client.evaluate(`
+      return {
+        cssVar: getComputedStyle(document.documentElement).getPropertyValue('--editor-measure').trim(),
+        resolvedMaxWidth: getComputedStyle(document.querySelector('.cm-content')).maxWidth,
+      };
+    `);
+    assert.equal(result.cssVar, '75ch');
+    assert.ok(parseInt(result.resolvedMaxWidth, 10) > 0); // resolves to a real pixel value, not left as an unparsed ch string
+  });
+
   test('spellcheck flags the deliberate typos but not contractions', async () => {
     const flagged = await app.client.evaluate(
       'return [...document.querySelectorAll(".cm-spellError")].map(e => e.textContent);'
@@ -296,24 +307,100 @@ describe('Baretext E2E smoke test', () => {
     assert.ok(!result[0].includes('The Harbor Opens'));
   });
 
-  test('"+ new scene" adds a scene to the chapter', async () => {
+  // Regression: adding a scene from the corkboard used to unconditionally
+  // close it and jump to the manuscript — nothing about interacting with a
+  // card (adding, editing, dragging) should ever navigate away by surprise.
+  test('"+ new scene" adds a scene to the chapter without leaving the corkboard', async () => {
     const before = await app.client.evaluate(`
       const cork = document.getElementById('corkboard');
-      return cork.querySelectorAll('.scene-card').length;
+      const section = cork.querySelector('.corkboard-chapter');
+      return {
+        totalCount: cork.querySelectorAll('.scene-card').length,
+        sectionCount: section.querySelectorAll('.scene-card').length,
+        display: getComputedStyle(cork).display,
+      };
     `);
-    await app.client.evaluate(`
+    assert.equal(before.display, 'flex');
+
+    const after = await app.client.evaluate(`
       const cork = document.getElementById('corkboard');
       const section = cork.querySelector('.corkboard-chapter');
       section.querySelector('.scene-card-new').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
+      const newSection = document.getElementById('corkboard').querySelector('.corkboard-chapter');
+      return {
+        totalCount: document.getElementById('corkboard').querySelectorAll('.scene-card').length,
+        sectionCount: newSection.querySelectorAll('.scene-card').length,
+        display: getComputedStyle(document.getElementById('corkboard')).display,
+      };
     `);
-    const railText = await app.client.evaluate('return document.getElementById("scene-rail").innerText;');
-    assert.match(railText, /draft/);
-    void before;
+    assert.equal(after.totalCount, before.totalCount + 1);
+    assert.equal(after.sectionCount, before.sectionCount + 1);
+    assert.equal(after.display, 'flex'); // still open — this is the actual regression check
+
+    // Regression: this chapter isn't the document's last one. addNewScene
+    // used to compute its insert point off the scene's raw endPos — which,
+    // for the last scene of a non-last chapter, is the START OF THE NEXT
+    // CHAPTER'S HEADING — gluing the new "---" in after THREE blank lines
+    // (the original gap, left untouched, plus insertSceneBreak's own
+    // padding) instead of a single clean one. Locate the marker via the
+    // chapter heading it now precedes, not lastIndexOf — chapter two has
+    // its own unrelated "---" further down that would otherwise be found
+    // instead.
+    const lines = await app.client.evaluate('return [...document.querySelectorAll(".cm-line")].map(l => l.textContent);');
+    const chapterTwoIdx = lines.indexOf('Chapter Two');
+    const markerIdx = lines.lastIndexOf('---', chapterTwoIdx);
+    assert.equal(lines[markerIdx - 1], '');
+    assert.notEqual(lines[markerIdx - 2], ''); // exactly one blank line before the marker, not three
+
+    // Jump into the new (still-empty) card specifically — the LAST card in
+    // ITS OWN chapter section, not cork-wide (chapter two has its own cards
+    // after it) — and actually type into it. A real user adding a scene
+    // would write something, not leave it blank forever. Matters for later
+    // tests too: an empty scene is legitimately dropped by the next rebuild
+    // (reorder/rename/delete all rebuild the whole document from scratch —
+    // see reorder.js), so leaving this one empty would make a later
+    // delete's "exactly one scene disappears" assumption wrong for a reason
+    // that has nothing to do with delete itself.
+    await app.client.evaluate(`
+      const section = document.getElementById('corkboard').querySelector('.corkboard-chapter');
+      const cards = [...section.querySelectorAll('.scene-card')];
+      cards[cards.length - 1].dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 150));
+    `);
+    await app.client.evaluate(`
+      document.querySelector('.cm-content').focus();
+      document.execCommand('insertText', false, 'A freshly typed scene.');
+      await new Promise(r => setTimeout(r, 100));
+    `);
+    const typedIn = await app.client.evaluate('return document.querySelector(".cm-content").innerText.includes("A freshly typed scene.");');
+    assert.equal(typedIn, true);
+  });
+
+  test('the "open in manuscript" button jumps and closes deliberately', async () => {
+    const result = await app.client.evaluate(`
+      // Self-sufficient regardless of whether the previous test left the
+      // corkboard open or closed.
+      document.querySelector('.rail-corkboard-btn').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 150));
+      const cork = document.getElementById('corkboard');
+      const card = [...cork.querySelectorAll('.scene-card')][0];
+      const openBtn = [...card.querySelectorAll('.corkboard-edit-btn')][1];
+      const title = openBtn.title;
+      openBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 150));
+      return { title, corkDisplayAfter: getComputedStyle(cork).display };
+    `);
+    assert.equal(result.title, 'open in manuscript');
+    assert.equal(result.corkDisplayAfter, 'none');
   });
 
   test('Escape closes the corkboard when not mid-rename', async () => {
     const display = await app.client.evaluate(`
+      // Self-sufficient regardless of what state the previous test left
+      // things in — reopen first so this genuinely exercises Escape-close.
+      document.querySelector('.rail-corkboard-btn').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 150));
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
       return getComputedStyle(document.getElementById('corkboard')).display;
@@ -321,21 +408,136 @@ describe('Baretext E2E smoke test', () => {
     assert.equal(display, 'none');
   });
 
+  // ── Scene-nav: delete (two-click confirm, rail + corkboard) ─────────────
+
+  test('arming a delete button shows "delete?" and reverts on its own after the timeout', async () => {
+    const result = await app.client.evaluate(`
+      const btn = document.querySelector('.rail-scene-row .rail-delete-btn');
+      btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 100));
+      const armedText = btn.innerText;
+      const armedClass = btn.classList.contains('confirm');
+      await new Promise(r => setTimeout(r, 3300)); // past the 3s auto-revert
+      const revertedText = btn.innerText;
+      const revertedClass = btn.classList.contains('confirm');
+      return { armedText, armedClass, revertedText, revertedClass };
+    `);
+    assert.equal(result.armedText, 'delete?');
+    assert.equal(result.armedClass, true);
+    assert.equal(result.revertedText, '');
+    assert.equal(result.revertedClass, false);
+  });
+
+  test('arming a second delete button disarms the first one', async () => {
+    const result = await app.client.evaluate(`
+      const btns = [...document.querySelectorAll('.rail-scene-row .rail-delete-btn')];
+      const [first, second] = btns;
+      first.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 100));
+      const firstArmed = first.classList.contains('confirm');
+      second.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 100));
+      const out = { firstArmed, firstStillArmed: first.classList.contains('confirm'), secondArmed: second.classList.contains('confirm') };
+      // Leave nothing armed behind — a lingering armed button (with its own
+      // pending 3s auto-revert timer) is a real footgun for whatever test
+      // runs next, not just untidy.
+      await new Promise(r => setTimeout(r, 3300));
+      out.secondStillArmedAfterWait = second.classList.contains('confirm');
+      return out;
+    `);
+    assert.equal(result.firstArmed, true);
+    assert.equal(result.firstStillArmed, false);
+    assert.equal(result.secondArmed, true);
+    assert.equal(result.secondStillArmedAfterWait, false);
+  });
+
+  test('confirming a scene delete (second click) removes it from the document', async () => {
+    const result = await app.client.evaluate(`
+      const before = document.getElementById('scene-rail').querySelectorAll('.rail-scene-row').length;
+      const row = document.querySelector('.rail-scene-row');
+      const label = row.querySelector('.rail-scene-name').innerText;
+      const btn = row.querySelector('.rail-delete-btn');
+      btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 100));
+      btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 150));
+      const after = document.getElementById('scene-rail').querySelectorAll('.rail-scene-row').length;
+      const stillOnPage = [...document.querySelectorAll('.cm-line')].some(l => l.textContent === label && label !== 'Scene 1' && label !== 'Scene 2');
+      return { before, after, label, stillOnPage };
+    `);
+    assert.equal(result.after, result.before - 1);
+    // Positional "Scene N" labels get recomputed after any deletion, so only
+    // check for leftover content when the deleted scene had a real title.
+    if (!/^Scene \d+$/.test(result.label)) assert.equal(result.stillOnPage, false);
+  });
+
+  test('deleting a scene from the corkboard does not close it', async () => {
+    const result = await app.client.evaluate(`
+      document.querySelector('.rail-corkboard-btn').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 150));
+      const cork = document.getElementById('corkboard');
+      const before = cork.querySelectorAll('.scene-card').length;
+      const btn = cork.querySelector('.scene-card .corkboard-delete-btn');
+      btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 100));
+      btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 150));
+      return { before, after: cork.querySelectorAll('.scene-card').length, display: getComputedStyle(cork).display };
+    `);
+    assert.equal(result.after, result.before - 1);
+    assert.equal(result.display, 'flex'); // the actual regression check — same rule as adding
+  });
+
+  test('confirming a chapter delete removes the chapter and every scene in it', async () => {
+    const result = await app.client.evaluate(`
+      const cork = document.getElementById('corkboard');
+      const chaptersBefore = cork.querySelectorAll('.corkboard-chapter').length;
+      const lastSection = [...cork.querySelectorAll('.corkboard-chapter')].pop();
+      const chapterLabel = lastSection.querySelector('.corkboard-chapter-num').innerText;
+      const btn = lastSection.querySelector('.corkboard-chapter-title-group .corkboard-delete-btn');
+      btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 100));
+      btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 150));
+      return { chaptersBefore, chaptersAfter: cork.querySelectorAll('.corkboard-chapter').length, display: getComputedStyle(cork).display };
+    `);
+    assert.equal(result.chaptersAfter, result.chaptersBefore - 1);
+    assert.equal(result.display, 'flex');
+  });
+
   // ── Mode switching / Sprinter / footer fixtures ─────────────────────────
 
-  test('switching to Sprinter mode hides the rail with no console errors', async () => {
+  // Goes through the palette specifically (not the raw ⌘⇧D keybinding,
+  // covered separately by the return trip below) — selecting Sprint from
+  // the palette means "I want to sprint", so this should both switch modes
+  // AND open the duration/goal picker automatically, not leave an idle
+  // Sprinter view needing a second action.
+  test('palette "Switch to Sprinter" hides the rail and opens sprint setup, no console errors', async () => {
     app.client.clearConsoleMessages();
     const result = await app.client.evaluate(`
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'D', metaKey: true, shiftKey: true, bubbles: true, cancelable: true }));
-      await new Promise(r => setTimeout(r, 200));
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 150));
+      const input = document.getElementById('palette-input');
+      input.value = 'switch to sprinter';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 100));
+      const target = [...document.querySelectorAll('.pitem')].find(e => e.textContent.includes('Sprinter'));
+      target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 250));
+      const evokeVisible = getComputedStyle(document.querySelector('.sprint-panel')).display;
+      // Cancel back to idle so the following tests' assumptions hold.
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 100));
       return {
         mode: document.documentElement.getAttribute('data-mode'),
         railDisplay: getComputedStyle(document.getElementById('scene-rail')).display,
+        evokeVisible,
       };
     `);
     assert.equal(result.mode, 'sprinter');
     assert.equal(result.railDisplay, 'none');
-    assertNoConsoleErrors('mode switch to sprinter');
+    assert.equal(result.evokeVisible, 'block');
+    assertNoConsoleErrors('palette switch to sprinter');
   });
 
   test('typewriter footer fixture toggles on click', async () => {
@@ -382,6 +584,34 @@ describe('Baretext E2E smoke test', () => {
     assert.equal(result.panelRestored, 'block');
   });
 
+  // Regression: making the chip a permanent fixture (always showing a live
+  // countdown) silently broke "hide timer" — 'hidden' view stopped actually
+  // hiding anything, since the chip kept ticking regardless of view. A
+  // running countdown is exactly the distraction "hide timer" exists to
+  // remove, so 'hidden' must show no digits at all, just a neutral label.
+  test('hiding the timer removes the countdown entirely, not just the panel', async () => {
+    const result = await app.client.evaluate(`
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'H', metaKey: true, shiftKey: true, bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 1200)); // long enough to catch a stray tick if the bug returns
+      const chip = document.querySelector('.sprint-chip-status');
+      const chipTextHidden = chip.innerText;
+      const panelHidden = getComputedStyle(document.querySelector('.sprint-panel')).display;
+      const edgeHidden = getComputedStyle(document.querySelector('.sprint-edge')).display;
+
+      // Restore to active so the next test can find the panel's "end" button.
+      chip.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 150));
+      const panelRestored = getComputedStyle(document.querySelector('.sprint-panel')).display;
+
+      return { chipTextHidden, panelHidden, edgeHidden, panelRestored };
+    `);
+    assert.equal(result.chipTextHidden.trim(), 'sprinting');
+    assert.ok(!/\d{2}:\d{2}/.test(result.chipTextHidden));
+    assert.equal(result.panelHidden, 'none');
+    assert.equal(result.edgeHidden, 'none');
+    assert.equal(result.panelRestored, 'block');
+  });
+
   test('ending the sprint clears the chip back to idle', async () => {
     const result = await app.client.evaluate(`
       const endBtn = [...document.querySelectorAll('.sprint-pill')].find(b => b.innerText === 'end');
@@ -411,5 +641,86 @@ describe('Baretext E2E smoke test', () => {
 
   test('no console errors accumulated across the entire session', () => {
     assertNoConsoleErrors('the full session');
+  });
+});
+
+// A separate instance with its own fixture: a chapter with no title text yet
+// ("# " — the realistic "just created it, haven't typed a title" state) and
+// a chapter with zero scenes, both needing content different enough from
+// the shared manuscript fixture above that reusing it would risk breaking
+// that suite's own exact-count assertions.
+describe('Baretext E2E: chapter placeholders and per-chapter scene targeting', () => {
+  let app;
+  const fixture = [
+    '# ',
+    '',
+    'Opening prose for chapter one, plenty of words to clear the draft threshold comfortably for testing purposes.',
+    '',
+    '# Chapter Two',
+    '',
+    '# Chapter Three',
+    '',
+    'Some prose in chapter three so it renders as a normal, non-draft scene for this test.',
+  ].join('\n');
+
+  before(async () => {
+    app = await launchApp({ fixtureContent: fixture, mode: 'editor' });
+  });
+
+  after(async () => {
+    if (app) await app.close();
+  });
+
+  test('a blank chapter heading shows a placeholder in the rail and the live editor, never written to disk', async () => {
+    const result = await app.client.evaluate(`
+      const deadline = Date.now() + 2000;
+      let railText = '';
+      while (Date.now() < deadline) {
+        railText = document.getElementById('scene-rail').innerText;
+        if (railText.includes('Ch. 1')) break;
+        await new Promise(r => setTimeout(r, 100));
+      }
+      const widget = document.querySelector('.cm-chapter-placeholder');
+      return { railText, widgetText: widget ? widget.textContent : null };
+    `);
+    assert.match(result.railText, /Chapter 1/);
+    assert.equal(result.widgetText, 'Chapter 1');
+
+    // Force a save and check the actual bytes on disk — the placeholder must
+    // never leak into real content.
+    await app.client.evaluate(`
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 's', metaKey: true, bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 300));
+    `);
+    const saved = fs.readFileSync(app.fixturePath, 'utf8');
+    assert.ok(saved.startsWith('# \n') || saved.startsWith('#\n'));
+    assert.ok(!saved.includes('Chapter 1'));
+  });
+
+  test('an empty chapter (0 scenes) gets its own per-chapter add-scene row', async () => {
+    const railText = await app.client.evaluate('return document.getElementById("scene-rail").innerText;');
+    assert.match(railText, /Chapter Two\n0/); // 0 scenes, matching the "jumps straight to Ch. 3" bug report
+    const addRowCount = await app.client.evaluate("return document.querySelectorAll('.rail-scene-add').length;");
+    assert.equal(addRowCount, 3); // one per chapter, including the empty one
+  });
+
+  test('adding a scene from a specific chapter\'s row lands it in that chapter, not the last one', async () => {
+    const lines = await app.client.evaluate(`
+      const rows = [...document.querySelectorAll('.rail-scene-add')];
+      const chapterTwoRow = rows.find(r => r.title.includes('Chapter Two'));
+      chapterTwoRow.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 150));
+      return [...document.querySelectorAll('.cm-line')].map(l => l.textContent);
+    `);
+    const chTwoIdx = lines.indexOf('Chapter Two');
+    const chThreeIdx = lines.indexOf('Chapter Three');
+    const breakIdx = lines.indexOf('---');
+    assert.ok(chTwoIdx !== -1 && chThreeIdx !== -1 && breakIdx !== -1);
+    assert.ok(breakIdx > chTwoIdx && breakIdx < chThreeIdx, 'new scene break should land between Chapter Two and Chapter Three');
+  });
+
+  test('no console errors in this suite', () => {
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
   });
 });

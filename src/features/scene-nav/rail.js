@@ -42,12 +42,24 @@ function injectStyle() {
 .rail-chevron { font-size: 14px; color: var(--text-dim); flex-shrink: 0; }
 .rail-chapter-num { font-size: 11px; color: var(--text-dimmer); font-variant-numeric: tabular-nums; flex-shrink: 0; }
 .rail-chapter-title { font-size: 12px; color: var(--text); font-weight: 700; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rail-chapter-title.placeholder { color: var(--text-dimmer); font-weight: 600; font-style: italic; }
 .rail-edit-btn {
   font-size: 11px; color: var(--text-dimmer); opacity: 0; cursor: pointer; flex-shrink: 0;
   transition: opacity .12s ease, color .12s ease;
 }
 .rail-chapter-row:hover .rail-edit-btn, .rail-scene-row:hover .rail-edit-btn { opacity: 1; }
 .rail-edit-btn:hover { color: var(--syntax-2, var(--accent)); }
+.rail-delete-btn {
+  font-size: 11px; color: var(--text-dimmer); opacity: 0; cursor: pointer; flex-shrink: 0;
+  padding: 2px 5px; border-radius: 4px; display: flex; align-items: center; gap: 4px;
+  transition: opacity .12s ease, color .12s ease, background .12s ease;
+}
+.rail-chapter-row:hover .rail-delete-btn, .rail-scene-row:hover .rail-delete-btn { opacity: 1; }
+.rail-delete-btn:hover { color: #e05c5c; }
+.rail-delete-btn.confirm {
+  opacity: 1; color: #e05c5c; font-weight: 600;
+  background: color-mix(in srgb, #e05c5c 15%, transparent);
+}
 .rail-scene-list {
   margin: 1px 0 8px 16px; padding-left: 11px;
   border-left: 1px solid var(--border);
@@ -73,6 +85,14 @@ function injectStyle() {
   border-top: 1px solid var(--border); color: var(--text-dim); font-size: 12px; cursor: pointer;
 }
 .rail-footer:hover { color: var(--text); }
+.rail-scene-add {
+  margin-top: 2px; padding: 6px 10px; border-radius: 6px; cursor: pointer;
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; color: var(--text-dimmer); opacity: .75;
+  transition: opacity .12s ease, color .12s ease, background .12s ease;
+}
+.rail-scene-add:hover { opacity: 1; color: var(--syntax-2, var(--accent)); background: var(--wash-accent); }
+.rail-scene-add .ti-plus { font-size: 12px; }
 `;
   document.head.appendChild(style);
 }
@@ -107,6 +127,54 @@ function beginEdit(displayEl, currentValue, onCommit) {
     else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
     e.stopPropagation();
   });
+}
+
+// Two-click confirm: first click arms it (icon turns danger-colored, shows
+// "delete?"), a second click on the SAME button within 3s actually deletes.
+// Clicking elsewhere, arming a different delete button, or the timeout
+// disarms it — no native confirm() dialog, consistent with the rest of this
+// app never using one, but still real friction against a stray click, on
+// top of undo already being available as the last line of defense.
+function makeDeleteButton(label, onConfirm) {
+  const btn = el('span', 'rail-delete-btn');
+  let armed = false;
+  let timer = null;
+
+  function paint() {
+    btn.innerHTML = '';
+    btn.appendChild(icon('ti-trash'));
+    if (armed) {
+      btn.appendChild(document.createTextNode(' delete?'));
+      btn.title = 'click again to delete ' + label;
+    } else {
+      btn.title = 'delete ' + label;
+    }
+    btn.classList.toggle('confirm', armed);
+  }
+
+  function disarm() {
+    clearTimeout(timer);
+    armed = false;
+    paint();
+  }
+  btn._disarm = disarm;
+
+  btn.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (armed) {
+      disarm();
+      onConfirm();
+      return;
+    }
+    document.querySelectorAll('.rail-delete-btn').forEach((b) => { if (b !== btn && b._disarm) b._disarm(); });
+    armed = true;
+    paint();
+    timer = setTimeout(disarm, 3000);
+  });
+
+  paint();
+  return btn;
 }
 
 function jumpTo(scene) {
@@ -147,7 +215,8 @@ export function render() {
     const chevron = icon(isCollapsed ? 'ti-chevron-right' : 'ti-chevron-down');
     chevron.className += ' rail-chevron';
     if (!isCollapsed) chevron.style.color = 'var(--syntax-2, var(--accent))';
-    const chTitle = el('span', 'rail-chapter-title', chapter.title);
+    const chHasTitle = chapter.title.trim() !== '';
+    const chTitle = el('span', 'rail-chapter-title' + (chHasTitle ? '' : ' placeholder'), chapter.displayTitle);
     const chEditBtn = el('span', 'rail-edit-btn');
     chEditBtn.appendChild(icon('ti-pencil'));
     chEditBtn.title = 'rename chapter';
@@ -155,7 +224,11 @@ export function render() {
       e.preventDefault(); e.stopPropagation();
       beginEdit(chTitle, chapter.title, (newTitle) => ctx.renameTitle(chapter, newTitle));
     });
-    chRow.append(chevron, el('span', 'rail-chapter-num', 'Ch. ' + chapter.number), chTitle, chEditBtn, el('span', 'rail-dim', String(chapter.scenes.length)));
+    const chDeleteBtn = makeDeleteButton(
+      chHasTitle ? chapter.title : chapter.displayTitle,
+      () => ctx.deleteChapter(ci, chapters)
+    );
+    chRow.append(chevron, el('span', 'rail-chapter-num', 'Ch. ' + chapter.number), chTitle, chEditBtn, chDeleteBtn, el('span', 'rail-dim', String(chapter.scenes.length)));
     chRow.addEventListener('mousedown', (e) => { e.preventDefault(); toggleChapter(ci); });
     list.appendChild(chRow);
 
@@ -172,12 +245,20 @@ export function render() {
           e.preventDefault(); e.stopPropagation();
           beginEdit(nameSpan, scene.title, (newTitle) => ctx.renameTitle(scene, newTitle));
         });
+        const deleteBtn = makeDeleteButton(scene.title, () => ctx.deleteScene(ci, si, chapters));
         const nameGroup = el('div', 'rail-scene-name-group');
-        nameGroup.append(nameSpan, editBtn);
+        nameGroup.append(nameSpan, editBtn, deleteBtn);
         row.append(nameGroup, el('span', 'rail-dim', scene.isDraft ? 'draft' : String(scene.wordCount)));
         row.addEventListener('mousedown', (e) => { e.preventDefault(); jumpTo(scene); });
         sceneList.appendChild(row);
       });
+
+      const addRow = el('div', 'rail-scene-add');
+      addRow.append(icon('ti-plus'), document.createTextNode(' add scene'));
+      addRow.title = 'add a scene to ' + (chHasTitle ? chapter.title : chapter.displayTitle);
+      addRow.addEventListener('mousedown', (e) => { e.preventDefault(); ctx.addNewScene(ci, chapters); });
+      sceneList.appendChild(addRow);
+
       list.appendChild(sceneList);
     }
   });
@@ -198,13 +279,14 @@ export function mount(localCtx) {
   railEl = document.getElementById('scene-rail');
   railEl.style.display = 'flex';
   collapsed = new Set();
-  document.documentElement.style.setProperty('--editor-measure', '560px');
+  // --editor-measure is a max-width in ch, not a fixed width — it already
+  // shrinks to fit whatever room the rail leaves on narrower windows, so no
+  // separate rail-open value is needed here anymore.
   render();
 }
 
 export function unmount() {
   if (railEl) { railEl.style.display = 'none'; railEl.innerHTML = ''; }
-  document.documentElement.style.setProperty('--editor-measure', '620px');
   railEl = null;
   ctx = null;
 }

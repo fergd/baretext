@@ -69,6 +69,39 @@ test('prose before any heading at all still gets an implicit Scene 1', () => {
   assert.deepEqual(texts(items), ['Scene 1', 'Chapter Two', 'Scene 1']);
 });
 
+// CommonMark allows an ATX heading with no title at all — this matters here
+// specifically because it's the most realistic real-world trigger for a
+// "blank chapter": a user types "#" then a space and stops. The old regex
+// (\s+(.+)) required a leftover non-whitespace-swallowed character after
+// the separator, so this exact, extremely common case was invisible to the
+// outline entirely (not even a heading item, let alone an empty-titled one).
+test('a bare "#" with nothing after it is still a heading, with empty text', () => {
+  const view = makeView('#');
+  const items = getOutline(view);
+  assert.deepEqual(types(items), ['h1']);
+  assert.equal(items[0].text, '');
+});
+
+test('"#" followed by just a space (title not typed yet) is a heading with empty text', () => {
+  const view = makeView('# \n\nSome prose.');
+  const items = getOutline(view);
+  assert.equal(items[0].type, 'h1');
+  assert.equal(items[0].text, '');
+});
+
+test('"##" alone is an empty h2, not swallowed as plain text', () => {
+  const view = makeView('# Chapter\n\n##');
+  const items = getOutline(view);
+  assert.deepEqual(types(items), ['h1', 'h2']);
+  assert.equal(items[1].text, '');
+});
+
+test('four or more #s is not a valid heading (still out of scope) — read as ordinary prose', () => {
+  const view = makeView('#### Not a heading');
+  const items = getOutline(view);
+  assert.deepEqual(types(items), ['scene']); // implicit first content, not a heading
+});
+
 test('an empty document produces no items', () => {
   const view = makeView('');
   assert.deepEqual(getOutline(view), []);

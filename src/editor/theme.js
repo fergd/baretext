@@ -30,8 +30,11 @@ export function injectHeadingColors() {
 
 // Dimensions read from CSS custom properties (docs/theme-spec.md is ground
 // truth) instead of hardcoded pixel values, so the app's CSS is the single
-// source of truth and Editor mode's future rail can override
-// --editor-measure without touching this bundle again.
+// source of truth and Editor mode's rail can override --editor-measure
+// without touching this bundle again. --editor-measure is in `ch` units
+// (character-relative, not px) specifically so the line measure is one
+// constant to tune in index.html's :root regardless of font/zoom — see
+// --editor-measure there.
 export const theme = EditorView.theme({
   '&': { backgroundColor: 'transparent', color: 'var(--text)', height: '100%' },
   '.cm-scroller': {
@@ -44,7 +47,7 @@ export const theme = EditorView.theme({
     fontFamily: 'var(--font-editor, var(--font-mono))',
     fontSize: 'var(--text-body, 15px)',
     caretColor: 'var(--cursor)',
-    maxWidth: 'var(--editor-measure, 620px)',
+    maxWidth: 'var(--editor-measure, 75ch)',
     margin: '0 auto',
     padding: '20px 40px 60px 40px',
     width: '100%',

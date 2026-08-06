@@ -17,10 +17,16 @@ export function getOutline(view) {
     const line = doc.line(lineNum);
     const text = line.text;
     const trimmed = text.trim();
-    const headingMatch = text.match(/^(#{1,3})\s+(.+)$/);
+    // CommonMark allows an ATX heading with no title at all ("#", or "#"
+    // plus trailing whitespace) — the title group is wrapped in an optional
+    // non-capturing group (not \s+(.+), which requires at least one
+    // leftover character after the separator) so a freshly-typed "# " with
+    // nothing typed yet still counts as a heading instead of being invisible
+    // to the outline until real title text exists.
+    const headingMatch = text.match(/^(#{1,3})(?:[ \t]+(.*))?$/);
 
     if (headingMatch) {
-      items.push({ type: 'h' + headingMatch[1].length, text: headingMatch[2].trim(), line: lineNum, pos: line.from });
+      items.push({ type: 'h' + headingMatch[1].length, text: (headingMatch[2] || '').trim(), line: lineNum, pos: line.from });
       if (headingMatch[1].length === 1) {
         sceneCount = 0;
         awaitingFirstContent = true;

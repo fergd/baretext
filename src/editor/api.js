@@ -8,6 +8,7 @@ import { blockSpacingPlugin, injectBlockSpacingStyle } from './block-spacing.js'
 import { historyAndKeymaps, boldItalicKeymap } from './history-commands.js';
 import { searchExtension, injectSearchMatchStyle } from './search.js';
 import { spellcheckField, spellcheckPlugin, injectSpellcheckStyle } from './spellcheck.js';
+import { chapterPlaceholderPlugin, injectChapterPlaceholderStyle } from './chapter-placeholder.js';
 
 let registeredKeys = {};
 
@@ -35,6 +36,7 @@ export function create(container, initialDoc, onChange, placeholderText) {
   injectBlockSpacingStyle();
   injectSearchMatchStyle();
   injectSpellcheckStyle();
+  injectChapterPlaceholderStyle();
 
   const view = new EditorView({
     parent: container,
@@ -47,6 +49,7 @@ export function create(container, initialDoc, onChange, placeholderText) {
         livePreviewPlugin,
         sceneBreakDecorator,
         blockSpacingPlugin,
+        chapterPlaceholderPlugin,
         searchExtension,
         spellcheckField,
         spellcheckPlugin,

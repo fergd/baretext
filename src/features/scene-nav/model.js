@@ -41,7 +41,8 @@ export function getManuscript(view) {
     const endPos = i + 1 < outline.length ? outline[i + 1].pos : docLength;
 
     if (item.type === 'h1') {
-      currentChapter = { title: item.text, pos: item.pos, type: 'h1', number: chapters.length + 1, scenes: [] };
+      const number = chapters.length + 1;
+      currentChapter = { title: item.text, displayTitle: item.text || 'Chapter ' + number, pos: item.pos, type: 'h1', number, scenes: [] };
       chapters.push(currentChapter);
       continue;
     }
@@ -49,7 +50,10 @@ export function getManuscript(view) {
     if (!currentChapter) {
       // Content before any # heading — synthesized so it still has a home;
       // renaming this one has to insert a real heading line (see rename.js).
-      currentChapter = { title: 'Untitled', pos: 0, synthetic: true, number: chapters.length + 1, scenes: [] };
+      // title stays '' (there's no real heading text to prefill a rename
+      // with) — displayTitle is the placeholder shown in the UI.
+      const number = chapters.length + 1;
+      currentChapter = { title: '', displayTitle: 'Chapter ' + number, pos: 0, synthetic: true, number, scenes: [] };
       chapters.push(currentChapter);
     }
 

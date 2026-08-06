@@ -556,7 +556,20 @@ function modeGroup() {
       icon: m.id === 'sprinter' ? 'ti-run' : 'ti-layout-columns',
       keys: ['⌘','⇧','D'],
       checked: state.mode === m.id,
-      fn: () => activateMode(m.id),
+      fn: () => {
+        // Only actually switch if we're not already there — activateMode()
+        // unconditionally destroys/reinits every feature, which would kill
+        // an in-progress sprint if the user re-selects the mode they're
+        // already in.
+        if (state.mode !== m.id) activateMode(m.id);
+        // Selecting Sprint from the palette means "I want to sprint" — open
+        // the duration/goal picker (or bring the active panel forward), the
+        // same as ⌘⇧S, instead of leaving an idle Sprinter view that needs
+        // a second action.
+        if (m.id === 'sprinter' && currentKeybindings['Mod-Shift-S']) {
+          currentKeybindings['Mod-Shift-S']();
+        }
+      },
     })),
   };
 }

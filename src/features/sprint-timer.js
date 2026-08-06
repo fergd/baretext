@@ -135,7 +135,7 @@ function injectStyle() {
 .sprint-chip-status:hover { color: var(--text); }
 .sprint-chip-status:hover .ti-run { color: var(--text-dim); }
 .sprint-chip-status.running { color: var(--text); font-variant-numeric: tabular-nums; }
-.sprint-chip-status.running .ti-run { color: var(--accent); animation: sprint-pulse 2s ease-in-out infinite; }
+.sprint-chip-status.running .ti-run { color: var(--accent); }
 `;
   document.head.appendChild(style);
 }
@@ -155,13 +155,17 @@ function updateVisibility() {
 
 // Chip is a permanent footer fixture (idle "sprint" label / running countdown),
 // not just a minimized-state affordance — always reflects current sprint state.
+// While 'hidden' specifically, it shows no countdown at all — a ticking
+// number is exactly the distraction "hide timer" exists to remove, so the
+// chip only says "sprinting" until it's restored to active/edge view.
 function updateChipContent() {
   if (!chipEl) return;
   chipEl.innerHTML = '';
   chipEl.appendChild(icon('ti-run'));
   if (sprint) {
     chipEl.classList.add('running');
-    chipEl.appendChild(document.createTextNode(' ' + mmss(sprint.remaining)));
+    const label = sprint.view === 'hidden' ? ' sprinting' : ' ' + mmss(sprint.remaining);
+    chipEl.appendChild(document.createTextNode(label));
     chipEl.title = sprint.view === 'active' ? 'sprint in progress' : 'click to show sprint';
   } else {
     chipEl.classList.remove('running');

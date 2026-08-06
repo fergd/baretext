@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { reorderScenes } from '../../src/features/scene-nav/reorder.js';
+import { reorderScenes, deleteScene, deleteChapter } from '../../src/features/scene-nav/reorder.js';
 
 // Builds a minimal chapters[] shape matching what model.js's getManuscript()
 // produces — reorderScenes only reads .title/.scenes per chapter and
@@ -11,6 +11,10 @@ function scene(rawText, type = 'scene') {
 
 function chapter(title, scenes) {
   return { title, pos: 0, type: 'h1', number: 1, scenes };
+}
+
+function synthetic(scenes) {
+  return { title: '', pos: 0, synthetic: true, number: 1, scenes };
 }
 
 test('within-chapter forward move re-orders and re-separates with ---', () => {
@@ -133,4 +137,77 @@ test('returns null when fromSceneIndex is out of range', () => {
   const chapters = [chapter('One', [scene('First.')])];
   const doc = reorderScenes(chapters, { fromChapterIndex: 0, fromSceneIndex: 5, toChapterIndex: 0, toSceneIndex: 0 });
   assert.equal(doc, null);
+});
+
+// Regression: a synthetic chapter (content before any # heading — see
+// model.js) has no real heading line of its own. Any rebuild must leave it
+// that way; inventing a "# " line for it would corrupt previously
+// heading-less content into having a real (if blank) heading the user never
+// typed. This bug pre-dated delete — reorder already hit it too.
+test('reordering never invents a heading line for a synthetic chapter', () => {
+  const chapters = [
+    synthetic([scene('Untitled opener.')]),
+    chapter('Two', [scene('First.'), scene('---\n\nSecond.')]),
+  ];
+  const doc = reorderScenes(chapters, { fromChapterIndex: 1, fromSceneIndex: 0, toChapterIndex: 1, toSceneIndex: 2 });
+  assert.equal(doc, 'Untitled opener.\n\n# Two\n\nSecond.\n\n---\n\nFirst.\n');
+});
+
+test('deleteScene removes exactly one scene and rebuilds the rest cleanly', () => {
+  const chapters = [
+    chapter('One', [scene('First.'), scene('---\n\nSecond.'), scene('---\n\nThird.')]),
+  ];
+  const doc = deleteScene(chapters, { chapterIndex: 0, sceneIndex: 1 });
+  assert.equal(doc, '# One\n\nFirst.\n\n---\n\nThird.\n');
+});
+
+test('deleteScene on the first scene lets the next scene become first cleanly (no stray ---)', () => {
+  const chapters = [chapter('One', [scene('First.'), scene('---\n\nSecond.')])];
+  const doc = deleteScene(chapters, { chapterIndex: 0, sceneIndex: 0 });
+  assert.equal(doc, '# One\n\nSecond.\n');
+});
+
+test('deleteScene never invents a heading for a synthetic chapter', () => {
+  const chapters = [synthetic([scene('First.'), scene('---\n\nSecond.')])];
+  const doc = deleteScene(chapters, { chapterIndex: 0, sceneIndex: 1 });
+  assert.equal(doc, 'First.\n');
+});
+
+test('deleteScene returns null for an out-of-range target', () => {
+  const chapters = [chapter('One', [scene('First.')])];
+  assert.equal(deleteScene(chapters, { chapterIndex: 0, sceneIndex: 5 }), null);
+  assert.equal(deleteScene(chapters, { chapterIndex: 5, sceneIndex: 0 }), null);
+});
+
+test('deleteScene does not mutate the input', () => {
+  const original = [chapter('One', [scene('First.'), scene('---\n\nSecond.')])];
+  const snapshot = JSON.parse(JSON.stringify(original));
+  deleteScene(original, { chapterIndex: 0, sceneIndex: 0 });
+  assert.deepEqual(original, snapshot);
+});
+
+test('deleteChapter removes the whole chapter, including all its scenes', () => {
+  const chapters = [
+    chapter('One', [scene('A1.'), scene('---\n\nA2.')]),
+    chapter('Two', [scene('B1.')]),
+  ];
+  const doc = deleteChapter(chapters, 0);
+  assert.equal(doc, '# Two\n\nB1.\n');
+});
+
+test('deleteChapter down to zero chapters returns an empty document', () => {
+  const chapters = [chapter('Only', [scene('Content.')])];
+  assert.equal(deleteChapter(chapters, 0), '');
+});
+
+test('deleteChapter returns null for an out-of-range index', () => {
+  const chapters = [chapter('One', [scene('First.')])];
+  assert.equal(deleteChapter(chapters, 5), null);
+});
+
+test('deleteChapter does not mutate the input', () => {
+  const original = [chapter('One', [scene('A.')]), chapter('Two', [scene('B.')])];
+  const snapshot = JSON.parse(JSON.stringify(original));
+  deleteChapter(original, 0);
+  assert.deepEqual(original, snapshot);
 });
