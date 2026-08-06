@@ -552,6 +552,36 @@ describe('Baretext E2E smoke test', () => {
     assert.notEqual(result.before, result.after);
   });
 
+  // Regression: typewriter mode only padded the BOTTOM of the document so
+  // the last line could reach the center guide -- with no top padding, the
+  // first line was pinned to the scroll-top edge and could never be
+  // scrolled up to the center, unlike every other line. Both edges must be
+  // reachable, not just the bottom one.
+  test('typewriter mode lets the very first line scroll all the way to the center guide, not just the last', async () => {
+    const result = await app.client.evaluate(`
+      const scroller = document.querySelector('.cm-scroller');
+      const firstLine = document.querySelectorAll('.cm-line')[0];
+      const paddingTop = getComputedStyle(document.querySelector('.cm-content')).paddingTop;
+
+      // Scroll the first line's midpoint to the scroller's midpoint, the
+      // same geometry centerCursor() targets -- only possible if there's
+      // real scrollable space above line 1.
+      const target = firstLine.offsetTop - (scroller.clientHeight / 2) + (firstLine.offsetHeight / 2);
+      scroller.scrollTop = Math.max(0, target);
+      await new Promise(r => setTimeout(r, 100));
+
+      const scrollerRect = scroller.getBoundingClientRect();
+      const lineRect = firstLine.getBoundingClientRect();
+      return {
+        paddingTop,
+        firstLineCenterY: lineRect.top + lineRect.height / 2 - scrollerRect.top,
+        scrollerCenterY: scrollerRect.height / 2,
+      };
+    `);
+    assert.notEqual(result.paddingTop, '0px');
+    assert.ok(Math.abs(result.firstLineCenterY - result.scrollerCenterY) < 5, 'first line should be reachable at the vertical center');
+  });
+
   test('sprint timer: idle chip opens evoke panel, Enter starts it, chip shows a live countdown', async () => {
     const result = await app.client.evaluate(`
       const chip = document.querySelector('.sprint-chip-status');
@@ -855,6 +885,143 @@ describe('Baretext E2E: sprint pause/resume', () => {
     `);
     const chipText = await app.client.evaluate(`return document.querySelector('.sprint-chip-status').innerText.trim();`);
     assert.equal(chipText, 'sprinting');
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+});
+
+describe('Baretext E2E: rail drag-and-drop', () => {
+  let app;
+  const fixture = [
+    '# Chapter One',
+    '',
+    'A1 opening prose here, plenty of words so it is not a draft scene for testing.',
+    '',
+    '---',
+    '',
+    'A2 second scene prose here, plenty of words so it is not a draft scene either.',
+    '',
+    '# Chapter Two', // deliberately empty -- the "Ch. 2 has nothing in it" case from the original request
+    '',
+    '# Chapter Three',
+    '',
+    'C1 opening prose here, plenty of words so it is not a draft scene for testing.',
+  ].join('\n');
+
+  before(async () => {
+    app = await launchApp({ fixtureContent: fixture, mode: 'editor' });
+  });
+
+  after(async () => {
+    if (app) await app.close();
+  });
+
+  // Same fireDnd helper/pacing as the existing corkboard drag test above --
+  // proven not to trip a synthetic-event timing artifact that a real,
+  // naturally-paced mouse drag never hits (a fully zero-delay *pair* of
+  // back-to-back drags in the same tick can spuriously corrupt the document;
+  // real drags, and single drags like these, never come close to that).
+  function dragScript(fromExpr, toExpr) {
+    return `
+      function fireDnd(type, el, dt) {
+        const e = new Event(type, { bubbles: true, cancelable: true });
+        e.dataTransfer = dt;
+        el.dispatchEvent(e);
+      }
+      const dt = { effectAllowed: '', dropEffect: '', data: {}, setData(k,v){this.data[k]=v;}, getData(k){return this.data[k];} };
+      const from = ${fromExpr};
+      const to = ${toExpr};
+      from.querySelector('.rail-drag-handle').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 30));
+      fireDnd('dragstart', from, dt);
+      fireDnd('dragover', to, dt);
+      fireDnd('drop', to, dt);
+      fireDnd('dragend', from, dt);
+      await new Promise(r => setTimeout(r, 200));
+    `;
+  }
+
+  test('dragging a scene row onto another scene row reorders within the chapter', async () => {
+    // scene-nav's first real render trails the doc content itself loading --
+    // poll rather than assume it's already happened (same as the other
+    // describe blocks' first test).
+    await app.client.evaluate(`
+      const deadline = Date.now() + 2000;
+      while (Date.now() < deadline) {
+        if (document.querySelectorAll('.rail-scene-row').length >= 2) break;
+        await new Promise(r => setTimeout(r, 100));
+      }
+    `);
+
+    const before = await app.client.evaluate('return document.querySelector(".cm-content").innerText;');
+    assert.ok(before.indexOf('A1 opening') < before.indexOf('A2 second'));
+
+    await app.client.evaluate(dragScript(
+      `[...document.querySelectorAll('.rail-scene-row')][1]`, // A2
+      `[...document.querySelectorAll('.rail-scene-row')][0]`  // A1
+    ));
+    const after = await app.client.evaluate('return document.querySelector(".cm-content").innerText;');
+    assert.ok(after.indexOf('A2 second') < after.indexOf('A1 opening'), 'A2 should now come before A1');
+
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+
+  test('dragging a scene onto another chapter\'s header moves it into that (empty) chapter', async () => {
+    await app.client.evaluate(dragScript(
+      `[...document.querySelectorAll('.rail-scene-row')].find(r => r.textContent.includes('Scene 1') && r.closest('.rail-scene-list').previousElementSibling.textContent.includes('Chapter Three'))`,
+      `[...document.querySelectorAll('.rail-chapter-row')].find(r => r.textContent.includes('Chapter Two'))`
+    ));
+    const lines = await app.client.evaluate('return [...document.querySelectorAll(".cm-line")].map(l => l.textContent);');
+    const chTwoIdx = lines.indexOf('Chapter Two');
+    const chThreeIdx = lines.indexOf('Chapter Three');
+    const sceneIdx = lines.findIndex(l => l.includes('C1 opening prose'));
+    assert.ok(chTwoIdx !== -1 && chThreeIdx !== -1 && sceneIdx !== -1);
+    assert.ok(sceneIdx > chTwoIdx && sceneIdx < chThreeIdx, 'C1 should now live under Chapter Two, before Chapter Three');
+
+    const railText = await app.client.evaluate('return document.getElementById("scene-rail").innerText;');
+    assert.match(railText, /Chapter Three\n0/); // Chapter Three is empty now
+
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+
+  test('dragging a chapter header onto another chapter header reorders chapters', async () => {
+    const before = await app.client.evaluate('return [...document.querySelectorAll(".rail-chapter-title")].map(t => t.textContent);');
+    assert.deepEqual(before, ['Chapter One', 'Chapter Two', 'Chapter Three']);
+
+    await app.client.evaluate(dragScript(
+      `[...document.querySelectorAll('.rail-chapter-row')].find(r => r.textContent.includes('Chapter Three'))`,
+      `[...document.querySelectorAll('.rail-chapter-row')].find(r => r.textContent.includes('Chapter One'))`
+    ));
+    const after = await app.client.evaluate('return [...document.querySelectorAll(".rail-chapter-title")].map(t => t.textContent);');
+    assert.deepEqual(after, ['Chapter Three', 'Chapter One', 'Chapter Two']);
+
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+
+  // Regression: the drag handle scopes native drag-and-drop so it doesn't
+  // steal the row's normal click behavior (collapse-toggle for a chapter
+  // row) -- clicking anywhere else on the row must still work exactly as
+  // before drag support was added.
+  test('clicking a chapter row body (not the handle) still toggles collapse', async () => {
+    const result = await app.client.evaluate(`
+      const row = [...document.querySelectorAll('.rail-chapter-row')].find(r => r.textContent.includes('Chapter One'));
+      const before = document.querySelectorAll('.rail-scene-row').length;
+      row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 100));
+      const collapsed = document.querySelectorAll('.rail-scene-row').length;
+      row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 100));
+      const restored = document.querySelectorAll('.rail-scene-row').length;
+      return { before, collapsed, restored };
+    `);
+    assert.ok(result.collapsed < result.before);
+    assert.equal(result.restored, result.before);
+  });
+
+  test('no console errors in this suite', () => {
     const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
     assert.deepEqual(bad, []);
   });

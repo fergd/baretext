@@ -13,11 +13,12 @@ focus-mode spec).
 ## Where things stand (as of 2026-08-05)
 
 Both Sprinter and Editor mode are feature-complete against the original
-design handoff. Latest work: two quick fixes on top of commit `e8e141a` —
-⌘↵ as a scene-break shortcut, and a pause button for the sprint timer (not
-yet committed — see below). Full test suite: 83 unit + 42 E2E, all passing.
-Nothing is mid-flight or half-implemented right now — the next session
-starts from a clean slate unless new requests come in.
+design handoff. Latest work: rail drag-and-drop (scenes and chapters) and a
+typewriter-mode scroll fix, on top of commit `a939ca1`. Full test suite: 89
+unit + 48 E2E, all passing, stable across repeated runs. Nothing is
+mid-flight or half-implemented — the next session starts from a clean slate
+unless new requests come in. One idea was raised and explicitly deferred,
+not started: see "Open items" below (AI-generated corkboard summaries).
 
 ## How this app is organized
 
@@ -67,9 +68,81 @@ starts from a clean slate unless new requests come in.
     round of unit tests, setting up the "verify live, then persist coverage"
     pattern used for everything since.
 11. **Rail/corkboard/sprint polish + chapter/scene deletion** (commit
-    `e8e141a`, most recent) — see below.
+    `e8e141a`).
+12. **⌘↵ scene-break shortcut + sprint timer pause/resume** (commit
+    `a939ca1`) — see the "⌘↵ scene break and sprint pause" describe block in
+    `test/e2e/smoke.test.js` for the regression coverage.
+13. **Rail drag-and-drop + typewriter first-line centering fix** (this
+    session, most recent) — see below.
 
-## Most recent work in detail (commit `e8e141a`)
+## Most recent work in detail (this session — rail drag-and-drop, typewriter fix)
+
+Three requests this session:
+
+1. **Drag chapters and scenes around in the rail.** The rail previously had
+   no drag support at all (only the corkboard did, and only for scenes).
+   Added:
+   - `reorderChapters(chapters, { fromIndex, toIndex })` in
+     `src/features/scene-nav/reorder.js` — same pure "splice + rebuild via
+     `buildDocument()`" shape as the existing `reorderScenes`/`deleteScene`/
+     `deleteChapter`, same "insert before whatever was at toIndex"
+     convention, same synthetic-chapter-safe handling.
+   - `src/features/scene-nav/rail.js`: a small grip-handle icon
+     (`.rail-drag-handle`, `ti-grip-vertical`) on every chapter and scene
+     row. Native HTML5 drag-and-drop is scoped to the handle via a
+     `makeDragHandle()` helper that flips `row.draggable` true only while
+     the mouse is down on the handle (and resets on mouseup regardless of
+     whether a drag started) — needed because the whole row already has a
+     mousedown handler (collapse-toggle / jump-to-scene) that a
+     whole-row-draggable approach would fight with.
+   - Scene rows accept scene-type drops for precise within/across-chapter
+     reordering. Chapter header rows accept **either** drag type: a chapter
+     drop reorders chapters, a scene drop moves that scene into this
+     chapter appended at the end — the header is a much bigger, easier
+     target than a specific row, and it's the *only* drop target an empty
+     chapter has (directly fixes the original "Ch. 2 has nothing in it"
+     scenario from an earlier request).
+   - Testing note (worth remembering): an early ad hoc verification script
+     that fired two back-to-back drag operations with **zero delay**
+     between dispatched DragEvents (same JS tick) intermittently corrupted
+     the document by one stray/missing character. Deep investigation (temp
+     debug logging in `rail.js`, isolating each step, varying timing)
+     showed this only happens under that unrealistic zero-delay synthetic
+     pacing — a real mouse drag always has tens-to-hundreds of ms between
+     mousedown/dragstart/dragover/drop, and re-testing with even ~60ms
+     between stages, or a single drag in isolation, was clean across dozens
+     of runs. Concluded this is a test-harness artifact, not a product bug.
+     The persisted E2E tests use the same pacing as the pre-existing,
+     long-stable corkboard drag test (small delay before `dragstart`, then
+     immediate `dragover`/`drop`/`dragend` — proven safe) and never fire two
+     drags back-to-back inside one `evaluate()` call. If a future session
+     sees a similarly "random single character" flake in a *test*, check
+     the event timing before assuming it's a real bug.
+2. **Typewriter mode: first line couldn't reach the center guide.** Only
+   `.cm-content` had `padding-bottom: 50vh` (so the *last* line could be
+   scrolled up to center) — no `padding-top`, so the *first* line was
+   pinned to the scroll-top edge and could never reach the center guide no
+   matter how far up you scrolled. Fixed in `src/index.html` by adding a
+   matching `padding-top: 50vh !important;` to the same rule. Scoped to
+   `#app.typewriter`, so normal (non-typewriter) editing is unaffected.
+3. **AI-generated corkboard scene summaries — explicitly deferred, not
+   built.** User wants scene cards to show a concise AI-generated summary
+   instead of the current literal first-~100-chars-of-prose synopsis. I
+   asked clarifying questions (which LLM provider, whether sending
+   manuscript text to a third-party API is acceptable given this app has no
+   existing AI/network integration anywhere, and on-demand vs cached
+   regeneration) — got a contradictory answer (picked Anthropic/Claude but
+   also "keep it local only," which are incompatible: the Claude API is a
+   cloud call) and before it was resolved the user said to bail on it for
+   now. **Nothing was implemented.** If this comes back: the open questions
+   are (a) which provider + how the API key is supplied/stored, (b) explicit
+   sign-off that scene text leaves the app over the network, (c) generate-
+   on-demand-and-cache vs manual-button vs regenerate-every-open. `docs/
+   two-mode-architecture-plan.md` also mentions an "AI assist panel" as a
+   later layer on Editor mode — this request may be the first piece of that,
+   worth connecting the two if a future session designs it properly.
+
+## Earlier work in detail (commit `e8e141a`)
 
 Two requests, done together in one session:
 
@@ -125,7 +198,7 @@ for, found through testing):
 
 Both have regression tests in `test/unit/outline.test.js` and the E2E suite.
 
-## Latest work in detail (uncommitted — two quick fixes)
+## Earlier work in detail (commit `a939ca1`)
 
 1. **⌘↵ inserts a scene break.** Added `'Mod-Enter'` alongside the existing
    `'Mod-Shift-Minus'` binding in `src/features/core.js` (both call
@@ -152,19 +225,21 @@ Both have regression tests in `test/unit/outline.test.js` and the E2E suite.
    `test/e2e/smoke.test.js`, describe block `sprint pause/resume` (3 tests
    covering active-panel pause/resume, minimized+paused, and hidden+paused).
 
-Not yet committed or pushed as of this writing.
-
 ## Open items / not yet done
 
-Nothing is currently pending — no unfinished request, no known bug, no
-half-built feature. If a new session starts and there's no fresh user
-request yet, a reasonable place to look for "what's next" is:
+- **AI-generated corkboard scene summaries** — requested this session,
+  explicitly deferred by the user before the provider/privacy questions
+  were resolved. See the "this session" entry above for the exact open
+  questions. Don't start building this without re-confirming provider, API
+  key handling, and that sending manuscript text over the network is
+  acceptable — the user's answers were contradictory last time and it was
+  dropped before being sorted out.
 - Corkboard drag-to-reorder across chapters — implemented, but hasn't had
   the same depth of adversarial E2E testing as the delete feature did; if
   bugs turn up in that area, that's likely why.
-- Anything explicitly deferred in `docs/two-mode-architecture-plan.md` (an
-  AI assist panel was mentioned as a later layer on top of Editor mode, not
-  yet started).
+- Anything else explicitly deferred in `docs/two-mode-architecture-plan.md`
+  (an "AI assist panel" as a later layer on top of Editor mode — the
+  summary feature above may be the first piece of that).
 - `Sprinter timer design states.zip` at the repo root is original design
   reference material, not yet fully cross-checked feature-by-feature
   against the shipped implementation beyond what's already been verified.
@@ -182,6 +257,13 @@ request yet, a reasonable place to look for "what's next" is:
 - Destructive actions in the UI use a two-click arm/confirm pattern, never
   a native `confirm()`/`alert()` dialog — this is a deliberate, established
   app-wide convention, not a one-off choice.
+- When simulating native HTML5 drag-and-drop in CDP tests, don't fire two
+  separate drag operations back-to-back with zero delay inside one
+  `evaluate()` call — that unrealistic same-tick pacing can spuriously
+  corrupt the document in a way no real mouse drag ever would (see the
+  rail drag-and-drop entry above). Match the existing corkboard drag test's
+  pacing (small delay before `dragstart`, then immediate `dragover`/`drop`/
+  `dragend`) and keep separate drags in separate `test()`s.
 - Full rebuild over surgical edit for document mutations that restructure
   the manuscript (reorder, delete) — `buildDocument()` regenerates the
   whole document string from the chapter/scene model rather than trying to

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { reorderScenes, deleteScene, deleteChapter } from '../../src/features/scene-nav/reorder.js';
+import { reorderScenes, deleteScene, deleteChapter, reorderChapters } from '../../src/features/scene-nav/reorder.js';
 
 // Builds a minimal chapters[] shape matching what model.js's getManuscript()
 // produces — reorderScenes only reads .title/.scenes per chapter and
@@ -209,5 +209,52 @@ test('deleteChapter does not mutate the input', () => {
   const original = [chapter('One', [scene('A.')]), chapter('Two', [scene('B.')])];
   const snapshot = JSON.parse(JSON.stringify(original));
   deleteChapter(original, 0);
+  assert.deepEqual(original, snapshot);
+});
+
+test('reorderChapters moves a chapter forward', () => {
+  const chapters = [
+    chapter('One', [scene('A1.')]),
+    chapter('Two', [scene('B1.')]),
+    chapter('Three', [scene('C1.')]),
+  ];
+  const doc = reorderChapters(chapters, { fromIndex: 0, toIndex: 2 });
+  assert.equal(doc, '# Two\n\nB1.\n\n# One\n\nA1.\n\n# Three\n\nC1.\n');
+});
+
+test('reorderChapters moves a chapter backward', () => {
+  const chapters = [
+    chapter('One', [scene('A1.')]),
+    chapter('Two', [scene('B1.')]),
+    chapter('Three', [scene('C1.')]),
+  ];
+  const doc = reorderChapters(chapters, { fromIndex: 2, toIndex: 0 });
+  assert.equal(doc, '# Three\n\nC1.\n\n# One\n\nA1.\n\n# Two\n\nB1.\n');
+});
+
+test('reorderChapters dropping a chapter onto its own position is a no-op', () => {
+  const chapters = [chapter('One', [scene('A1.')]), chapter('Two', [scene('B1.')])];
+  const doc = reorderChapters(chapters, { fromIndex: 0, toIndex: 0 });
+  assert.equal(doc, '# One\n\nA1.\n\n# Two\n\nB1.\n');
+});
+
+test('reorderChapters never invents a heading for a synthetic chapter that moves', () => {
+  const chapters = [
+    chapter('One', [scene('A1.')]),
+    synthetic([scene('Untitled opener.')]),
+  ];
+  const doc = reorderChapters(chapters, { fromIndex: 1, toIndex: 0 });
+  assert.equal(doc, 'Untitled opener.\n\n# One\n\nA1.\n');
+});
+
+test('reorderChapters returns null for an out-of-range fromIndex', () => {
+  const chapters = [chapter('One', [scene('A1.')])];
+  assert.equal(reorderChapters(chapters, { fromIndex: 5, toIndex: 0 }), null);
+});
+
+test('reorderChapters does not mutate the input', () => {
+  const original = [chapter('One', [scene('A.')]), chapter('Two', [scene('B.')])];
+  const snapshot = JSON.parse(JSON.stringify(original));
+  reorderChapters(original, { fromIndex: 0, toIndex: 1 });
   assert.deepEqual(original, snapshot);
 });

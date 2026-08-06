@@ -190,8 +190,10 @@
       text-underline-offset: 3px;
     }
 
-    /* typewriter mode: room so last lines can center, opened-up line-height */
-    #app.typewriter .cm-content { padding-bottom: 50vh !important; }
+    /* typewriter mode: room so the first AND last lines can still reach the
+       center guide (without top padding, line 1 is pinned to the scroll
+       top and can never be centered) — opened-up line-height */
+    #app.typewriter .cm-content { padding-top: 50vh !important; padding-bottom: 50vh !important; }
     #app.typewriter #editor-host .cm-line { line-height: 2.1; }
 
     /* Typewriter chrome: center guide, marker, edge fade — hidden unless active */

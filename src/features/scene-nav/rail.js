@@ -1,8 +1,13 @@
 import { getManuscript, findActiveScene } from './model.js';
+import { reorderScenes, reorderChapters } from './reorder.js';
 
 let ctx = null;
 let railEl = null;
 let collapsed = new Set(); // chapter indices
+// { type: 'chapter', chapterIndex } or { type: 'scene', chapterIndex, sceneIndex }
+// while a drag is in progress -- set on dragstart, read by whatever row the
+// drop lands on, cleared on dragend/drop regardless of outcome.
+let dragSource = null;
 
 function el(tag, className, text) {
   const e = document.createElement(tag);
@@ -93,6 +98,16 @@ function injectStyle() {
 }
 .rail-scene-add:hover { opacity: 1; color: var(--syntax-2, var(--accent)); background: var(--wash-accent); }
 .rail-scene-add .ti-plus { font-size: 12px; }
+.rail-drag-handle {
+  font-size: 12px; color: var(--text-dimmer); opacity: 0; cursor: grab; flex-shrink: 0;
+  transition: opacity .12s ease, color .12s ease;
+}
+.rail-chapter-row:hover .rail-drag-handle, .rail-scene-row:hover .rail-drag-handle { opacity: 1; }
+.rail-drag-handle:hover { color: var(--syntax-2, var(--accent)); }
+.rail-drag-handle:active { cursor: grabbing; }
+.rail-chapter-row.dragging, .rail-scene-row.dragging { opacity: .35; }
+.rail-chapter-row.drag-over { background: var(--wash-accent); box-shadow: inset 0 0 0 1px var(--syntax-2, var(--accent)); }
+.rail-scene-row.drag-over { background: var(--wash-accent-strong); box-shadow: inset 2px 0 0 var(--syntax-2, var(--accent)); }
 `;
   document.head.appendChild(style);
 }
@@ -177,6 +192,24 @@ function makeDeleteButton(label, onConfirm) {
   return btn;
 }
 
+// Scopes native HTML5 drag-and-drop to a small handle icon instead of the
+// whole row: `row` only becomes draggable while the mouse is down on the
+// handle, and reverts right after (mouseup fires whether or not a drag
+// actually started) -- otherwise the whole row would initiate a drag on any
+// press+move, stealing the gesture from click-to-toggle/click-to-jump/
+// click-to-rename.
+function makeDragHandle(row) {
+  const handle = el('span', 'rail-drag-handle');
+  handle.appendChild(icon('ti-grip-vertical'));
+  handle.title = 'drag to reorder';
+  handle.addEventListener('mousedown', (e) => {
+    e.stopPropagation();
+    row.draggable = true;
+  });
+  row.addEventListener('mouseup', () => { row.draggable = false; });
+  return handle;
+}
+
 function jumpTo(scene) {
   ctx.editor.setCursorPos(ctx.view, scene.pos);
   ctx.editor.centerCursor(ctx.view);
@@ -228,8 +261,48 @@ export function render() {
       chHasTitle ? chapter.title : chapter.displayTitle,
       () => ctx.deleteChapter(ci, chapters)
     );
-    chRow.append(chevron, el('span', 'rail-chapter-num', 'Ch. ' + chapter.number), chTitle, chEditBtn, chDeleteBtn, el('span', 'rail-dim', String(chapter.scenes.length)));
+    const chHandle = makeDragHandle(chRow);
+    chRow.append(chHandle, chevron, el('span', 'rail-chapter-num', 'Ch. ' + chapter.number), chTitle, chEditBtn, chDeleteBtn, el('span', 'rail-dim', String(chapter.scenes.length)));
     chRow.addEventListener('mousedown', (e) => { e.preventDefault(); toggleChapter(ci); });
+
+    chRow.addEventListener('dragstart', (e) => {
+      dragSource = { type: 'chapter', chapterIndex: ci };
+      chRow.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', 'chapter:' + ci);
+    });
+    chRow.addEventListener('dragend', () => {
+      chRow.classList.remove('dragging');
+      chRow.draggable = false;
+      dragSource = null;
+    });
+    // Accepts either drag type: a chapter drop here reorders chapters; a
+    // scene drop here moves that scene into this chapter, appended at the
+    // end -- the chapter header is a much easier target to hit than a
+    // specific scene row, and it's the only drop target an empty chapter has.
+    chRow.addEventListener('dragover', (e) => {
+      if (!dragSource) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      chRow.classList.add('drag-over');
+    });
+    chRow.addEventListener('dragleave', () => chRow.classList.remove('drag-over'));
+    chRow.addEventListener('drop', (e) => {
+      e.preventDefault();
+      chRow.classList.remove('drag-over');
+      if (!dragSource) return;
+      const moved = dragSource.type === 'chapter'
+        ? reorderChapters(chapters, { fromIndex: dragSource.chapterIndex, toIndex: ci })
+        : reorderScenes(chapters, {
+            fromChapterIndex: dragSource.chapterIndex,
+            fromSceneIndex: dragSource.sceneIndex,
+            toChapterIndex: ci,
+            toSceneIndex: chapters[ci].scenes.length,
+          });
+      dragSource = null;
+      if (moved !== null) { ctx.setDoc(moved); ctx.refreshNav(); }
+    });
+
     list.appendChild(chRow);
 
     if (!isCollapsed) {
@@ -248,8 +321,42 @@ export function render() {
         const deleteBtn = makeDeleteButton(scene.title, () => ctx.deleteScene(ci, si, chapters));
         const nameGroup = el('div', 'rail-scene-name-group');
         nameGroup.append(nameSpan, editBtn, deleteBtn);
-        row.append(nameGroup, el('span', 'rail-dim', scene.isDraft ? 'draft' : String(scene.wordCount)));
+        const rowHandle = makeDragHandle(row);
+        row.append(rowHandle, nameGroup, el('span', 'rail-dim', scene.isDraft ? 'draft' : String(scene.wordCount)));
         row.addEventListener('mousedown', (e) => { e.preventDefault(); jumpTo(scene); });
+
+        row.addEventListener('dragstart', (e) => {
+          dragSource = { type: 'scene', chapterIndex: ci, sceneIndex: si };
+          row.classList.add('dragging');
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', scene.id);
+        });
+        row.addEventListener('dragend', () => {
+          row.classList.remove('dragging');
+          row.draggable = false;
+          dragSource = null;
+        });
+        row.addEventListener('dragover', (e) => {
+          if (!dragSource || dragSource.type !== 'scene') return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          row.classList.add('drag-over');
+        });
+        row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+        row.addEventListener('drop', (e) => {
+          e.preventDefault();
+          row.classList.remove('drag-over');
+          if (!dragSource || dragSource.type !== 'scene') return;
+          const moved = reorderScenes(chapters, {
+            fromChapterIndex: dragSource.chapterIndex,
+            fromSceneIndex: dragSource.sceneIndex,
+            toChapterIndex: ci,
+            toSceneIndex: si,
+          });
+          dragSource = null;
+          if (moved !== null) { ctx.setDoc(moved); ctx.refreshNav(); }
+        });
+
         sceneList.appendChild(row);
       });
 

@@ -79,6 +79,22 @@ export function reorderScenes(chapters, moveSpec) {
   return buildDocument(next);
 }
 
+// moveSpec: { fromIndex, toIndex } -- same "insert before whatever chapter
+// was at toIndex before the move" convention as reorderScenes' toSceneIndex.
+export function reorderChapters(chapters, { fromIndex, toIndex }) {
+  if (!chapters[fromIndex]) return null;
+
+  const next = chapters.map((c) => ({ title: c.title, synthetic: c.synthetic, scenes: c.scenes.slice() }));
+  const [moved] = next.splice(fromIndex, 1);
+
+  let insertAt = toIndex;
+  if (fromIndex < toIndex) insertAt -= 1;
+  insertAt = Math.max(0, Math.min(insertAt, next.length));
+  next.splice(insertAt, 0, moved);
+
+  return buildDocument(next);
+}
+
 // Removes one scene from a chapter and returns the rebuilt document, or
 // null if the target doesn't exist.
 export function deleteScene(chapters, { chapterIndex, sceneIndex }) {

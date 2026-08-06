@@ -79,7 +79,10 @@ title). Two views onto the same manuscript model:
 - **Rail** — an always-visible left sidebar. Collapsible chapter rows, each
   with a per-chapter "add scene" row so a new scene lands in the chapter you
   clicked, not always at the end of the manuscript. Click a scene to jump to
-  it.
+  it. Drag the grip handle on a chapter or scene row to reorder — drag a
+  scene onto another chapter's header to move it there (the easiest way to
+  get a scene into a currently-empty chapter), or onto another scene row for
+  precise positioning within a chapter.
 - **Corkboard** (⌘⇧C) — a full-window card view for restructuring: drag
   scene cards to reorder within or across chapters. Interacting with a card
   (creating, editing, dragging, deleting) never navigates away — the
