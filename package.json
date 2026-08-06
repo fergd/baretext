@@ -1,6 +1,6 @@
 {
   "name": "baretext",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A distraction-free writing app",
   "main": "src/main.js",
   "scripts": {
