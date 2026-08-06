@@ -13,19 +13,23 @@ focus-mode spec).
 ## Where things stand (as of 2026-08-06)
 
 Both Sprinter and Editor mode are feature-complete against the original
-design handoff, and a full accessibility pass (`design_handoff_baretext/
-ACCESSIBILITY.md`, task 1 of that handoff's suggested order) has landed:
+design handoff. A full accessibility pass (`design_handoff_baretext/
+ACCESSIBILITY.md`, task 1 of that handoff's suggested order) landed:
 every span/div+mousedown control converted to a real, keyboard-operable
 `<button>`, a scene-rail keyboard/tree model (arrow-key nav, F2 rename,
 Delete arm, ⌥↑/⌥↓ reorder), a command-palette dialog/combobox/listbox ARIA
 pattern with a focus trap, WCAG AA contrast fixes across all 5 themes, hit
-targets, and `prefers-reduced-motion` support. Full test suite: 105 unit +
-67 E2E, all passing, stable across repeated runs. Nothing is mid-flight or
-half-implemented — the next session starts from a clean slate unless new
-requests come in. One idea was raised and explicitly deferred, not started:
-see "Open items" below (AI-generated corkboard summaries). **Nothing from
-this session (theme system, hidden test windows, accessibility pass) is
-committed yet.**
+targets, and `prefers-reduced-motion` support. On top of that, task 2 of
+the same handoff (the status-bar mode switcher, `MODE_SWITCHER.md`) is also
+done, plus a quick fix: focus mode (⌘.) now also hides the minimized sprint
+edge line (it lives outside `#statusbar`, so hiding the status bar alone
+used to leave it on screen). **Everything through this point is committed
+and pushed** — see the Build history section for exact commits. Full test
+suite: 105 unit + 71 E2E, all passing, stable across repeated runs. Nothing
+is mid-flight or half-implemented — the next session starts from a clean
+slate unless new requests come in. One idea was raised and explicitly
+deferred, not started: see "Open items" below (AI-generated corkboard
+summaries).
 
 **Note:** `docs/theme-spec.md` (the original internal theme doc) is now
 stale in two ways — its own hex values don't even match what was previously
@@ -112,9 +116,82 @@ and it predates the amstrad/grove rename+addition below.
     Picker view**, plus two immediate follow-ups (Amstrad heading-color fix,
     hidden E2E test windows) — see "Earlier work in detail" below.
 15. **Accessibility pass** (`design_handoff_baretext/ACCESSIBILITY.md`,
-    this session, most recent) — see below.
+    commit `0f0bdf1`) — see "Earlier work in detail" below.
+16. **Status-bar mode switcher** (`design_handoff_baretext/MODE_SWITCHER.md`)
+    — see "Most recent work in detail" below.
+17. **Focus mode also hides the sprint edge line** (quick fix, this
+    session, most recent) — see below.
 
-## Most recent work in detail (this session — accessibility pass)
+## Most recent work in detail (this session — mode switcher + a quick fix)
+
+`design_handoff_baretext/MODE_SWITCHER.md` (task 2 of the current handoff's
+suggested order — task 1, accessibility, was done and committed earlier
+this session; task 3, Theme Picker, and task 4, theme rename, were done in
+an even earlier session). Moves mode switching out of being palette-only
+into a persistent, always-visible control:
+
+- **`#statusbar` is now a 3-column CSS grid** (`grid-template-columns: 1fr
+  auto 1fr`) instead of `flex + justify-content: space-between`, so the new
+  center column stays truly centered regardless of how wide the two side
+  clusters are. The right `.status-group` gets `justify-self: end` to stay
+  pinned right (targeted via `:last-child` — both groups share the same
+  class, so this avoids needing a second class name).
+- **`#mode-switch`** — a `role="tablist"` of two real `role="tab"` buttons
+  (Sprinter / Editor), styled deliberately subtle per the spec: no accent
+  fill anywhere (a raised `--bg` chip + `font-weight:600` + a soft shadow
+  reads as "selected" on its own) — the accent stays reserved for the
+  writing surface itself (H1, cursor), not chrome.
+- **One choke point for all three mode-switch entry points.** Extracted the
+  palette's "switch mode, and if switching to Sprinter also open the sprint
+  setup like ⌘⇧S would" logic (previously inline in `modeGroup()`'s `fn`)
+  into a standalone `switchMode(modeId)` in `src/app.js`, called by both the
+  palette items and the new tabs — so clicking the Sprinter tab gets the
+  exact same "opens sprint setup" bonus the palette already had, confirmed
+  live via CDP. `activateMode()` itself gained a call to a new
+  `updateModeSwitch()` so the tabs' `aria-selected`/roving `tabindex` stay
+  correct regardless of *what* triggered the mode change — including ⌘⇧D,
+  which (deliberately, matching its existing pre-this-session behavior)
+  still calls `activateMode()` directly and does *not* get the sprint-setup
+  bonus; only the tabs and palette were asked to be "two entry points to
+  the same action" per the spec, ⌘⇧D wasn't part of that ask and its
+  behavior was left untouched.
+- **Keyboard model exactly as specified: manual activation, not automatic.**
+  ←/→ only move a roving `tabindex` between the two tabs (the pair is one
+  Tab stop); Enter/Space activates whichever tab currently has focus. This
+  is deliberately *not* the "arrow key immediately switches" pattern some
+  tab implementations use — confirmed live that an arrow press alone never
+  changes `data-mode`, only a following Enter/Space does.
+- **No first-paint flash.** The existing theme-boot-flash-prevention
+  pattern (`<head>`'s inline script sets `data-theme`/`data-mode`
+  synchronously before the stylesheet parses) already covered `data-mode`,
+  but the new tabs' active-look was initially only driven by a JS-set
+  `aria-selected` attribute, which wouldn't apply until `app.js` ran a beat
+  after first paint. Added a CSS fallback keyed off `html[data-mode="…"]`
+  directly (same specificity class as the `[aria-selected="true"]` rule, so
+  once JS does run and sets `aria-selected` to agree with `data-mode`, as
+  it always does, the two rules simply reinforce each other rather than
+  conflicting) — the correct tab is highlighted from the very first frame,
+  not just after the module script executes.
+
+Regression tests: `test/e2e/smoke.test.js`, `accessibility pass` describe
+block gained 3 more tests (tablist roles + click-switches + stays in sync
+with ⌘⇧D, roving-focus-doesn't-activate + Enter does, the grid layout
+itself). 70 E2E total now.
+
+**Quick fix: focus mode (⌘.) now also hides the sprint edge line.** User
+report: toggling focus mode hid the status bar but left the minimized
+sprint's thin accent-colored progress line on screen — it's an
+absolutely-positioned sibling in `sprint-timer.js`, not a descendant of
+`#statusbar`, so hiding the status bar alone never touched it.
+`toggleFocus()` (`src/app.js`) now also toggles a `focus-mode` class on
+`#app`; `sprint-timer.js`'s own stylesheet adds one rule keyed off that
+class (`#app.focus-mode .sprint-edge { opacity: 0; pointer-events: none; }`)
+rather than `app.js` reaching into another feature's private DOM refs.
+Confirmed live it restores correctly when focus mode toggles back off.
+Regression test added to the `sprint pause/resume` describe block. 71 E2E
+total now.
+
+## Earlier work in detail (commit `0f0bdf1` — accessibility pass)
 
 A second design handoff update (same `design_handoff_baretext/` package,
 new `CLAUDE.md` + `ACCESSIBILITY.md` + `MODE_SWITCHER.md` files added via a
@@ -218,8 +295,8 @@ section names only the palette and the rail as the composite widgets to
 prioritize; corkboard's cards got the button-conversion + hit-target +
 un-hover-gating treatment but not arrow-key card-to-card navigation — drag
 and the now-keyboard-focusable edit/delete/open buttons are the only
-interaction paths). Tasks 2 (`MODE_SWITCHER.md` — bottom-bar mode switcher)
-from the handoff's suggested order is not started.
+interaction paths). Task 2 (`MODE_SWITCHER.md`) followed in the same
+session — see "Most recent work in detail" above.
 
 Regression tests: `test/e2e/smoke.test.js`, describe block
 `accessibility pass` (11 tests — button conversion, tree roles, keyboard
@@ -485,10 +562,6 @@ Both have regression tests in `test/unit/outline.test.js` and the E2E suite.
 - `Sprinter timer design states.zip` at the repo root is original design
   reference material, not yet fully cross-checked feature-by-feature
   against the shipped implementation beyond what's already been verified.
-- **`design_handoff_baretext/MODE_SWITCHER.md`** — task 2 of the current
-  handoff's suggested order (a bottom-bar mode switcher turning `#statusbar`
-  into a 3-column grid with a centered `role="tablist"` Sprinter/Editor
-  switch). Not started; only task 1 (accessibility) was done this session.
 - Corkboard's scene cards didn't get the rail's arrow-key tree/keyboard
   navigation model in the accessibility pass — `ACCESSIBILITY.md` only
   named the palette and rail as P1 priorities. If corkboard card-to-card

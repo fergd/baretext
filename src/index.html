@@ -291,9 +291,11 @@
 
     #statusbar {
       height: 30px;
-      display: flex;
+      /* 3-column grid (not flex+space-between) so the mode switch sits
+         truly centered regardless of how wide the two side clusters are. */
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
       align-items: center;
-      justify-content: space-between;
       padding: 0 24px;
       flex-shrink: 0;
       border-top: 1px solid var(--border);
@@ -308,6 +310,40 @@
       pointer-events: none;
     }
     .status-group { display: flex; align-items: center; gap: 14px; }
+    #statusbar .status-group:last-child { justify-self: end; }
+
+    /* Mode switch — deliberately subtle, no accent fill: this is a writing
+       app, the bar must never pull the eye from the page. The fill alone
+       (no border) reads as a segmented control. */
+    #mode-switch {
+      display: flex; gap: 2px; padding: 2px;
+      background: color-mix(in srgb, var(--bg-alt) 60%, transparent);
+      border-radius: 8px;
+    }
+    .mode-tab {
+      all: unset; box-sizing: border-box; cursor: pointer;
+      display: flex; align-items: center; gap: 6px;
+      min-height: 26px; padding: 0 14px;
+      font-size: 12px; font-family: var(--font-mono); letter-spacing: 0.03em;
+      border-radius: 6px; color: var(--text-dimmer);
+      transition: color var(--dur-micro, .1s) ease, background var(--dur-micro, .1s) ease,
+                  box-shadow var(--dur-micro, .1s) ease;
+    }
+    .mode-tab:hover { color: var(--text-dim); }
+    /* Active: a quiet raised chip -- the lift + full-strength text reads as
+       selected without any accent color. Never fill with --accent; that
+       belongs to the writing surface (H1, cursor), not the chrome. */
+    .mode-tab[aria-selected="true"],
+    /* Matches the persisted data-mode (set synchronously in <head>, before
+       app.js runs) so the correct tab is already highlighted on first
+       paint -- same flash-prevention reasoning as the theme boot script
+       above. Once app.js runs, aria-selected always agrees with data-mode
+       (both driven by the same state.mode), so this never fights it. */
+    html[data-mode="editor"] .mode-tab[data-mode="editor"],
+    html[data-mode="sprinter"] .mode-tab[data-mode="sprinter"] {
+      background: var(--bg); color: var(--text); font-weight: 600;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, .25);
+    }
     .status-item {
       font-size: 11px;
       font-family: var(--font-mono);
@@ -627,6 +663,10 @@
       <span class="status-item dimmer" id="char-count">0 chars</span>
       <span class="status-item dimmer" id="md-mode">preview</span>
       <button type="button" class="status-item" id="tw-status-indicator" aria-pressed="false" aria-label="Toggle typewriter mode"><i class="ti ti-align-left" aria-hidden="true"></i>typewriter</button>
+    </div>
+    <div id="mode-switch" role="tablist" aria-label="Mode">
+      <button type="button" class="mode-tab" role="tab" data-mode="sprinter" aria-selected="true" tabindex="0"><i class="ti ti-run" aria-hidden="true"></i>Sprinter</button>
+      <button type="button" class="mode-tab" role="tab" data-mode="editor" aria-selected="false" tabindex="-1"><i class="ti ti-edit" aria-hidden="true"></i>Editor</button>
     </div>
     <div class="status-group">
       <div id="save-error" title="save failed"></div>

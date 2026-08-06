@@ -927,6 +927,44 @@ describe('Baretext E2E: sprint pause/resume', () => {
     const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
     assert.deepEqual(bad, []);
   });
+
+  // Regression: the minimized sprint edge line lives outside #statusbar (an
+  // absolutely-positioned sibling), so hiding the status bar alone left it
+  // on screen -- defeating the point of focus mode's declutter.
+  test('focus mode (⌘.) also hides the minimized sprint edge line, and restores it when toggled off', async () => {
+    await app.client.evaluate(`
+      // Restore to active, then minimize, so the edge line is showing.
+      document.querySelector('.sprint-chip-status').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      document.querySelector('.sprint-chip-status').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 150));
+      const minBtn = [...document.querySelectorAll('.sprint-pill')].find(b => b.innerText === 'minimize');
+      minBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      minBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 150));
+    `);
+    const before = await app.client.evaluate(`
+      return { edgeDisplay: getComputedStyle(document.querySelector('.sprint-edge')).display, edgeOpacity: getComputedStyle(document.querySelector('.sprint-edge')).opacity };
+    `);
+    assert.equal(before.edgeDisplay, 'block');
+    assert.equal(before.edgeOpacity, '1');
+
+    const focusOn = await app.client.evaluate(`
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: '.', metaKey: true, bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 300));
+      return { edgeOpacity: getComputedStyle(document.querySelector('.sprint-edge')).opacity };
+    `);
+    assert.equal(focusOn.edgeOpacity, '0');
+
+    const focusOff = await app.client.evaluate(`
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: '.', metaKey: true, bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 300));
+      return { edgeOpacity: getComputedStyle(document.querySelector('.sprint-edge')).opacity };
+    `);
+    assert.equal(focusOff.edgeOpacity, '1');
+
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
 });
 
 describe('Baretext E2E: rail drag-and-drop', () => {
@@ -1487,6 +1525,101 @@ describe('Baretext E2E: accessibility pass', () => {
     assert.equal(result.serifChecked, 'true');
     assert.equal(result.statusbarRole, 'region');
     assert.equal(result.statusbarLabel, 'Status');
+  });
+
+  test('the status-bar mode switch is a tablist reflecting the current mode, clicking a tab switches', async () => {
+    const initial = await app.client.evaluate(`
+      const sprinterTab = document.querySelector('.mode-tab[data-mode="sprinter"]');
+      const editorTab = document.querySelector('.mode-tab[data-mode="editor"]');
+      return {
+        tablistRole: document.getElementById('mode-switch').getAttribute('role'),
+        sprinterRole: sprinterTab.getAttribute('role'),
+        editorRole: editorTab.getAttribute('role'),
+        editorSelected: editorTab.getAttribute('aria-selected'),
+        editorTabIndex: editorTab.tabIndex,
+        sprinterTabIndex: sprinterTab.tabIndex,
+      };
+    `);
+    assert.equal(initial.tablistRole, 'tablist');
+    assert.equal(initial.sprinterRole, 'tab');
+    assert.equal(initial.editorRole, 'tab');
+    assert.equal(initial.editorSelected, 'true'); // fixture launched in editor mode
+    assert.equal(initial.editorTabIndex, 0);
+    assert.equal(initial.sprinterTabIndex, -1);
+
+    const afterClick = await app.client.evaluate(`
+      const sprinterTab = document.querySelector('.mode-tab[data-mode="sprinter"]');
+      sprinterTab.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      sprinterTab.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 250));
+      return {
+        mode: document.documentElement.getAttribute('data-mode'),
+        sprinterSelected: sprinterTab.getAttribute('aria-selected'),
+        editorSelected: document.querySelector('.mode-tab[data-mode="editor"]').getAttribute('aria-selected'),
+        // Switching to Sprinter via the tab is the same action as the
+        // palette's "Switch to Sprinter" -- both should open sprint setup.
+        evokeVisible: getComputedStyle(document.querySelector('.sprint-panel')).display,
+      };
+    `);
+    assert.equal(afterClick.mode, 'sprinter');
+    assert.equal(afterClick.sprinterSelected, 'true');
+    assert.equal(afterClick.editorSelected, 'false');
+    assert.equal(afterClick.evokeVisible, 'block');
+
+    // Cancel the evoke panel and switch back to Editor via ⌘⇧D -- the tabs
+    // must stay in sync with mode changes from other entry points too.
+    const backToEditor = await app.client.evaluate(`
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 100));
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'D', metaKey: true, shiftKey: true, bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 200));
+      return {
+        mode: document.documentElement.getAttribute('data-mode'),
+        editorSelected: document.querySelector('.mode-tab[data-mode="editor"]').getAttribute('aria-selected'),
+      };
+    `);
+    assert.equal(backToEditor.mode, 'editor');
+    assert.equal(backToEditor.editorSelected, 'true');
+  });
+
+  test('arrow keys move roving focus within the mode switch without activating; Enter/Space does', async () => {
+    const result = await app.client.evaluate(`
+      const editorTab = document.querySelector('.mode-tab[data-mode="editor"]');
+      const sprinterTab = document.querySelector('.mode-tab[data-mode="sprinter"]');
+      editorTab.focus();
+      editorTab.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 50));
+      const focusedSprinterAfterArrow = document.activeElement === sprinterTab;
+      const modeAfterArrowOnly = document.documentElement.getAttribute('data-mode');
+
+      sprinterTab.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 250));
+      const modeAfterEnter = document.documentElement.getAttribute('data-mode');
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 100));
+
+      // Switch back to editor for tests after this one.
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'D', metaKey: true, shiftKey: true, bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 200));
+
+      return { focusedSprinterAfterArrow, modeAfterArrowOnly, modeAfterEnter };
+    `);
+    assert.equal(result.focusedSprinterAfterArrow, true);
+    assert.equal(result.modeAfterArrowOnly, 'editor', 'arrow keys should only move focus, not activate');
+    assert.equal(result.modeAfterEnter, 'sprinter');
+  });
+
+  test('the status bar is a 3-column grid with the mode switch centered and the right cluster right-aligned', async () => {
+    const result = await app.client.evaluate(`
+      const cs = getComputedStyle(document.getElementById('statusbar'));
+      const groups = [...document.querySelectorAll('#statusbar .status-group')];
+      return {
+        display: cs.display,
+        justifySelfLast: getComputedStyle(groups[groups.length - 1]).justifySelf,
+      };
+    `);
+    assert.equal(result.display, 'grid');
+    assert.equal(result.justifySelfLast, 'end');
   });
 
   test('no console errors in this suite', () => {

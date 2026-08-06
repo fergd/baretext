@@ -11,7 +11,8 @@ Baretext has two modes:
   corkboard, find/replace, and spellcheck, for structuring and revising a
   longer manuscript.
 
-Switch between them with ⌘⇧D or the command palette's Mode group.
+Switch between them with ⌘⇧D, the command palette's Mode group, or the
+Sprinter/Editor tabs centered in the status bar.
 
 ## Quick start (dev mode)
 ```
@@ -196,7 +197,8 @@ the rail's rows, a proper ARIA `treeitem`) — nothing is mouse-only. A global
 system-wide, including stopping the sprint panel's pulsing dot. The command
 palette is a `dialog`/`combobox`/`listbox` with a focus trap; the font
 picker is a `radiogroup`; the scene rail is a full `tree` (see the rail
-bullet above for its keyboard model). All 5 themes' `--text-dimmer` clears
+bullet above for its keyboard model); the status-bar mode switch is a
+`tablist` (←/→ move focus, Enter/Space activates). All 5 themes' `--text-dimmer` clears
 WCAG AA (4.5:1) against both `--bg` and `--bg-alt` — regression-tested in
 `test/unit/theme-contrast.test.js` against the actual theme values, not a
 hand-copied table.

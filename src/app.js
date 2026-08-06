@@ -22,6 +22,8 @@ const toastEl    = document.getElementById('toast');
 const statusbar  = document.getElementById('statusbar');
 const statusLeft = statusbar.querySelector('.status-group');
 const twIndicator = document.getElementById('tw-status-indicator');
+const modeSwitch = document.getElementById('mode-switch');
+const modeTabs   = [...modeSwitch.querySelectorAll('.mode-tab')];
 
 const state = {
   theme: document.documentElement.getAttribute('data-theme'),
@@ -284,6 +286,11 @@ function toggleTypewriter() { setTypewriter(!state.typewriter); }
 function toggleFocus() {
   state.focusMode = !state.focusMode;
   statusbar.classList.toggle('hidden', state.focusMode);
+  // The sprint timer's minimized edge line lives outside #statusbar (an
+  // absolutely-positioned sibling in sprint-timer.js), so hiding the
+  // status bar alone leaves it on screen -- add a class features can key
+  // off instead of reaching into another feature's private DOM refs.
+  app.classList.toggle('focus-mode', state.focusMode);
   showToast(state.focusMode ? 'focus mode on' : 'focus mode off');
 }
 
@@ -576,6 +583,22 @@ themePicker.mount(ctx);
 let activeFeatures = [];
 let currentKeybindings = {};
 
+// Single choke point for every mode-switch entry point (⌘K palette, ⌘⇧D,
+// and the status-bar tabs) so all three always agree and stay in sync.
+function switchMode(modeId) {
+  // Only actually switch if we're not already there — activateMode()
+  // unconditionally destroys/reinits every feature, which would kill
+  // an in-progress sprint if the user re-selects the mode they're
+  // already in.
+  if (state.mode !== modeId) activateMode(modeId);
+  // Selecting Sprint means "I want to sprint" — open the duration/goal
+  // picker (or bring the active panel forward), the same as ⌘⇧S, instead
+  // of leaving an idle Sprinter view that needs a second action.
+  if (modeId === 'sprinter' && currentKeybindings['Mod-Shift-S']) {
+    currentKeybindings['Mod-Shift-S']();
+  }
+}
+
 function modeGroup() {
   return {
     group: 'Mode',
@@ -584,23 +607,42 @@ function modeGroup() {
       icon: m.id === 'sprinter' ? 'ti-run' : 'ti-layout-columns',
       keys: ['⌘','⇧','D'],
       checked: state.mode === m.id,
-      fn: () => {
-        // Only actually switch if we're not already there — activateMode()
-        // unconditionally destroys/reinits every feature, which would kill
-        // an in-progress sprint if the user re-selects the mode they're
-        // already in.
-        if (state.mode !== m.id) activateMode(m.id);
-        // Selecting Sprint from the palette means "I want to sprint" — open
-        // the duration/goal picker (or bring the active panel forward), the
-        // same as ⌘⇧S, instead of leaving an idle Sprinter view that needs
-        // a second action.
-        if (m.id === 'sprinter' && currentKeybindings['Mod-Shift-S']) {
-          currentKeybindings['Mod-Shift-S']();
-        }
-      },
+      fn: () => switchMode(m.id),
     })),
   };
 }
+
+// Keeps the status-bar tabs in sync with state.mode regardless of what
+// triggered the change (the tabs themselves, ⌘⇧D, or the palette).
+function updateModeSwitch() {
+  modeTabs.forEach(tab => {
+    const isActive = tab.dataset.mode === state.mode;
+    tab.setAttribute('aria-selected', String(isActive));
+    tab.tabIndex = isActive ? 0 : -1;
+  });
+}
+
+modeTabs.forEach(tab => {
+  tab.addEventListener('mousedown', (e) => e.preventDefault());
+  tab.addEventListener('click', () => switchMode(tab.dataset.mode));
+});
+// Roving tabindex, manual activation: ←/→ only move which tab has focus
+// (the whole group is one Tab stop); Enter/Space activates the focused one.
+modeSwitch.addEventListener('keydown', (e) => {
+  const idx = modeTabs.indexOf(document.activeElement);
+  if (idx === -1) return;
+  if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+    e.preventDefault();
+    const nextIdx = e.key === 'ArrowRight'
+      ? (idx + 1) % modeTabs.length
+      : (idx - 1 + modeTabs.length) % modeTabs.length;
+    modeTabs.forEach((t, i) => { t.tabIndex = i === nextIdx ? 0 : -1; });
+    modeTabs[nextIdx].focus();
+  } else if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    switchMode(modeTabs[idx].dataset.mode);
+  }
+});
 
 function activateMode(modeId) {
   const modeDef = MODES[modeId] || MODES[DEFAULT_MODE];
@@ -611,6 +653,7 @@ function activateMode(modeId) {
   state.mode = modeDef.id;
   window.api.setMode(modeDef.id);
   document.documentElement.setAttribute('data-mode', modeDef.id);
+  updateModeSwitch();
 
   activeFeatures.forEach(f => { if (f.init) f.init(ctx); });
 

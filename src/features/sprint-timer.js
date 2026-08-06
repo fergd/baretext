@@ -154,9 +154,14 @@ function injectStyle() {
   position: absolute; left: 0; right: 0; bottom: 30px; height: 2px;
   background: color-mix(in srgb, var(--border) 45%, transparent);
   z-index: 3; display: none;
+  opacity: 1; transition: opacity 0.25s ease;
 }
 .sprint-edge-fill { height: 100%; width: 0%; background: var(--accent); box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 70%, transparent); }
 .sprint-edge.paused .sprint-edge-fill { opacity: .4; box-shadow: none; }
+/* Focus mode declutters everything, including the minimized sprint line --
+   it lives outside #statusbar (see app.js's toggleFocus()), so hiding the
+   status bar alone wasn't enough. */
+#app.focus-mode .sprint-edge { opacity: 0; pointer-events: none; }
 
 .sprint-chip-status {
   /* all:unset would also wipe out the shared .status-item rule (font-size/
