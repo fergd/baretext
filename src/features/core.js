@@ -16,6 +16,7 @@ export default {
       'Mod-Shift-M':      () => ctx.toggleRenderedMode(),
       'Mod-Shift-O':      () => ctx.openOutline(),
       'Mod-Shift-Minus':  () => ctx.insertSceneBreak(),
+      'Mod-Enter':        () => ctx.insertSceneBreak(),
       'Mod-Period':       () => ctx.toggleFocus(),
     };
   },
@@ -38,7 +39,7 @@ export default {
       },
       { group: 'Insert',
         items: [
-          { label: 'Scene break',        icon: 'ti-minus',           keys: ['⌘','⇧','—'],    fn: ctx.insertSceneBreak },
+          { label: 'Scene break',        icon: 'ti-minus',           keys: ['⌘','↵'],         fn: ctx.insertSceneBreak },
         ]
       },
       { group: 'View',

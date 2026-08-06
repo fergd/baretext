@@ -608,6 +608,7 @@ function shortcutFor(e) {
   if (!mod) return null;
   const key = e.key;
   if (key === '.') return 'Mod-Period';
+  if (key === 'Enter') return 'Mod-Enter';
   if (e.shiftKey && e.code === 'Minus') return 'Mod-Shift-Minus';
   if (key.length === 1) {
     return e.shiftKey ? `Mod-Shift-${key.toUpperCase()}` : `Mod-${key.toLowerCase()}`;

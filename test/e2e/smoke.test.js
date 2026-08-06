@@ -724,3 +724,138 @@ describe('Baretext E2E: chapter placeholders and per-chapter scene targeting', (
     assert.deepEqual(bad, []);
   });
 });
+
+// Own instances so mutating the document (⌘↵) and driving a real sprint
+// countdown (pause) can't disturb the exact-count assumptions the two
+// stateful suites above build up test-by-test.
+describe('Baretext E2E: ⌘↵ scene break and sprint pause', () => {
+  let app;
+
+  before(async () => {
+    app = await launchApp({ fixtureContent: '# Chapter One\n\nSome opening prose.', mode: 'editor' });
+  });
+
+  after(async () => {
+    if (app) await app.close();
+  });
+
+  test('⌘↵ inserts a scene break at the cursor; plain ↵ does not', async () => {
+    const result = await app.client.evaluate(`
+      const cm = document.querySelector('.cm-content');
+      cm.focus();
+      const before = cm.innerText;
+      const dashesBefore = (before.match(/---/g) || []).length;
+
+      cm.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', metaKey: true, bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 150));
+      const afterCmdEnter = cm.innerText;
+      const dashesAfterCmdEnter = (afterCmdEnter.match(/---/g) || []).length;
+
+      cm.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 150));
+      const dashesAfterPlainEnter = (cm.innerText.match(/---/g) || []).length;
+
+      return { dashesBefore, dashesAfterCmdEnter, dashesAfterPlainEnter, changed: afterCmdEnter !== before };
+    `);
+    assert.equal(result.changed, true);
+    assert.equal(result.dashesAfterCmdEnter, result.dashesBefore + 1);
+    assert.equal(result.dashesAfterPlainEnter, result.dashesAfterCmdEnter); // plain Enter is just a newline, not a second break
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+});
+
+describe('Baretext E2E: sprint pause/resume', () => {
+  let app;
+
+  before(async () => {
+    app = await launchApp({ fixtureContent: 'Some prose here.', mode: 'sprinter' });
+  });
+
+  after(async () => {
+    if (app) await app.close();
+  });
+
+  test('pausing freezes the countdown and resuming continues it, reflected in the panel, chip, and edge line', async () => {
+    // Start a sprint the same way a user would: chip -> evoke -> Enter.
+    await app.client.evaluate(`
+      document.querySelector('.sprint-chip-status').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 150));
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 150));
+    `);
+
+    const paused = await app.client.evaluate(`
+      const timeBefore = document.querySelector('.sprint-time').textContent;
+      const pauseBtn = [...document.querySelectorAll('.sprint-pill')].find(b => b.innerText === 'pause');
+      pauseBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 150));
+      const pillLabels = [...document.querySelectorAll('.sprint-pill')].map(b => b.innerText);
+      const dotPaused = document.querySelector('.sprint-dot').classList.contains('paused');
+      const chipText = document.querySelector('.sprint-chip-status').innerText.trim();
+      await new Promise(r => setTimeout(r, 2200)); // long enough to catch a stray tick if pause doesn't actually stop the interval
+      const timeAfterWait = document.querySelector('.sprint-time').textContent;
+      return { timeBefore, timeAfterWait, pillLabels, dotPaused, chipText };
+    `);
+    assert.equal(paused.timeAfterWait, paused.timeBefore); // frozen while paused
+    assert.ok(paused.pillLabels.includes('resume'));
+    assert.equal(paused.dotPaused, true);
+    assert.equal(paused.chipText, 'paused');
+
+    const resumed = await app.client.evaluate(`
+      const timeBefore = document.querySelector('.sprint-time').textContent;
+      const resumeBtn = [...document.querySelectorAll('.sprint-pill')].find(b => b.innerText === 'resume');
+      resumeBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 150));
+      const pillLabels = [...document.querySelectorAll('.sprint-pill')].map(b => b.innerText);
+      const dotPaused = document.querySelector('.sprint-dot').classList.contains('paused');
+      await new Promise(r => setTimeout(r, 2200));
+      const timeAfterWait = document.querySelector('.sprint-time').textContent;
+      return { timeBefore, timeAfterWait, pillLabels, dotPaused };
+    `);
+    assert.ok(resumed.pillLabels.includes('pause'));
+    assert.equal(resumed.dotPaused, false);
+    assert.notEqual(resumed.timeAfterWait, resumed.timeBefore); // ticking again
+
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+
+  test('pausing while minimized dims the edge line; the chip still says "paused"', async () => {
+    await app.client.evaluate(`
+      const pauseBtn = [...document.querySelectorAll('.sprint-pill')].find(b => b.innerText === 'pause');
+      pauseBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 150));
+      const minBtn = [...document.querySelectorAll('.sprint-pill')].find(b => b.innerText === 'minimize');
+      minBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 150));
+    `);
+    const result = await app.client.evaluate(`
+      return {
+        edgeDisplay: getComputedStyle(document.querySelector('.sprint-edge')).display,
+        edgePaused: document.querySelector('.sprint-edge').classList.contains('paused'),
+        chipText: document.querySelector('.sprint-chip-status').innerText.trim(),
+      };
+    `);
+    assert.equal(result.edgeDisplay, 'block');
+    assert.equal(result.edgePaused, true);
+    assert.equal(result.chipText, 'paused');
+  });
+
+  // Regression: 'hidden' view deliberately shows no timer info at all (see
+  // the "hide timer" test in the main suite) — that must stay true even
+  // while paused, not flip to a "paused" label the paused-while-visible
+  // views show.
+  test('the hidden view still says "sprinting", not "paused", while paused', async () => {
+    await app.client.evaluate(`
+      document.querySelector('.sprint-chip-status').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 150));
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'H', metaKey: true, shiftKey: true, bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 150));
+    `);
+    const chipText = await app.client.evaluate(`return document.querySelector('.sprint-chip-status').innerText.trim();`);
+    assert.equal(chipText, 'sprinting');
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+});

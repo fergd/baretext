@@ -106,6 +106,7 @@ function injectStyle() {
 .sprint-header { display: flex; justify-content: space-between; align-items: center; }
 .sprint-header-left { display: flex; align-items: center; gap: 8px; }
 .sprint-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: sprint-pulse 2s ease-in-out infinite; }
+.sprint-dot.paused { animation: none; opacity: .4; background: var(--text-dimmer); }
 .sprint-header-right { display: flex; gap: 6px; }
 .sprint-pill {
   font-size: 11px; color: var(--text-dim); padding: 3px 10px;
@@ -129,6 +130,7 @@ function injectStyle() {
   z-index: 3; display: none;
 }
 .sprint-edge-fill { height: 100%; width: 0%; background: var(--accent); box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 70%, transparent); }
+.sprint-edge.paused .sprint-edge-fill { opacity: .4; box-shadow: none; }
 
 .sprint-chip-status { display: flex; align-items: center; gap: 6px; cursor: pointer; transition: color .15s ease; }
 .sprint-chip-status .ti-run { color: var(--text-dimmer); font-size: 13px; transition: color .15s ease; }
@@ -150,6 +152,7 @@ function hint(key, label) {
 function updateVisibility() {
   panelEl.style.display = (evokeOpen || (sprint && sprint.view === 'active')) ? 'block' : 'none';
   edgeEl.style.display = (sprint && sprint.view === 'edge') ? 'block' : 'none';
+  edgeEl.classList.toggle('paused', !!(sprint && sprint.paused));
   updateChipContent();
 }
 
@@ -164,9 +167,9 @@ function updateChipContent() {
   chipEl.appendChild(icon('ti-run'));
   if (sprint) {
     chipEl.classList.add('running');
-    const label = sprint.view === 'hidden' ? ' sprinting' : ' ' + mmss(sprint.remaining);
+    const label = sprint.view === 'hidden' ? ' sprinting' : sprint.paused ? ' paused' : ' ' + mmss(sprint.remaining);
     chipEl.appendChild(document.createTextNode(label));
-    chipEl.title = sprint.view === 'active' ? 'sprint in progress' : 'click to show sprint';
+    chipEl.title = sprint.paused ? 'sprint paused — click to show' : sprint.view === 'active' ? 'sprint in progress' : 'click to show sprint';
   } else {
     chipEl.classList.remove('running');
     chipEl.appendChild(document.createTextNode(' sprint'));
@@ -226,13 +229,18 @@ function buildActive() {
 
   const header = el('div', 'sprint-header');
   const left = el('div', 'sprint-header-left');
-  left.append(el('span', 'sprint-dot'), el('span', 'sprint-label', 'sprint'));
+  left.append(
+    el('span', 'sprint-dot' + (sprint.paused ? ' paused' : '')),
+    el('span', 'sprint-label', sprint.paused ? 'paused' : 'sprint')
+  );
   const right = el('div', 'sprint-header-right');
   const minBtn = el('span', 'sprint-pill', 'minimize');
   minBtn.addEventListener('mousedown', (e) => { e.preventDefault(); setView('edge'); });
+  const pauseBtn = el('span', 'sprint-pill', sprint.paused ? 'resume' : 'pause');
+  pauseBtn.addEventListener('mousedown', (e) => { e.preventDefault(); togglePause(); });
   const endBtn = el('span', 'sprint-pill', 'end');
   endBtn.addEventListener('mousedown', (e) => { e.preventDefault(); endSprint(); });
-  right.append(minBtn, endBtn);
+  right.append(minBtn, pauseBtn, endBtn);
   header.append(left, right);
   panelEl.appendChild(header);
 
@@ -309,6 +317,7 @@ function startSprint(minutes, goal) {
     totalSeconds: minutes * 60,
     remaining: minutes * 60,
     view: 'active',
+    paused: false,
     wordsAtStart: ctx.state.wordCount,
     goal,
   };
@@ -338,6 +347,15 @@ function complete() {
   sprint = null;
   updateVisibility();
   ctx.showToast(`sprint complete · +${gained} words · ${totalStr}`, { icon: 'ti-run' });
+}
+
+function togglePause() {
+  if (!sprint) return;
+  sprint.paused = !sprint.paused;
+  clearInterval(tickTimer);
+  tickTimer = sprint.paused ? null : setInterval(tick, 1000);
+  if (sprint.view === 'active') buildActive();
+  updateVisibility();
 }
 
 function endSprint() {
@@ -411,6 +429,8 @@ export default {
       { group: 'Sprint',
         items: [
           { label: 'Start sprint',      icon: 'ti-run',     keys: ['⌘','⇧','S'], fn: handleStartCommand },
+          { label: sprint && sprint.paused ? 'Resume sprint' : 'Pause sprint',
+            icon: sprint && sprint.paused ? 'ti-player-play' : 'ti-player-pause', keys: [], fn: togglePause },
           { label: 'Hide sprint timer', icon: 'ti-eye-off', keys: ['⌘','⇧','H'], fn: handleHideCommand },
         ]
       },
