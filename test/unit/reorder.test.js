@@ -9,6 +9,13 @@ function scene(rawText, type = 'scene') {
   return { id: 'x', title: 'x', type, pos: 0, endPos: 0, rawText, wordCount: 0, synopsis: '', isDraft: false };
 }
 
+// A named bare scene the way model.js actually produces one: rawText carries
+// the marker + comment verbatim (or, for a chapter-opening scene, just the
+// comment), and `named`/`title` are what joinScenes reads to re-emit it.
+function namedScene(name, rawText) {
+  return { id: 'x', title: name, type: 'scene', named: true, pos: 0, endPos: 0, rawText, wordCount: 0, synopsis: '', isDraft: false };
+}
+
 function chapter(title, scenes) {
   return { title, pos: 0, type: 'h1', number: 1, scenes };
 }
@@ -105,6 +112,47 @@ test('a bare scene landing first has its own leading --- stripped', () => {
   // "Second." was preceded by --- in its original rawText; once it's first,
   // that marker must not survive into the rebuilt doc.
   assert.equal(doc, '# One\n\nSecond.\n\n---\n\nFirst.\n');
+});
+
+// A named bare scene's waypoint comment must survive a rebuild -- adjacent
+// to the marker (or, if it lands first in its chapter, adjacent to the
+// content with no marker at all) -- exactly like the un-named case above,
+// just with the extra <!-- Name --> line carried along.
+test('a named scene keeps its waypoint comment adjacent to the marker after a move', () => {
+  const chapters = [
+    chapter('One', [
+      scene('First.'),
+      namedScene('Confrontation', '---\n<!-- Confrontation -->\n\nSecond.'),
+      scene('---\n\nThird.'),
+    ]),
+  ];
+  const doc = reorderScenes(chapters, { fromChapterIndex: 0, fromSceneIndex: 2, toChapterIndex: 0, toSceneIndex: 1 });
+  assert.equal(
+    doc,
+    '# One\n\nFirst.\n\n---\n\nThird.\n\n---\n<!-- Confrontation -->\n\nSecond.\n'
+  );
+});
+
+test('a named scene landing first in its chapter drops the marker but keeps the comment', () => {
+  const chapters = [
+    chapter('One', [
+      scene('First.'),
+      namedScene('Confrontation', '---\n<!-- Confrontation -->\n\nSecond.'),
+    ]),
+  ];
+  const doc = reorderScenes(chapters, { fromChapterIndex: 0, fromSceneIndex: 1, toChapterIndex: 0, toSceneIndex: 0 });
+  assert.equal(doc, '# One\n\n<!-- Confrontation -->\n\nSecond.\n\n---\n\nFirst.\n');
+});
+
+test('a named implicit-first scene keeps its comment when a scene is moved in front of it', () => {
+  const chapters = [
+    chapter('One', [
+      namedScene('Opening Image', '<!-- Opening Image -->\n\nFirst.'),
+      scene('---\n\nSecond.'),
+    ]),
+  ];
+  const doc = reorderScenes(chapters, { fromChapterIndex: 0, fromSceneIndex: 1, toChapterIndex: 0, toSceneIndex: 0 });
+  assert.equal(doc, '# One\n\nSecond.\n\n---\n<!-- Opening Image -->\n\nFirst.\n');
 });
 
 test('empty scenes are dropped from the rebuilt document', () => {

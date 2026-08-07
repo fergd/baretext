@@ -210,7 +210,15 @@ describe('Baretext E2E smoke test', () => {
     assert.match(railText, /The Harbor/);
   });
 
-  test('renaming a bare scene via the rail promotes it to a real heading', async () => {
+  // A bare scene's name is a rail/corkboard navigation waypoint only -- it
+  // must never become visible manuscript content. Regression coverage for
+  // exactly what was reported broken: naming used to delete the --- break
+  // symbol and insert a real ## heading in its place. This particular scene
+  // is Chapter One's implicit first scene (no marker of its own) — the
+  // marker-line case gets its own isolated describe block below, since
+  // several later tests in this shared-state suite key off this rename
+  // landing on "The Harbor Opens" exactly as before.
+  test('naming a bare scene via the rail adds no heading to the manuscript', async () => {
     await app.client.evaluate(`
       const rows = [...document.querySelectorAll('.rail-scene-row')];
       const target = rows.find(r => r.innerText.startsWith('Scene 1'));
@@ -224,7 +232,11 @@ describe('Baretext E2E smoke test', () => {
       await new Promise(r => setTimeout(r, 150));
     `);
     const lines = await app.client.evaluate('return [...document.querySelectorAll(".cm-line")].map(l => l.textContent);');
-    assert.ok(lines.includes('The Harbor Opens'));
+    assert.ok(!lines.some((l) => /^#{1,3}\s*The Harbor Opens$/.test(l)), 'must not become a heading');
+    assert.ok(lines.includes('Mara stood at the edge of the harbor and watched the fog roll in, thinking that she probably shouldn\'t have come here alone at all, but there was no one left to tell her not to.'), 'the original prose must be untouched');
+
+    const railText = await app.client.evaluate('return document.getElementById("scene-rail").innerText;');
+    assert.match(railText, /The Harbor Opens/);
   });
 
   // ── Scene-nav: corkboard ─────────────────────────────────────────────────
@@ -1100,7 +1112,198 @@ describe('Baretext E2E: rail drag-and-drop', () => {
     assert.equal(result.restored, result.before);
   });
 
+  // Regression test for a real bug the synthetic-DragEvent tests above could
+  // not have caught: btn()'s mousedown->preventDefault() (used everywhere
+  // else to keep the editor from losing focus on a chrome click) silently
+  // stops Chromium from ever starting a native drag when it's on the same
+  // element the drag initiates from. The drag handle was built with btn()
+  // until this was found and fixed -- every dragScript() test above still
+  // passed throughout because fireDnd() hand-dispatches DragEvent objects
+  // directly, which runs the app's own dragstart/dragover/drop handlers but
+  // never exercises the browser's actual "should a drag even start here"
+  // decision. A real press+move+release through the CDP Input domain does.
+  test('a real mouse-driven press+move+release on the drag handle actually reorders (not just a synthetic DragEvent)', async () => {
+    // Earlier tests in this describe block already reordered A1/A2 at least
+    // once, so don't assume which currently comes first -- read the live
+    // order, then drag whichever row is second onto whichever is first.
+    const before = await app.client.evaluate('return document.querySelector(".cm-content").innerText;');
+    const firstIsA1 = before.indexOf('A1 opening') < before.indexOf('A2 second');
+
+    const rects = await app.client.evaluate(`
+      const rows = [...document.querySelectorAll('.rail-scene-row')];
+      const from = rows[1]; // whichever scene currently comes second
+      const to = rows[0];   // whichever scene currently comes first
+      const h = from.querySelector('.rail-drag-handle').getBoundingClientRect();
+      const t = to.getBoundingClientRect();
+      return { from: { x: h.x + h.width / 2, y: h.y + h.height / 2 }, to: { x: t.x + t.width / 2, y: t.y + t.height / 2 } };
+    `);
+
+    await app.client.realDrag(rects.from.x, rects.from.y, rects.to.x, rects.to.y);
+    await new Promise((r) => setTimeout(r, 200));
+
+    const after = await app.client.evaluate('return document.querySelector(".cm-content").innerText;');
+    const stillFirstIsA1 = after.indexOf('A1 opening') < after.indexOf('A2 second');
+    assert.notEqual(stillFirstIsA1, firstIsA1, 'a real mouse drag should swap A1/A2\'s order, same as the synthetic-event test above already showed the app logic can do');
+
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+
   test('no console errors in this suite', () => {
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+});
+
+describe('Baretext E2E: naming a bare marker-line scene', () => {
+  let app;
+  const fixture = [
+    '# Chapter One',
+    '',
+    'First scene prose goes here with enough words to clear the draft threshold nicely for this test case.',
+    '',
+    '---',
+    '',
+    'Second scene prose goes here with enough words to clear the draft threshold nicely for this test case.',
+  ].join('\n');
+
+  before(async () => {
+    app = await launchApp({ fixtureContent: fixture, mode: 'editor' });
+  });
+
+  after(async () => {
+    if (app) await app.close();
+  });
+
+  test('keeps the --- break symbol, adds no heading, and hides the raw comment in the editor', async () => {
+    // scene-nav's first real render trails the doc content itself loading
+    // (debounced 180ms) -- poll rather than assume it's already happened.
+    await app.client.evaluate(`
+      const deadline = Date.now() + 2000;
+      while (Date.now() < deadline) {
+        if (document.querySelectorAll('.rail-scene-row').length >= 2) break;
+        await new Promise(r => setTimeout(r, 100));
+      }
+    `);
+
+    const before = await app.client.evaluate('return document.querySelector(".cm-content").innerText;');
+    const breakCountBefore = (before.match(/^---$/gm) || []).length;
+
+    await app.client.evaluate(`
+      const rows = [...document.querySelectorAll('.rail-scene-row')];
+      const target = rows.find(r => r.innerText.startsWith('Scene 2'));
+      const editBtn = target.querySelector('.rail-edit-btn');
+      editBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      editBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 100));
+      const input = document.querySelector('.inline-rename-input');
+      input.value = 'The Harbor Opens';
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 150));
+    `);
+
+    const lines = await app.client.evaluate('return [...document.querySelectorAll(".cm-line")].map(l => l.textContent);');
+    assert.ok(!lines.some((l) => /^#{1,3}\s*The Harbor Opens$/.test(l)), 'must not become a heading');
+    assert.ok(lines.some((l) => l.trim() === '---'), 'the --- break line must still be a real line in the doc');
+
+    const afterDoc = await app.client.evaluate('return document.querySelector(".cm-content").innerText;');
+    const breakCountAfter = (afterDoc.match(/^---$/gm) || []).length;
+    assert.equal(breakCountAfter, breakCountBefore, 'no --- lines lost or gained');
+    assert.ok(afterDoc.includes('First scene prose') && afterDoc.includes('Second scene prose'), 'original prose untouched');
+
+    const railText = await app.client.evaluate('return document.getElementById("scene-rail").innerText;');
+    assert.match(railText, /The Harbor Opens/);
+
+    // The editor visually hides the raw <!-- --> syntax the same way it
+    // already hides the raw dashes, replacing it with just the name.
+    const visual = await app.client.evaluate(`
+      const el = document.querySelector('.cm-scene-name-comment');
+      return el ? { dataName: el.getAttribute('data-scene-name'), color: getComputedStyle(el).color } : null;
+    `);
+    assert.ok(visual, 'the name-comment line should be tagged for the hiding treatment');
+    assert.equal(visual.dataName, 'The Harbor Opens');
+    assert.equal(visual.color, 'rgba(0, 0, 0, 0)');
+
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+
+  test('re-naming the same scene replaces the comment in place, no duplicate', async () => {
+    await app.client.evaluate(`
+      const rows = [...document.querySelectorAll('.rail-scene-row')];
+      const target = rows.find(r => r.innerText.includes('The Harbor Opens'));
+      const editBtn = target.querySelector('.rail-edit-btn');
+      editBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      editBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 100));
+      const input = document.querySelector('.inline-rename-input');
+      input.value = 'Confrontation';
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 150));
+    `);
+    const doc = await app.client.evaluate('return document.querySelector(".cm-content").innerText;');
+    assert.ok(!doc.includes('The Harbor Opens'), 'the old name should be fully replaced');
+    assert.equal((doc.match(/Confrontation/g) || []).length, 1, 'exactly one comment, not a duplicate');
+
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+});
+
+describe('Baretext E2E: corkboard cross-chapter drag', () => {
+  let app;
+  const fixture = [
+    '# Chapter One',
+    '',
+    'B1 opening prose here, plenty of words so it is not a draft scene for testing purposes today.',
+    '',
+    '# Chapter Two', // deliberately empty, same "Ch. 2 has nothing in it" case as the rail fixture above
+  ].join('\n');
+
+  before(async () => {
+    app = await launchApp({ fixtureContent: fixture, mode: 'editor' });
+    await app.client.evaluate(`
+      document.querySelector('.rail-corkboard-btn').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      document.querySelector('.rail-corkboard-btn').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 150));
+    `);
+  });
+
+  after(async () => {
+    if (app) await app.close();
+  });
+
+  // Regression test: the grid's catch-all "append to end of this chapter"
+  // dragover/drop handlers required `e.target === grid` exactly, which only
+  // matches the grid's own bare background pixels. A real drop almost
+  // always lands on some descendant instead -- most obviously the dashed
+  // "new scene" tile, which is the only thing rendered at all in an empty
+  // chapter's grid. That bubbled target failed the check, so preventDefault
+  // was never called on dragover, and the browser silently rejected the
+  // drop (dragend fired with no 'drop' in between) -- confirmed live before
+  // this fix. A real mouse-driven drag (not a hand-dispatched DragEvent)
+  // onto that tile is what actually exercises the bug.
+  test('a real mouse-driven drag onto an empty chapter\'s "new scene" tile moves the card there', async () => {
+    const rects = await app.client.evaluate(`
+      const sections = [...document.querySelectorAll('.corkboard-chapter')];
+      const card = sections[0].querySelector('.scene-card').getBoundingClientRect();
+      const tile = sections[1].querySelector('.scene-card-new').getBoundingClientRect();
+      return {
+        from: { x: card.x + card.width / 2, y: card.y + card.height / 2 },
+        to: { x: tile.x + tile.width / 2, y: tile.y + tile.height / 2 },
+      };
+    `);
+
+    await app.client.realDrag(rects.from.x, rects.from.y, rects.to.x, rects.to.y);
+    await new Promise((r) => setTimeout(r, 200));
+
+    const titles = await app.client.evaluate(`
+      return [...document.querySelectorAll('.corkboard-chapter')].map(s =>
+        [...s.querySelectorAll('.scene-card-title-text')].map(e => e.textContent));
+    `);
+    assert.deepEqual(titles[0], [], 'Chapter One should now be empty');
+    assert.deepEqual(titles[1], ['Scene 1'], 'the scene should have landed in Chapter Two');
+
     const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
     assert.deepEqual(bad, []);
   });

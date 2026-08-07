@@ -64,5 +64,35 @@ export async function connect(port) {
   function clearConsoleMessages() { consoleMessages.length = 0; }
   function close() { ws.close(); }
 
-  return { evaluate, getConsoleMessages, clearConsoleMessages, close };
+  // Real OS-level mouse events via the CDP Input domain, as opposed to a
+  // renderer-side script dispatching synthetic DragEvent objects by hand.
+  // The distinction matters for drag-and-drop specifically: a hand-built
+  // `el.dispatchEvent(new Event('dragstart'))` fires application code but
+  // never exercises the browser's own native "should a drag actually start
+  // here" heuristic (e.g. it does not care whether the initiating
+  // mousedown's default was prevented). A real press+move+release sequence
+  // through Input.dispatchMouseEvent does, so it's what actually caught the
+  // rail drag handle regression a synthetic-dispatch test could not.
+  async function mouseEvent(type, x, y, buttons = 0, button = 'left') {
+    await send('Input.dispatchMouseEvent', { type, x, y, button, buttons, clickCount: type === 'mousePressed' ? 1 : 0 });
+  }
+  async function realDrag(fromX, fromY, toX, toY, { steps = 12, stepDelayMs = 30 } = {}) {
+    await mouseEvent('mouseMoved', fromX, fromY);
+    await new Promise((r) => setTimeout(r, 50));
+    await mouseEvent('mousePressed', fromX, fromY, 1);
+    await new Promise((r) => setTimeout(r, 80));
+    for (let i = 1; i <= steps; i++) {
+      const x = fromX + (toX - fromX) * (i / steps);
+      const y = fromY + (toY - fromY) * (i / steps);
+      await mouseEvent('mouseMoved', x, y, 1);
+      await new Promise((r) => setTimeout(r, stepDelayMs));
+    }
+    await mouseEvent('mouseMoved', toX, toY, 1);
+    await new Promise((r) => setTimeout(r, 80));
+    await mouseEvent('mouseReleased', toX, toY, 0);
+  }
+
+  await send('Input.enable');
+
+  return { evaluate, getConsoleMessages, clearConsoleMessages, close, mouseEvent, realDrag };
 }

@@ -23,13 +23,20 @@ targets, and `prefers-reduced-motion` support. On top of that, task 2 of
 the same handoff (the status-bar mode switcher, `MODE_SWITCHER.md`) is also
 done, plus a quick fix: focus mode (⌘.) now also hides the minimized sprint
 edge line (it lives outside `#statusbar`, so hiding the status bar alone
-used to leave it on screen). **Everything through this point is committed
-and pushed** — see the Build history section for exact commits. Full test
-suite: 105 unit + 71 E2E, all passing, stable across repeated runs. Nothing
-is mid-flight or half-implemented — the next session starts from a clean
-slate unless new requests come in. One idea was raised and explicitly
-deferred, not started: see "Open items" below (AI-generated corkboard
-summaries).
+used to leave it on screen).
+
+**Most recent session: fixed drag-and-drop (silently non-functional in the
+real app despite passing tests) and reworked scene naming so it's a
+navigation waypoint, not manuscript content.** See "Most recent work in
+detail" below — both bugs were found by testing with a real, OS-level mouse
+drag via CDP's `Input` domain instead of hand-dispatched `DragEvent`
+objects, which is also why the existing test suite hadn't caught them.
+**Everything through this point is committed** — see the Build history
+section for exact commits. Full test suite: 115 unit + 75 E2E, all passing,
+stable across repeated runs. Nothing is mid-flight or half-implemented —
+the next session starts from a clean slate unless new requests come in. One
+idea was raised and explicitly deferred, not started: see "Open items"
+below (AI-generated corkboard summaries).
 
 **Note:** `docs/theme-spec.md` (the original internal theme doc) is now
 stale in two ways — its own hex values don't even match what was previously
@@ -119,10 +126,122 @@ and it predates the amstrad/grove rename+addition below.
     commit `0f0bdf1`) — see "Earlier work in detail" below.
 16. **Status-bar mode switcher** (`design_handoff_baretext/MODE_SWITCHER.md`)
     — see "Most recent work in detail" below.
-17. **Focus mode also hides the sprint edge line** (quick fix, this
-    session, most recent) — see below.
+17. **Focus mode also hides the sprint edge line** (quick fix).
+18. **Fixed rail/corkboard drag-and-drop (real bugs, not test gaps) and
+    reworked scene naming into a non-manuscript waypoint** (this session,
+    most recent) — see "Most recent work in detail" below.
 
-## Most recent work in detail (this session — mode switcher + a quick fix)
+## Most recent work in detail (this session — drag-and-drop fixes + scene-naming rework)
+
+User report after a fresh install: dragging didn't work anywhere in the
+rail (chapters or scenes), scenes couldn't be dragged between chapters in
+the corkboard, and naming a scene deleted its `---` break and inserted a
+real `## heading` into the manuscript. All four turned out to be two real
+bugs plus one intentional-but-unwanted behavior:
+
+**1. Rail drag-and-drop was completely non-functional**, despite the
+existing E2E suite's `rail drag-and-drop` describe block passing all along.
+Root cause: the accessibility pass (`0f0bdf1`) converted the drag handle
+into a real `<button>` built from the shared `btn()` helper, which attaches
+`mousedown → e.preventDefault()` to every button (the app-wide "don't steal
+focus from the editor on a chrome click" trick). Chromium never starts a
+native HTML5 drag from a mousedown whose default action was prevented — so
+`row.draggable = true` was being set correctly, but the browser's own drag
+gesture never began. Confirmed with a **real, OS-level mouse press+move+
+release dispatched through CDP's `Input` domain** (`Input.dispatchMouseEvent`)
+rather than the test suite's existing approach of hand-dispatching
+`DragEvent` objects (`el.dispatchEvent(new Event('dragstart'))` etc.) — the
+zero drag events observed on a real mouse drag (vs. a clean sequence with
+synthetic dispatch) is what pinned this down, and is exactly why the
+existing tests never caught it: a hand-built `DragEvent` runs the app's own
+`dragstart`/`dragover`/`drop` handlers directly, without ever exercising
+the browser's "should a drag even start here" decision. Fixed by rebuilding
+`makeDragHandle()` (`src/features/scene-nav/rail.js`) without `btn()` —
+just `stopPropagation()` on the handle's mousedown, no `preventDefault()`.
+**2. Corkboard's cross-chapter drop silently failed** whenever the drop
+landed on anything other than the target grid's exact bare background
+pixels or an existing card — which in practice is most drops, and *always*
+true for a genuinely empty chapter (the only thing rendered there is the
+dashed "new scene" tile). The grid's catch-all dragover/drop handler
+required `e.target === grid` exactly; any bubbled target (the tile, its
+icon, a stray text node) failed that check, so `preventDefault()` was never
+called on `dragover`, and the browser silently rejected the drop (`dragend`
+fired with no `drop` in between — confirmed live). Fixed by checking
+`e.target.closest('.scene-card')` instead (bail only when an actual card,
+which has its own more specific handler, is under the pointer) in
+`src/features/scene-nav/corkboard.js`. Both fixes verified live via CDP
+(same-chapter reorder, cross-chapter via chapter-row drop, chapter reorder,
+corkboard drop into an empty chapter) and covered by new regression tests
+built on real mouse simulation, not synthetic events: `test/e2e/cdp-
+client.js` gained `mouseEvent()`/`realDrag()` helpers wrapping
+`Input.dispatchMouseEvent`, used by one new test in the `rail drag-and-drop`
+describe block and a new `corkboard cross-chapter drag` describe block.
+
+**3. Scene naming reworked to be a rail/corkboard navigation waypoint, not
+manuscript content.** Previously, naming a bare scene (a `---` marker, or
+the implicit first-content scene) rewrote its marker line into a real
+`## Title` heading (`rename.js`'s "bare scene" branch) — which both deleted
+the `---` symbol and inserted new prose-level text the reader would see.
+The user was explicit that scene names are waypoints for the rail, not
+meant to appear in the manuscript at all. Since Baretext has no metadata
+layer (everything is derived from the document text itself), the name now
+lives as an **HTML comment** — invisible in any rendered/exported markdown
+— placed immediately after the `---` marker with no blank line between
+them (that adjacency is what distinguishes a named scene from an unnamed
+one's ordinary `"---\n\n"` spacing), or directly before the content for the
+markerless implicit-first scene. Changes, all with the matching read/write
+side kept in sync:
+   - `src/editor/outline.js` (`getOutline()`): recognizes a `<!-- Name -->`
+     comment adjacent to a marker (or preceding a chapter's first real
+     content) and uses it as the scene's `text` instead of the auto
+     `"Scene N"`, tagging the item `named: true`. A comment seen while
+     awaiting a chapter's first content is held in `pendingName` until real
+     content actually arrives, so the comment line itself is never mistaken
+     for the scene start.
+   - `src/features/scene-nav/model.js`: propagates `named` onto each scene
+     object; strips the comment line before computing `wordCount` (so a
+     name doesn't inflate the count) and from `synopsisFrom()` (so it never
+     leaks into the card synopsis). The marker line itself still counts as
+     one "word" — a pre-existing quirk, deliberately left alone rather than
+     changed opportunistically.
+   - `src/features/scene-nav/rename.js`: the bare-scene branch now inserts
+     or replaces the comment in place (checked both forward, for the
+     marker-adjacent case, and backward past blank lines, for the implicit-
+     first-scene case) instead of promoting to a heading.
+   - `src/features/scene-nav/reorder.js`: `stripLeadingSceneBreak()` also
+     strips a marker-adjacent *or* standalone leading name comment when
+     "cleaning" a scene for a rebuild; `joinScenes()` re-emits the comment
+     (adjacent to a re-inserted `---`, or alone if the scene lands first in
+     its chapter) for any scene flagged `named`. Caught one real bug in
+     testing here: a named implicit-first scene moved to a non-first
+     position would double its comment (once from the un-stripped leading
+     line, once from `joinScenes()` re-adding it) until
+     `stripLeadingSceneBreak()` got a second, marker-independent branch for
+     a standalone leading comment.
+   - `src/editor/scene-breaks.js`: visually hides the raw `<!-- -->` syntax
+     in the editor the same way the marker's raw dashes already are (`color:
+     transparent` + a `data-scene-name` attribute consumed by a CSS
+     `content: attr(data-scene-name)` pseudo-element), so the name reads as
+     a small dim italic label rather than raw comment syntax cluttering the
+     writing view.
+   - Editor bundle rebuilt (`npm run build:editor`) since both `outline.js`
+     and `scene-breaks.js` are part of it.
+
+Regression tests: `test/unit/outline.test.js` (6 new — name-comment
+parsing for both the marker-adjacent and implicit-first-scene cases,
+including that a lone comment doesn't itself count as content, and that a
+titled h2/h3 scene ignores a preceding comment), `test/unit/rename.test.js`
+(rewrote the two tests that had encoded the old promote-to-heading
+behavior as correct; added two more for in-place re-rename without
+duplicating the comment), `test/unit/reorder.test.js` (3 new, covering the
+double-comment bug found above), and `test/e2e/smoke.test.js` (rewrote the
+one test that asserted the old behavior by name; added a new isolated
+`naming a bare marker-line scene` describe block — kept separate from the
+main shared-state smoke suite specifically because several later corkboard
+undo/redo tests key off an earlier rename landing on an exact scene/name,
+which a same-suite marker-scene test would have disturbed).
+
+## Earlier work in detail (this session — mode switcher + a quick fix)
 
 `design_handoff_baretext/MODE_SWITCHER.md` (task 2 of the current handoff's
 suggested order — task 1, accessibility, was done and committed earlier
@@ -553,9 +672,6 @@ Both have regression tests in `test/unit/outline.test.js` and the E2E suite.
   handling, and that sending manuscript text over the network is
   acceptable — the user's answers were contradictory last time and it was
   dropped before being sorted out.
-- Corkboard drag-to-reorder across chapters — implemented, but hasn't had
-  the same depth of adversarial E2E testing as the delete feature did; if
-  bugs turn up in that area, that's likely why.
 - Anything else explicitly deferred in `docs/two-mode-architecture-plan.md`
   (an "AI assist panel" as a later layer on top of Editor mode — the
   summary feature above may be the first piece of that).
@@ -588,6 +704,18 @@ Both have regression tests in `test/unit/outline.test.js` and the E2E suite.
   rail drag-and-drop entry above). Match the existing corkboard drag test's
   pacing (small delay before `dragstart`, then immediate `dragover`/`drop`/
   `dragend`) and keep separate drags in separate `test()`s.
+- A hand-dispatched `DragEvent` (`el.dispatchEvent(new Event('dragstart'))`)
+  only proves the app's own drag handlers work — it never proves the
+  browser would have actually started the drag, since real HTML5 drag
+  initiation is a native gesture the JS event system doesn't reproduce.
+  This let a real bug (a `preventDefault()`-on-mousedown regression that
+  silently killed all rail dragging) pass the entire existing drag test
+  suite. `test/e2e/cdp-client.js`'s `realDrag()`/`mouseEvent()` helpers
+  (real OS-level events via CDP's `Input.dispatchMouseEvent`) are the way
+  to actually exercise that — use them for new drag-and-drop coverage, not
+  the synthetic-`DragEvent` pattern above (which still has its place for
+  fast, deterministic *non-drag-initiation* checks, like verifying a drop
+  handler's reorder logic once a drag is already known to be in progress).
 - Full rebuild over surgical edit for document mutations that restructure
   the manuscript (reorder, delete) — `buildDocument()` regenerates the
   whole document string from the chapter/scene model rather than trying to

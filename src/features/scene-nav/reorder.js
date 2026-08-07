@@ -7,11 +7,27 @@
 // whatever whitespace happened to exist around the affected block's old
 // position.
 
+const NAME_COMMENT_RE = /^<!--.*-->$/;
+
+// Strips a leading ---/***/___ marker line and, if present immediately after
+// it (no blank line between -- see model.js/rename.js), the waypoint-name
+// comment that goes with it -- leaving pure prose behind either way. A named
+// implicit-first scene (the markerless one right after a chapter heading)
+// never has a marker to begin with, just the comment on its own -- handled
+// as a second, independent case rather than falling through unstripped
+// (which would otherwise double the comment once joinScenes re-adds it for
+// the scene's new position).
 function stripLeadingSceneBreak(text) {
   const lines = text.split('\n');
   let i = 0;
   while (i < lines.length && lines[i].trim() === '') i++;
   if (i < lines.length && /^(-{3,}|\*{3,}|_{3,})$/.test(lines[i].trim())) {
+    i++;
+    if (i < lines.length && NAME_COMMENT_RE.test(lines[i].trim())) i++;
+    while (i < lines.length && lines[i].trim() === '') i++;
+    return lines.slice(i).join('\n');
+  }
+  if (i < lines.length && NAME_COMMENT_RE.test(lines[i].trim())) {
     i++;
     while (i < lines.length && lines[i].trim() === '') i++;
     return lines.slice(i).join('\n');
@@ -30,12 +46,19 @@ function cleanScene(scene) {
 // re-inserted between it and whatever precedes it — otherwise moving a bare
 // scene in front of a heading-titled one leaves the heading looking like
 // ordinary prose directly under a --- rule, and the next outline scan reads
-// that --- as its own phantom scene.
+// that --- as its own phantom scene. A named bare scene also needs its
+// waypoint-name comment re-inserted right after the marker (or, for the
+// first scene in a chapter, right before its content — there's no marker to
+// attach to there since the chapter heading is already the boundary).
 function joinScenes(scenes) {
   return scenes.reduce((doc, scene, i) => {
     const body = cleanScene(scene);
-    if (i === 0) return body;
-    return doc + (scene.type === 'scene' ? '\n\n---\n\n' : '\n\n') + body;
+    const nameComment = scene.named ? '<!-- ' + scene.title + ' -->\n\n' : '';
+    if (scene.type !== 'scene') {
+      return i === 0 ? body : doc + '\n\n' + body;
+    }
+    const prefix = i === 0 ? nameComment : '\n\n---\n' + (nameComment || '\n');
+    return i === 0 ? prefix + body : doc + prefix + body;
   }, '');
 }
 

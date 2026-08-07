@@ -11,7 +11,6 @@ const FEATURES = { core, 'sprint-timer': sprintTimer, 'find-replace': findReplac
 const app        = document.getElementById('app');
 const host       = document.getElementById('editor-host');
 const elWord     = document.getElementById('word-count');
-const elChar     = document.getElementById('char-count');
 const elFile     = document.getElementById('file-name');
 const elSaveErr  = document.getElementById('save-error');
 const overlay    = document.getElementById('overlay');
@@ -104,7 +103,6 @@ function updateCounts(doc) {
   const w = t.trim() === '' ? 0 : t.trim().split(/\s+/).length;
   state.wordCount = w;
   elWord.textContent = w + (w === 1 ? ' word' : ' words');
-  elChar.textContent = t.length + (t.length === 1 ? ' char' : ' chars');
 }
 function setFileName(fp) { elFile.textContent = fp ? fp.split('/').pop() : 'untitled'; }
 
@@ -252,8 +250,6 @@ function toggleRenderedMode() {
       setTimeout(() => { scroller.style.transition = ''; }, 220);
     });
   }
-  const elMode = document.getElementById('md-mode');
-  if (elMode) elMode.textContent = state.sourceMode ? 'source' : 'preview';
   showToast(state.sourceMode ? 'markdown visible' : 'markdown hidden');
 }
 function setTypewriter(on, opts = {}) {

@@ -232,8 +232,19 @@ function makeDeleteButton(label, onConfirm) {
 // actually started) -- otherwise the whole row would initiate a drag on any
 // press+move, stealing the gesture from click-to-toggle/click-to-jump/
 // click-to-rename.
+//
+// Deliberately NOT built from btn(): btn()'s mousedown->preventDefault()
+// (the "don't steal focus from the editor" trick used everywhere else)
+// silently disables native drag here -- Chromium never starts a drag from a
+// mousedown whose default action was prevented, so the handle looked wired
+// up correctly but never actually initiated a drag (confirmed live: zero
+// drag events of any kind fired on a real mouse-driven press+move+release
+// over the handle before this fix). stopPropagation() alone is enough to
+// stop the row's own toggle/jump mousedown from also firing.
 function makeDragHandle(row, label) {
-  const handle = btn('rail-drag-handle');
+  const handle = document.createElement('button');
+  handle.type = 'button';
+  handle.className = 'rail-drag-handle';
   handle.appendChild(icon('ti-grip-vertical'));
   handle.title = 'drag to reorder, or focus the row and use ⌥↑/⌥↓';
   handle.setAttribute('aria-label', 'Reorder ' + label + ' (⌥↑/⌥↓ on the row)');

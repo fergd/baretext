@@ -365,17 +365,29 @@ export function render() {
     newTile.addEventListener('click', () => ctx.addNewScene(ci, chapters));
     grid.appendChild(newTile);
 
+    // Catch-all "append to end of this chapter" drop zone for anywhere in
+    // the grid that isn't a card itself (cards handle their own precise
+    // reorder-before-this-card drop above). Originally required
+    // `e.target === grid` exactly, which only matches the grid's own bare
+    // background pixels -- any bubbled target inside it (the dashed "new
+    // scene" tile, its icon/label, or just a stray text node) failed the
+    // check and silently swallowed the drop, which is exactly what a real
+    // mouse-driven drag onto an empty chapter's "new scene" tile hits most
+    // of the time (confirmed live: dragover fired but never preventDefault-
+    // ed, so the browser rejected the drop and no 'drop' event ever came).
+    // closest('.scene-card') is the correct exclusion instead: bail only
+    // when a card (which has its own handler) is actually under the pointer.
     grid.addEventListener('dragover', (e) => {
-      if (!dragSource || e.target !== grid) return;
+      if (!dragSource || e.target.closest('.scene-card')) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
       grid.classList.add('drag-over-grid');
     });
     grid.addEventListener('dragleave', (e) => {
-      if (e.target === grid) grid.classList.remove('drag-over-grid');
+      if (!e.target.closest('.scene-card')) grid.classList.remove('drag-over-grid');
     });
     grid.addEventListener('drop', (e) => {
-      if (e.target !== grid) return;
+      if (e.target.closest('.scene-card')) return;
       e.preventDefault();
       grid.classList.remove('drag-over-grid');
       if (!dragSource) return;

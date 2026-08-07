@@ -120,3 +120,49 @@ test('pos and line fields point at the correct line', () => {
   assert.equal(sceneBreakItem.line, 5);
   assert.equal(text.slice(sceneBreakItem.pos, sceneBreakItem.pos + 3), '---');
 });
+
+// A waypoint name comment immediately after a ---/***/___ marker (no blank
+// line between them) names that scene instead of the auto "Scene N" — this
+// is how a rail/corkboard rename is stored (see rename.js) without ever
+// becoming real manuscript content.
+test('a name comment right after a marker names that scene, still typed "scene" not a heading', () => {
+  const view = makeView('# Chapter\n\nFirst.\n\n---\n<!-- Confrontation -->\n\nSecond.');
+  const items = getOutline(view);
+  assert.deepEqual(types(items), ['h1', 'scene', 'scene']);
+  assert.deepEqual(texts(items), ['Chapter', 'Scene 1', 'Confrontation']);
+  assert.equal(items[2].named, true);
+});
+
+test('a marker with the default blank-line spacing (no adjacent comment) is not treated as named', () => {
+  const view = makeView('# Chapter\n\nFirst.\n\n---\n\nSecond.');
+  const items = getOutline(view);
+  assert.equal(items[2].named, false);
+  assert.equal(items[2].text, 'Scene 2');
+});
+
+test('a name comment before a chapter\'s first real content names the implicit first scene', () => {
+  const source = '# Chapter\n<!-- Opening Image -->\n\nFirst scene prose.';
+  const view = makeView(source);
+  const items = getOutline(view);
+  assert.deepEqual(types(items), ['h1', 'scene']);
+  assert.equal(items[1].text, 'Opening Image');
+  assert.equal(items[1].named, true);
+  // pos lands on the real content line, past the comment -- so a jump goes
+  // straight to the prose, and model.js's rawText slice naturally excludes
+  // the comment from word count / synopsis without any extra filtering.
+  assert.equal(source.slice(items[1].pos, items[1].pos + 5), 'First');
+});
+
+test('a name comment on its own does not itself count as the start of content', () => {
+  const view = makeView('# Chapter\n<!-- Opening Image -->\n\n\n\nFirst scene prose.');
+  const items = getOutline(view);
+  assert.deepEqual(types(items), ['h1', 'scene']);
+  assert.equal(items.length, 2); // not a third item for the comment line itself
+});
+
+test('a titled (h2/h3) scene ignores a preceding name comment -- headings are self-naming', () => {
+  const view = makeView('# Chapter\n<!-- Ignored -->\n\n## Real Title\n\nProse.');
+  const items = getOutline(view);
+  assert.deepEqual(types(items), ['h1', 'h2']);
+  assert.equal(items[1].text, 'Real Title');
+});

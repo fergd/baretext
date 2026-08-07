@@ -5,17 +5,20 @@
 const DRAFT_WORD_THRESHOLD = 20;
 const SYNOPSIS_MAX_CHARS = 100;
 
+const NAME_COMMENT_RE = /^<!--.*-->$/;
+
 function countWords(text) {
   const t = text.trim();
   return t === '' ? 0 : t.split(/\s+/).length;
 }
 
-// Strips the boundary marker itself (heading line / scene-break line) so the
-// synopsis is actual prose, not "## Opening" or "---".
+// Strips the boundary marker itself (heading line / scene-break line / a
+// waypoint-name comment) so the synopsis is actual prose, not "## Opening",
+// "---", or "<!-- Confrontation -->".
 function synopsisFrom(text) {
   const proseLines = text.split('\n').filter((l) => {
     const t = l.trim();
-    return t !== '' && !/^#{1,6}\s/.test(t) && !/^(-{3,}|\*{3,}|_{3,})$/.test(t);
+    return t !== '' && !/^#{1,6}\s/.test(t) && !/^(-{3,}|\*{3,}|_{3,})$/.test(t) && !NAME_COMMENT_RE.test(t);
   });
   const prose = proseLines.join(' ').trim();
   if (prose.length <= SYNOPSIS_MAX_CHARS) return prose;
@@ -58,11 +61,15 @@ export function getManuscript(view) {
     }
 
     const rawText = doc.slice(item.pos, endPos);
-    const wordCount = countWords(rawText);
+    // The name comment (if any) is real characters in rawText -- needed so
+    // reorder.js's rebuild can carry it along -- but shouldn't inflate the
+    // word count the way it would if counted as literal words.
+    const wordCount = countWords(rawText.split('\n').filter((l) => !NAME_COMMENT_RE.test(l.trim())).join('\n'));
     currentChapter.scenes.push({
       id: (chapters.length - 1) + ':' + currentChapter.scenes.length,
       title: item.text,
       type: item.type,
+      named: !!item.named,
       pos: item.pos,
       endPos,
       rawText,
