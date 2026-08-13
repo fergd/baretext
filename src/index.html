@@ -339,6 +339,22 @@
       position: absolute; inset: 0; z-index: 2;
       background: linear-gradient(var(--bg) 0%, transparent 50%, var(--bg) 100%);
     }
+    /* Sprinter only — Editor mode's typewriter fade stays exactly the
+       gentle, no-flat-zone curve above (per the user, unchanged on
+       purpose). Sprinter's is deliberately much more aggressive: a narrow
+       flat clear band right at the line itself (48%-52%), then a short,
+       steep ramp to fully opaque --bg by 38%/62% instead of a slow taper
+       all the way out to 0%/100% — everything past roughly 3-4 lines away
+       from the caret goes essentially invisible instead of just dim, so
+       focus really is on the one line being written, not the whole
+       paragraph around it. */
+    html[data-mode="sprinter"] #tw-fade {
+      background: linear-gradient(
+        var(--bg) 0%, var(--bg) 38%,
+        transparent 48%, transparent 52%,
+        var(--bg) 62%, var(--bg) 100%
+      );
+    }
     #tw-guide {
       position: absolute; left: 0; right: 0; top: 50%; height: 1px; z-index: 1;
       background: color-mix(in srgb, var(--syntax-2, var(--accent)) 14%, transparent);

@@ -739,6 +739,59 @@ describe('Baretext E2E smoke test', () => {
   });
 });
 
+// Own instance: toggles typewriter mode and switches between Sprinter/
+// Editor, state the shared smoke-test block above shouldn't have to account
+// for. User's own words: "for sprinter mode only, increase the fade effect
+// to really bring focus mainly to the line the user is writing on... editor
+// typewriter mode can stay as it is now."
+describe('Baretext E2E: Sprinter-only typewriter fade is more aggressive than Editor mode\'s', () => {
+  let app;
+
+  before(async () => {
+    app = await launchApp({
+      fixtureContent: 'Some prose.\n\n'.repeat(20),
+      mode: 'sprinter',
+      extraSettings: { typewriter: true },
+    });
+    await new Promise((r) => setTimeout(r, 400));
+  });
+
+  after(async () => {
+    if (app) await app.close();
+  });
+
+  async function fadeGradient() {
+    return app.client.evaluate(`
+      return getComputedStyle(document.getElementById('tw-fade')).backgroundImage;
+    `);
+  }
+
+  test('Sprinter\'s fade uses a narrow flat clear band and a steep ramp to fully opaque, not a smooth 0%-50%-100% taper', async () => {
+    const gradient = await fadeGradient();
+    // Steep version has 6 stops (0/38/48/52/62/100); the original gentle
+    // one has 3 (0/50/100) -- counting color stops is a robust way to tell
+    // them apart regardless of how the browser serializes the color values.
+    const stopCount = (gradient.match(/\d+%/g) || []).length;
+    assert.equal(stopCount, 6, `expected the 6-stop steep gradient, got: ${gradient}`);
+    assert.ok(gradient.includes('48%') && gradient.includes('52%'), 'expected a narrow clear band around the center line');
+  });
+
+  test('switching to Editor mode restores the original gentle, no-flat-zone fade', async () => {
+    await app.client.evaluate(`
+      document.querySelector('.mode-tab[data-mode="editor"]').click();
+      return true;
+    `);
+    await new Promise((r) => setTimeout(r, 400));
+    const gradient = await fadeGradient();
+    const stopCount = (gradient.match(/\d+%/g) || []).length;
+    assert.equal(stopCount, 3, `expected Editor mode's unchanged 3-stop gradient, got: ${gradient}`);
+    assert.ok(gradient.includes('50%'), 'expected the fade to still be centered with no flat clear zone');
+
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+});
+
 // A separate instance with its own fixture: a chapter with no title text yet
 // ("# " — the realistic "just created it, haven't typed a title" state) and
 // a chapter with zero scenes, both needing content different enough from
