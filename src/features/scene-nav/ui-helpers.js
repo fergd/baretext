@@ -1,0 +1,97 @@
+// Interactive UI primitives shared by rail.js and corkboard.js — both
+// render the same manuscript model with different chrome, and both had
+// grown byte-identical (or near enough — only the CSS class name differed)
+// copies of these two pieces. Extracted here once an architecture review
+// flagged the duplication.
+import { btn, icon } from '../../dom.js';
+
+// Two-click confirm: first click arms it (icon turns danger-colored, shows
+// "delete?"), a second click on the SAME button within 3s actually deletes.
+// Clicking elsewhere, arming a different delete button, or the timeout
+// disarms it — no native confirm() dialog, consistent with the rest of this
+// app never using one, but still real friction against a stray click, on
+// top of undo already being available as the last line of defense.
+//
+// deleteBtnClass scopes the "disarm every OTHER delete button" query to
+// just this surface's own buttons — rail.js and corkboard.js each render
+// their own independent set of delete buttons, and arming one in the rail
+// has no business disarming one in the corkboard (or vice versa).
+export function makeDeleteButton(deleteBtnClass, label, onConfirm) {
+  const button = btn(deleteBtnClass);
+  let armed = false;
+  let timer = null;
+
+  function paint() {
+    button.innerHTML = '';
+    button.appendChild(icon('ti-trash'));
+    if (armed) {
+      button.appendChild(document.createTextNode(' delete?'));
+      button.title = 'click again to delete ' + label;
+      button.setAttribute('aria-label', 'Confirm delete ' + label);
+    } else {
+      button.title = 'delete ' + label;
+      button.setAttribute('aria-label', 'Delete ' + label);
+    }
+    button.classList.toggle('confirm', armed);
+  }
+
+  function disarm() {
+    clearTimeout(timer);
+    armed = false;
+    paint();
+  }
+  button._disarm = disarm;
+
+  button.addEventListener('mousedown', (e) => e.stopPropagation());
+  button.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (armed) {
+      disarm();
+      onConfirm();
+      return;
+    }
+    document.querySelectorAll('.' + deleteBtnClass).forEach((b) => { if (b !== button && b._disarm) b._disarm(); });
+    armed = true;
+    paint();
+    timer = setTimeout(disarm, 3000);
+  });
+
+  paint();
+  return button;
+}
+
+// Swaps a title's display span for an inline <input>. Enter or blur commits
+// (only if the value actually changed and isn't blank); Escape cancels. On
+// either path a re-render restores the row — via ctx.refreshNav() after a
+// real commit, or a plain local render() when nothing changed.
+//
+// render is passed in rather than imported: rail.js and corkboard.js each
+// own their own render() closure, and this helper has no rendering context
+// of its own to fall back to.
+export function beginEdit(displayEl, currentValue, onCommit, render) {
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'inline-rename-input';
+  input.value = currentValue;
+  displayEl.replaceWith(input);
+  input.focus();
+  input.select();
+
+  let done = false;
+  function finish(shouldCommit) {
+    if (done) return;
+    done = true;
+    input.removeEventListener('blur', onBlur);
+    const v = input.value.trim();
+    if (shouldCommit && v && v !== currentValue) { onCommit(v); return; }
+    render();
+  }
+  function onBlur() { finish(true); }
+  input.addEventListener('blur', onBlur);
+  input.addEventListener('mousedown', (e) => e.stopPropagation());
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+    e.stopPropagation();
+  });
+}

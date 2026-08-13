@@ -56,6 +56,25 @@
       --editor-measure: 75ch; /* line measure — tune this one value to adjust editor line width */
       --rail-w: 250px;
 
+      /* Manuscript surface (Editor mode only — see design_handoff_baretext/
+         MANUSCRIPT_SURFACE.md). Defaults here match the editor's existing
+         look (used as-is in Sprinter mode, which stays stripped); the
+         [data-mode="editor"] block below overrides them for the number
+         gutter + larger chapter/scene typography. The gutter hangs in the
+         margin OUTSIDE the text column (there's room: the window is wider
+         than the measure) — it does not narrow --editor-measure itself,
+         which stays the single source of truth for line width in both modes. */
+      --gutter:  88px;  /* number-gutter column width */
+      --gap:     40px;  /* gutter → text gap */
+      --ms-h1-lh:     1.3;    /* chapter title line-height */
+      --ms-h1-weight: 700;    /* chapter title weight */
+      --ms-h2-size:   1.55em; /* scene heading size (## scenes) */
+      --ms-h2-weight: 700;    /* scene heading weight */
+      --ms-h2-lh:     1.35;   /* scene heading line-height */
+      --ms-h3-size:   1.28em; /* scene heading size (### scenes) */
+      --ms-h3-weight: 600;    /* scene heading weight */
+      --ms-h3-lh:     1.4;    /* scene heading line-height */
+
       /* corner radii (per surface) */
       --radius-toast:   5px;
       --radius-picker:  8px;
@@ -89,7 +108,7 @@
          --bg and --bg-alt. Applies everywhere via var(), including
          --placeholder below (was a separate duplicate hex, now derived). */
       --text: #faf2d6; --text-dim: #bdae93; --text-dimmer: #968d78;
-      --accent: #f8c537; --border: #3a3a3a;
+      --accent: #f8c537; --scene: #d98a3f; --border: #3a3a3a;
       --cursor: #f8c537; --sel: rgba(248,197,55,0.22); --placeholder: var(--text-dimmer);
       --syntax-2: #f8c537;
       --typewriter-focus: #fbe6a0;
@@ -99,7 +118,7 @@
     [data-theme="light"] {
       --bg: #f5f0e8;  --bg-alt: #ede8de;
       --text: #2a2218; --text-dim: #6b5f4a; --text-dimmer: #70685b;
-      --accent: #b8820a; --border: #d0c8b8;
+      --accent: #b8820a; --scene: #a8631a; --border: #d0c8b8;
       --cursor: #b8820a; --sel: rgba(184,130,10,0.20); --placeholder: var(--text-dimmer);
       --syntax-2: #b8820a;
       --typewriter-focus: #1a1206;
@@ -112,7 +131,7 @@
     [data-theme="amstrad"] {
       --bg: #0d130d;  --bg-alt: #0a0f0a;
       --text: #c8e6b0; --text-dim: #79956c; --text-dimmer: #6f8562;
-      --accent: #7dc45a; --border: #1c281a;
+      --accent: #7dc45a; --scene: #7dc45a; --border: #1c281a;
       --cursor: #7dc45a; --sel: rgba(125,196,90,0.18); --placeholder: var(--text-dimmer);
       --syntax-2: #7dc45a;
       --typewriter-focus: #b6e85a;
@@ -123,7 +142,7 @@
     [data-theme="grove"] {
       --bg: #2f383e;  --bg-alt: #272f34;
       --text: #d3c6aa; --text-dim: #9aa79d; --text-dimmer: #9ca293;
-      --accent: #a7c080; --border: #525c62;
+      --accent: #a7c080; --scene: #e69875; --border: #525c62;
       --cursor: #7fbbb3; --sel: rgba(82,92,98,0.55); --placeholder: var(--text-dimmer);
       --syntax-2: #e69875;
       --typewriter-focus: #e0c583;
@@ -134,7 +153,7 @@
     [data-theme="dracula"] {
       --bg: #282a36;  --bg-alt: #21222c;
       --text: #f8f8f2; --text-dim: #97a1bf; --text-dimmer: #91929b;
-      --accent: #bd93f9; --border: #44475a;
+      --accent: #bd93f9; --scene: #8be9fd; --border: #44475a;
       --cursor: #f8f8f2; --sel: rgba(68,71,90,0.70); --placeholder: var(--text-dimmer);
       --syntax-2: #8be9fd;
       --typewriter-focus: #ffffff;
@@ -182,6 +201,17 @@
       height: 38px;
       flex-shrink: 0;
       -webkit-app-region: drag;
+      /* Purely cosmetic: without this the titlebar is the exact same flat
+         --bg as the content below it, so the top edge of the window reads
+         as an arbitrary cutoff rather than a deliberate piece of chrome.
+         Small/soft on purpose ("minor") — this is drag-region chrome, not
+         a floating panel, so it shouldn't compete with the --shadow-panel/
+         --shadow-window scale used for those. position+z-index so it
+         actually paints over #content-row instead of being drawn under it
+         (later siblings paint on top by default). */
+      position: relative;
+      z-index: 1;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
     }
 
     /* Row wrapper so the scene rail can sit beside the editor — #editor-host
@@ -244,6 +274,53 @@
       text-underline-offset: 3px;
     }
 
+    /* Bold monospace glyphs render heavier/uneven compared to the font's own
+       regular cut (no true bold design the way serif/sans have — it's
+       synthesized), and it breaks the fixed-width alignment that's the
+       whole point of choosing mono in the first place. So headings at every
+       level stay at the font's regular weight when mono is the active
+       prose font, in both modes — serif/sans keep their existing bold
+       heading weights untouched. Lives at the html level (not scoped to
+       #editor-host like the block below) so it also applies in Sprinter
+       mode, which shares the same --ms-h*-weight tokens. */
+    html[data-font="mono"] {
+      --ms-h1-weight: 400;
+      --ms-h2-weight: 400;
+      --ms-h3-weight: 400;
+    }
+
+    /* Manuscript surface — Editor mode only (design_handoff_baretext/
+       MANUSCRIPT_SURFACE.md). Sprinter mode stays stripped: unchanged
+       measure/padding, unchanged heading sizes/colors, no number gutter. */
+    html[data-mode="editor"] #editor-host {
+      --text-h1:      56px;
+      --ms-h1-lh:     1.05;
+      --h1:           var(--accent);
+      /* ## and ### scenes render identically — outline.js treats both as
+         equally valid scene-level markers, so a scene's heading style can't
+         depend on which one the writer happened to use. */
+      --ms-h2-size:   28px;
+      --ms-h2-weight: 400;
+      --ms-h2-lh:     1.1;
+      --h2:           var(--text-dim);
+      --ms-h3-size:   28px;
+      --ms-h3-weight: 400;
+      --ms-h3-lh:     1.1;
+      --h3:           var(--text-dim);
+    }
+    /* Top/bottom padding only — line width stays exactly --editor-measure,
+       the same one Sprinter uses. The gutter hangs in the surrounding
+       margin, not inside a narrowed text column. */
+    html[data-mode="editor"] #editor-host .cm-content {
+      padding: 72px 40px 40vh;
+    }
+    /* The <900px "hide the gutter" rule lives in manuscript-gutter.js's own
+       injected stylesheet, not here — that stylesheet is appended to <head>
+       at runtime, after this one, so a same-specificity rule here would
+       lose the cascade to its unconditional display:block regardless of
+       viewport width. Keeping both rules together in one place avoids that
+       footgun. */
+
     /* typewriter mode: room so the first AND last lines can still reach the
        center guide (without top padding, line 1 is pinned to the scroll
        top and can never be centered) — opened-up line-height */
@@ -271,6 +348,46 @@
       font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
       font-family: var(--font-mono);
       color: color-mix(in srgb, var(--syntax-2, var(--accent)) 40%, transparent);
+    }
+
+    /* Cold Storage "scene view" banner (Editor mode only — see
+       src/editor/cold-storage-view.js and scene-nav/index.js). Same
+       absolute-overlay-inside-#editor-host technique as the typewriter
+       elements above, toggled via a .visible class rather than the
+       typewriter elements' mode-class approach since this has its own
+       independent on/off state, not tied to #app's own mode classes. */
+    #cold-storage-banner {
+      display: none;
+      position: absolute; top: 0; left: 0; right: 0; z-index: 6;
+      align-items: center; gap: 10px;
+      height: 44px; padding: 0 20px;
+      background: var(--bg-alt); border-bottom: 1px solid var(--border);
+      font-family: var(--font-mono); font-size: 12px; color: var(--text-dim);
+    }
+    #cold-storage-banner.visible { display: flex; }
+    #cold-storage-banner .ti-snowflake { color: var(--syntax-2, var(--accent)); font-size: 14px; flex-shrink: 0; }
+    #cold-storage-banner-label {
+      flex: 1; min-width: 0; font-weight: 600; color: var(--text);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    #cold-storage-back-btn {
+      all: unset; box-sizing: border-box; cursor: pointer; flex-shrink: 0;
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 10px; border-radius: 6px;
+      font-family: var(--font-mono); font-size: 12px; color: var(--text-dim);
+      transition: background .12s ease, color .12s ease;
+    }
+    #cold-storage-back-btn:hover, #cold-storage-back-btn:focus-visible {
+      background: var(--wash-accent); color: var(--text);
+    }
+    #cold-storage-back-btn .ti-arrow-left { font-size: 12px; }
+    /* Push the scrollable content below the banner instead of under it —
+       only while the banner is actually showing, and only in Editor mode
+       (Cold Storage/the rail don't exist in Sprinter). 72px is Editor
+       mode's own existing top padding (see the html[data-mode="editor"]
+       block above); 44px is this banner's own height. */
+    html[data-mode="editor"] #editor-host.cold-storage-view-active .cm-content {
+      padding-top: 116px !important;
     }
 
     /* Typewriter status-bar toggle — always present, click flips typewriter mode.
@@ -653,6 +770,13 @@
       <div id="tw-fade"></div>
       <div id="tw-guide"></div>
       <div id="tw-marker">typewriter</div>
+      <div id="cold-storage-banner">
+        <i class="ti ti-snowflake"></i>
+        <span id="cold-storage-banner-label"></span>
+        <button type="button" id="cold-storage-back-btn">
+          <i class="ti ti-arrow-left"></i> Back to manuscript
+        </button>
+      </div>
     </div>
   </div>
   <div id="corkboard"></div>

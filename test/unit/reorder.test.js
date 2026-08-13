@@ -155,7 +155,22 @@ test('a named implicit-first scene keeps its comment when a scene is moved in fr
   assert.equal(doc, '# One\n\nSecond.\n\n---\n<!-- Opening Image -->\n\nFirst.\n');
 });
 
-test('empty scenes are dropped from the rebuilt document', () => {
+// Regression: this test used to lock in the OPPOSITE of what it now
+// asserts — buildDocument() filtered out any scene whose stripped body was
+// empty, on the theory that a scene with nothing typed into it yet was
+// safe to prune. That's wrong: a scene created via "+ add scene" has no
+// prose until the user gets to it, and the rail/corkboard already treat
+// "empty" as a normal, expected "draft" state (model.js's isDraft), not a
+// signal to delete. Caught live: dragging a freshly-added scene to a new
+// position made it silently vanish, with no undo-worthy trace it had ever
+// existed. An empty scene must survive a reorder exactly like a written
+// one — including picking up an explicit marker if the move lands it at
+// the very front of its chapter (i===0), since a *markerless* empty first
+// scene is what outline.js's implicit-first-scene detection can't tell
+// apart from an empty chapter (it requires real content to recognize a
+// scene there at all) — a written first scene keeps the existing
+// markerless convention untouched.
+test('an empty scene survives a reorder — including landing at the very front of its chapter', () => {
   const chapters = [
     chapter('One', [
       scene('First.'),
@@ -164,11 +179,11 @@ test('empty scenes are dropped from the rebuilt document', () => {
     ]),
   ];
   const doc = reorderScenes(chapters, { fromChapterIndex: 0, fromSceneIndex: 0, toChapterIndex: 0, toSceneIndex: 2 });
-  assert.ok(!doc.includes('   '));
-  // Move happens on the full (still-3-item) array before filtering, so
-  // First lands between the (soon-dropped) empty scene and Third — filtering
-  // then collapses that to just [First, Third].
-  assert.equal(doc, '# One\n\nFirst.\n\n---\n\nThird.\n');
+  assert.ok(!doc.includes('   ')); // the whitespace itself doesn't leak through, only the marker structure does
+  // New order after the move: [empty, First, Third] — the empty scene lands
+  // at i===0, so it needs its own explicit marker (see comment above) rather
+  // than being silently dropped or merged into nothing.
+  assert.equal(doc, '# One\n\n---\n\n\n\n---\n\nFirst.\n\n---\n\nThird.\n');
 });
 
 test('does not mutate the input chapters array or its scene objects', () => {
@@ -305,4 +320,68 @@ test('reorderChapters does not mutate the input', () => {
   const snapshot = JSON.parse(JSON.stringify(original));
   reorderChapters(original, { fromIndex: 0, toIndex: 1 });
   assert.deepEqual(original, snapshot);
+});
+
+// ── Cold Storage ────────────────────────────────────────────────────────
+// A chapters[] entry flagged coldStorage: true (see model.js) is never
+// rendered as "# Title" — it gets its own marker line and always
+// serializes LAST, and writes nothing at all when empty (an untouched Cold
+// Storage never appears in the document on disk).
+
+function coldStorage(scenes) {
+  return { title: 'Cold Storage', pos: 0, coldStorage: true, scenes };
+}
+
+test('an empty Cold Storage entry (no scenes) writes nothing to the document', () => {
+  const chapters = [chapter('One', [scene('A1.')]), coldStorage([])];
+  const doc = reorderScenes(chapters, { fromChapterIndex: 0, fromSceneIndex: 0, toChapterIndex: 0, toSceneIndex: 0 });
+  assert.equal(doc, '# One\n\nA1.\n');
+});
+
+test('a non-empty Cold Storage entry serializes last, under its own marker, with no chapter numbering', () => {
+  const chapters = [
+    chapter('One', [scene('A1.')]),
+    coldStorage([scene('Cut material.')]),
+  ];
+  const doc = reorderScenes(chapters, { fromChapterIndex: 0, fromSceneIndex: 0, toChapterIndex: 0, toSceneIndex: 0 });
+  assert.equal(doc, '# One\n\nA1.\n\n<!-- COLD STORAGE -->\n\nCut material.\n');
+});
+
+test('Cold Storage still serializes last even when it sits first in the input array', () => {
+  const chapters = [
+    coldStorage([scene('Cut material.')]),
+    chapter('One', [scene('A1.')]),
+  ];
+  // Any operation goes through buildDocument, which always re-derives
+  // ordering from the coldStorage flag, not array position — a no-op move
+  // is enough to exercise that.
+  const doc = reorderScenes(chapters, { fromChapterIndex: 1, fromSceneIndex: 0, toChapterIndex: 1, toSceneIndex: 0 });
+  assert.equal(doc, '# One\n\nA1.\n\n<!-- COLD STORAGE -->\n\nCut material.\n');
+});
+
+test('moving a scene into Cold Storage removes it from its chapter and appends it there', () => {
+  const chapters = [
+    chapter('One', [scene('A1.'), scene('---\n\nA2.')]),
+    coldStorage([]),
+  ];
+  const doc = reorderScenes(chapters, { fromChapterIndex: 0, fromSceneIndex: 1, toChapterIndex: 1, toSceneIndex: 0 });
+  assert.equal(doc, '# One\n\nA1.\n\n<!-- COLD STORAGE -->\n\nA2.\n');
+});
+
+test('moving the last scene out of Cold Storage erases the marker again', () => {
+  const chapters = [
+    chapter('One', [scene('A1.')]),
+    coldStorage([scene('Cut material.')]),
+  ];
+  const doc = reorderScenes(chapters, { fromChapterIndex: 1, fromSceneIndex: 0, toChapterIndex: 0, toSceneIndex: 1 });
+  assert.equal(doc, '# One\n\nA1.\n\n---\n\nCut material.\n');
+});
+
+test('deleteScene works on a scene inside Cold Storage', () => {
+  const chapters = [
+    chapter('One', [scene('A1.')]),
+    coldStorage([scene('Keep.'), scene('---\n\nGone.')]),
+  ];
+  const doc = deleteScene(chapters, { chapterIndex: 1, sceneIndex: 1 });
+  assert.equal(doc, '# One\n\nA1.\n\n<!-- COLD STORAGE -->\n\nKeep.\n');
 });

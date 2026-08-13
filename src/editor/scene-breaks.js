@@ -1,14 +1,44 @@
-import { Decoration, ViewPlugin } from '@codemirror/view';
+import { Decoration, ViewPlugin, WidgetType } from '@codemirror/view';
+import { injectStyle as injectStyleTag } from '../dom.js';
 
 const sceneBreakLine = Decoration.line({ class: 'cm-scene-break' });
-// A waypoint name lives as an HTML comment right after its marker line (or,
-// for a chapter's markerless implicit first scene, right before its
-// content) — see outline.js/rename.js. attributes carries the actual name
-// text through to CSS via attr(), so the raw <!-- --> syntax stays hidden
-// the same way the marker's raw dashes are, in favor of just the name.
-function nameCommentLine(name) {
-  return Decoration.line({ class: 'cm-scene-name-comment', attributes: { 'data-scene-name': name } });
+// A marker immediately followed by a name comment gets this extra class so
+// Editor-mode CSS can suppress its ornament (the name renders as a heading
+// instead — see MANUSCRIPT_SURFACE.md's "named vs unnamed" scene
+// treatment). Sprinter mode ignores the extra class and keeps showing the
+// ornament for every marker, named or not, same as before this feature.
+const sceneBreakNamedLine = Decoration.line({ class: 'cm-scene-break cm-scene-break-named' });
+const nameCommentLine = Decoration.line({ class: 'cm-scene-name-comment' });
+
+// The visible name itself — a WIDGET, not a line-level `content: attr(...)`
+// pseudo-element as this used to be. Reason: a `::before` pseudo is always
+// the structurally-first box in its host, ahead of any real DOM child no
+// matter where that child is inserted — which made it impossible for
+// manuscript-gutter.js's gutter-number widget (also inserted on this same
+// line, needs to render visually first) to reliably come "before" it. As a
+// widget, ordering between the two is just their `side` values (see
+// manuscript-gutter.js: -2 for the number, -1 here) instead of an
+// unwindable CSS structural constant. Uses the exact same "empty real text,
+// content: attr(...) on its own ::before" trick as the number widget, for
+// the same reason: a real DOM node with real text would show up in
+// .cm-line.textContent, which the E2E suite's exact line-text assertions
+// depend on staying exactly the document's own text.
+class SceneNameWidget extends WidgetType {
+  constructor(name) { super(); this.name = name; }
+  eq(other) { return other.name === this.name; }
+  toDOM() {
+    const span = document.createElement('span');
+    span.className = 'cm-scene-name-label';
+    span.setAttribute('aria-hidden', 'true');
+    span.setAttribute('data-scene-name', this.name);
+    return span;
+  }
+  ignoreEvent() { return true; }
 }
+function nameWidget(name) {
+  return Decoration.widget({ widget: new SceneNameWidget(name), side: -1 });
+}
+
 const NAME_COMMENT_RE = /^<!--\s*(.*?)\s*-->$/;
 
 // Kept independent of outline.js on purpose — this only ever needs to know
@@ -21,6 +51,11 @@ function build(view) {
   const decos = [];
   let awaitingFirstContent = false;
 
+  const addName = (line, name) => {
+    decos.push(nameCommentLine.range(line.from));
+    decos.push(nameWidget(name).range(line.from));
+  };
+
   for (let i = 1; i <= doc.lines; i++) {
     const line = doc.line(i);
     const trimmed = line.text.trim();
@@ -31,18 +66,19 @@ function build(view) {
       continue;
     }
     if (/^(-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
-      decos.push(sceneBreakLine.range(line.from));
       awaitingFirstContent = false;
+      let named = false;
       if (i + 1 <= doc.lines) {
         const next = doc.line(i + 1);
         const m = next.text.trim().match(NAME_COMMENT_RE);
-        if (m) decos.push(nameCommentLine(m[1]).range(next.from));
+        if (m) { addName(next, m[1]); named = true; }
       }
+      decos.push((named ? sceneBreakNamedLine : sceneBreakLine).range(line.from));
       continue;
     }
     if (awaitingFirstContent) {
       const m = trimmed.match(NAME_COMMENT_RE);
-      if (m) { decos.push(nameCommentLine(m[1]).range(line.from)); continue; }
+      if (m) { addName(line, m[1]); continue; }
       if (trimmed !== '') awaitingFirstContent = false;
     }
   }
@@ -60,10 +96,7 @@ export const sceneBreakDecorator = ViewPlugin.fromClass(class {
 }, { decorations: v => v.decorations });
 
 export function injectSceneBreakStyle() {
-  if (document.getElementById('bt-scene-break')) return;
-  const style = document.createElement('style');
-  style.id = 'bt-scene-break';
-  style.textContent = `
+  injectStyleTag('bt-scene-break', `
 .cm-scene-break {
   position: relative; color: transparent !important; caret-color: var(--cursor) !important;
   text-align: center; height: 2.6em;
@@ -83,13 +116,58 @@ export function injectSceneBreakStyle() {
   text-align: center; height: 1.7em;
 }
 .cm-scene-name-comment * { color: transparent !important; }
-.cm-scene-name-comment::before {
-  content: attr(data-scene-name); position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  color: var(--text-dimmer); font-size: 11px; font-style: italic; white-space: nowrap;
+/* Sprinter's look (default): a small italic caption, absolutely centered —
+   the widget mimics exactly what the line-level ::before it replaced used
+   to do, so Sprinter mode is unaffected by moving this to a widget.
+   color: ... !important — this widget is a real DOM child of
+   .cm-scene-name-comment, and the ".cm-scene-name-comment *
+   { color: transparent !important }" rule above (there to hide the line's
+   own real, invisible <!-- --> text) would otherwise catch it too. */
+.cm-scene-name-label {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  color: var(--text-dimmer) !important; font-size: 11px; font-style: italic; white-space: nowrap;
   pointer-events: none;
 }
-`;
-  document.head.appendChild(style);
+.cm-scene-name-label::before { content: attr(data-scene-name); }
+
+/* Manuscript surface — Editor mode only (MANUSCRIPT_SURFACE.md "named vs
+   unnamed" scenes). Sprinter mode keeps the rules above unchanged: every
+   marker shows the accent ornament, every name is a small italic caption. */
+html[data-mode="editor"] .cm-scene-break:not(.cm-scene-break-named)::before {
+  background: var(--scene);
+}
+html[data-mode="editor"] .cm-scene-break:not(.cm-scene-break-named)::after {
+  border-color: var(--scene);
+}
+/* Named scenes render as a heading below (via .cm-scene-name-label) — no
+   ornament on the marker line itself, just enough space to read as a break. */
+html[data-mode="editor"] .cm-scene-break-named {
+  height: 0.8em;
+}
+html[data-mode="editor"] .cm-scene-break-named::before,
+html[data-mode="editor"] .cm-scene-break-named::after {
+  display: none;
+}
+/* The name becomes a real left-aligned scene heading instead of a small
+   centered caption — matches the H2 treatment given to actual ## headings.
+   position:static (not the Sprinter default's absolute+centered) puts it
+   back in normal inline flow, genuinely sharing a line box with
+   manuscript-gutter.js's gutter-number widget on this same line — that's
+   what lets the browser's own text layout baseline-align the two.
+   Matching top/height numerically (an earlier version of this rule tried,
+   with explicit height + JS-measured positions) doesn't guarantee matching
+   baselines when the compared glyphs have different ascent/descent (a
+   digit vs. a name with descenders like "y", ascenders like "t"/"l", etc.)
+   — only genuine shared inline flow does, reliably, in every case. */
+html[data-mode="editor"] .cm-scene-name-comment {
+  text-align: left; height: auto;
+}
+html[data-mode="editor"] .cm-scene-name-label {
+  position: static; transform: none;
+  color: var(--text-dim) !important; font-size: var(--ms-h2-size, 28px); font-weight: var(--ms-h2-weight, 400);
+  line-height: var(--ms-h2-lh, 1.1); font-style: normal; white-space: normal;
+}
+`);
 }
 
 // Inserts a blank-padded scene break at the caret, adding leading blank

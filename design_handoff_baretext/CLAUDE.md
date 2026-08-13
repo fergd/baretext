@@ -8,6 +8,7 @@ You are implementing designs for **Baretext**, a macOS Electron writing app. Thi
 3. `TYPEWRITER_MODE.md` — Typewriter mode spec (focus dimming, center guide, edge fades).
 4. `ACCESSIBILITY.md` — **accessibility & hit-target audit** grounded in the current source, with the one root-cause fix (real buttons over span+mousedown), contrast, ARIA roles, focus, reduced-motion. Ordered by impact.
 5. `MODE_SWITCHER.md` — the new **bottom-bar mode switcher** (centered Sprinter/Editor tabs).
+6. `MANUSCRIPT_SURFACE.md` — the **Editor manuscript surface**: centered prose measure, right-aligned number gutter hanging in the margin, named/unnamed scene treatment, Untitled fallback.
 
 ### Visual references (in this folder, open in a browser)
 `Mode Switcher.dc.html`, `A11y Fixes.dc.html` (before/after with a 44px hit-area + focus-ring overlay), and `Themes.dc.html`. These use a custom design-component runtime (`support.js`, included) — treat as visual references, not code to run in the app.

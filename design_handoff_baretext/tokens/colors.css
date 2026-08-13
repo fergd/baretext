@@ -7,6 +7,9 @@
    Set the theme with [data-theme="dark|light|amstrad|grove|dracula"] on any
    ancestor. :root defaults to Dark — the native theme.
 
+   --scene: the scene-break ornament tint (unnamed scenes) — a warm accent
+   held distinct from --accent so breaks read quietly, not as headings.
+
    --typewriter-focus: the active-line color in Typewriter mode — each theme's
    body --text punched up (more saturated / vivid) so the line under the caret
    stands proud of the dimmed surrounding prose. */
@@ -19,6 +22,7 @@
   --text-dim:    #bdae93;
   --text-dimmer: #5a5040;
   --accent:      #f8c537;
+  --scene:       #d98a3f;   /* scene-break ornament — warm, distinct from accent */
   --border:      #3a3a3a;
   --cursor:      var(--accent);
   --sel:         rgba(248, 197, 55, .22);
@@ -33,6 +37,7 @@
   --text-dim:    #6b5f4a;
   --text-dimmer: #b0a898;
   --accent:      #b8820a;
+  --scene:       #a8631a;
   --border:      #d0c8b8;
   --cursor:      var(--accent);
   --sel:         rgba(184, 130, 10, .20);
@@ -48,6 +53,7 @@
   --text-dim:    #5f7a55;
   --text-dimmer: #2d3d29;
   --accent:      #7dc45a;
+  --scene:       #7dc45a;
   --border:      #1c281a;
   --cursor:      var(--accent);
   --sel:         rgba(125, 196, 90, .18);
@@ -64,6 +70,7 @@
   --text-dim:    #9aa79d;   /* grey2 (text-muted) */
   --text-dimmer: #859289;   /* grey1 (text-faint) */
   --accent:      #a7c080;   /* faded green — signature */
+  --scene:       #e69875;   /* faded orange — scene-break ornament */
   --border:      #525c62;   /* bg5 (background-modifier-border) */
   --cursor:      #7fbbb3;   /* faded blue — Everforest caret */
   --sel:         rgba(82, 92, 98, .55);   /* bg5 text-selection */
@@ -78,6 +85,7 @@
   --text-dim:    #6272a4;
   --text-dimmer: #44475a;
   --accent:      #bd93f9;
+  --scene:       #8be9fd;
   --border:      #44475a;
   --cursor:      var(--text);   /* Dracula is the exception: cursor = text */
   --sel:         rgba(68, 71, 90, .70);

@@ -1,5 +1,6 @@
 import { Decoration, ViewPlugin } from '@codemirror/view';
 import { syntaxTree } from '@codemirror/language';
+import { injectStyle as injectStyleTag } from '../dom.js';
 
 // Fakes block-level vertical rhythm (headings/paragraphs having margin)
 // since CodeMirror lines don't have real block margins — tags the last
@@ -37,15 +38,11 @@ export const blockSpacingPlugin = ViewPlugin.fromClass(class {
 }, { decorations: v => v.decorations });
 
 export function injectBlockSpacingStyle() {
-  if (document.getElementById('bt-block-spacing')) return;
-  const style = document.createElement('style');
-  style.id = 'bt-block-spacing';
-  style.textContent = `
+  injectStyleTag('bt-block-spacing', `
 .cm-line.cm-heading-1 { padding-bottom: 0.7em; }
 .cm-line.cm-heading-2 { padding-bottom: 0.55em; }
 .cm-line.cm-heading-3 { padding-bottom: 0.4em; }
 .cm-line.cm-heading-4 { padding-bottom: 0.3em; }
 .cm-line.cm-paragraph-line { padding-bottom: 1em; }
-`;
-  document.head.appendChild(style);
+`);
 }

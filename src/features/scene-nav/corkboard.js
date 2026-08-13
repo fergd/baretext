@@ -1,40 +1,15 @@
 import { getManuscript, findActiveScene } from './model.js';
 import { reorderScenes } from './reorder.js';
+import { el, btn, icon, injectStyle as injectStyleTag } from '../../dom.js';
+import { makeDeleteButton, beginEdit } from './ui-helpers.js';
 
 let ctx = null;
 let boardEl = null;
 let open = false;
 let dragSource = null; // { chapterIndex, sceneIndex } while a card drag is in progress
 
-function el(tag, className, text) {
-  const e = document.createElement(tag);
-  if (className) e.className = className;
-  if (text !== undefined) e.textContent = text;
-  return e;
-}
-// Real <button>s instead of span/div+mousedown: focusable, keyboard-operable
-// (Enter/Space fire click for free), announced with a role by default.
-// mousedown still gets preventDefault() (keeps editor focus from being
-// stolen); bind the actual action to click.
-function btn(className, text) {
-  const b = document.createElement('button');
-  b.type = 'button';
-  if (className) b.className = className;
-  if (text !== undefined) b.textContent = text;
-  b.addEventListener('mousedown', (e) => e.preventDefault());
-  return b;
-}
-function icon(cls) {
-  const i = document.createElement('i');
-  i.className = 'ti ' + cls;
-  return i;
-}
-
 function injectStyle() {
-  if (document.getElementById('corkboard-style')) return;
-  const style = document.createElement('style');
-  style.id = 'corkboard-style';
-  style.textContent = `
+  injectStyleTag('corkboard-style', `
 #corkboard { font-family: var(--font-mono); }
 .corkboard-toolbar {
   height: 42px; flex: none; background: var(--bg-alt); border-bottom: 1px solid var(--border);
@@ -127,97 +102,20 @@ function injectStyle() {
 .scene-card-new:hover { color: var(--text); border-color: var(--text-dim); }
 .scene-card-new .ti-plus { font-size: 18px; }
 .scene-card-new span { font-size: 11px; }
-`;
-  document.head.appendChild(style);
-}
-
-// Two-click confirm: first click arms it (icon turns danger-colored, shows
-// "delete?"), a second click on the SAME button within 3s actually deletes.
-// Clicking elsewhere, arming a different delete button, or the timeout
-// disarms it — no native confirm() dialog, consistent with the rest of this
-// app never using one, but still real friction against a stray click, on
-// top of undo already being available as the last line of defense.
-function makeDeleteButton(label, onConfirm) {
-  const button = btn('corkboard-delete-btn');
-  let armed = false;
-  let timer = null;
-
-  function paint() {
-    button.innerHTML = '';
-    button.appendChild(icon('ti-trash'));
-    if (armed) {
-      button.appendChild(document.createTextNode(' delete?'));
-      button.title = 'click again to delete ' + label;
-      button.setAttribute('aria-label', 'Confirm delete ' + label);
-    } else {
-      button.title = 'delete ' + label;
-      button.setAttribute('aria-label', 'Delete ' + label);
-    }
-    button.classList.toggle('confirm', armed);
-  }
-
-  function disarm() {
-    clearTimeout(timer);
-    armed = false;
-    paint();
-  }
-  button._disarm = disarm;
-
-  button.addEventListener('mousedown', (e) => e.stopPropagation());
-  button.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (armed) {
-      disarm();
-      onConfirm();
-      return;
-    }
-    document.querySelectorAll('.corkboard-delete-btn').forEach((b) => { if (b !== button && b._disarm) b._disarm(); });
-    armed = true;
-    paint();
-    timer = setTimeout(disarm, 3000);
-  });
-
-  paint();
-  return button;
+`);
 }
 
 function jumpTo(scene) {
+  // Same reasoning as rail.js's jumpTo -- a chapter's own position isn't
+  // actually reachable while Cold Storage scene view is hiding everything
+  // outside the isolated scene. No-ops if scene view isn't active. (Cold
+  // Storage itself never appears in the corkboard, so this only matters if
+  // scene view was left active from the rail before opening the corkboard.)
+  ctx.exitColdStorageScene();
   ctx.editor.setCursorPos(ctx.view, scene.pos);
-  ctx.editor.centerCursor(ctx.view);
+  ctx.editor.scrollToTop(ctx.view);
   close();
   ctx.refreshNav();
-}
-
-// Swaps a title's display span for an inline <input>. Enter or blur commits
-// (only if the value actually changed and isn't blank); Escape cancels. On
-// either path a re-render restores the row — via ctx.refreshNav() after a
-// real commit, or a plain local render() when nothing changed.
-function beginEdit(displayEl, currentValue, onCommit) {
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.className = 'inline-rename-input';
-  input.value = currentValue;
-  displayEl.replaceWith(input);
-  input.focus();
-  input.select();
-
-  let done = false;
-  function finish(shouldCommit) {
-    if (done) return;
-    done = true;
-    input.removeEventListener('blur', onBlur);
-    const v = input.value.trim();
-    if (shouldCommit && v && v !== currentValue) { onCommit(v); return; }
-    render();
-  }
-  function onBlur() { finish(true); }
-  input.addEventListener('blur', onBlur);
-  input.addEventListener('mousedown', (e) => e.stopPropagation());
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
-    else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
-    e.stopPropagation();
-  });
 }
 
 export function render() {
@@ -225,7 +123,12 @@ export function render() {
   const chapters = getManuscript(ctx.view);
   const cursorPos = ctx.editor.getCursorPos(ctx.view);
   const active = findActiveScene(chapters, cursorPos);
-  const totalScenes = chapters.reduce((sum, c) => sum + c.scenes.length, 0);
+  // Cold Storage (see model.js) isn't a chapter — the corkboard doesn't
+  // have a bucket-column UI for it yet, so it's left out of both the count
+  // and the render loop below rather than showing up as a mislabeled,
+  // ordinary-looking chapter column. Its scenes stay reachable from the
+  // rail regardless.
+  const totalScenes = chapters.reduce((sum, c) => (c.coldStorage ? sum : sum + c.scenes.length), 0);
 
   boardEl.innerHTML = '';
 
@@ -257,6 +160,7 @@ export function render() {
 
   const body = el('div', 'corkboard-body');
   chapters.forEach((chapter, ci) => {
+    if (chapter.coldStorage) return;
     const section = el('div', 'corkboard-chapter');
     const header = el('div', 'corkboard-chapter-header');
     const chapterWords = chapter.scenes.reduce((sum, s) => sum + s.wordCount, 0);
@@ -274,9 +178,9 @@ export function render() {
     chEditBtn.addEventListener('mousedown', (e) => e.stopPropagation());
     chEditBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      beginEdit(chTitleText, chapter.title, (newTitle) => ctx.renameTitle(chapter, newTitle));
+      beginEdit(chTitleText, chapter.title, (newTitle) => ctx.renameTitle(chapter, newTitle), render);
     });
-    const chDeleteBtn = makeDeleteButton(chLabel, () => ctx.deleteChapter(ci, chapters));
+    const chDeleteBtn = makeDeleteButton('corkboard-delete-btn', chLabel, () => ctx.deleteChapter(ci, chapters));
     const chTitleGroup = el('div', 'corkboard-chapter-title-group');
     chTitleGroup.append(el('span', 'corkboard-chapter-num', 'Chapter ' + chapter.number), chTitleText, chEditBtn, chDeleteBtn);
 
@@ -301,7 +205,7 @@ export function render() {
       editBtn.addEventListener('mousedown', (e) => e.stopPropagation());
       editBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        beginEdit(titleTextSpan, scene.title, (newTitle) => ctx.renameTitle(scene, newTitle));
+        beginEdit(titleTextSpan, scene.title, (newTitle) => ctx.renameTitle(scene, newTitle), render);
       });
       // Explicit, deliberate navigation control — double-click also jumps,
       // but this is the discoverable version so no interaction with a card
@@ -312,7 +216,7 @@ export function render() {
       openBtn.setAttribute('aria-label', 'Open ' + scene.title + ' in manuscript');
       openBtn.addEventListener('mousedown', (e) => e.stopPropagation());
       openBtn.addEventListener('click', (e) => { e.stopPropagation(); jumpTo(scene); });
-      const deleteBtn = makeDeleteButton(scene.title, () => ctx.deleteScene(ci, si, chapters));
+      const deleteBtn = makeDeleteButton('corkboard-delete-btn', scene.title, () => ctx.deleteScene(ci, si, chapters));
       const titleRow = el('div', 'scene-card-title');
       titleRow.append(el('span', undefined, (si + 1) + ' · '), titleTextSpan, editBtn, openBtn, deleteBtn);
 

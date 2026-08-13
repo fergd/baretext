@@ -8,6 +8,7 @@
 // position.
 
 const NAME_COMMENT_RE = /^<!--.*-->$/;
+const COLD_STORAGE_MARKER = '<!-- COLD STORAGE -->';
 
 // Strips a leading ---/***/___ marker line and, if present immediately after
 // it (no blank line between -- see model.js/rename.js), the waypoint-name
@@ -50,6 +51,16 @@ function cleanScene(scene) {
 // waypoint-name comment re-inserted right after the marker (or, for the
 // first scene in a chapter, right before its content — there's no marker to
 // attach to there since the chapter heading is already the boundary).
+//
+// A bare scene with NO prose yet (a freshly-added, still-empty scene — see
+// scene-nav/index.js's addNewScene, which inserts a marker with nothing
+// after it) needs its explicit marker even at i===0, unlike a written first
+// scene: outline.js's implicit-first-scene detection only recognizes a
+// scene once REAL content follows the chapter heading (a markerless empty
+// first "scene" is literally indistinguishable from an empty chapter, so it
+// would round-trip out of existence). Real bug, caught live: dragging a
+// just-added empty scene to the front of any chapter made it vanish
+// entirely, with no undo-worthy trace it had ever existed.
 function joinScenes(scenes) {
   return scenes.reduce((doc, scene, i) => {
     const body = cleanScene(scene);
@@ -57,7 +68,12 @@ function joinScenes(scenes) {
     if (scene.type !== 'scene') {
       return i === 0 ? body : doc + '\n\n' + body;
     }
-    const prefix = i === 0 ? nameComment : '\n\n---\n' + (nameComment || '\n');
+    let prefix;
+    if (i === 0) {
+      prefix = body === '' ? '---\n' + (nameComment || '\n') : nameComment;
+    } else {
+      prefix = '\n\n---\n' + (nameComment || '\n');
+    }
     return i === 0 ? prefix + body : doc + prefix + body;
   }, '');
 }
@@ -67,15 +83,37 @@ function joinScenes(scenes) {
 // line invented for it; every other chapter keeps its own heading text
 // as-is, including a blank one ("# " alone — see chapter-placeholder.js,
 // which shows a UI-only "Chapter N" ghost for exactly that case without it
-// ever being real document text).
+// ever being real document text). Every scene passed in is kept, even one
+// with no prose yet — an empty scene is a normal, supported "draft" state
+// (see model.js's isDraft), not something a rebuild gets to silently prune;
+// an earlier version of this function filtered scenes with empty bodies out
+// entirely, which quietly deleted the user's own just-created scenes on the
+// very next reorder/rename/move.
+//
+// Cold Storage (chapter.coldStorage === true — see model.js) is never
+// rendered as "# Title": its own marker line stands in for the heading, and
+// it always serializes LAST regardless of where its entry sits in the input
+// array — a chapter-level reorder/splice can never accidentally interleave
+// a real chapter after it. An empty Cold Storage (no scenes, including
+// "never used yet") writes nothing at all, so an unused Cold Storage never
+// touches the document on disk, and dragging its last scene back out
+// cleanly erases the section again on the next rebuild.
 function buildDocument(chapters) {
-  const parts = chapters
+  const coldStorage = chapters.find((c) => c.coldStorage);
+  const realChapters = chapters.filter((c) => !c.coldStorage);
+
+  const parts = realChapters
     .map((chapter) => {
-      const body = joinScenes(chapter.scenes.filter((s) => cleanScene(s) !== ''));
+      const body = joinScenes(chapter.scenes);
       if (chapter.synthetic) return body;
       return '# ' + chapter.title + (body ? '\n\n' + body : '');
     })
     .filter((part) => part !== '');
+
+  if (coldStorage && coldStorage.scenes.length) {
+    parts.push(COLD_STORAGE_MARKER + '\n\n' + joinScenes(coldStorage.scenes));
+  }
+
   return parts.length ? parts.join('\n\n') + '\n' : '';
 }
 
@@ -87,7 +125,7 @@ function buildDocument(chapters) {
 export function reorderScenes(chapters, moveSpec) {
   const { fromChapterIndex, fromSceneIndex, toChapterIndex, toSceneIndex } = moveSpec;
 
-  const next = chapters.map((c) => ({ title: c.title, synthetic: c.synthetic, scenes: c.scenes.slice() }));
+  const next = chapters.map((c) => ({ title: c.title, synthetic: c.synthetic, coldStorage: c.coldStorage, scenes: c.scenes.slice() }));
 
   const [moved] = next[fromChapterIndex].scenes.splice(fromSceneIndex, 1);
   if (!moved) return null;
@@ -107,7 +145,7 @@ export function reorderScenes(chapters, moveSpec) {
 export function reorderChapters(chapters, { fromIndex, toIndex }) {
   if (!chapters[fromIndex]) return null;
 
-  const next = chapters.map((c) => ({ title: c.title, synthetic: c.synthetic, scenes: c.scenes.slice() }));
+  const next = chapters.map((c) => ({ title: c.title, synthetic: c.synthetic, coldStorage: c.coldStorage, scenes: c.scenes.slice() }));
   const [moved] = next.splice(fromIndex, 1);
 
   let insertAt = toIndex;
@@ -121,7 +159,7 @@ export function reorderChapters(chapters, { fromIndex, toIndex }) {
 // Removes one scene from a chapter and returns the rebuilt document, or
 // null if the target doesn't exist.
 export function deleteScene(chapters, { chapterIndex, sceneIndex }) {
-  const next = chapters.map((c) => ({ title: c.title, synthetic: c.synthetic, scenes: c.scenes.slice() }));
+  const next = chapters.map((c) => ({ title: c.title, synthetic: c.synthetic, coldStorage: c.coldStorage, scenes: c.scenes.slice() }));
   const chapter = next[chapterIndex];
   if (!chapter) return null;
   const [removed] = chapter.scenes.splice(sceneIndex, 1);

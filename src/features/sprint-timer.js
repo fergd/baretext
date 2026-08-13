@@ -2,6 +2,7 @@
 // Lifecycle: evoke (duration picker) -> active (glass panel) -> minimized
 // (edge line + status chip) or hidden (status chip only) -> complete (toast).
 // Self-contained: injects its own <style>, owns its own DOM and interval.
+import { el, btn, icon, injectStyle as injectStyleTag } from '../dom.js';
 
 const WORDS_PER_MINUTE = 20; // average sustained writing-sprint pace — drives the auto goal
 const GOAL_STEP = 50;
@@ -29,33 +30,6 @@ function mmss(totalSeconds) {
   return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
 }
 
-function el(tag, className, text) {
-  const e = document.createElement(tag);
-  if (className) e.className = className;
-  if (text !== undefined) e.textContent = text;
-  return e;
-}
-
-// Real <button>s instead of span/div+mousedown: focusable, keyboard-operable
-// (Enter/Space fire click for free), and announced with a role by default.
-// mousedown still gets preventDefault() (keeps the trick that stops the
-// button from stealing focus from the editor); the actual action binds to
-// click, which fires for both mouse and keyboard activation.
-function btn(className, text) {
-  const b = document.createElement('button');
-  b.type = 'button';
-  if (className) b.className = className;
-  if (text !== undefined) b.textContent = text;
-  b.addEventListener('mousedown', (e) => e.preventDefault());
-  return b;
-}
-
-function icon(cls) {
-  const i = document.createElement('i');
-  i.className = 'ti ' + cls;
-  return i;
-}
-
 function autoGoal() {
   return Math.round(selectedMinutes * WORDS_PER_MINUTE);
 }
@@ -68,10 +42,7 @@ function bumpGoal(delta) {
 }
 
 function injectStyle() {
-  if (document.getElementById('sprint-timer-style')) return;
-  const style = document.createElement('style');
-  style.id = 'sprint-timer-style';
-  style.textContent = `
+  injectStyleTag('sprint-timer-style', `
 @keyframes sprint-pulse { 0%,100% { opacity: .35 } 50% { opacity: 1 } }
 
 .sprint-panel {
@@ -177,8 +148,7 @@ function injectStyle() {
 .sprint-chip-status:hover .ti-run { color: var(--text-dim); }
 .sprint-chip-status.running { color: var(--text); font-variant-numeric: tabular-nums; }
 .sprint-chip-status.running .ti-run { color: var(--accent); }
-`;
-  document.head.appendChild(style);
+`);
 }
 
 function hint(key, label) {

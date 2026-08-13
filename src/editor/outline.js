@@ -7,6 +7,15 @@
 // scene-breaks.js) in favor of showing just the name itself.
 const NAME_COMMENT_RE = /^<!--\s*(.*?)\s*-->$/;
 
+// Marks the start of the Cold Storage section (see scene-nav/model.js) — a
+// place to drop scenes you don't want in the manuscript but aren't ready to
+// delete. A literal, exact-match line rather than the generic NAME_COMMENT_RE
+// pattern above: it plays the same structural role as a chapter's own "#"
+// line (a section boundary scenes get parsed under), not a scene's own name,
+// so it needs to be checked on its own before that per-scene comment logic
+// ever runs.
+const COLD_STORAGE_MARKER = '<!-- COLD STORAGE -->';
+
 // Scans the document for headings (# / ## / ###) and scene breaks
 // (---/***/___), plus an implicit "Scene 1" at the first content after a
 // CHAPTER heading (#, before any explicit scene break) so the outline
@@ -36,6 +45,14 @@ export function getOutline(view) {
     // leftover character after the separator) so a freshly-typed "# " with
     // nothing typed yet still counts as a heading instead of being invisible
     // to the outline until real title text exists.
+    if (trimmed === COLD_STORAGE_MARKER) {
+      items.push({ type: 'cold-storage', text: 'Cold Storage', line: lineNum, pos: line.from });
+      sceneCount = 0;
+      awaitingFirstContent = true;
+      pendingName = null;
+      continue;
+    }
+
     const headingMatch = text.match(/^(#{1,3})(?:[ \t]+(.*))?$/);
 
     if (headingMatch) {

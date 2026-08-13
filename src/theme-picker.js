@@ -3,14 +3,8 @@
 // it can be judged in context, not just as swatches. Mode-agnostic (themes
 // apply in both Sprinter and Editor), so this is mounted once at boot
 // directly by app.js rather than through the per-mode feature lifecycle.
-
-const THEMES = [
-  { id: 'dark', name: 'Ember' },
-  { id: 'light', name: 'Parchment' },
-  { id: 'amstrad', name: 'Amstrad' },
-  { id: 'grove', name: 'Grove' },
-  { id: 'dracula', name: 'Dracula' },
-];
+import { el, injectStyle as injectStyleTag } from './dom.js';
+import { THEMES } from './themes.js';
 
 // Order per THEMES.md's swatch-row spec.
 const SWATCH_TOKENS = [
@@ -25,18 +19,8 @@ let built = false;
 let focusedIndex = 0;
 let cardEls = []; // parallel to THEMES
 
-function el(tag, className, text) {
-  const e = document.createElement(tag);
-  if (className) e.className = className;
-  if (text !== undefined) e.textContent = text;
-  return e;
-}
-
 function injectStyle() {
-  if (document.getElementById('theme-picker-style')) return;
-  const style = document.createElement('style');
-  style.id = 'theme-picker-style';
-  style.textContent = `
+  injectStyleTag('theme-picker-style', `
 #theme-picker { font-family: var(--font-mono); background: var(--bg); }
 .tp-scroll { flex: 1; overflow: auto; padding: 40px; }
 .tp-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; }
@@ -86,8 +70,7 @@ function injectStyle() {
 .tp-demo-chips { display: flex; gap: 8px; margin-top: 12px; }
 .tp-demo-wash { font-size: 10px; padding: 4px 8px; border-radius: 4px; background: var(--wash-accent-strong); color: var(--text); }
 .tp-demo-stripe { font-size: 10px; padding: 4px 8px 4px 11px; box-shadow: var(--stripe-accent); color: var(--text); background: var(--bg-alt); }
-`;
-  document.head.appendChild(style);
+`);
 }
 
 function buildCard(themeDef) {

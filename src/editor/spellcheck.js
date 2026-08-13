@@ -1,9 +1,10 @@
 import { Decoration, ViewPlugin } from '@codemirror/view';
 import { StateField, StateEffect } from '@codemirror/state';
-import { syntaxTree } from '@codemirror/language';
 import affText from './dictionary/en.aff';
 import dicText from './dictionary/en.dic';
 import { createSpellchecker } from './spellcheck-engine.js';
+import { collectSkipRanges, inSkipRange } from './skip-ranges.js';
+import { injectStyle as injectStyleTag } from '../dom.js';
 
 // The actual dictionary logic (Hunspell via nspell, ignore list) lives in
 // spellcheck-engine.js, which is plain and DOM/CodeMirror-free so it can be
@@ -56,27 +57,21 @@ function isMisspelled(word) {
   return getEngine().isMisspelled(word);
 }
 
-// Skip inline/fenced code and link URLs — those aren't prose, no reason to
-// flag identifiers or URLs as misspellings.
-function collectSkipRanges(state) {
-  const ranges = [];
-  syntaxTree(state).iterate({
-    enter: (node) => {
-      if (node.name === 'InlineCode' || node.name === 'FencedCode' || node.name === 'CodeBlock' || node.name === 'URL') {
-        ranges.push({ from: node.from, to: node.to });
-      }
-    },
-  });
-  return ranges;
-}
-
 function build(view) {
   const state = view.state;
   if (!state.field(spellcheckField)) return Decoration.none;
 
   const text = state.doc.toString();
   const skipRanges = collectSkipRanges(state);
-  const inSkipRange = (pos) => skipRanges.some((r) => pos >= r.from && pos < r.to);
+
+  // Standard spell-checker behavior (macOS, Google Docs, MS Word, VS Code):
+  // don't flag the word the caret is still inside — a word isn't "wrong"
+  // until you've stopped typing it. Same "don't disturb what's under the
+  // caret" precedent as live-preview.js's raw-markdown-on-the-caret-line
+  // behavior. Only a collapsed cursor suppresses a word; an active
+  // selection doesn't.
+  const cursor = state.selection.main;
+  const activeWordAt = cursor.empty ? cursor.head : -1;
 
   const decos = [];
   WORD_RE.lastIndex = 0;
@@ -84,9 +79,11 @@ function build(view) {
   while ((match = WORD_RE.exec(text))) {
     const word = match[0];
     const from = match.index;
-    if (inSkipRange(from)) continue;
+    const to = from + word.length;
+    if (inSkipRange(skipRanges, from)) continue;
+    if (activeWordAt >= from && activeWordAt <= to) continue;
     if (isMisspelled(word)) {
-      decos.push(Decoration.mark({ class: 'cm-spellError' }).range(from, from + word.length));
+      decos.push(Decoration.mark({ class: 'cm-spellError' }).range(from, to));
     }
   }
   return Decoration.set(decos, true);
@@ -98,7 +95,7 @@ export const spellcheckPlugin = ViewPlugin.fromClass(class {
     const changed = update.transactions.some(tr =>
       tr.effects.some(e => e.is(setSpellcheckEffect) || e.is(ignoredWordsChangedEffect))
     );
-    if (update.docChanged || changed) {
+    if (update.docChanged || update.selectionSet || changed) {
       this.decorations = build(update.view);
     }
   }
@@ -131,11 +128,7 @@ export function getSuggestions(word, limit = 6) {
 }
 
 export function injectSpellcheckStyle() {
-  if (document.getElementById('bt-spellcheck')) return;
-  const style = document.createElement('style');
-  style.id = 'bt-spellcheck';
-  style.textContent = `
+  injectStyleTag('bt-spellcheck', `
 .cm-spellError { text-decoration: underline wavy #ff5555; text-underline-offset: 3px; }
-`;
-  document.head.appendChild(style);
+`);
 }

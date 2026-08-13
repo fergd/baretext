@@ -1,20 +1,26 @@
 import { Decoration, ViewPlugin, WidgetType } from '@codemirror/view';
+import { editorModeField, setEditorModeEffect } from './mode-state.js';
+import { injectStyle as injectStyleTag } from '../dom.js';
 
-// Shows "Chapter N" as ghost text right where a chapter's title would go,
-// whenever that h1 heading's own title text is empty ("#" with nothing
-// after it) — purely visual, a widget decoration, never real document
-// content, so it can never leak into getDoc()/setDoc() or the outline
-// parser. Disappears the instant real text exists on that line. Mirrors
-// model.js's own displayTitle fallback (same "trimmed heading text is
-// empty" rule) so the rail/corkboard and the live editor always agree on
-// which chapters look untitled.
+// Shows ghost text right where a chapter's title would go, whenever that h1
+// heading's own title text is empty ("#" with nothing after it) — purely
+// visual, a widget decoration, never real document content, so it can never
+// leak into getDoc()/setDoc() or the outline parser. Disappears the instant
+// real text exists on that line.
+//
+// Sprinter mode keeps the original "Chapter N" ghost (mirrors model.js's own
+// displayTitle fallback so the rail/corkboard and the live editor agree on
+// which chapters look untitled). Editor mode's manuscript surface uses
+// "Untitled" instead, per MANUSCRIPT_SURFACE.md — the number gutter already
+// shows the chapter's index there, so a generic label reads better than a
+// duplicate number.
 class ChapterPlaceholderWidget extends WidgetType {
-  constructor(text) { super(); this.text = text; }
-  eq(other) { return other.text === this.text; }
+  constructor(text, isEditorMode) { super(); this.text = text; this.isEditorMode = isEditorMode; }
+  eq(other) { return other.text === this.text && other.isEditorMode === this.isEditorMode; }
   toDOM() {
     const span = document.createElement('span');
-    span.className = 'cm-chapter-placeholder';
-    span.textContent = this.text;
+    span.className = 'cm-chapter-placeholder' + (this.isEditorMode ? ' cm-chapter-placeholder-untitled' : '');
+    span.textContent = this.isEditorMode ? 'Untitled' : this.text;
     return span;
   }
   ignoreEvent() { return true; }
@@ -25,6 +31,7 @@ const H1_RE = /^#(?!#)[ \t]*(.*)$/;
 
 function build(view) {
   const doc = view.state.doc;
+  const isEditorMode = view.state.field(editorModeField);
   const decos = [];
   let chapterNumber = 0;
   for (let i = 1; i <= doc.lines; i++) {
@@ -34,7 +41,7 @@ function build(view) {
     chapterNumber++;
     if (match[1].trim() === '') {
       decos.push(Decoration.widget({
-        widget: new ChapterPlaceholderWidget('Chapter ' + chapterNumber),
+        widget: new ChapterPlaceholderWidget('Chapter ' + chapterNumber, isEditorMode),
         side: 1,
       }).range(line.to));
     }
@@ -45,15 +52,13 @@ function build(view) {
 export const chapterPlaceholderPlugin = ViewPlugin.fromClass(class {
   constructor(view) { this.decorations = build(view); }
   update(update) {
-    if (update.docChanged) this.decorations = build(update.view);
+    const modeToggled = update.transactions.some(tr => tr.effects.some(e => e.is(setEditorModeEffect)));
+    if (update.docChanged || modeToggled) this.decorations = build(update.view);
   }
 }, { decorations: v => v.decorations });
 
 export function injectChapterPlaceholderStyle() {
-  if (document.getElementById('bt-chapter-placeholder')) return;
-  const style = document.createElement('style');
-  style.id = 'bt-chapter-placeholder';
-  style.textContent = `
+  injectStyleTag('bt-chapter-placeholder', `
 .cm-chapter-placeholder {
   font-size: var(--text-h1, 26px);
   font-weight: 700;
@@ -62,6 +67,10 @@ export function injectChapterPlaceholderStyle() {
   pointer-events: none;
   user-select: none;
 }
-`;
-  document.head.appendChild(style);
+.cm-chapter-placeholder-untitled {
+  font-weight: 400;
+  color: var(--text-dimmer);
+  opacity: 1;
+}
+`);
 }

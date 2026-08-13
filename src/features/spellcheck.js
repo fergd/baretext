@@ -4,6 +4,7 @@
 // Mac) a flagged word to see corrections; native OS spellcheck can't see
 // these errors at all (CodeMirror 6 owns its own DOM/typing pipeline,
 // confirmed earlier), so this popup is the only way to get suggestions.
+import { el, injectStyle as injectStyleTag } from '../dom.js';
 
 let ctx = null;
 let enabled = true;
@@ -11,18 +12,8 @@ let panelEl = null;
 let contextMenuHandler = null;
 let dismissHandler = null;
 
-function el(tag, className, text) {
-  const e = document.createElement(tag);
-  if (className) e.className = className;
-  if (text !== undefined) e.textContent = text;
-  return e;
-}
-
 function injectStyle() {
-  if (document.getElementById('spell-suggest-style')) return;
-  const style = document.createElement('style');
-  style.id = 'spell-suggest-style';
-  style.textContent = `
+  injectStyleTag('spell-suggest-style', `
 .spell-suggest-panel {
   position: fixed; z-index: 60; min-width: 140px; max-width: 220px;
   padding: 5px; display: none; flex-direction: column; gap: 1px;
@@ -43,8 +34,7 @@ function injectStyle() {
 .spell-suggest-divider { height: 1px; margin: 4px 2px; background: var(--glass-border); }
 .spell-suggest-ignore { color: var(--text-dim); }
 .spell-suggest-ignore:hover { background: var(--wash-accent); color: var(--text); }
-`;
-  document.head.appendChild(style);
+`);
 }
 
 function apply() {

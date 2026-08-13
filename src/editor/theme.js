@@ -1,32 +1,25 @@
 import { EditorView } from '@codemirror/view';
+import { injectStyle as injectStyleTag } from '../dom.js';
 
 // CodeMirror's default selection layer renders inconsistently across our
 // four themes; force it to always use --sel, focused or not.
 export function injectSelectionFix() {
-  if (document.getElementById('bt-selection-fix')) return;
-  const style = document.createElement('style');
-  style.id = 'bt-selection-fix';
-  style.textContent = `
+  injectStyleTag('bt-selection-fix', `
 .cm-editor.cm-editor .cm-scroller .cm-selectionLayer .cm-selectionBackground { background-color: var(--sel) !important; }
 .cm-editor.cm-editor.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground { background-color: var(--sel) !important; }
 .cm-editor .cm-content ::selection, .cm-editor .cm-content:focus ::selection, .cm-editor.cm-focused .cm-content ::selection { background-color: var(--sel) !important; }
-`;
-  document.head.appendChild(style);
+`);
 }
 
 // Per-theme heading colors, referenced by markdown-language.js's HighlightStyle.
 export function injectHeadingColors() {
-  if (document.getElementById('bt-heading-colors')) return;
-  const style = document.createElement('style');
-  style.id = 'bt-heading-colors';
-  style.textContent = `
+  injectStyleTag('bt-heading-colors', `
 [data-theme="dark"]    { --h1: #e8c97a; --h2: #c4a85a; --h3: #a08844; --h4: #7a6832; }
 [data-theme="light"]   { --h1: #8b5e0a; --h2: #b07820; --h3: #7a5515; --h4: #5a3e0e; }
 [data-theme="amstrad"] { --h1: #8fd670; --h2: #6fb050; --h3: #549040; --h4: #3d6c30; }
 [data-theme="grove"]   { --h1: #a7c080; --h2: #e69875; --h3: #dbbc7f; --h4: #83c092; }
 [data-theme="dracula"] { --h1: #bd93f9; --h2: #ff79c6; --h3: #8be9fd; --h4: #50fa7b; }
-`;
-  document.head.appendChild(style);
+`);
 }
 
 // Dimensions read from CSS custom properties (docs/theme-spec.md is ground

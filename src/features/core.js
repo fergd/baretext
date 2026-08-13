@@ -2,6 +2,17 @@
 // font, typewriter, focus mode, markdown toggle, scene break, outline jump.
 // The implementations live in app.js as shared ctx primitives; this module
 // is the declarative manifest of commands + keybindings that call into them.
+import { THEMES } from '../themes.js';
+
+// Icon and the "(dark)"/"(light)" disambiguating suffix are palette-specific
+// presentation, not part of a theme's core identity — id/name/order come
+// from the shared THEMES registry (also used by theme-picker.js) so at
+// least THOSE stay in sync automatically; only dark/light get a suffix
+// since "Ember"/"Parchment" don't otherwise signal which they are, unlike
+// Amstrad/Grove/Dracula.
+const THEME_ICONS = { dark: 'ti-moon', light: 'ti-sun', amstrad: 'ti-terminal-2', grove: 'ti-trees', dracula: 'ti-ghost' };
+const THEME_LABEL_SUFFIX = { dark: ' (dark)', light: ' (light)' };
+
 export default {
   id: 'core',
 
@@ -53,11 +64,13 @@ export default {
       { group: 'Theme',
         items: [
           { label: 'Change theme…', icon: 'ti-palette', keys: [], fn: ctx.openThemePicker },
-          { label: 'Ember (dark)',      icon: 'ti-moon',       keys: [], themeKey: 'dark',    fn: () => ctx.setTheme('dark') },
-          { label: 'Parchment (light)', icon: 'ti-sun',        keys: [], themeKey: 'light',   fn: () => ctx.setTheme('light') },
-          { label: 'Amstrad',           icon: 'ti-terminal-2', keys: [], themeKey: 'amstrad', fn: () => ctx.setTheme('amstrad') },
-          { label: 'Grove',             icon: 'ti-trees',      keys: [], themeKey: 'grove',   fn: () => ctx.setTheme('grove') },
-          { label: 'Dracula',           icon: 'ti-ghost',      keys: [], themeKey: 'dracula', fn: () => ctx.setTheme('dracula') },
+          ...THEMES.map((t) => ({
+            label: t.name + (THEME_LABEL_SUFFIX[t.id] || ''),
+            icon: THEME_ICONS[t.id],
+            keys: [],
+            themeKey: t.id,
+            fn: () => ctx.setTheme(t.id),
+          })),
         ]
       },
     ];

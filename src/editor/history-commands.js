@@ -1,5 +1,6 @@
 import { history, historyKeymap, defaultKeymap, indentWithTab, undo, redo } from '@codemirror/commands';
 import { keymap } from '@codemirror/view';
+import { Prec } from '@codemirror/state';
 
 export function historyAndKeymaps() {
   return [
@@ -48,9 +49,18 @@ export function wrapSelection(delimiter) {
   };
 }
 
+// Prec.highest, not a plain keymap.of: @codemirror/commands' own defaultKeymap
+// (pulled in by historyAndKeymaps() above) already binds Mod-i to
+// selectParentSyntax (expand selection to the enclosing syntax node) at
+// default precedence. Extensions registered earlier in api.js's extension
+// list win ties at equal precedence, and historyAndKeymaps() is registered
+// before this — so without an explicit precedence bump, Cmd-I silently ran
+// CM's built-in "expand selection" instead of ours, which is exactly what
+// looked like "select all" to the user (Cmd-B was unaffected only because
+// nothing else claims Mod-b).
 export function boldItalicKeymap() {
-  return keymap.of([
+  return Prec.highest(keymap.of([
     { key: 'Mod-b', run: wrapSelection('**'), preventDefault: true },
     { key: 'Mod-i', run: wrapSelection('*'), preventDefault: true },
-  ]);
+  ]));
 }

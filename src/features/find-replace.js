@@ -3,6 +3,7 @@
 // bundle's search API (src/editor/search.js — SearchQuery + getCursor(),
 // not the panel-opening findNext/findPrevious commands). This module owns
 // only the UI chrome; match state and decoration live in the editor.
+import { el, icon, injectStyle as injectStyleTag } from '../dom.js';
 
 let ctx = null;
 let panelEl = null;
@@ -11,23 +12,8 @@ let replaceInput = null;
 let countEl = null;
 let open = false;
 
-function el(tag, className, text) {
-  const e = document.createElement(tag);
-  if (className) e.className = className;
-  if (text !== undefined) e.textContent = text;
-  return e;
-}
-function icon(cls) {
-  const i = document.createElement('i');
-  i.className = 'ti ' + cls;
-  return i;
-}
-
 function injectStyle() {
-  if (document.getElementById('find-replace-style')) return;
-  const style = document.createElement('style');
-  style.id = 'find-replace-style';
-  style.textContent = `
+  injectStyleTag('find-replace-style', `
 .find-panel {
   position: absolute; top: 16px; right: 22px; width: 300px; z-index: 10;
   padding: 11px 12px; display: none; flex-direction: column; gap: 8px;
@@ -63,8 +49,7 @@ function injectStyle() {
   transition: background .1s ease, color .1s ease; white-space: nowrap;
 }
 .find-replace-btn:hover { background: var(--wash-accent); color: var(--text); }
-`;
-  document.head.appendChild(style);
+`);
 }
 
 function updateCount({ count, index }) {

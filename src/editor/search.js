@@ -1,6 +1,7 @@
 import { SearchQuery } from '@codemirror/search';
 import { StateField, StateEffect } from '@codemirror/state';
 import { Decoration, EditorView } from '@codemirror/view';
+import { injectStyle as injectStyleTag } from '../dom.js';
 
 // Headless — no visual panel (the app has its own). @codemirror/search's
 // findNext/findPrevious/replaceNext/replaceAll commands pop open its built-in
@@ -121,12 +122,8 @@ export function clearSearch(view) {
 }
 
 export function injectSearchMatchStyle() {
-  if (document.getElementById('bt-search-match')) return;
-  const style = document.createElement('style');
-  style.id = 'bt-search-match';
-  style.textContent = `
+  injectStyleTag('bt-search-match', `
 .cm-searchMatch { background: var(--sel); border-radius: 2px; }
 .cm-searchMatch-selected { background: color-mix(in srgb, var(--accent) 45%, var(--sel)); }
-`;
-  document.head.appendChild(style);
+`);
 }

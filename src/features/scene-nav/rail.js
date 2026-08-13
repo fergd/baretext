@@ -1,5 +1,7 @@
 import { getManuscript, findActiveScene } from './model.js';
 import { reorderScenes, reorderChapters } from './reorder.js';
+import { el, btn, icon, injectStyle as injectStyleTag } from '../../dom.js';
+import { makeDeleteButton, beginEdit } from './ui-helpers.js';
 
 let ctx = null;
 let railEl = null;
@@ -9,35 +11,20 @@ let collapsed = new Set(); // chapter indices
 // drop lands on, cleared on dragend/drop regardless of outcome.
 let dragSource = null;
 
-function el(tag, className, text) {
-  const e = document.createElement(tag);
-  if (className) e.className = className;
-  if (text !== undefined) e.textContent = text;
-  return e;
-}
-// Real <button>s instead of span/div+mousedown: focusable, keyboard-operable
-// (Enter/Space fire click for free), announced with a role by default.
-// mousedown still gets preventDefault() (keeps editor focus from being
-// stolen); bind the actual action to click.
-function btn(className, text) {
-  const b = document.createElement('button');
-  b.type = 'button';
-  if (className) b.className = className;
-  if (text !== undefined) b.textContent = text;
-  b.addEventListener('mousedown', (e) => e.preventDefault());
-  return b;
-}
-function icon(cls) {
-  const i = document.createElement('i');
-  i.className = 'ti ' + cls;
-  return i;
+// Wipes every row's drag-feedback classes, regardless of which one (if any)
+// currently has them -- called on every dragend so a drag that ends outside
+// any valid drop target (dropped off the rail entirely, or the whole rail
+// re-rendered mid-drag) never leaves a stale indicator line/wash behind on
+// a row that's no longer being dragged over.
+function clearDropIndicators() {
+  if (!railEl) return;
+  railEl.querySelectorAll('.drag-over, .drop-before, .drop-after').forEach((r) => {
+    r.classList.remove('drag-over', 'drop-before', 'drop-after');
+  });
 }
 
 function injectStyle() {
-  if (document.getElementById('scene-rail-style')) return;
-  const style = document.createElement('style');
-  style.id = 'scene-rail-style';
-  style.textContent = `
+  injectStyleTag('scene-rail-style', `
 #scene-rail { font-family: var(--font-mono); }
 .rail-header {
   display: flex; align-items: center; justify-content: space-between;
@@ -138,92 +125,36 @@ function injectStyle() {
 .rail-drag-handle:hover { color: var(--syntax-2, var(--accent)); }
 .rail-drag-handle:active { cursor: grabbing; }
 .rail-chapter-row.dragging, .rail-scene-row.dragging { opacity: .35; }
+/* Dropping a scene directly ON a chapter header always appends it to that
+   chapter (no "before/after" to choose among scenes) -- the whole-row wash
+   reads as "goes in here". Reordering rows (scene-on-scene, chapter-on-
+   chapter) instead gets a thin line at the exact edge the drop will land
+   on, split via dragover's own cursor-Y-vs-row-midpoint check below --
+   previously a drop always landed BEFORE whatever row it was released on
+   with no visual telling you that, so "drop near the bottom of a row" and
+   "drop near its top" looked identical but did different things. */
 .rail-chapter-row.drag-over { background: var(--wash-accent); box-shadow: inset 0 0 0 1px var(--syntax-2, var(--accent)); }
-.rail-scene-row.drag-over { background: var(--wash-accent-strong); box-shadow: inset 2px 0 0 var(--syntax-2, var(--accent)); }
-`;
-  document.head.appendChild(style);
+.rail-chapter-row, .rail-scene-row { position: relative; }
+.rail-chapter-row.drop-before::before, .rail-scene-row.drop-before::before,
+.rail-chapter-row.drop-after::after, .rail-scene-row.drop-after::after {
+  content: ''; position: absolute; left: 4px; right: 4px; height: 2px;
+  background: var(--syntax-2, var(--accent)); border-radius: 1px; pointer-events: none;
 }
-
-// Swaps a title's display span for an inline <input>. Enter or blur commits
-// (only if the value actually changed and isn't blank); Escape cancels. On
-// either path a re-render restores the row — via ctx.refreshNav() after a
-// real commit, or a plain local render() when nothing changed.
-function beginEdit(displayEl, currentValue, onCommit) {
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.className = 'inline-rename-input';
-  input.value = currentValue;
-  displayEl.replaceWith(input);
-  input.focus();
-  input.select();
-
-  let done = false;
-  function finish(shouldCommit) {
-    if (done) return;
-    done = true;
-    input.removeEventListener('blur', onBlur);
-    const v = input.value.trim();
-    if (shouldCommit && v && v !== currentValue) { onCommit(v); return; }
-    render();
-  }
-  function onBlur() { finish(true); }
-  input.addEventListener('blur', onBlur);
-  input.addEventListener('mousedown', (e) => e.stopPropagation());
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
-    else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
-    e.stopPropagation();
-  });
+.rail-chapter-row.drop-before::before, .rail-scene-row.drop-before::before { top: -2px; }
+.rail-chapter-row.drop-after::after, .rail-scene-row.drop-after::after { bottom: -2px; }
+.rail-cold-storage-row {
+  margin-top: 10px; padding-top: 10px;
+  border-top: 1px solid var(--border);
 }
-
-// Two-click confirm: first click arms it (icon turns danger-colored, shows
-// "delete?"), a second click on the SAME button within 3s actually deletes.
-// Clicking elsewhere, arming a different delete button, or the timeout
-// disarms it — no native confirm() dialog, consistent with the rest of this
-// app never using one, but still real friction against a stray click, on
-// top of undo already being available as the last line of defense.
-function makeDeleteButton(label, onConfirm) {
-  const button = btn('rail-delete-btn');
-  let armed = false;
-  let timer = null;
-
-  function paint() {
-    button.innerHTML = '';
-    button.appendChild(icon('ti-trash'));
-    if (armed) {
-      button.appendChild(document.createTextNode(' delete?'));
-      button.title = 'click again to delete ' + label;
-      button.setAttribute('aria-label', 'Confirm delete ' + label);
-    } else {
-      button.title = 'delete ' + label;
-      button.setAttribute('aria-label', 'Delete ' + label);
-    }
-    button.classList.toggle('confirm', armed);
-  }
-
-  function disarm() {
-    clearTimeout(timer);
-    armed = false;
-    paint();
-  }
-  button._disarm = disarm;
-
-  button.addEventListener('mousedown', (e) => e.stopPropagation());
-  button.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (armed) {
-      disarm();
-      onConfirm();
-      return;
-    }
-    document.querySelectorAll('.rail-delete-btn').forEach((b) => { if (b !== button && b._disarm) b._disarm(); });
-    armed = true;
-    paint();
-    timer = setTimeout(disarm, 3000);
-  });
-
-  paint();
-  return button;
+.rail-cold-storage-row .ti-snowflake { font-size: 12px; color: var(--syntax-4, var(--text-dim)); flex-shrink: 0; }
+.rail-cold-storage-title {
+  font-size: 12px; color: var(--text-dim); font-weight: 600; font-style: italic;
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rail-cold-storage-hint {
+  padding: 8px 10px; font-size: 11px; color: var(--text-dimmer); font-style: italic; opacity: .7;
+}
+`);
 }
 
 // Scopes native HTML5 drag-and-drop to a small handle icon instead of the
@@ -269,8 +200,13 @@ function onActivate(element, handler) {
 }
 
 function jumpTo(scene) {
+  // A real chapter scene's position is only actually visible/reachable
+  // once Cold Storage scene view (if active) is exited -- everything
+  // outside the isolated scene is hidden while it's on. No-ops if scene
+  // view isn't active.
+  ctx.exitColdStorageScene();
   ctx.editor.setCursorPos(ctx.view, scene.pos);
-  ctx.editor.centerCursor(ctx.view);
+  ctx.editor.scrollToTop(ctx.view);
   ctx.focusEditor();
   ctx.refreshNav();
 }
@@ -301,8 +237,16 @@ function refocusRow(type, ci, si) {
 // functions already apply when fromIndex < toIndex).
 function moveChapter(ci, dir) {
   const chapters = getManuscript(ctx.view);
+  // chapters.length always includes the trailing Cold Storage entry (see
+  // model.js) — bounding against it directly would let ⌥↓ on the last real
+  // chapter "swap" it past Cold Storage, which isn't a real chapter and
+  // isn't a valid reorder target. Cold Storage's own row also shares
+  // dataset.type="chapter" (for arrow-key nav / expand-collapse), so ⌥↑/⌥↓
+  // focused there needs its own explicit no-op, not just a bounds miss.
+  const realChapterCount = chapters.length - 1;
+  if (ci >= realChapterCount) return;
   const targetCi = ci + dir;
-  if (targetCi < 0 || targetCi >= chapters.length) return;
+  if (targetCi < 0 || targetCi >= realChapterCount) return;
   const toIndex = dir < 0 ? ci - 1 : ci + 2;
   const moved = reorderChapters(chapters, { fromIndex: ci, toIndex });
   if (moved === null) return;
@@ -388,15 +332,178 @@ function onTreeKeydown(e) {
   }
 }
 
+// Builds one scene row, fully wired (jump/rename/delete/drag) — shared by a
+// real chapter's scene list and Cold Storage's, since reorderScenes/
+// deleteScene already work generically on any chapterIndex (Cold Storage's
+// included, see model.js/reorder.js). `chapters` is passed through to the
+// move/delete calls rather than closed over, so both call sites can hand in
+// the exact same array they rendered from.
+function buildSceneRow(chapters, ci, si, active) {
+  const chapter = chapters[ci];
+  const scene = chapter.scenes[si];
+  const isActive = !!(active && active.chapterIndex === ci && active.sceneIndex === si);
+  const row = el('div', 'rail-scene-row' + (isActive ? ' active' : '') + (scene.isDraft ? ' draft' : ''));
+  row.setAttribute('role', 'treeitem');
+  row.setAttribute('aria-label', scene.title);
+  if (isActive) row.setAttribute('aria-current', 'true');
+  row.tabIndex = 0;
+  row.dataset.type = 'scene';
+  row.dataset.ci = String(ci);
+  row.dataset.si = String(si);
+
+  const nameSpan = el('span', 'rail-scene-name', scene.title);
+  const editBtn = btn('rail-edit-btn');
+  editBtn.appendChild(icon('ti-pencil'));
+  editBtn.title = 'rename scene';
+  editBtn.setAttribute('aria-label', 'Rename ' + scene.title);
+  editBtn.addEventListener('mousedown', (e) => e.stopPropagation());
+  editBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    beginEdit(nameSpan, scene.title, (newTitle) => ctx.renameTitle(scene, newTitle), render);
+  });
+  const deleteBtn = makeDeleteButton('rail-delete-btn', scene.title, () => ctx.deleteScene(ci, si, chapters));
+  const nameGroup = el('div', 'rail-scene-name-group');
+  nameGroup.append(nameSpan, editBtn, deleteBtn);
+  const rowHandle = makeDragHandle(row, scene.title);
+  row.append(rowHandle, nameGroup, el('span', 'rail-dim', scene.isDraft ? 'draft' : String(scene.wordCount)));
+  // Cold Storage scenes aren't reachable by scrolling the main manuscript
+  // at all (see cold-storage-view.js) -- clicking one has to open the
+  // isolated scene view instead of the normal jump-and-scroll.
+  onActivate(row, () => {
+    if (chapter.coldStorage) ctx.enterColdStorageScene(scene, si);
+    else jumpTo(scene);
+  });
+
+  row.addEventListener('dragstart', (e) => {
+    dragSource = { type: 'scene', chapterIndex: ci, sceneIndex: si };
+    row.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', scene.id);
+  });
+  row.addEventListener('dragend', () => {
+    row.classList.remove('dragging');
+    row.draggable = false;
+    dragSource = null;
+    clearDropIndicators();
+  });
+  // Which half of the row the cursor is over decides before-vs-after -- a
+  // drop used to always land BEFORE whatever row it was released on, with
+  // nothing distinguishing "near its top" from "near its bottom", so it
+  // looked like you could drop after a row when you actually couldn't. The
+  // line indicator (CSS above) makes the two halves visually distinct and
+  // the drop handler below honors it.
+  row.addEventListener('dragover', (e) => {
+    if (!dragSource || dragSource.type !== 'scene') return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const rect = row.getBoundingClientRect();
+    const before = e.clientY - rect.top < rect.height / 2;
+    row.classList.toggle('drop-before', before);
+    row.classList.toggle('drop-after', !before);
+  });
+  row.addEventListener('dragleave', () => row.classList.remove('drop-before', 'drop-after'));
+  row.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const droppedBefore = row.classList.contains('drop-before');
+    row.classList.remove('drop-before', 'drop-after');
+    if (!dragSource || dragSource.type !== 'scene') return;
+    const moved = reorderScenes(chapters, {
+      fromChapterIndex: dragSource.chapterIndex,
+      fromSceneIndex: dragSource.sceneIndex,
+      toChapterIndex: ci,
+      toSceneIndex: droppedBefore ? si : si + 1,
+    });
+    dragSource = null;
+    if (moved !== null) { ctx.setDoc(moved); ctx.refreshNav(); }
+  });
+
+  return row;
+}
+
+// Cold Storage (see model.js/reorder.js) is always the LAST entry of
+// chapters[] and always present, even with zero scenes -- rendered as its
+// own section, never through the real-chapter loop above: no "Ch. N"
+// numbering, no chapter-level drag (it's not a reorder target among
+// chapters, just a scenes bucket), no rename (its title is fixed).
+// Accepts scene drops the same way a chapter header does -- a whole-row
+// wash, always appends to the end -- but ignores chapter-type drags
+// entirely, unlike a real chapter header.
+function buildColdStorageSection(chapters, coldStorageIndex, active) {
+  const coldStorage = chapters[coldStorageIndex];
+  const isCollapsed = collapsed.has(coldStorageIndex);
+  const frag = document.createDocumentFragment();
+
+  const row = el('div', 'rail-chapter-row rail-cold-storage-row');
+  row.setAttribute('role', 'treeitem');
+  row.setAttribute('aria-expanded', String(!isCollapsed));
+  row.setAttribute('aria-label', 'Cold Storage');
+  row.tabIndex = 0;
+  row.dataset.type = 'chapter';
+  row.dataset.ci = String(coldStorageIndex);
+
+  const chevron = icon(isCollapsed ? 'ti-chevron-right' : 'ti-chevron-down');
+  chevron.className += ' rail-chevron';
+  if (!isCollapsed) chevron.style.color = 'var(--syntax-2, var(--accent))';
+  row.append(
+    chevron,
+    icon('ti-snowflake'),
+    el('span', 'rail-cold-storage-title', 'Cold Storage'),
+    el('span', 'rail-dim', String(coldStorage.scenes.length))
+  );
+  onActivate(row, () => toggleChapter(coldStorageIndex));
+
+  row.addEventListener('dragover', (e) => {
+    if (!dragSource || dragSource.type !== 'scene') return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    row.classList.add('drag-over');
+  });
+  row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+  row.addEventListener('drop', (e) => {
+    e.preventDefault();
+    row.classList.remove('drag-over');
+    if (!dragSource || dragSource.type !== 'scene') return;
+    const moved = reorderScenes(chapters, {
+      fromChapterIndex: dragSource.chapterIndex,
+      fromSceneIndex: dragSource.sceneIndex,
+      toChapterIndex: coldStorageIndex,
+      toSceneIndex: coldStorage.scenes.length,
+    });
+    dragSource = null;
+    if (moved !== null) { ctx.setDoc(moved); ctx.refreshNav(); }
+  });
+
+  frag.appendChild(row);
+
+  if (!isCollapsed) {
+    const sceneList = el('div', 'rail-scene-list');
+    sceneList.setAttribute('role', 'group');
+    if (coldStorage.scenes.length) {
+      coldStorage.scenes.forEach((scene, si) => {
+        sceneList.appendChild(buildSceneRow(chapters, coldStorageIndex, si, active));
+      });
+    } else {
+      sceneList.appendChild(el('div', 'rail-cold-storage-hint', 'drag a scene here to park it'));
+    }
+    frag.appendChild(sceneList);
+  }
+
+  return frag;
+}
+
 export function render() {
   if (!railEl) return;
   const chapters = getManuscript(ctx.view);
+  // Cold Storage is always the last entry (see model.js) — its index also
+  // doubles as the count of real chapters before it.
+  const coldStorageIndex = chapters.length - 1;
+  const realChapterCount = coldStorageIndex;
   const cursorPos = ctx.editor.getCursorPos(ctx.view);
   const active = findActiveScene(chapters, cursorPos);
 
   railEl.innerHTML = '';
 
-  const totalScenes = chapters.reduce((sum, c) => sum + c.scenes.length, 0);
+  const totalScenes = chapters.reduce((sum, c, i) => (i === coldStorageIndex ? sum : sum + c.scenes.length), 0);
   const header = el('div', 'rail-header');
   const headerRight = el('div', 'rail-header-right');
   const corkBtn = btn('rail-corkboard-btn');
@@ -404,7 +511,7 @@ export function render() {
   corkBtn.setAttribute('aria-label', 'Open corkboard');
   corkBtn.appendChild(icon('ti-layout-grid'));
   corkBtn.addEventListener('click', () => ctx.openCorkboard());
-  headerRight.append(corkBtn, el('span', 'rail-dim', chapters.length + ' ch · ' + totalScenes));
+  headerRight.append(corkBtn, el('span', 'rail-dim', realChapterCount + ' ch · ' + totalScenes));
   header.append(el('span', 'rail-label', 'manuscript'), headerRight);
   railEl.appendChild(header);
 
@@ -412,6 +519,7 @@ export function render() {
   list.setAttribute('role', 'tree');
   list.setAttribute('aria-label', 'Manuscript');
   chapters.forEach((chapter, ci) => {
+    if (chapter.coldStorage) return; // rendered separately below
     const isCollapsed = collapsed.has(ci);
     const chHasTitle = chapter.title.trim() !== '';
     const chLabel = chHasTitle ? chapter.title : chapter.displayTitle;
@@ -435,9 +543,9 @@ export function render() {
     chEditBtn.addEventListener('mousedown', (e) => e.stopPropagation());
     chEditBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      beginEdit(chTitle, chapter.title, (newTitle) => ctx.renameTitle(chapter, newTitle));
+      beginEdit(chTitle, chapter.title, (newTitle) => ctx.renameTitle(chapter, newTitle), render);
     });
-    const chDeleteBtn = makeDeleteButton(chLabel, () => ctx.deleteChapter(ci, chapters));
+    const chDeleteBtn = makeDeleteButton('rail-delete-btn', chLabel, () => ctx.deleteChapter(ci, chapters));
     const chHandle = makeDragHandle(chRow, chLabel);
     chRow.append(chHandle, chevron, el('span', 'rail-chapter-num', 'Ch. ' + chapter.number), chTitle, chEditBtn, chDeleteBtn, el('span', 'rail-dim', String(chapter.scenes.length)));
     onActivate(chRow, () => toggleChapter(ci));
@@ -452,24 +560,39 @@ export function render() {
       chRow.classList.remove('dragging');
       chRow.draggable = false;
       dragSource = null;
+      clearDropIndicators();
     });
-    // Accepts either drag type: a chapter drop here reorders chapters; a
-    // scene drop here moves that scene into this chapter, appended at the
-    // end -- the chapter header is a much easier target to hit than a
-    // specific scene row, and it's the only drop target an empty chapter has.
+    // Accepts either drag type: a chapter drop here reorders chapters
+    // (before/after this header, split by which half of it the cursor is
+    // over -- a thin line marks which); a scene drop here moves that scene
+    // into this chapter, appended at the end -- the chapter header is a
+    // much easier target to hit than a specific scene row, and it's the
+    // only drop target an empty chapter has, so "always append" (no
+    // before/after choice) plus a whole-row wash stays the right feedback
+    // for that case specifically.
     chRow.addEventListener('dragover', (e) => {
       if (!dragSource) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
-      chRow.classList.add('drag-over');
+      if (dragSource.type === 'chapter') {
+        const rect = chRow.getBoundingClientRect();
+        const before = e.clientY - rect.top < rect.height / 2;
+        chRow.classList.toggle('drop-before', before);
+        chRow.classList.toggle('drop-after', !before);
+        chRow.classList.remove('drag-over');
+      } else {
+        chRow.classList.add('drag-over');
+        chRow.classList.remove('drop-before', 'drop-after');
+      }
     });
-    chRow.addEventListener('dragleave', () => chRow.classList.remove('drag-over'));
+    chRow.addEventListener('dragleave', () => chRow.classList.remove('drag-over', 'drop-before', 'drop-after'));
     chRow.addEventListener('drop', (e) => {
       e.preventDefault();
-      chRow.classList.remove('drag-over');
+      const droppedBefore = chRow.classList.contains('drop-before');
+      chRow.classList.remove('drag-over', 'drop-before', 'drop-after');
       if (!dragSource) return;
       const moved = dragSource.type === 'chapter'
-        ? reorderChapters(chapters, { fromIndex: dragSource.chapterIndex, toIndex: ci })
+        ? reorderChapters(chapters, { fromIndex: dragSource.chapterIndex, toIndex: droppedBefore ? ci : ci + 1 })
         : reorderScenes(chapters, {
             fromChapterIndex: dragSource.chapterIndex,
             fromSceneIndex: dragSource.sceneIndex,
@@ -486,66 +609,7 @@ export function render() {
       const sceneList = el('div', 'rail-scene-list');
       sceneList.setAttribute('role', 'group');
       chapter.scenes.forEach((scene, si) => {
-        const isActive = !!(active && active.chapterIndex === ci && active.sceneIndex === si);
-        const row = el('div', 'rail-scene-row' + (isActive ? ' active' : '') + (scene.isDraft ? ' draft' : ''));
-        row.setAttribute('role', 'treeitem');
-        row.setAttribute('aria-label', scene.title);
-        if (isActive) row.setAttribute('aria-current', 'true');
-        row.tabIndex = 0;
-        row.dataset.type = 'scene';
-        row.dataset.ci = String(ci);
-        row.dataset.si = String(si);
-
-        const nameSpan = el('span', 'rail-scene-name', scene.title);
-        const editBtn = btn('rail-edit-btn');
-        editBtn.appendChild(icon('ti-pencil'));
-        editBtn.title = 'rename scene';
-        editBtn.setAttribute('aria-label', 'Rename ' + scene.title);
-        editBtn.addEventListener('mousedown', (e) => e.stopPropagation());
-        editBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          beginEdit(nameSpan, scene.title, (newTitle) => ctx.renameTitle(scene, newTitle));
-        });
-        const deleteBtn = makeDeleteButton(scene.title, () => ctx.deleteScene(ci, si, chapters));
-        const nameGroup = el('div', 'rail-scene-name-group');
-        nameGroup.append(nameSpan, editBtn, deleteBtn);
-        const rowHandle = makeDragHandle(row, scene.title);
-        row.append(rowHandle, nameGroup, el('span', 'rail-dim', scene.isDraft ? 'draft' : String(scene.wordCount)));
-        onActivate(row, () => jumpTo(scene));
-
-        row.addEventListener('dragstart', (e) => {
-          dragSource = { type: 'scene', chapterIndex: ci, sceneIndex: si };
-          row.classList.add('dragging');
-          e.dataTransfer.effectAllowed = 'move';
-          e.dataTransfer.setData('text/plain', scene.id);
-        });
-        row.addEventListener('dragend', () => {
-          row.classList.remove('dragging');
-          row.draggable = false;
-          dragSource = null;
-        });
-        row.addEventListener('dragover', (e) => {
-          if (!dragSource || dragSource.type !== 'scene') return;
-          e.preventDefault();
-          e.dataTransfer.dropEffect = 'move';
-          row.classList.add('drag-over');
-        });
-        row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
-        row.addEventListener('drop', (e) => {
-          e.preventDefault();
-          row.classList.remove('drag-over');
-          if (!dragSource || dragSource.type !== 'scene') return;
-          const moved = reorderScenes(chapters, {
-            fromChapterIndex: dragSource.chapterIndex,
-            fromSceneIndex: dragSource.sceneIndex,
-            toChapterIndex: ci,
-            toSceneIndex: si,
-          });
-          dragSource = null;
-          if (moved !== null) { ctx.setDoc(moved); ctx.refreshNav(); }
-        });
-
-        sceneList.appendChild(row);
+        sceneList.appendChild(buildSceneRow(chapters, ci, si, active));
       });
 
       const addRow = btn('rail-scene-add');
@@ -558,12 +622,13 @@ export function render() {
       list.appendChild(sceneList);
     }
   });
+  list.appendChild(buildColdStorageSection(chapters, coldStorageIndex, active));
   railEl.appendChild(list);
 
   const footer = btn('rail-footer');
   footer.append(icon('ti-plus'), document.createTextNode(' new scene'));
   footer.addEventListener('click', () => {
-    ctx.addNewScene(chapters.length ? chapters.length - 1 : 0, chapters);
+    ctx.addNewScene(realChapterCount ? realChapterCount - 1 : 0, chapters);
   });
   railEl.appendChild(footer);
 }

@@ -36,10 +36,35 @@ if (!fs.existsSync(defaultDir)) {
 }
 backup.init(defaultDir);
 
+// Mirrors each theme's --bg token (src/index.html) — used as the native
+// BrowserWindow backgroundColor, not just a pre-paint flash guard. On
+// macOS, entering fullscreen with titleBarStyle: 'hiddenInset' leaves a
+// thin strip at the very top of the screen (reserved for the auto-hide
+// menu bar) that's outside the web content entirely; that strip renders as
+// this raw backgroundColor. A single hardcoded value could never match
+// whichever theme is actually active, so it's kept in sync with the
+// current accent theme instead (set here at launch, updated at runtime in
+// the 'accent-theme-changed' handler below).
+//
+// This is main.js's own CommonJS module graph, separate from the renderer's
+// ESM one (src/themes.js, imported by theme-picker.js/core.js) — it can't
+// import that file directly, so the theme *id* list is necessarily
+// duplicated across the process boundary. What's NOT duplicated anymore:
+// the id list here used to be its own separate array (VALID_ACCENT_THEMES)
+// independently listing the same 5 ids — now derived from this object's
+// keys instead of kept in sync by hand.
+const THEME_BG = {
+  dark: '#242424',
+  light: '#f5f0e8',
+  amstrad: '#0d130d',
+  grove: '#2f383e',
+  dracula: '#282a36',
+};
+
 // Accent theme (command palette: dark / light / amstrad / grove / dracula) —
 // validated against the current theme set so a stale saved value (e.g. a
 // removed theme) can't leave the app stuck on an unknown data-theme.
-const VALID_ACCENT_THEMES = ['dark', 'light', 'amstrad', 'grove', 'dracula'];
+const VALID_ACCENT_THEMES = Object.keys(THEME_BG);
 const accentTheme = VALID_ACCENT_THEMES.includes(settings.accentTheme) ? settings.accentTheme : 'dark';
 
 // Mode (Sprinter / Editor) — same validate-then-persist pattern as accent theme.
@@ -59,7 +84,7 @@ function createWindow() {
     minWidth: 500,
     minHeight: 400,
     titleBarStyle: 'hiddenInset',
-    backgroundColor: '#1a1a1a',
+    backgroundColor: THEME_BG[accentTheme],
     icon: path.join(__dirname, process.platform === 'darwin' ? 'icon.icns' : 'icon.png'),
     // CDP-driven E2E/scratch-verification launches (test/e2e/harness.js) set
     // this so the window never shows or steals focus — DevTools Protocol
@@ -165,11 +190,16 @@ ipcMain.on('cursor-changed', (event, pos) => {
   saveSettings(settings);
 });
 
-// Manual save
+// Manual save. Only replies save-confirmed on an actual successful write —
+// this used to fire unconditionally right after calling saveToFile(), so a
+// failed Cmd+S (disk full, permissions, path gone) told the renderer the
+// save had succeeded (clearing any error indicator and showing "saved")
+// even though nothing was written. saveToFile() itself sends 'save-error'
+// on failure, so the false-success reply here was the only thing standing
+// between a write failure and the user believing their work was safe.
 ipcMain.on('save-now', (event, content) => {
   if (saveTimeout) clearTimeout(saveTimeout);
-  saveToFile(content);
-  event.reply('save-confirmed');
+  if (saveToFile(content)) event.reply('save-confirmed');
 });
 
 // Open file
@@ -190,17 +220,25 @@ ipcMain.handle('open-file', async () => {
   return null;
 });
 
-// Export / Save As
+// Export / Save As. Result is discriminated ({ok:true,filePath} / {ok:false,
+// error} / null-for-canceled) rather than a bare filePath|null — the write
+// here had no try/catch at all before, so a failure would have thrown out
+// of the handler into an unhandled rejection on the renderer's invoke()
+// promise: no crash, but also no feedback, same silent-failure shape as
+// saveToFile above.
 ipcMain.handle('export-file', async (event, content) => {
   const result = await dialog.showSaveDialog(mainWindow, {
     defaultPath: path.join(defaultDir, 'export.md'),
     filters: [{ name: 'Markdown', extensions: ['md'] }]
   });
-  if (!result.canceled) {
+  if (result.canceled) return null;
+  try {
     fs.writeFileSync(result.filePath, content, 'utf8');
-    return result.filePath;
+    return { ok: true, filePath: result.filePath };
+  } catch (e) {
+    console.error('Export failed:', e);
+    return { ok: false, error: e.message };
   }
-  return null;
 });
 
 // New file
@@ -224,6 +262,10 @@ ipcMain.on('accent-theme-changed', (event, theme) => {
   if (!VALID_ACCENT_THEMES.includes(theme)) return;
   settings.accentTheme = theme;
   saveSettings(settings);
+  // Keep the native window backgroundColor matched to the new theme (see
+  // THEME_BG above) — otherwise the fullscreen menu-bar-strip gap would
+  // switch back to showing the theme active at launch, not the current one.
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setBackgroundColor(THEME_BG[theme]);
 });
 
 // Mode — persisted so the app reopens in the same mode (Sprinter/Editor)
@@ -246,6 +288,8 @@ ipcMain.on('ignored-words-changed', (event, words) => {
   saveSettings(settings);
 });
 
+// Returns true/false so callers (manual save above) know whether the write
+// actually happened, not just whether it was attempted.
 function saveToFile(content) {
   if (!currentFilePath) currentFilePath = getDefaultFilePath();
   try {
@@ -255,8 +299,19 @@ function saveToFile(content) {
     saveSettings(settings);
     backup.onSave(defaultDir, currentFilePath);
     mainWindow.webContents.send('auto-saved', currentFilePath);
+    return true;
   } catch (e) {
     console.error('Save failed:', e);
+    // Previously this was the only thing that happened on a write failure —
+    // console.error is invisible unless DevTools is open, so the app kept
+    // behaving as if everything were fine while silently failing to persist
+    // the user's work. #save-error already existed in index.html/app.js
+    // (a status-bar indicator, cleared on every successful save) but nothing
+    // ever set it — this is the missing other half.
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('save-error', { message: e.message, filePath: currentFilePath });
+    }
+    return false;
   }
 }
 

@@ -52,7 +52,15 @@ const cmContent = host.querySelector('.cm-content');
 if (cmContent) cmContent.setAttribute('spellcheck', 'true');
 
 function getDoc()      { return window.BaretextEditor.getDoc(view); }
-function setDoc(text)  { window.BaretextEditor.setDoc(view, text); }
+// window.BaretextEditor.setDoc() deliberately suppresses the editor's own
+// onChange listener (see api.js) so a programmatic rewrite — scene-nav's
+// drag reorder/delete/rename, all routed through this same ctx.setDoc — never
+// fires it as if the user had typed the whole document at once. That also
+// means updateCounts() never ran after any of those actions until this call
+// was added here: the status bar word count would just go stale (frozen at
+// its last real value) the moment you dragged a scene into or out of Cold
+// Storage, silently defeating the "excluded from the word count" promise.
+function setDoc(text)  { window.BaretextEditor.setDoc(view, text); updateCounts(text); }
 function focusEditor() { window.BaretextEditor.focus(view); }
 
 // ── IPC from main ──
@@ -75,6 +83,19 @@ window.api.onFileLoaded(({ content, filePath, cursorPos, typewriter, ignoredWord
 });
 window.api.onAutoSaved(() => { elSaveErr.classList.remove('visible'); });
 window.api.onSaveConfirmed(() => { elSaveErr.classList.remove('visible'); showToast('saved'); });
+// #save-error already existed (a status-bar dot, cleared above on every
+// successful save) but nothing ever set it — a write failure just logged to
+// the main process console, invisible unless DevTools was open, while the
+// app kept behaving as if the save had gone through. Toast is throttled to
+// the moment the indicator first lights up, not every failed attempt — a
+// persistently unwritable disk would otherwise re-toast on every 500ms
+// autosave debounce tick for as long as the user kept typing.
+window.api.onSaveError((data) => {
+  const alreadyShowing = elSaveErr.classList.contains('visible');
+  elSaveErr.classList.add('visible');
+  elSaveErr.title = 'save failed: ' + ((data && data.message) || 'unknown error');
+  if (!alreadyShowing) showToast('save failed — your changes are not being saved', { icon: 'ti-alert-triangle', tone: 'error' });
+});
 
 // Persist cursor position, debounced
 let cursorSaveTimer = null;
@@ -98,8 +119,17 @@ host.addEventListener('keyup', maybeRecenterTypewriter);
 host.addEventListener('mouseup', maybeRecenterTypewriter);
 
 // ── Status ──
+// Cold Storage (see scene-nav/model.js) is cut material parked outside the
+// manuscript on purpose — it lives in the same file (reorder.js always
+// serializes it last, after this marker) but shouldn't inflate the word
+// count the way real manuscript prose does.
+const COLD_STORAGE_MARKER = '<!-- COLD STORAGE -->';
+function stripColdStorage(text) {
+  const idx = text.indexOf(COLD_STORAGE_MARKER);
+  return idx === -1 ? text : text.slice(0, idx);
+}
 function updateCounts(doc) {
-  const t = doc || '';
+  const t = stripColdStorage(doc || '');
   const w = t.trim() === '' ? 0 : t.trim().split(/\s+/).length;
   state.wordCount = w;
   elWord.textContent = w + (w === 1 ? ' word' : ' words');
@@ -110,11 +140,14 @@ function setFileName(fp) { elFile.textContent = fp ? fp.split('/').pop() : 'unti
 let toastTimer = null;
 function showToast(msg, opts) {
   const icon = opts && opts.icon;
+  // 'error' matches the delete-button/save-error red (#e05c5c) already used
+  // elsewhere for danger states, instead of the default accent color.
+  const iconColor = opts && opts.tone === 'error' ? '#e05c5c' : 'var(--accent)';
   toastEl.innerHTML = '';
   if (icon) {
     const i = document.createElement('i');
     i.className = `ti ${icon}`;
-    i.style.cssText = 'font-size:13px;color:var(--accent);margin-right:8px;';
+    i.style.cssText = `font-size:13px;color:${iconColor};margin-right:8px;`;
     toastEl.appendChild(i);
   }
   toastEl.appendChild(document.createTextNode(msg));
@@ -152,8 +185,14 @@ async function cmdNew() {
 
 async function cmdExport() {
   closePalette(false);
-  const fp = await window.api.exportFile(getDoc());
-  if (fp) showToast('exported');
+  const r = await window.api.exportFile(getDoc());
+  if (r === null) {
+    // user canceled the save dialog — not an error, nothing to report
+  } else if (r.ok) {
+    showToast('exported');
+  } else {
+    showToast('export failed: ' + r.error, { icon: 'ti-alert-triangle', tone: 'error' });
+  }
   focusEditor();
 }
 
@@ -201,6 +240,11 @@ const fontVars = {
 function setFont(f) {
   state.font = f;
   document.documentElement.style.setProperty('--font-editor', fontVars[f]);
+  // Drives index.html's html[data-font="mono"] rule, which drops heading
+  // weight to regular for mono specifically (see that rule's own comment) —
+  // matches the data-theme/data-mode attribute convention already used for
+  // CSS overrides keyed off app state.
+  document.documentElement.setAttribute('data-font', f);
   document.querySelectorAll('.fbtn').forEach(b => {
     const isActive = b.dataset.font === f;
     b.classList.toggle('active', isActive);
@@ -649,6 +693,7 @@ function activateMode(modeId) {
   state.mode = modeDef.id;
   window.api.setMode(modeDef.id);
   document.documentElement.setAttribute('data-mode', modeDef.id);
+  window.BaretextEditor.setEditorMode(view, modeDef.id === 'editor');
   updateModeSwitch();
 
   activeFeatures.forEach(f => { if (f.init) f.init(ctx); });

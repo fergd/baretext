@@ -166,3 +166,24 @@ test('a titled (h2/h3) scene ignores a preceding name comment -- headings are se
   assert.deepEqual(types(items), ['h1', 'h2']);
   assert.equal(items[1].text, 'Real Title');
 });
+
+test('the Cold Storage marker is its own item type, resetting scene numbering like an h1', () => {
+  const view = makeView('# Chapter\n\nFirst.\n\n<!-- COLD STORAGE -->\n\nCut scene.\n\n---\n\nAnother cut scene.');
+  const items = getOutline(view);
+  assert.deepEqual(types(items), ['h1', 'scene', 'cold-storage', 'scene', 'scene']);
+  assert.equal(items[2].text, 'Cold Storage');
+  // Scene numbering restarted after the marker, same as it would after a
+  // real h1 -- the two cut scenes are "Scene 1"/"Scene 2" of their own
+  // section, not "Scene 2"/"Scene 3" continuing the chapter above.
+  assert.equal(items[3].text, 'Scene 1');
+  assert.equal(items[4].text, 'Scene 2');
+});
+
+test('a name comment right after the Cold Storage marker does not get mistaken for a scene name', () => {
+  // The marker line itself must never be captured as a preceding scene's
+  // own name comment -- it's a section boundary, not scene content.
+  const view = makeView('# Chapter\n\nFirst.\n\n---\n\n<!-- COLD STORAGE -->\n\nCut scene.');
+  const items = getOutline(view);
+  assert.deepEqual(types(items), ['h1', 'scene', 'scene', 'cold-storage', 'scene']);
+  assert.equal(items[2].named, false);
+});

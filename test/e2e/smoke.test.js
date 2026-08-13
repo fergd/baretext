@@ -59,7 +59,13 @@ describe('Baretext E2E smoke test', () => {
     assert.match(railText, /A Turning Point/);
   });
 
-  test('editor line measure is 75ch, tunable from one CSS variable', async () => {
+  test('editor line measure is 75ch in both modes, tunable from one CSS variable — the manuscript surface gutter hangs in the margin, it does not narrow the text column', async () => {
+    // See MANUSCRIPT_SURFACE.md: the number gutter has its own --gutter/--gap
+    // tokens and hangs in the space the window already has beside the
+    // centered column. --editor-measure stays the single source of truth
+    // for line width in Editor mode exactly like Sprinter — narrowing the
+    // measure specifically for the gutter was tried and reverted, it made
+    // the writing column uncomfortably narrow for real use.
     const result = await app.client.evaluate(`
       return {
         cssVar: getComputedStyle(document.documentElement).getPropertyValue('--editor-measure').trim(),
@@ -68,6 +74,23 @@ describe('Baretext E2E smoke test', () => {
     `);
     assert.equal(result.cssVar, '75ch');
     assert.ok(parseInt(result.resolvedMaxWidth, 10) > 0); // resolves to a real pixel value, not left as an unparsed ch string
+  });
+
+  // Purely cosmetic (the titlebar is flat --bg with no shadow otherwise,
+  // same as the content below it — the top edge of the window read as an
+  // arbitrary cutoff rather than deliberate chrome), but easy to lose to a
+  // future refactor of #titlebar/#content-row without a test noticing.
+  test('titlebar has a subtle drop shadow separating it from the content below', async () => {
+    const result = await app.client.evaluate(`
+      const cs = getComputedStyle(document.getElementById('titlebar'));
+      return { boxShadow: cs.boxShadow, position: cs.position, zIndex: cs.zIndex };
+    `);
+    assert.notEqual(result.boxShadow, 'none');
+    assert.match(result.boxShadow, /rgba?\(0,\s*0,\s*0/); // black, matching this app's elevation language (no mid-tone shadows)
+    // Needs to actually paint over #content-row (the next sibling), not
+    // under it — position + z-index is what makes that happen.
+    assert.notEqual(result.position, 'static');
+    assert.equal(result.zIndex, '1');
   });
 
   test('spellcheck flags the deliberate typos but not contractions', async () => {
@@ -756,7 +779,12 @@ describe('Baretext E2E: chapter placeholders and per-chapter scene targeting', (
       return { railText, widgetText: widget ? widget.textContent : null };
     `);
     assert.match(result.railText, /Chapter 1/);
-    assert.equal(result.widgetText, 'Chapter 1');
+    // The rail still falls back to "Chapter N" (model.js's displayTitle),
+    // but the manuscript surface itself uses "Untitled" — see
+    // MANUSCRIPT_SURFACE.md — since the number gutter to its left already
+    // shows the chapter's index, so a generic label reads better there than
+    // a duplicate number.
+    assert.equal(result.widgetText, 'Untitled');
 
     // Force a save and check the actual bytes on disk — the placeholder must
     // never leak into real content.
@@ -798,6 +826,415 @@ describe('Baretext E2E: chapter placeholders and per-chapter scene targeting', (
   });
 });
 
+// Own instance, own fixture: exercises every gutter/heading-treatment branch
+// (chapter, real ## heading, named --- scene, unnamed --- scene, and the
+// bare unnamed implicit-first-scene that gets no gutter number at all) in
+// one document, per MANUSCRIPT_SURFACE.md.
+describe('Baretext E2E: manuscript surface (number gutter, named/unnamed scenes)', () => {
+  let app;
+  const fixture = [
+    '# Chapter One',
+    '',
+    'Opening prose for the implicit first scene, unnamed on purpose.',
+    '',
+    '---',
+    '<!-- It Begins -->',
+    '',
+    'Named scene prose.',
+    '',
+    '---',
+    '',
+    'Unnamed marker scene prose.',
+    '',
+    '## A Real Heading Scene',
+    '',
+    'Real heading prose.',
+    '',
+    '### A Real H3 Heading Scene',
+    '',
+    'Real h3 heading prose.',
+    '',
+    '#',
+    '',
+    'Second chapter, blank title.',
+  ].join('\n');
+
+  before(async () => {
+    app = await launchApp({ fixtureContent: fixture, mode: 'editor' });
+    // The default window (main.js) is exactly 900px wide — the gutter's own
+    // <900px "not enough margin" breakpoint — so it'd render display:none
+    // and every geometry-based assertion below would silently measure a
+    // zeroed-out rect. Widen it so the gutter is actually on screen.
+    await app.client.evaluate('window.resizeTo(1300, 900); return true;');
+  });
+
+  after(async () => {
+    if (app) await app.close();
+  });
+
+  // .cm-line's own textContent must stay exactly the document's real text —
+  // the gutter number is a block-widget SIBLING of the line, not a DOM
+  // child of it (a plugin-provided decoration can't be block-level at all;
+  // CodeMirror requires a StateField for that specifically), which is also
+  // what keeps every other .cm-line-based assertion in this file (exact
+  // heading/marker text matches) unaffected by this feature.
+  test('gutter numbers never leak into .cm-line textContent', async () => {
+    const lines = await app.client.evaluate('return [...document.querySelectorAll(".cm-line")].map(l => l.textContent);');
+    assert.ok(lines.includes('Chapter One'));
+    assert.ok(lines.includes('A Real Heading Scene'));
+    assert.ok(lines.some((l) => l.trim() === '---'));
+    assert.ok(!lines.some((l) => /^\d/.test(l)), 'no line should start with a gutter-number digit');
+  });
+
+  test('chapter/heading/named-scene lines get the right gutter number; the bare unnamed implicit-first-scene gets none', async () => {
+    // Chapter/real-heading/named-scene numbers are .cm-gutter-num-inline
+    // (genuinely inline, textContent-empty — the digits are CSS-generated
+    // via attr(), read here the same way); the unnamed-scene ornament's
+    // number is still the older .cm-gutter-num block widget. One combined
+    // selector returns both in real document order.
+    const nums = await app.client.evaluate(`
+      return [...document.querySelectorAll('.cm-gutter-num-inline, .cm-gutter-num')].map(el => ({
+        text: el.textContent || el.getAttribute('data-gutter-num'), kind: el.className,
+      }));
+    `);
+    const texts = nums.map((n) => n.text);
+    assert.deepEqual(texts, ['1', '1.2', '1.3', '1.4', '1.5', '2']);
+    assert.match(nums[0].kind, /cm-gutter-num-chapter/);
+    assert.match(nums[5].kind, /cm-gutter-num-chapter/);
+    assert.match(nums[1].kind, /cm-gutter-num-scene/); // named --- scene, heading-styled
+    assert.match(nums[2].kind, /cm-gutter-num-ornament/); // unnamed --- scene
+    assert.match(nums[3].kind, /cm-gutter-num-scene/); // real ## heading
+    assert.match(nums[4].kind, /cm-gutter-num-scene/); // real ### heading
+  });
+
+  test('named scene renders as a left-aligned heading with no ornament; unnamed scene keeps the ornament tinted --scene', async () => {
+    const result = await app.client.evaluate(`
+      const named = document.querySelector('.cm-scene-name-comment');
+      const namedLabel = document.querySelector('.cm-scene-name-label');
+      const namedMarker = document.querySelector('.cm-scene-break-named');
+      const namedMarkerBefore = getComputedStyle(namedMarker, '::before');
+      const unnamed = document.querySelector('.cm-scene-break:not(.cm-scene-break-named)');
+      const unnamedBefore = getComputedStyle(unnamed, '::before');
+      return {
+        namedTextAlign: getComputedStyle(named).textAlign,
+        namedFontSize: getComputedStyle(namedLabel).fontSize,
+        namedFontWeight: getComputedStyle(namedLabel).fontWeight,
+        namedOrnamentDisplay: namedMarkerBefore.display,
+        unnamedOrnamentBg: unnamedBefore.backgroundColor,
+        sceneToken: getComputedStyle(document.documentElement).getPropertyValue('--scene').trim(),
+      };
+    `);
+    assert.equal(result.namedTextAlign, 'left');
+    assert.equal(result.namedFontSize, '28px');
+    assert.equal(result.namedFontWeight, '400');
+    assert.equal(result.namedOrnamentDisplay, 'none');
+    // The ornament's line pseudo-element is painted with the --scene token's color.
+    const hexToRgb = (hex) => {
+      const n = parseInt(hex.slice(1), 16);
+      return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`;
+    };
+    assert.equal(result.unnamedOrnamentBg, hexToRgb(result.sceneToken));
+  });
+
+  // Regression: a real bug caught on the user's own document — outline.js
+  // (and this feature's own gutter numbering) treat ## and ### as equally
+  // valid scene markers, but markdown-language.js's h3 style was left
+  // pointing at its own old, unrelated --h3/600-weight/1.28em tokens
+  // instead of the manuscript surface's shared --ms-h3-*/--h3 override.
+  // The visible symptom: a bold, bright, oddly-small scene heading next to
+  // a 28px gutter number, reading as badly misaligned even though the two
+  // elements' top edges matched exactly.
+  test('an ### (h3) scene heading gets the identical manuscript-surface treatment as ##, not the old h3 style', async () => {
+    const result = await app.client.evaluate(`
+      const h3 = document.querySelector('.cm-heading-3');
+      const spans = [...h3.querySelectorAll('span')].filter(s => s.textContent.trim());
+      const span = spans[spans.length - 1];
+      const cs = getComputedStyle(span);
+      return { text: span.textContent, fontWeight: cs.fontWeight, fontSize: cs.fontSize };
+    `);
+    assert.equal(result.text, 'A Real H3 Heading Scene');
+    assert.equal(result.fontWeight, '400');
+    assert.equal(result.fontSize, '28px'); // matches .cm-gutter-num-scene exactly, not the old 1.28em/19px
+  });
+
+  // Regression: two real bugs caught on the user's own document, in
+  // sequence, both around getting this number to sit on the SAME baseline
+  // as its heading text. First attempt: reproduce the target's position in
+  // CSS by matching font-size/line-height between the number and its
+  // heading — fails, because a CodeMirror line's own line box is governed
+  // by the block's *inherited* line-height (sized for 15px body text), and
+  // a heading-sized span inside it produces a top-of-line-to-top-of-glyph
+  // gap that isn't a fixed constant (measured 3 different values in 3
+  // different directions across 3 cases using identical CSS). Second
+  // attempt: measure the target's real rendered position with
+  // getBoundingClientRect()/Range and set the number's top to match — fixed
+  // the top-of-box mismatch, but still wrong whenever the target text's
+  // tallest glyph differs in height from the number's own digits: matching
+  // *bounding-box tops* doesn't guarantee matching *baselines*. Both were
+  // caught by a screenshot, not by the delta-based test written after the
+  // first fix — that test only proved the code did what it meant to (a
+  // tautology), not that "matching measured tops" was the right thing to
+  // match in the first place.
+  //
+  // The fix: stop computing a position in JS at all. The gutter number is
+  // now genuinely inline content sharing the SAME line box as its heading
+  // text (see manuscript-gutter.js for how it stays textContent-invisible
+  // despite that), so the browser's own baseline alignment does the
+  // positioning — the one thing guaranteed to get glyphs of differing
+  // heights right, because it's the same mechanism that aligns a digit next
+  // to a capital letter in ordinary prose.
+  //
+  // A DIRECT pixel-delta check (comparing getBoundingClientRect().bottom
+  // between the number and the heading text) was tried here too and
+  // produces a *false positive*: CSS-generated content (the number's
+  // content: attr(...)) and a real text node measure a few pixels apart via
+  // getBoundingClientRect() even when a manual pixel-column scan of the
+  // actual rendered screenshot confirms both glyphs bottom out at the exact
+  // same row. So this test checks the STRUCTURAL preconditions that make
+  // native baseline alignment apply — same line, inline-level box,
+  // vertical-align: baseline — rather than re-deriving pixel positions,
+  // which is the thing already shown not to be trustworthy here. It also
+  // confirms the number's negative-margin "hang in the gutter" trick
+  // doesn't shift the heading text over — position, unlike vertical extent,
+  // isn't subject to the same measurement quirk.
+  test('gutter numbers share their heading\'s line box (native CSS baseline alignment applies) and don\'t shift the heading text', async () => {
+    const result = await app.client.evaluate(`
+      return [...document.querySelectorAll('.cm-gutter-num-inline')].map(num => {
+        const line = num.closest('.cm-line');
+        const cs = getComputedStyle(num);
+        const spans = [...line.querySelectorAll('span')].filter((s) => s !== num && s.textContent.trim());
+        const headingLeft = spans.length ? spans[spans.length - 1].getBoundingClientRect().left : null;
+        return {
+          text: num.getAttribute('data-gutter-num'),
+          sameLine: num.closest('.cm-line') === line,
+          display: cs.display,
+          verticalAlign: cs.verticalAlign,
+          numLeft: num.getBoundingClientRect().left,
+          headingLeft,
+        };
+      });
+    `);
+    assert.ok(result.length > 0);
+    for (const r of result) {
+      assert.ok(r.sameLine, `"${r.text}" gutter number is not a child of its heading's own .cm-line`);
+      assert.equal(r.display, 'inline-block', `"${r.text}" must be inline-level to share the line's baseline`);
+      assert.equal(r.verticalAlign, 'baseline');
+      // The number (in the negative-margin gutter) must render fully to
+      // the left of wherever its heading text starts — confirms the
+      // margin-left/margin-right pair nets to zero rather than shifting
+      // the heading over.
+      if (r.headingLeft !== null) assert.ok(r.numLeft < r.headingLeft, `"${r.text}" gutter number (${r.numLeft}) should sit left of its heading text (${r.headingLeft})`);
+    }
+  });
+
+  test('blank chapter title shows "Untitled" (regular weight, --text-dimmer, no italic), not the rail\'s "Chapter N"', async () => {
+    const result = await app.client.evaluate(`
+      const el = document.querySelector('.cm-chapter-placeholder');
+      return { text: el.textContent, color: getComputedStyle(el).color, fontStyle: getComputedStyle(el).fontStyle };
+    `);
+    assert.equal(result.text, 'Untitled');
+    assert.equal(result.fontStyle, 'normal'); // regular monospace, not italic
+  });
+
+  test('Sprinter mode shows no gutter numbers and keeps the pre-existing ornament/placeholder look', async () => {
+    await app.client.evaluate(`
+      document.querySelector('.mode-tab[data-mode="sprinter"]').click();
+      return true;
+    `);
+    await new Promise((r) => setTimeout(r, 300));
+    const result = await app.client.evaluate(`
+      const h3 = document.querySelector('.cm-heading-3');
+      const spans = [...h3.querySelectorAll('span')].filter(s => s.textContent.trim());
+      const h3Span = spans[spans.length - 1];
+      return {
+        gutterDisplays: [...document.querySelectorAll('.cm-gutter-num')].map(el => getComputedStyle(el).display),
+        placeholderText: document.querySelector('.cm-chapter-placeholder').textContent,
+        maxWidth: getComputedStyle(document.querySelector('.cm-content')).maxWidth,
+        h3FontSize: getComputedStyle(h3Span).fontSize,
+        h3FontWeight: getComputedStyle(h3Span).fontWeight,
+      };
+    `);
+    assert.ok(result.gutterDisplays.every((d) => d === 'none'));
+    assert.equal(result.placeholderText, 'Chapter 2');
+    // Sprinter's own measure (--editor-measure, 75ch) is untouched.
+    assert.ok(parseInt(result.maxWidth, 10) > 600);
+    // Sprinter's own h3 SIZE is untouched -- only Editor mode unifies h2/h3
+    // into the shared manuscript-surface scene heading (28px). Weight is a
+    // separate axis: the default font is mono, and html[data-font="mono"]
+    // flattens every heading to regular weight in BOTH modes (bold
+    // monospace glyphs render heavier/uneven, and it breaks mono's own
+    // fixed-width alignment) -- so 400 here, not Sprinter's undimmed 600,
+    // is the correct expectation for the app's actual default state.
+    assert.equal(result.h3FontWeight, '400');
+    assert.notEqual(result.h3FontSize, '28px');
+
+    // Switch back so this describe's own state doesn't leak into anything
+    // that might reuse `app` later (defensive; there's nothing after this
+    // test today, but matches this file's convention elsewhere).
+    await app.client.evaluate(`
+      document.querySelector('.mode-tab[data-mode="editor"]').click();
+      return true;
+    `);
+  });
+
+  test('no console errors in this suite', () => {
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+});
+
+// Own instance: switches the editor font live, which the stateful suites
+// around it shouldn't inherit.
+describe('Baretext E2E: mono font flattens every heading to regular weight; other fonts keep bold', () => {
+  let app;
+
+  before(async () => {
+    app = await launchApp({
+      fixtureContent: '# Chapter One\n\n## A Scene\n\nProse.\n\n### Another Scene\n\nMore prose.',
+      mode: 'editor',
+    });
+  });
+
+  after(async () => {
+    if (app) await app.close();
+  });
+
+  // The weight actually lands on the HighlightStyle-generated inner span,
+  // not the .cm-heading-N line div itself (that div is just a decoration
+  // class block-spacing.js adds for padding) -- reading the line's own
+  // computed style would silently show its inherited default instead of
+  // the real heading style, same gotcha the existing Sprinter-mode h3 test
+  // above already works around.
+  async function headingWeights() {
+    return app.client.evaluate(`
+      function styledSpanWeight(lineSelector) {
+        const line = document.querySelector(lineSelector);
+        const spans = [...line.querySelectorAll('span')].filter(s => s.textContent.trim());
+        return getComputedStyle(spans[spans.length - 1]).fontWeight;
+      }
+      return {
+        h1: styledSpanWeight('.cm-heading-1'),
+        h2: styledSpanWeight('.cm-heading-2'),
+        h3: styledSpanWeight('.cm-heading-3'),
+      };
+    `);
+  }
+
+  test('mono (the default font) renders the chapter title at regular weight, not bold', async () => {
+    // h2/h3 are also 400 here, but that's Editor mode's own pre-existing
+    // manuscript-surface unification (unconditional on font) -- h1 is the
+    // assertion that actually isolates the new mono-specific rule, since
+    // nothing else touches h1's weight in Editor mode.
+    const weights = await headingWeights();
+    assert.equal(weights.h1, '400', 'chapter title (h1) must not be bold in mono');
+  });
+
+  test('Sprinter mode: mono flattens all three heading levels; switching to serif reverts every one of them to its own bold default', async () => {
+    // Sprinter mode applies none of Editor mode's own weight overrides, so
+    // this isolates the font-driven rule specifically across h1/h2/h3.
+    await app.client.evaluate(`
+      document.querySelector('.mode-tab[data-mode="sprinter"]').click();
+      return true;
+    `);
+    await new Promise((r) => setTimeout(r, 300));
+    const monoWeights = await headingWeights();
+    assert.equal(monoWeights.h1, '400');
+    assert.equal(monoWeights.h2, '400');
+    assert.equal(monoWeights.h3, '400');
+
+    await app.client.evaluate(`
+      document.querySelector('.fbtn.serif').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      document.querySelector('.fbtn.serif').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      return true;
+    `);
+    const serifWeights = await headingWeights();
+    assert.equal(serifWeights.h1, '700', 'serif keeps its own bold chapter title');
+    assert.equal(serifWeights.h2, '700');
+    assert.equal(serifWeights.h3, '600');
+
+    await app.client.evaluate(`
+      document.querySelector('.fbtn.mono').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      document.querySelector('.fbtn.mono').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      return true;
+    `);
+    const monoAgain = await headingWeights();
+    assert.equal(monoAgain.h1, '400');
+    assert.equal(monoAgain.h2, '400');
+    assert.equal(monoAgain.h3, '400');
+
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+});
+
+// Own instance: needs long scenes to make "landed at the top" and "landed
+// centered" measurably distinct, which would be an odd fixture to force on
+// every other test in the shared smoke-test describe block.
+describe('Baretext E2E: rail/corkboard navigation scrolls the jump target to the top, not the center', () => {
+  let app;
+
+  before(async () => {
+    const longScene = (label) =>
+      `## ${label}\n\n` +
+      Array.from({ length: 40 }, (_, i) => `Paragraph ${i} of ${label}, with enough words to take up real vertical space in the editor viewport.`).join('\n\n');
+    const fixtureContent = `# Chapter One\n\n${longScene('Alpha')}\n\n---\n\n${longScene('Beta')}\n\n---\n\n${longScene('Gamma')}`;
+    app = await launchApp({ fixtureContent, mode: 'editor' });
+    await new Promise((r) => setTimeout(r, 300));
+  });
+
+  after(async () => {
+    if (app) await app.close();
+  });
+
+  async function headingPositionAfterJump(clickScript, headingLabel) {
+    await app.client.evaluate(clickScript);
+    await new Promise((r) => setTimeout(r, 300));
+    return app.client.evaluate(`
+      const heading = [...document.querySelectorAll('.cm-heading-2')].find(h => h.textContent.includes(${JSON.stringify(headingLabel)}));
+      const scroller = document.querySelector('.cm-scroller');
+      const scrollerRect = scroller.getBoundingClientRect();
+      const headingRect = heading.getBoundingClientRect();
+      return (headingRect.top - scrollerRect.top) / scrollerRect.height;
+    `);
+  }
+
+  test('clicking a scene row in the rail scrolls its heading near the top of the viewport', async () => {
+    const fraction = await headingPositionAfterJump(
+      `
+        const row = [...document.querySelectorAll('.rail-scene-row')].find(r => r.textContent.includes('Gamma'));
+        row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+        row.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+        return true;
+      `,
+      'Gamma'
+    );
+    assert.ok(fraction < 0.2, `expected the heading within the top 20% of the viewport, landed at ${(fraction * 100).toFixed(1)}%`);
+
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+
+  test('double-clicking a card in the corkboard also scrolls its heading to the top, not centered', async () => {
+    await app.client.evaluate(`
+      document.querySelector('.rail-corkboard-btn').click();
+      return true;
+    `);
+    await new Promise((r) => setTimeout(r, 300));
+    const fraction = await headingPositionAfterJump(
+      `
+        const card = [...document.querySelectorAll('.scene-card')].find(c => c.textContent.includes('Beta'));
+        card.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+        return true;
+      `,
+      'Beta'
+    );
+    assert.ok(fraction < 0.2, `expected the heading within the top 20% of the viewport, landed at ${(fraction * 100).toFixed(1)}%`);
+
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+});
+
 // Own instances so mutating the document (⌘↵) and driving a real sprint
 // countdown (pause) can't disturb the exact-count assumptions the two
 // stateful suites above build up test-by-test.
@@ -833,6 +1270,231 @@ describe('Baretext E2E: ⌘↵ scene break and sprint pause', () => {
     assert.equal(result.changed, true);
     assert.equal(result.dashesAfterCmdEnter, result.dashesBefore + 1);
     assert.equal(result.dashesAfterPlainEnter, result.dashesAfterCmdEnter); // plain Enter is just a newline, not a second break
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+});
+
+// Own instance: types real keystrokes and drives real mouse clicks to move
+// the caret, so it needs a document whose spellcheck state nothing else is
+// asserting on mid-suite.
+describe('Baretext E2E: spellcheck does not flag a word the caret is still inside', () => {
+  let app;
+
+  before(async () => {
+    app = await launchApp({ fixtureContent: '# One\n\nI wil go there teh other day.', mode: 'editor' });
+  });
+
+  after(async () => {
+    if (app) await app.close();
+  });
+
+  test('typing a misspelled word does not flag it until the caret leaves it', async () => {
+    const result = await app.client.evaluate(`
+      const cm = document.querySelector('.cm-content');
+      cm.focus();
+      const range = document.createRange();
+      const sel = window.getSelection();
+      range.selectNodeContents(cm);
+      range.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      const word = 'helllo';
+      const flaggedWhileTyping = [];
+      for (const ch of word) {
+        document.execCommand('insertText', false, ch);
+        await new Promise(r => setTimeout(r, 30));
+        flaggedWhileTyping.push([...document.querySelectorAll('.cm-spellError')].some(e => e.textContent === 'helllo'));
+      }
+      document.execCommand('insertText', false, ' ');
+      await new Promise(r => setTimeout(r, 150));
+      const flaggedAfterCaretLeaves = [...document.querySelectorAll('.cm-spellError')].some(e => e.textContent === 'helllo');
+      return { flaggedWhileTyping, flaggedAfterCaretLeaves };
+    `);
+    assert.ok(result.flaggedWhileTyping.every((f) => f === false), 'a word being actively typed must never be flagged mid-keystroke');
+    assert.equal(result.flaggedAfterCaretLeaves, true, 'the finished word must be flagged once the caret has moved on');
+  });
+
+  test('clicking into an already-flagged word un-flags it; clicking away re-flags it', async () => {
+    const initial = await app.client.evaluate(
+      "return [...document.querySelectorAll('.cm-spellError')].map(e => e.textContent);"
+    );
+    assert.ok(initial.includes('teh'));
+
+    const tehRect = await app.client.evaluate(`
+      const el = [...document.querySelectorAll('.cm-spellError')].find(e => e.textContent === 'teh');
+      const r = el.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    `);
+    await app.client.mouseEvent('mouseMoved', tehRect.x, tehRect.y);
+    await app.client.mouseEvent('mousePressed', tehRect.x, tehRect.y, 1);
+    await app.client.mouseEvent('mouseReleased', tehRect.x, tehRect.y, 0);
+    await new Promise((r) => setTimeout(r, 150));
+    const whileCaretInside = await app.client.evaluate(
+      "return [...document.querySelectorAll('.cm-spellError')].map(e => e.textContent);"
+    );
+    assert.ok(!whileCaretInside.includes('teh'), 'caret parked inside a flagged word must un-flag it live');
+
+    const endRect = await app.client.evaluate(`
+      const lines = document.querySelectorAll('.cm-line');
+      const last = lines[lines.length - 1];
+      const r = last.getBoundingClientRect();
+      return { x: r.right - 2, y: r.top + r.height / 2 };
+    `);
+    await app.client.mouseEvent('mouseMoved', endRect.x, endRect.y);
+    await app.client.mouseEvent('mousePressed', endRect.x, endRect.y, 1);
+    await app.client.mouseEvent('mouseReleased', endRect.x, endRect.y, 0);
+    await new Promise((r) => setTimeout(r, 150));
+    const afterMovingAway = await app.client.evaluate(
+      "return [...document.querySelectorAll('.cm-spellError')].map(e => e.textContent);"
+    );
+    assert.ok(afterMovingAway.includes('teh'), 'moving the caret away must re-flag the word');
+
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+});
+
+// Own instance: types real character-by-character keystrokes (an em dash
+// only converts on genuine typing, not a bulk paste/insert), so it needs a
+// document nothing else is asserting content against mid-suite.
+describe('Baretext E2E: typing -- converts to an em dash, but not inside a --- scene break', () => {
+  let app;
+
+  before(async () => {
+    app = await launchApp({ fixtureContent: '# One\n\nSome text here. ', mode: 'editor' });
+  });
+
+  after(async () => {
+    if (app) await app.close();
+  });
+
+  async function typeChars(str) {
+    for (const ch of str) {
+      await app.client.evaluate(`document.execCommand('insertText', false, ${JSON.stringify(ch)}); return true;`);
+      await new Promise((r) => setTimeout(r, 20));
+    }
+  }
+
+  test('typing "word--word" converts the double dash to an em dash as soon as the next character lands', async () => {
+    await app.client.evaluate(`
+      const cm = document.querySelector('.cm-content');
+      cm.focus();
+      const range = document.createRange();
+      const sel = window.getSelection();
+      range.selectNodeContents(cm);
+      range.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      return true;
+    `);
+    await typeChars('wait--what');
+    const text = await app.client.evaluate('return document.querySelector(".cm-content").innerText;');
+    assert.ok(text.includes('wait—what'), 'expected an em dash between "wait" and "what"');
+    assert.ok(!text.includes('wait--what'), 'the literal double dash must not survive');
+  });
+
+  test('typing a fresh "---" scene-break marker on its own line is left untouched', async () => {
+    await typeChars('\n\n---\n\nNext scene.');
+    const text = await app.client.evaluate('return document.querySelector(".cm-content").innerText;');
+    assert.ok(text.includes('---'), 'the three-dash scene-break marker must survive intact, not become an em dash');
+    assert.ok(!text.includes('——'), 'no em dash should have been produced while typing the marker');
+  });
+
+  test('a run of four or more dashes is left alone, not partially converted', async () => {
+    await typeChars('----done');
+    const text = await app.client.evaluate('return document.querySelector(".cm-content").innerText;');
+    assert.ok(text.includes('----done'), 'four literal dashes followed by text must stay literal, not have its first pair swapped for an em dash');
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+});
+
+// Own instance: real mouse-drag word selection + Mod-key dispatch, needs a
+// document nothing else is asserting content against mid-suite. Regression
+// coverage for a real bug: @codemirror/commands' own defaultKeymap binds
+// Mod-i to selectParentSyntax (expand selection) at default precedence, and
+// since it's registered before boldItalicKeymap() in api.js's extension
+// list, it silently ate every Cmd-I keystroke -- Mod-i never reached
+// wrapSelection('*') at all, it just kept expanding the selection, which
+// read to the user as "Cmd-I selects all". Fixed with Prec.highest on
+// boldItalicKeymap(); the assertions here need a real selection (not just a
+// text check) to catch that failure mode again.
+describe('Baretext E2E: Mod-b / Mod-i wrap the real selection in bold/italic markers', () => {
+  let app;
+
+  before(async () => {
+    app = await launchApp({ fixtureContent: '# One\n\nSome plain text here for testing.', mode: 'editor' });
+  });
+
+  after(async () => {
+    if (app) await app.close();
+  });
+
+  // Drags a real mouse selection across the exact bounds of `word` (must
+  // appear exactly once in the doc) via realDrag, so CM6's own selection
+  // state picks it up the same way a genuine user drag would -- dispatching
+  // Mod-key events at a hand-set browser Selection (no real drag) doesn't
+  // exercise this, CM ignores selection changes it didn't originate.
+  async function dragSelectWord(word) {
+    const { startX, startY, endX, endY } = await app.client.evaluate(`
+      const cm = document.querySelector('.cm-content');
+      cm.focus();
+      // textContent, not innerText -- innerText includes this app's own
+      // CSS ::before generated content (gutter numbers, scene labels),
+      // which would throw off character offsets against the real text
+      // nodes a TreeWalker below actually visits.
+      const text = cm.textContent;
+      const idx = text.indexOf(${JSON.stringify(word)});
+      const walker = document.createTreeWalker(cm, NodeFilter.SHOW_TEXT);
+      let node, offset = 0, target, so, eo;
+      while ((node = walker.nextNode())) {
+        const len = node.textContent.length;
+        if (so === undefined && idx >= offset && idx < offset + len) { target = node; so = idx - offset; }
+        const endIdx = idx + ${JSON.stringify(word)}.length;
+        if (eo === undefined && endIdx >= offset && endIdx <= offset + len) { eo = endIdx - offset; }
+        offset += len;
+      }
+      const r1 = document.createRange();
+      r1.setStart(target, so); r1.setEnd(target, so + 1);
+      const rect1 = r1.getBoundingClientRect();
+      const r2 = document.createRange();
+      r2.setStart(target, eo - 1); r2.setEnd(target, eo);
+      const rect2 = r2.getBoundingClientRect();
+      return { startX: rect1.left, startY: rect1.top + rect1.height / 2, endX: rect2.right, endY: rect2.top + rect2.height / 2 };
+    `);
+    await app.client.realDrag(startX, startY, endX, endY, { steps: 6, stepDelayMs: 20 });
+    await new Promise((r) => setTimeout(r, 150));
+  }
+
+  test('Mod-i wraps a real selection in single asterisks and does not expand the selection', async () => {
+    await dragSelectWord('plain');
+    const selectedBefore = await app.client.evaluate('return window.getSelection().toString();');
+    assert.equal(selectedBefore, 'plain');
+
+    await app.client.evaluate(`
+      document.querySelector('.cm-content').dispatchEvent(new KeyboardEvent('keydown', { key: 'i', metaKey: true, bubbles: true, cancelable: true }));
+      return true;
+    `);
+    await new Promise((r) => setTimeout(r, 200));
+
+    const after = await app.client.evaluate(`
+      return { text: document.querySelector('.cm-content').innerText, selected: window.getSelection().toString() };
+    `);
+    assert.ok(after.text.includes('*plain*'), 'expected the selected word wrapped in single asterisks');
+    assert.equal(after.selected, 'plain', 'selection must stay on the wrapped word, not balloon out to the whole line');
+  });
+
+  test('Mod-b wraps a real selection in double asterisks', async () => {
+    await dragSelectWord('testing');
+    await app.client.evaluate(`
+      document.querySelector('.cm-content').dispatchEvent(new KeyboardEvent('keydown', { key: 'b', metaKey: true, bubbles: true, cancelable: true }));
+      return true;
+    `);
+    await new Promise((r) => setTimeout(r, 200));
+    const text = await app.client.evaluate('return document.querySelector(".cm-content").innerText;');
+    assert.ok(text.includes('**testing**'), 'expected the selected word wrapped in double asterisks');
     const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
     assert.deepEqual(bad, []);
   });
@@ -1010,10 +1672,22 @@ describe('Baretext E2E: rail drag-and-drop', () => {
   // naturally-paced mouse drag never hits (a fully zero-delay *pair* of
   // back-to-back drags in the same tick can spuriously corrupt the document;
   // real drags, and single drags like these, never come close to that).
-  function dragScript(fromExpr, toExpr) {
+  //
+  // dragover/drop fire as real MouseEvents (not a bare Event) with clientY
+  // pinned near the TOP of the target row specifically — rail.js's
+  // before/after drop-indicator feature reads clientY to decide which side
+  // of the target a drop lands on, and every test written against this
+  // helper already assumes "drop = insert before". A bare Event has no
+  // clientY at all (reads as NaN, which always lost the "< midpoint"
+  // comparison and landed every synthetic drop on the "after" side instead
+  // — every test below broke against that until this got fixed here rather
+  // than in each assertion).
+  function dragScript(fromExpr, toExpr, targetHalf = 'top') {
     return `
       function fireDnd(type, el, dt) {
-        const e = new Event(type, { bubbles: true, cancelable: true });
+        const rect = el.getBoundingClientRect();
+        const y = ${JSON.stringify(targetHalf)} === 'bottom' ? rect.bottom - 4 : rect.top + 4;
+        const e = new MouseEvent(type, { bubbles: true, cancelable: true, clientX: rect.left + rect.width / 2, clientY: y });
         e.dataTransfer = dt;
         el.dispatchEvent(e);
       }
@@ -1090,6 +1764,98 @@ describe('Baretext E2E: rail drag-and-drop', () => {
     assert.deepEqual(bad, []);
   });
 
+  // The drop-position feedback feature itself (not just "doesn't regress
+  // the pre-existing before-only behavior", which every dragScript() test
+  // above already covers by construction): hovering a row's TOP half shows
+  // a drop-before indicator and inserts before it (already implied by every
+  // test above); hovering its BOTTOM half shows drop-after and inserts
+  // AFTER it instead — previously impossible to request at all, a drop
+  // always landed before whatever row it was released on regardless of
+  // where on that row the cursor was.
+  test('dropping on a row\'s bottom half shows a drop-after indicator and inserts after it, not before', async () => {
+    // Own fixture, own app instance -- the shared describe-level `app` above
+    // this point in the file has been reordered/relocated several times by
+    // earlier tests, and its scenes are unnamed (rail labels them
+    // positionally, "Scene 1"/"Scene 2"/... by current order) -- there's no
+    // stable identity to assert against there. Named scenes here give each
+    // one a fixed label regardless of where it ends up.
+    const fixture = [
+      '# Chapter One', '',
+      '---', '<!-- Alpha -->', '', 'Alpha prose.', '',
+      '---', '<!-- Beta -->', '', 'Beta prose.', '',
+      '---', '<!-- Gamma -->', '', 'Gamma prose.',
+    ].join('\n');
+    const dragApp = await launchApp({ fixtureContent: fixture, mode: 'editor' });
+    try {
+      // scene-nav's first real render trails the doc content itself loading
+      // (debounced 180ms) -- poll rather than assume it's already happened
+      // (same as this describe block's very first test, above).
+      await dragApp.client.evaluate(`
+        const deadline = Date.now() + 2000;
+        while (Date.now() < deadline) {
+          if (document.querySelectorAll('.rail-scene-row').length >= 3) break;
+          await new Promise(r => setTimeout(r, 100));
+        }
+      `);
+      const before = await dragApp.client.evaluate('return [...document.querySelectorAll(".rail-scene-name")].map(e => e.textContent);');
+      assert.deepEqual(before, ['Alpha', 'Beta', 'Gamma']);
+
+      // Drag Alpha (first) onto Gamma's (last) BOTTOM half -- dropping on
+      // its top half would land Alpha directly before Gamma, indistinguishable
+      // from a generic "move to position 2" bug; the bottom half must put
+      // it strictly after Gamma, at the very end.
+      await dragApp.client.evaluate(dragScript(
+        `document.querySelectorAll('.rail-scene-row')[0]`,
+        `document.querySelectorAll('.rail-scene-row')[2]`,
+        'bottom',
+      ));
+      const after = await dragApp.client.evaluate('return [...document.querySelectorAll(".rail-scene-name")].map(e => e.textContent);');
+      assert.deepEqual(after, ['Beta', 'Gamma', 'Alpha']);
+
+      const bad = dragApp.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+      assert.deepEqual(bad, []);
+    } finally {
+      await dragApp.close();
+    }
+  });
+
+  test('the drop-before/drop-after indicator classes actually reflect which half of the row dragover is over', async () => {
+    const result = await app.client.evaluate(`
+      const rows = [...document.querySelectorAll('.rail-scene-row')];
+      const from = rows[0], target = rows[rows.length - 1];
+      function fireDnd(type, el, dt, y) {
+        const rect = el.getBoundingClientRect();
+        const e = new MouseEvent(type, { bubbles: true, cancelable: true, clientX: rect.left + rect.width / 2, clientY: y });
+        e.dataTransfer = dt;
+        el.dispatchEvent(e);
+      }
+      const dt = { effectAllowed: '', dropEffect: '', data: {}, setData(k,v){this.data[k]=v;}, getData(k){return this.data[k];} };
+      from.querySelector('.rail-drag-handle').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 30));
+      fireDnd('dragstart', from, dt);
+
+      const rect = target.getBoundingClientRect();
+      fireDnd('dragover', target, dt, rect.top + 4);
+      const afterTopHover = target.className;
+      fireDnd('dragover', target, dt, rect.bottom - 4);
+      const afterBottomHover = target.className;
+
+      target.dispatchEvent(new Event('dragleave', { bubbles: true, cancelable: true }));
+      const afterLeave = target.className;
+
+      from.dispatchEvent(new Event('dragend', { bubbles: true, cancelable: true }));
+      return { afterTopHover, afterBottomHover, afterLeave };
+    `);
+    assert.match(result.afterTopHover, /\bdrop-before\b/);
+    assert.doesNotMatch(result.afterTopHover, /\bdrop-after\b/);
+    assert.match(result.afterBottomHover, /\bdrop-after\b/);
+    assert.doesNotMatch(result.afterBottomHover, /\bdrop-before\b/);
+    assert.doesNotMatch(result.afterLeave, /\bdrop-before\b|\bdrop-after\b/, 'dragleave should clear the indicator');
+
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+
   // Regression: the drag handle scopes native drag-and-drop so it doesn't
   // steal the row's normal click behavior (collapse-toggle for a chapter
   // row) -- clicking anywhere else on the row must still work exactly as
@@ -1135,7 +1901,13 @@ describe('Baretext E2E: rail drag-and-drop', () => {
       const to = rows[0];   // whichever scene currently comes first
       const h = from.querySelector('.rail-drag-handle').getBoundingClientRect();
       const t = to.getBoundingClientRect();
-      return { from: { x: h.x + h.width / 2, y: h.y + h.height / 2 }, to: { x: t.x + t.width / 2, y: t.y + t.height / 2 } };
+      // Land in the TOP quarter of the target row, not its exact center --
+      // rail.js's before/after drop-indicator splits exactly at the
+      // midpoint, and releasing precisely there is a genuine tie (which
+      // side wins is an implementation detail, not something to depend on).
+      // Landing clearly in the top half means "insert before", matching
+      // the assertion below.
+      return { from: { x: h.x + h.width / 2, y: h.y + h.height / 2 }, to: { x: t.x + t.width / 2, y: t.y + t.height / 4 } };
     `);
 
     await app.client.realDrag(rects.from.x, rects.from.y, rects.to.x, rects.to.y);
@@ -1147,6 +1919,389 @@ describe('Baretext E2E: rail drag-and-drop', () => {
 
     const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
     assert.deepEqual(bad, []);
+  });
+
+  // Regression: a real bug the user hit directly, via a real mouse drag
+  // (not the synthetic-DragEvent tests above, which never exercised this —
+  // it isn't about drag initiation, it's about what reorderScenes()'s
+  // buildDocument() does with the moved scene's content). "+ add scene"
+  // inserts a bare `---` marker with nothing typed after it yet; an earlier
+  // version of buildDocument() silently pruned any scene whose body was
+  // empty once the document got rebuilt, meaning a freshly-added, not-yet-
+  // written scene vanished entirely the moment it was dragged anywhere —
+  // no error, no undo-worthy trace, just gone.
+  test('dragging a freshly-added (still-empty) scene to another chapter does not lose it', async () => {
+    await app.client.evaluate(`
+      const addRow = [...document.querySelectorAll('.rail-scene-add')].find(r => r.title.includes('Chapter One'));
+      addRow.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      addRow.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 150));
+    `);
+    // This describe block's tests run sequentially against one shared,
+    // mutating document (earlier tests in it already reorder/relocate
+    // scenes), so read live counts as the baseline rather than assuming the
+    // fixture's original per-chapter numbers still hold at this point.
+    const before = await app.client.evaluate(`
+      return {
+        sceneRowCount: document.querySelectorAll('.rail-scene-row').length,
+        ch1SceneCount: [...document.querySelectorAll('.rail-chapter-row')].find(r => r.textContent.includes('Chapter One')).querySelector('.rail-dim').textContent,
+        ch3SceneCount: [...document.querySelectorAll('.rail-chapter-row')].find(r => r.textContent.includes('Chapter Three')).querySelector('.rail-dim').textContent,
+      };
+    `);
+
+    const rects = await app.client.evaluate(`
+      const ch1Rows = [...document.querySelectorAll('.rail-scene-row')].filter(r => r.closest('.rail-scene-list').previousElementSibling.textContent.includes('Chapter One'));
+      const source = ch1Rows[ch1Rows.length - 1]; // the just-added empty scene, last in Chapter One
+      const target = [...document.querySelectorAll('.rail-chapter-row')].find(r => r.textContent.includes('Chapter Three'));
+      const h = source.querySelector('.rail-drag-handle').getBoundingClientRect();
+      const t = target.getBoundingClientRect();
+      return { from: { x: h.x + h.width / 2, y: h.y + h.height / 2 }, to: { x: t.x + t.width / 2, y: t.y + t.height / 2 } };
+    `);
+    await app.client.realDrag(rects.from.x, rects.from.y, rects.to.x, rects.to.y);
+    await new Promise((r) => setTimeout(r, 250));
+
+    const after = await app.client.evaluate(`
+      return {
+        sceneRowCount: document.querySelectorAll('.rail-scene-row').length,
+        ch1SceneCount: [...document.querySelectorAll('.rail-chapter-row')].find(r => r.textContent.includes('Chapter One')).querySelector('.rail-dim').textContent,
+        ch3SceneCount: [...document.querySelectorAll('.rail-chapter-row')].find(r => r.textContent.includes('Chapter Three')).querySelector('.rail-dim').textContent,
+      };
+    `);
+    // Total scene count must be unchanged by the move — this is the actual
+    // regression check; the old bug dropped the row count by exactly one.
+    assert.equal(after.sceneRowCount, before.sceneRowCount, 'the empty scene must not disappear from the rail');
+    assert.equal(Number(after.ch1SceneCount), Number(before.ch1SceneCount) - 1);
+    assert.equal(Number(after.ch3SceneCount), Number(before.ch3SceneCount) + 1);
+
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+
+  test('no console errors in this suite', () => {
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+});
+
+// Own instance: Cold Storage is a place to park cut scenes without deleting
+// them (see model.js/reorder.js) -- always present in the rail as a drop
+// zone, excluded from the "N ch · M" header count and the status bar's word
+// count, self-cleaning (writes nothing to the document) when empty.
+describe('Baretext E2E: Cold Storage parks cut scenes without deleting them', () => {
+  let app;
+
+  before(async () => {
+    app = await launchApp({
+      fixtureContent:
+        '# Chapter One\n\nFirst scene, plenty of words here to count toward the total for this test fixture document.\n\n---\n\nSecond scene, also plenty of words here to count toward the total for this fixture document too.',
+      mode: 'editor',
+    });
+    await new Promise((r) => setTimeout(r, 300));
+  });
+
+  after(async () => {
+    if (app) await app.close();
+  });
+
+  test('is always visible in the rail, even before it has ever been used, and excluded from the "N ch" count', async () => {
+    const state = await app.client.evaluate(`
+      return {
+        visible: !!document.querySelector('.rail-cold-storage-row'),
+        headerText: document.querySelector('.rail-header .rail-dim').textContent,
+        docText: document.querySelector('.cm-content').innerText,
+      };
+    `);
+    assert.equal(state.visible, true);
+    assert.equal(state.headerText, '1 ch · 2'); // 1 real chapter, 2 real scenes -- Cold Storage doesn't count
+    assert.ok(!state.docText.includes('COLD STORAGE')); // never touches the doc until actually used
+  });
+
+  test('dragging a scene onto it removes the scene from its chapter, excludes it from the word count, and writes the marker', async () => {
+    const before = await app.client.evaluate(`
+      return { wordCount: document.getElementById('word-count').textContent };
+    `);
+    assert.equal(before.wordCount, '37 words');
+
+    const coords = await app.client.evaluate(`
+      const sceneRow = [...document.querySelectorAll('.rail-scene-row')].find(r => r.textContent.includes('Scene 2'));
+      const handle = sceneRow.querySelector('.rail-drag-handle');
+      const hRect = handle.getBoundingClientRect();
+      const coldRow = document.querySelector('.rail-cold-storage-row');
+      const cRect = coldRow.getBoundingClientRect();
+      return {
+        fromX: hRect.left + hRect.width / 2, fromY: hRect.top + hRect.height / 2,
+        toX: cRect.left + cRect.width / 2, toY: cRect.top + cRect.height / 2,
+      };
+    `);
+    await app.client.realDrag(coords.fromX, coords.fromY, coords.toX, coords.toY, { steps: 12, stepDelayMs: 30 });
+    await new Promise((r) => setTimeout(r, 300));
+
+    const after = await app.client.evaluate(`
+      return {
+        headerText: document.querySelector('.rail-header .rail-dim').textContent,
+        coldStorageCount: document.querySelector('.rail-cold-storage-row .rail-dim').textContent,
+        wordCount: document.getElementById('word-count').textContent,
+        // .cm-content's rendered text, NOT the real document -- Cold
+        // Storage is now always hidden from the scrollable manuscript (see
+        // cold-storage-view.js), so this checks it's genuinely invisible,
+        // not just that the assertion below is redundant with it.
+        visibleText: document.querySelector('.cm-content').innerText,
+      };
+    `);
+    assert.equal(after.headerText, '1 ch · 1', 'the moved scene must no longer count toward the real chapter/scene total');
+    assert.equal(after.coldStorageCount, '1');
+    assert.equal(after.wordCount, '19 words', 'Cold Storage words must not count toward the manuscript word count');
+    assert.ok(!after.visibleText.includes('COLD STORAGE'), 'Cold Storage must not be scrollable into from the main manuscript view');
+    assert.ok(!after.visibleText.includes('Second scene'), 'the moved scene\'s own text must not be visible either');
+
+    // The marker + moved scene must still be written for real, just not
+    // rendered -- force a save and check the actual bytes on disk, the
+    // only way to see the real document now that it's hidden from .cm-content.
+    await app.client.evaluate(`
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 's', metaKey: true, bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 300));
+    `);
+    const saved = fs.readFileSync(app.fixturePath, 'utf8');
+    assert.ok(saved.includes('COLD STORAGE'));
+    assert.ok(saved.includes('Second scene'));
+
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+
+  test('dragging its last scene back into a chapter erases the marker and restores the word count', async () => {
+    const coordsBack = await app.client.evaluate(`
+      const coldRow = document.querySelector('.rail-cold-storage-row');
+      const sceneRow = coldRow.nextElementSibling.querySelector('.rail-scene-row');
+      const handle = sceneRow.querySelector('.rail-drag-handle');
+      const hRect = handle.getBoundingClientRect();
+      const chRow = [...document.querySelectorAll('.rail-chapter-row')].find(r => r.textContent.includes('Chapter One'));
+      const cRect = chRow.getBoundingClientRect();
+      return {
+        fromX: hRect.left + hRect.width / 2, fromY: hRect.top + hRect.height / 2,
+        toX: cRect.left + cRect.width / 2, toY: cRect.top + cRect.height / 2,
+      };
+    `);
+    await app.client.realDrag(coordsBack.fromX, coordsBack.fromY, coordsBack.toX, coordsBack.toY, { steps: 12, stepDelayMs: 30 });
+    await new Promise((r) => setTimeout(r, 300));
+
+    const after = await app.client.evaluate(`
+      return {
+        headerText: document.querySelector('.rail-header .rail-dim').textContent,
+        coldStorageCount: document.querySelector('.rail-cold-storage-row .rail-dim').textContent,
+        coldStorageStillVisible: !!document.querySelector('.rail-cold-storage-row'),
+        wordCount: document.getElementById('word-count').textContent,
+      };
+    `);
+    assert.equal(after.headerText, '1 ch · 2');
+    assert.equal(after.coldStorageCount, '0');
+    assert.equal(after.coldStorageStillVisible, true, 'Cold Storage stays a persistent drop zone even once emptied');
+    assert.equal(after.wordCount, '37 words');
+
+    await app.client.evaluate(`
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 's', metaKey: true, bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 300));
+    `);
+    const saved = fs.readFileSync(app.fixturePath, 'utf8');
+    assert.ok(!saved.includes('COLD STORAGE'), 'an emptied Cold Storage must erase its own marker from the real document, not just hide it');
+
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+});
+
+// Own instance: Cold Storage scenes aren't reachable by scrolling the main
+// manuscript at all -- clicking one opens an isolated "scene view" (see
+// src/editor/cold-storage-view.js), exited via Back/Escape/clicking another
+// scene, which restores wherever the cursor was in the real manuscript
+// before scene view was entered. User's own words: "you should not be able
+// to scroll to 'cold storage' files as part of scrolling through the main
+// manuscript... Cold storage should be stand-alone scenes."
+describe('Baretext E2E: Cold Storage scenes open in an isolated scene view, not inline in the manuscript', () => {
+  let app;
+  // A known cursor position inside chapter one's prose -- set via settings
+  // (see harness.js) so entering/exiting scene view has a real, non-zero
+  // manuscript position to prove it actually restores, rather than just
+  // landing back at whatever position the doc happens to load with.
+  const paragraphs = Array.from({ length: 20 }, (_, i) => `Paragraph ${i} of chapter one, with enough text to make the manuscript genuinely scrollable.`);
+  const fixtureContent = `# Chapter One\n\n${paragraphs.join('\n\n')}\n\n<!-- COLD STORAGE -->\n\n<!-- First Cut -->\n\nFirst cut scene content, not too short.\n\n---\n<!-- Second Cut -->\n\nSecond cut scene content, also not too short.`;
+  const knownCursorPos = fixtureContent.indexOf('Paragraph 5 of');
+
+  before(async () => {
+    app = await launchApp({ fixtureContent, mode: 'editor', extraSettings: { lastCursorPos: knownCursorPos } });
+    await new Promise((r) => setTimeout(r, 300));
+  });
+
+  after(async () => {
+    if (app) await app.close();
+  });
+
+  async function visibleText() {
+    return app.client.evaluate('return document.querySelector(".cm-content").innerText;');
+  }
+  async function clickRailRow(labelSubstr) {
+    await app.client.evaluate(`
+      const row = [...document.querySelectorAll('.rail-scene-row')].find(r => r.textContent.includes(${JSON.stringify(labelSubstr)}));
+      row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      row.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      return true;
+    `);
+    await new Promise((r) => setTimeout(r, 300));
+  }
+  async function bannerState() {
+    return app.client.evaluate(`
+      return {
+        visible: document.getElementById('cold-storage-banner').classList.contains('visible'),
+        label: document.getElementById('cold-storage-banner-label').textContent,
+        hostActive: document.getElementById('editor-host').classList.contains('cold-storage-view-active'),
+      };
+    `);
+  }
+
+  test('scrolling the main manuscript to its bottom never reaches Cold Storage', async () => {
+    const text = await app.client.evaluate(`
+      const scroller = document.querySelector('.cm-scroller');
+      scroller.scrollTop = scroller.scrollHeight;
+      await new Promise(r => setTimeout(r, 150));
+      return document.querySelector('.cm-content').innerText;
+    `);
+    assert.ok(!text.includes('COLD STORAGE'), 'the marker must never become visible by scrolling');
+    assert.ok(!text.includes('First cut scene'), 'Cold Storage scene text must never become visible by scrolling');
+    // Reset scroll for the tests that follow.
+    await app.client.evaluate('document.querySelector(".cm-scroller").scrollTop = 0; return true;');
+  });
+
+  test('clicking a Cold Storage scene opens an isolated scene view showing only that scene', async () => {
+    await clickRailRow('First Cut');
+    const banner = await bannerState();
+    const text = await visibleText();
+    assert.equal(banner.visible, true);
+    assert.equal(banner.label, 'First Cut');
+    assert.equal(banner.hostActive, true);
+    assert.ok(!text.includes('Paragraph'), 'the manuscript prose must not be visible');
+    assert.ok(text.includes('First cut scene content'), 'the target scene must be visible');
+    assert.ok(!text.includes('Second cut scene content'), 'the OTHER Cold Storage scene must not be visible either');
+
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+
+  test('editing while in scene view writes to the real document', async () => {
+    await app.client.evaluate(`
+      document.querySelector('.cm-content').focus();
+      document.execCommand('insertText', false, ' EDITED-IN-SCENE-VIEW');
+      return true;
+    `);
+    await new Promise((r) => setTimeout(r, 150));
+    const text = await visibleText();
+    assert.ok(text.includes('EDITED-IN-SCENE-VIEW'));
+
+    await app.client.evaluate(`
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 's', metaKey: true, bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 300));
+    `);
+    const saved = fs.readFileSync(app.fixturePath, 'utf8');
+    assert.ok(saved.includes('EDITED-IN-SCENE-VIEW'), 'the edit made while isolated must land in the real file, not a disconnected copy');
+  });
+
+  test('clicking Back restores the exact cursor position from before scene view was entered', async () => {
+    await app.client.evaluate(`
+      document.getElementById('cold-storage-back-btn').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      document.getElementById('cold-storage-back-btn').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      return true;
+    `);
+    await new Promise((r) => setTimeout(r, 300));
+    const banner = await bannerState();
+    const text = await visibleText();
+    assert.equal(banner.visible, false);
+    assert.equal(banner.hostActive, false);
+    assert.ok(text.includes('Paragraph 5 of'), 'must return to the exact spot the cursor was at before entering scene view');
+    assert.ok(!text.includes('COLD STORAGE'));
+  });
+
+  test('switching between two Cold Storage scenes, then exiting, restores the ORIGINAL manuscript position — not the first scene visited', async () => {
+    await clickRailRow('First Cut');
+    await clickRailRow('Second Cut');
+    const midSwitch = await bannerState();
+    assert.equal(midSwitch.label, 'Second Cut');
+
+    await app.client.evaluate(`
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      return true;
+    `);
+    await new Promise((r) => setTimeout(r, 300));
+    const banner = await bannerState();
+    const text = await visibleText();
+    assert.equal(banner.visible, false, 'Escape must exit scene view');
+    assert.ok(text.includes('Paragraph 5 of'), 'must land back at the original manuscript position, not wherever First Cut left off');
+  });
+
+  test('clicking a real chapter scene while in scene view exits and jumps there correctly', async () => {
+    await clickRailRow('First Cut');
+    assert.equal((await bannerState()).visible, true);
+
+    // The rail stays interactive during scene view -- click the real
+    // chapter's own (implicit first) scene row, still visible the whole
+    // time, to jump there directly.
+    const sceneRowClick = await app.client.evaluate(`
+      const row = [...document.querySelectorAll('.rail-scene-row')].find(r => r.dataset.ci === '0');
+      if (!row) return false;
+      row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      row.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      return true;
+    `);
+    assert.equal(sceneRowClick, true);
+    await new Promise((r) => setTimeout(r, 300));
+
+    const banner = await bannerState();
+    const text = await visibleText();
+    assert.equal(banner.visible, false, 'jumping to a real chapter scene must exit Cold Storage scene view');
+    assert.ok(text.includes('Chapter One'), 'the real manuscript must be reachable/visible again');
+
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+
+  test('deleting the scene currently open in scene view exits back to the manuscript', async () => {
+    await clickRailRow('Second Cut');
+    assert.equal((await bannerState()).visible, true);
+
+    // Two-click arm/confirm on the still-visible rail row's own delete button.
+    await app.client.evaluate(`
+      const row = [...document.querySelectorAll('.rail-scene-row')].find(r => r.textContent.includes('Second Cut'));
+      const deleteBtn = row.querySelector('.rail-delete-btn');
+      deleteBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      deleteBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      return true;
+    `);
+    await new Promise((r) => setTimeout(r, 100));
+    await app.client.evaluate(`
+      const row = [...document.querySelectorAll('.rail-scene-row')].find(r => r.textContent.includes('Second Cut'));
+      const deleteBtn = row.querySelector('.rail-delete-btn');
+      deleteBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      deleteBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      return true;
+    `);
+    await new Promise((r) => setTimeout(r, 300));
+
+    const banner = await bannerState();
+    const text = await visibleText();
+    assert.equal(banner.visible, false, 'self-deleting the viewed scene must exit scene view rather than leave it pointed at nothing');
+    assert.ok(text.includes('Chapter One'), 'must land back in the visible manuscript');
+
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+
+  test('Cold Storage scenes never get a manuscript-surface gutter number', async () => {
+    const gutterNums = await app.client.evaluate(`
+      return [...document.querySelectorAll('[data-gutter-num]')].map(el => el.getAttribute('data-gutter-num'));
+    `);
+    // Only the chapter itself should be numbered in this fixture (the
+    // implicit first scene is unnamed, so it never gets a visible number
+    // either -- that's pre-existing, unrelated behavior). What matters
+    // here: nothing from Cold Storage's remaining scene appears.
+    assert.deepEqual(gutterNums, ['1']);
   });
 
   test('no console errors in this suite', () => {
@@ -1215,14 +2370,20 @@ describe('Baretext E2E: naming a bare marker-line scene', () => {
     assert.match(railText, /The Harbor Opens/);
 
     // The editor visually hides the raw <!-- --> syntax the same way it
-    // already hides the raw dashes, replacing it with just the name.
+    // already hides the raw dashes, replacing it with just the name — a
+    // separate widget (.cm-scene-name-label), not the line itself, so it
+    // can be ordered independently of the gutter number sharing this line
+    // (see manuscript-gutter.js/scene-breaks.js for why).
     const visual = await app.client.evaluate(`
-      const el = document.querySelector('.cm-scene-name-comment');
-      return el ? { dataName: el.getAttribute('data-scene-name'), color: getComputedStyle(el).color } : null;
+      const line = document.querySelector('.cm-scene-name-comment');
+      const label = document.querySelector('.cm-scene-name-label');
+      return line && label
+        ? { dataName: label.getAttribute('data-scene-name'), lineColor: getComputedStyle(line).color }
+        : null;
     `);
-    assert.ok(visual, 'the name-comment line should be tagged for the hiding treatment');
+    assert.ok(visual, 'the name-comment line and its label widget should both be present');
     assert.equal(visual.dataName, 'The Harbor Opens');
-    assert.equal(visual.color, 'rgba(0, 0, 0, 0)');
+    assert.equal(visual.lineColor, 'rgba(0, 0, 0, 0)');
 
     const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
     assert.deepEqual(bad, []);
@@ -1828,5 +2989,140 @@ describe('Baretext E2E: accessibility pass', () => {
   test('no console errors in this suite', () => {
     const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
     assert.deepEqual(bad, []);
+  });
+});
+
+// Own instance: deliberately breaks the save path on disk (replaces the
+// target file with a directory, so fs.writeFileSync throws EISDIR), which
+// no other suite should have to account for.
+//
+// Regression coverage for two real bugs found in an architecture review:
+// (1) a write failure only ever logged to the main-process console --
+// #save-error existed in index.html/app.js (cleared on every successful
+// save) but nothing ever set it, so the app kept behaving as if the save
+// had gone through while silently failing to persist anything; (2) worse,
+// manual save (Cmd+S) replied 'save-confirmed' unconditionally right after
+// calling the writer, regardless of whether the write actually succeeded --
+// a failed Cmd+S told the user "saved" (toast and all) even though nothing
+// was written.
+describe('Baretext E2E: a failed save surfaces to the user instead of failing silently', () => {
+  let app;
+
+  before(async () => {
+    app = await launchApp({ fixtureContent: 'Some prose.', mode: 'editor' });
+    await new Promise((r) => setTimeout(r, 300));
+  });
+
+  after(async () => {
+    if (app) await app.close();
+  });
+
+  function breakSavePath() {
+    fs.unlinkSync(app.fixturePath);
+    fs.mkdirSync(app.fixturePath);
+  }
+  // Removes the blocking directory AND restores a real file in its place --
+  // just rmdir-ing leaves nothing at all on disk, breaking every subsequent
+  // test's assumption that app.fixturePath is a real, writable file.
+  function fixSavePath() {
+    fs.rmdirSync(app.fixturePath);
+    fs.writeFileSync(app.fixturePath, 'Some prose.', 'utf8');
+  }
+
+  test('a failed manual save (Cmd+S) shows the error indicator and does NOT falsely report success', async () => {
+    breakSavePath();
+    try {
+      const before = await app.client.evaluate(
+        "return document.getElementById('save-error').classList.contains('visible');"
+      );
+      assert.equal(before, false);
+
+      await app.client.evaluate(`
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 's', metaKey: true, bubbles: true, cancelable: true }));
+        return true;
+      `);
+      await new Promise((r) => setTimeout(r, 400));
+
+      const after = await app.client.evaluate(`
+        return {
+          visible: document.getElementById('save-error').classList.contains('visible'),
+          title: document.getElementById('save-error').title,
+          toastText: document.getElementById('toast').textContent,
+        };
+      `);
+      assert.equal(after.visible, true, 'the error indicator must light up on a failed save');
+      assert.ok(after.title.includes('save failed'), `expected the title to explain the failure, got: ${after.title}`);
+      assert.notEqual(after.toastText, 'saved', 'a failed save must never claim success');
+      assert.ok(after.toastText.includes('failed'), `expected a failure toast, got: ${after.toastText}`);
+    } finally {
+      fixSavePath();
+    }
+
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+
+  test('a failed autosave (triggered by typing) also lights the indicator, and a later successful save clears it', async () => {
+    breakSavePath();
+    try {
+      await app.client.evaluate(`
+        const cm = document.querySelector('.cm-content');
+        cm.focus();
+        document.execCommand('insertText', false, ' more text');
+        return true;
+      `);
+      await new Promise((r) => setTimeout(r, 800)); // clears the 500ms autosave debounce
+      const failed = await app.client.evaluate(
+        "return document.getElementById('save-error').classList.contains('visible');"
+      );
+      assert.equal(failed, true);
+    } finally {
+      fixSavePath();
+    }
+
+    await app.client.evaluate(`
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 's', metaKey: true, bubbles: true, cancelable: true }));
+      return true;
+    `);
+    await new Promise((r) => setTimeout(r, 400));
+    const recovered = await app.client.evaluate(
+      "return document.getElementById('save-error').classList.contains('visible');"
+    );
+    assert.equal(recovered, false, 'a successful save afterward must clear the error indicator');
+  });
+
+  test('repeated failed autosaves show the failure toast only once, not on every debounce tick', async () => {
+    breakSavePath();
+    try {
+      await app.client.evaluate(`
+        document.execCommand('insertText', false, 'x');
+        return true;
+      `);
+      await new Promise((r) => setTimeout(r, 800));
+      const firstToastShowing = await app.client.evaluate(
+        "return document.getElementById('toast').classList.contains('show');"
+      );
+      assert.equal(firstToastShowing, true);
+
+      // Let the 1.6s toast auto-hide, then fail a second time while the
+      // error indicator is still lit from the first failure.
+      await new Promise((r) => setTimeout(r, 1700));
+      await app.client.evaluate(`
+        document.execCommand('insertText', false, 'y');
+        return true;
+      `);
+      await new Promise((r) => setTimeout(r, 800));
+      const secondToastShowing = await app.client.evaluate(
+        "return document.getElementById('toast').classList.contains('show');"
+      );
+      assert.equal(secondToastShowing, false, 'the toast should not re-fire while the indicator is already showing');
+
+      const stillVisible = await app.client.evaluate(
+        "return document.getElementById('save-error').classList.contains('visible');"
+      );
+      assert.equal(stillVisible, true, 'the indicator itself must still reflect the ongoing failure');
+    } finally {
+      fixSavePath();
+    }
   });
 });

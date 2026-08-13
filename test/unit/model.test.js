@@ -20,7 +20,10 @@ test('groups chapters and scenes with correct numbering and titles', () => {
   const text = `# Chapter One\n\n${LONG_ENOUGH}\n\n---\n\n${LONG_ENOUGH}\n\n## A Titled Scene\n\n${LONG_ENOUGH}\n\n# Chapter Two\n\n${LONG_ENOUGH}`;
   const chapters = getManuscript(makeView(text));
 
-  assert.equal(chapters.length, 2);
+  // getManuscript() always appends a trailing Cold Storage entry (see
+  // model.js) — 2 real chapters here, +1 for it, even though the doc has
+  // no Cold Storage content of its own.
+  assert.equal(chapters.length, 3);
   assert.equal(chapters[0].title, 'Chapter One');
   assert.equal(chapters[0].number, 1);
   assert.equal(chapters[0].type, 'h1');
@@ -100,4 +103,39 @@ test('findActiveScene treats a scene range as [pos, endPos) — the boundary bel
   assert.equal(firstScene.endPos, chapters[0].scenes[1].pos);
   const hit = findActiveScene(chapters, firstScene.endPos);
   assert.equal(hit.sceneIndex, 1);
+});
+
+// ── Cold Storage ────────────────────────────────────────────────────────
+
+test('a document with no Cold Storage section still gets an empty, present bucket for it, always last', () => {
+  const text = `# Chapter One\n\n${LONG_ENOUGH}`;
+  const chapters = getManuscript(makeView(text));
+  const last = chapters[chapters.length - 1];
+  assert.equal(last.coldStorage, true);
+  assert.equal(last.scenes.length, 0);
+});
+
+test('scenes after the Cold Storage marker are bucketed separately, not counted as a chapter', () => {
+  const text = `# Chapter One\n\n${LONG_ENOUGH}\n\n# Chapter Two\n\n${LONG_ENOUGH}\n\n<!-- COLD STORAGE -->\n\n${LONG_ENOUGH}\n\n---\n\n${LONG_ENOUGH}`;
+  const chapters = getManuscript(makeView(text));
+
+  // Still exactly 2 real chapters — Cold Storage doesn't consume a chapter
+  // number or slot in the numbered list.
+  assert.equal(chapters.length, 3);
+  assert.equal(chapters[0].number, 1);
+  assert.equal(chapters[1].number, 2);
+
+  const coldStorage = chapters[2];
+  assert.equal(coldStorage.coldStorage, true);
+  assert.equal(coldStorage.scenes.length, 2);
+  assert.deepEqual(coldStorage.scenes.map((s) => s.title), ['Scene 1', 'Scene 2']);
+});
+
+test('a scene inside Cold Storage is found by findActiveScene like any other scene', () => {
+  const text = `# Chapter\n\n${LONG_ENOUGH}\n\n<!-- COLD STORAGE -->\n\n${LONG_ENOUGH}`;
+  const chapters = getManuscript(makeView(text));
+  const coldStorageIndex = chapters.length - 1;
+  const coldScene = chapters[coldStorageIndex].scenes[0];
+  const hit = findActiveScene(chapters, coldScene.pos + 1);
+  assert.deepEqual(hit, { chapterIndex: coldStorageIndex, sceneIndex: 0, sceneId: coldScene.id });
 });
