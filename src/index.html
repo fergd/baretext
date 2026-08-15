@@ -267,6 +267,28 @@
     /* editable surface fills the whole height, so the entire area is the writing space */
     #editor-host .cm-content { min-height: 100% !important; }
 
+    /* .cm-content's own margin:0 auto (src/editor/theme.js) centers it
+       within #editor-host -- but in Editor mode #editor-host only spans
+       the window WIDTH MINUS the rail, so that center sits --rail-w/2
+       right of the window's true center (the rail eats space from the
+       left side only). Once there's genuinely enough width to spare (not
+       just "not tiny" -- comfortably more than the manuscript measure plus
+       the rail plus real margins on both sides), shift left by exactly
+       --rail-w/2 to land back on the window's true center. #editor-host's
+       own box and the rail are both untouched by this -- it only moves
+       .cm-content within slack already proven to exist by the breakpoint,
+       so it can never overlap or steal clicks from the rail. Everything
+       gutter-related (manuscript-gutter.js) hangs off .cm-content itself
+       via negative margin / absolute-within-content, so it rides along
+       with this transform automatically. Below the breakpoint (a smaller
+       or split-screen window) none of this applies -- lays out exactly as
+       it always has, constrained by whatever room the rail leaves. */
+    @media (min-width: 1400px) {
+      html[data-mode="editor"] #editor-host .cm-content {
+        transform: translateX(calc(var(--rail-w) / -2));
+      }
+    }
+
     /* Native spellcheck styling (Electron/Chromium ::spelling-error) — no
        decoration API needed from the editor bundle for this one. */
     #editor-host .cm-content::spelling-error {
@@ -327,9 +349,9 @@
     #app.typewriter .cm-content { padding-top: 50vh !important; padding-bottom: 50vh !important; }
     #app.typewriter #editor-host .cm-line { line-height: 2.1; }
 
-    /* Typewriter chrome: center guide, marker, edge fade — hidden unless active */
-    #tw-fade, #tw-guide, #tw-marker { display: none; pointer-events: none; }
-    #app.typewriter #tw-fade, #app.typewriter #tw-guide, #app.typewriter #tw-marker { display: block; }
+    /* Typewriter chrome: center guide, edge fade — hidden unless active */
+    #tw-fade, #tw-guide { display: none; pointer-events: none; }
+    #app.typewriter #tw-fade, #app.typewriter #tw-guide { display: block; }
 
     /* Continuous fade centered on the typewriter line (50%) — no flat clear
        zone, starts fading immediately above/below the line itself. All text
@@ -358,12 +380,6 @@
     #tw-guide {
       position: absolute; left: 0; right: 0; top: 50%; height: 1px; z-index: 1;
       background: color-mix(in srgb, var(--syntax-2, var(--accent)) 14%, transparent);
-    }
-    #tw-marker {
-      position: absolute; left: 20px; top: calc(50% - 17px); z-index: 1;
-      font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
-      font-family: var(--font-mono);
-      color: color-mix(in srgb, var(--syntax-2, var(--accent)) 40%, transparent);
     }
 
     /* Cold Storage "scene view" banner (Editor mode only — see
@@ -785,7 +801,6 @@
     <div id="editor-host">
       <div id="tw-fade"></div>
       <div id="tw-guide"></div>
-      <div id="tw-marker">typewriter</div>
       <div id="cold-storage-banner">
         <i class="ti ti-snowflake"></i>
         <span id="cold-storage-banner-label"></span>
