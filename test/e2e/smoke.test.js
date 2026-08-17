@@ -1130,6 +1130,34 @@ describe('Baretext E2E: manuscript surface (number gutter, named/unnamed scenes)
     `);
   });
 
+  // Regression: native (OS-level) spellcheck used to be forced on
+  // unconditionally at startup, independent of the app's own spellcheck
+  // FEATURE (which IS correctly excluded from Sprinter's feature list in
+  // modes.js) -- so red-squiggle native spellcheck kept showing during a
+  // sprint even though the app's own flagging never loaded there. This is
+  // the raw DOM attribute Chromium's spellchecker reads directly, not the
+  // .cm-spellError decorations covered by the tests above.
+  test('native spellcheck is off in Sprinter mode, on in Editor mode', async () => {
+    const editorState = await app.client.evaluate(`return document.querySelector('.cm-content').getAttribute('spellcheck');`);
+    assert.equal(editorState, 'true');
+
+    await app.client.evaluate(`
+      document.querySelector('.mode-tab[data-mode="sprinter"]').click();
+      return true;
+    `);
+    await new Promise((r) => setTimeout(r, 300));
+    const sprinterState = await app.client.evaluate(`return document.querySelector('.cm-content').getAttribute('spellcheck');`);
+    assert.equal(sprinterState, 'false');
+
+    await app.client.evaluate(`
+      document.querySelector('.mode-tab[data-mode="editor"]').click();
+      return true;
+    `);
+    await new Promise((r) => setTimeout(r, 300));
+    const backToEditorState = await app.client.evaluate(`return document.querySelector('.cm-content').getAttribute('spellcheck');`);
+    assert.equal(backToEditorState, 'true');
+  });
+
   test('no console errors in this suite', () => {
     const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
     assert.deepEqual(bad, []);

@@ -10,9 +10,87 @@ Also see: `README.md` (how to run/build/test, feature overview),
 `docs/theme-spec.md` (design tokens), `TYPEWRITER_MODE.md` (typewriter
 focus-mode spec).
 
-## Where things stand (as of 2026-08-12)
+## Where things stand (as of 2026-08-16)
 
-**Pick up here.** Several sessions' worth of work since the last update
+**Pick up here.** Since the 2026-08-12 write-up below: that session's work
+(manuscript surface, Cold Storage, architecture-review fixes) got committed
+as `c5ef3d2`, plus a follow-up Sprinter-only typewriter-fade change as
+`b986cac` — both pushed. Then three more things happened, in order:
+
+**1. A full design-system/rail redesign was attempted, then fully
+reverted.** The user handed over a design-system update (`Design Component
+Redesign.zip`) — app-wide spacing/radius/motion/typography tokens plus a
+rebuilt Manuscript rail (grid rows, a timeline connector, a floating-panel
+treatment, JetBrains Mono bundled locally). Implemented in full across
+`index.html`/`rail.js`/`ui-helpers.js`, live-verified via CDP, all tests
+green — then the user reviewed it for real and found several concrete
+problems across two more rounds (chapter drag-handle floating outside the
+row with nowhere to go and colliding with the chevron; rail too narrow,
+truncating titles; the floating rail card stretching to fill the full
+content-row height regardless of content, reading as a mostly-empty
+"container in a container"; Cold Storage's "raised card" aliased to the
+exact same color as its own container, so it had zero contrast; a titlebar
+redesign that led into real macOS/Electron native-chrome territory —
+`hiddenInset` fullscreen reserves a strip for the auto-hiding menu bar
+outside the web content entirely, painted by the OS directly, unreachable
+from CSS — fixing that for real meant `fullscreenable:false` +
+repurposing the green button + wiring `Cmd+Ctrl+F` to `setSimpleFullScreen`
+by hand). Each round's fixes were real and verified, but the user's
+bottom-line call was "this just isn't working... I'm going to have to
+instruct you from another angle" and asked for a full revert. Nothing from
+this attempt was ever committed, so `git stash -u` cleanly returned the
+tree to `b986cac`. **The whole attempt is preserved in
+`stash@{0}` ("Aug 2026 design-system/rail redesign attempt — reverted,
+didn't work out")** — recoverable piece-by-piece if wanted later, but
+don't just reapply it wholesale; the user explicitly wants a different
+angle on this, not a retry of the same design. If a future rail/design
+pass comes up, the bugs listed above are worth re-checking regardless of
+approach — they're real layout/contrast issues, not specific to the
+abandoned token system.
+
+**2. Manuscript column centering + a dead label removed.** Two concrete,
+narrower requests once the redesign was off the table: (a) in Editor mode
+the manuscript text was centering within `#editor-host`'s own box, which
+only spans window-width-minus-rail — so it sat `--rail-w`/2 right of the
+window's *actual* center. Fixed with a `@media (min-width: 1400px)` rule
+that shifts `.cm-content` left by exactly that half-width once there's
+genuinely enough room (verified via CDP: 2px off true center at 1600px;
+completely unshifted, laid out exactly as before, at 1000px). Pure CSS, no
+JS/IPC — the manuscript-gutter numbers ride along for free since they're
+positioned relative to `.cm-content` itself. (b) The small uppercase
+"TYPEWRITER" label next to the typewriter center-guide line served no
+purpose and visibly overlapped editor text on narrower windows — removed
+(`#tw-marker`) entirely. **Committed as `0c36962`, pushed, and the
+packaged app was rebuilt and reinstalled to `/Applications/Baretext.app`
+— this is what's actually running there right now.**
+
+**3. Spellcheck wasn't actually off during a sprint — found and fixed,
+not yet committed.** Root cause: `app.js` forced the *native* (OS-level,
+Chromium) `spellcheck="true"` DOM attribute on `.cm-content` once at
+startup, unconditionally — completely separate from the app's own
+spellcheck *feature* (`features/spellcheck.js`), which was already
+correctly excluded from Sprinter mode's feature list in `modes.js`. So the
+app's own flagging correctly never loaded in Sprinter, but native red
+squiggles kept showing regardless of mode, since nothing ever touched that
+raw attribute after boot. Fixed by making it mode-aware (`true` in Editor,
+`false` in Sprinter) via a small `applyNativeSpellcheck()` helper, called
+once at startup and again on every `activateMode()` switch. Live-verified
+via CDP both cold-launching into Sprinter mode and switching into it from
+Editor; new E2E regression test added. **Full suite: 133 unit + 116 E2E,
+all passing (249 total).** `src/app.js` and `test/e2e/smoke.test.js` are
+the only uncommitted files — **not yet committed or pushed, not yet
+rebuilt into `/Applications/Baretext.app`** (that install is still at
+`0c36962`, item 2 above, and does not include this fix). Standing rule:
+don't commit without being asked — pick this up as "ready to commit
+whenever asked" next session, not "needs more work."
+
+---
+
+**Superseded below** (kept for history; the "Pick up here" state above is
+current): the 2026-08-12 write-up described the manuscript-surface/
+architecture-review work as uncommitted with git log at `62b00ba` — both
+that work and a subsequent Sprinter-fade change have since been committed
+(`c5ef3d2`, `b986cac`) as noted above. Several sessions' worth of work since the last update
 (2026-08-09, the rail drag-and-drop entry below) — all done, live-verified
 via CDP, and covered by persisted tests, but **still all uncommitted**:
 `git status` shows 43 changed/new files, `git log` still points at
@@ -277,7 +355,7 @@ and it predates the amstrad/grove rename+addition below.
     the previously-untested git-backed backup system. See "Most recent work
     in detail" below.
 
-## Most recent work in detail (spellcheck timing → architecture-review fixes)
+## Earlier work in detail (spellcheck timing → architecture-review fixes)
 
 Seven pieces of work across several turns, each live-verified via CDP
 before writing regression coverage, each rebuilt/reinstalled to
@@ -1467,3 +1545,23 @@ Both have regression tests in `test/unit/outline.test.js` and the E2E suite.
   whole document string from the chapter/scene model rather than trying to
   splice text in place. Trades exact whitespace preservation for
   consistent output and much simpler correctness reasoning.
+- A mode/state-dependent behavior implemented as a raw DOM attribute or
+  native API call set once at startup will silently stop tracking mode
+  changes — nothing re-applies it later. The native `spellcheck="true"`
+  bug (see 2026-08-16 above) is the concrete example: set once in `app.js`
+  before mode-awareness existed, never revisited, so it drifted out of
+  sync with the (correctly mode-gated) app-level feature it looked like it
+  was part of. Anything like this belongs in `activateMode()` itself, or
+  needs an equally explicit "re-apply on every mode switch" call site —
+  not a one-time setup line that happens to be right for whatever the
+  default mode was at the time it was written.
+- Don't trust an AI-summarized reading of library docs/PR discussions for
+  specific runtime behavior claims (e.g. "does constructor option X change
+  native behavior Y") without empirical confirmation — the 2026-08-16
+  design-system revert included a `simpleFullscreen: true` fix based on
+  exactly that kind of research, which turned out wrong once actually
+  tested by the user. If a behavior claim can be verified live (CDP, a
+  real build), verify it before reporting the fix as done; if it can't be
+  verified from this sandbox (native OS chrome, real fullscreen
+  transitions), say so explicitly rather than implying confidence the
+  testing didn't back up.

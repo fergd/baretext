@@ -46,10 +46,22 @@ let view = window.BaretextEditor.create(
   },
   'start writing...'
 );
-// Force native spellcheck on the editable surface, regardless of what the
-// bundle's own extensions set — belt and suspenders alongside webPreferences.
+// Native (OS-level) spellcheck on the editable surface — belt and
+// suspenders alongside webPreferences.spellcheck, and independent of the
+// spellcheck FEATURE's own decorations (features/spellcheck.js only ever
+// toggles those; this raw DOM attribute is a completely separate mechanism
+// Chromium's own spellchecker reads directly). It used to be forced on
+// unconditionally here, which meant native red squiggles kept showing in
+// Sprinter mode too — Sprinter's feature list never includes 'spellcheck'
+// (see modes.js), but nothing was ever un-forcing this attribute, so that
+// exclusion only ever stopped the app's own flagging, never the OS's.
+// Mode-aware now: on in Editor, off in Sprinter — see the call in
+// activateMode() below for the half that keeps it in sync on every switch.
 const cmContent = host.querySelector('.cm-content');
-if (cmContent) cmContent.setAttribute('spellcheck', 'true');
+function applyNativeSpellcheck(modeId) {
+  if (cmContent) cmContent.setAttribute('spellcheck', modeId === 'editor' ? 'true' : 'false');
+}
+applyNativeSpellcheck(state.mode);
 
 function getDoc()      { return window.BaretextEditor.getDoc(view); }
 // window.BaretextEditor.setDoc() deliberately suppresses the editor's own
@@ -694,6 +706,7 @@ function activateMode(modeId) {
   window.api.setMode(modeDef.id);
   document.documentElement.setAttribute('data-mode', modeDef.id);
   window.BaretextEditor.setEditorMode(view, modeDef.id === 'editor');
+  applyNativeSpellcheck(modeDef.id);
   updateModeSwitch();
 
   activeFeatures.forEach(f => { if (f.init) f.init(ctx); });
