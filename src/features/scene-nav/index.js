@@ -11,7 +11,7 @@
 import * as rail from './rail.js';
 import * as corkboard from './corkboard.js';
 import { renameTitle as applyRename } from './rename.js';
-import { deleteScene as applyDeleteScene, deleteChapter as applyDeleteChapter } from './reorder.js';
+import { deleteScene as applyDeleteScene, deleteChapter as applyDeleteChapter, addChapter as applyAddChapter } from './reorder.js';
 import { getManuscript } from './model.js';
 
 let ctx = null;
@@ -165,6 +165,12 @@ function deleteChapter(chapterIndex, chapters) {
   refreshNow();
 }
 
+function addNewChapter(chapters) {
+  exitColdStorageScene();
+  ctx.setDoc(applyAddChapter(chapters));
+  refreshNow();
+}
+
 export default {
   id: 'scene-nav',
 
@@ -175,7 +181,7 @@ export default {
     // listeners below never fire for those, so each surface calls this
     // directly right after a jump instead of waiting on the debounce.
     const sceneNavCtx = {
-      ...ctx, addNewScene, refreshNav: refreshNow, openCorkboard: () => corkboard.show(), renameTitle,
+      ...ctx, addNewScene, addNewChapter, refreshNav: refreshNow, openCorkboard: () => corkboard.show(), renameTitle,
       deleteScene, deleteChapter, enterColdStorageScene, exitColdStorageScene,
     };
 

@@ -1164,6 +1164,126 @@ describe('Baretext E2E: manuscript surface (number gutter, named/unnamed scenes)
   });
 });
 
+// Regression: reported on the user's own document via screenshots — arrowing
+// down into a fresh named scene (or clicking right after renaming one via the
+// rail) could land the caret partway through the scene's raw, invisible
+// "<!-- Name -->" comment (see scene-breaks.js's SceneNameWidget: that text
+// stays real, just color:transparent, so E2E's exact .cm-line-text
+// assertions elsewhere in this file keep working) instead of skipping past
+// it onto real content. Visually the caret appeared to sit right at the end
+// of the rendered heading text, well past where a user would expect it —
+// confusing because nothing was actually there to edit. Fixed by giving the
+// marker + its name-comment line one atomic range (scene-breaks.js's
+// sceneBreakAtomicRanges) so cursor motion always jumps clean over the whole
+// unit onto the real line before or after it.
+describe('Baretext E2E: cursor never rests inside a named scene break\'s hidden comment text', () => {
+  let app;
+  const fixture = [
+    '# Chapter One',
+    '',
+    'Opening prose for the implicit first scene, unnamed on purpose.',
+    '',
+    '---',
+    '<!-- It Begins -->',
+    '',
+    'Named scene prose.',
+  ].join('\n');
+
+  before(async () => {
+    app = await launchApp({ fixtureContent: fixture, mode: 'editor' });
+  });
+
+  after(async () => {
+    if (app) await app.close();
+  });
+
+  function selectionLine() {
+    return `
+      const sel = document.getSelection();
+      let node = sel.anchorNode;
+      let lineEl = node && node.nodeType === 3 ? node.parentElement : node;
+      while (lineEl && !lineEl.classList.contains('cm-line')) lineEl = lineEl.parentElement;
+      return {
+        anchorNodeText: node ? node.textContent : null,
+        anchorOffset: sel.anchorOffset,
+        lineClass: lineEl ? lineEl.className : null,
+      };
+    `;
+  }
+
+  test('arrowing down through a named scene break never stops inside the name comment', async () => {
+    await app.client.evaluate(`
+      const lines = [...document.querySelectorAll('.cm-line')];
+      const target = lines.find(l => l.textContent.includes('Opening prose'));
+      const rect = target.getBoundingClientRect();
+      target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, clientX: rect.right - 2, clientY: rect.top + rect.height / 2 }));
+      target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, clientX: rect.right - 2, clientY: rect.top + rect.height / 2 }));
+      await new Promise(r => setTimeout(r, 80));
+    `);
+
+    const steps = [];
+    for (let i = 0; i < 5; i++) {
+      const step = await app.client.evaluate(`
+        document.querySelector('.cm-content').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40, which: 40, bubbles: true, cancelable: true }));
+        await new Promise(r => setTimeout(r, 60));
+        ${selectionLine()}
+      `);
+      steps.push(step);
+    }
+
+    assert.ok(
+      steps.every((s) => !(s.lineClass || '').includes('cm-scene-name-comment')),
+      `caret rested inside the hidden name-comment line at some step: ${JSON.stringify(steps)}`
+    );
+    // And it did actually reach the real content on the far side, not get stuck short of it.
+    assert.ok(steps.some((s) => s.lineClass && s.lineClass.includes('cm-paragraph-line') && s.anchorNodeText === 'Named scene prose.'));
+  });
+
+  test('clicking directly on the rendered heading label lands on real content, not the hidden comment', async () => {
+    const clicked = await app.client.evaluate(`
+      const label = document.querySelector('.cm-scene-name-label');
+      const rect = label.getBoundingClientRect();
+      const x = rect.right - 2, y = rect.top + rect.height / 2;
+      document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, clientX: x, clientY: y }));
+      document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, clientX: x, clientY: y }));
+      await new Promise(r => setTimeout(r, 100));
+      ${selectionLine()}
+    `);
+    assert.ok(!(clicked.lineClass || '').includes('cm-scene-name-comment'), `click landed inside the hidden comment: ${JSON.stringify(clicked)}`);
+  });
+
+  test('arrowing up from the scene\'s content back through the break never stops inside the name comment either', async () => {
+    await app.client.evaluate(`
+      const lines = [...document.querySelectorAll('.cm-line')];
+      const target = lines.find(l => l.textContent === 'Named scene prose.');
+      const rect = target.getBoundingClientRect();
+      target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, clientX: rect.left + 2, clientY: rect.top + rect.height / 2 }));
+      target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, clientX: rect.left + 2, clientY: rect.top + rect.height / 2 }));
+      await new Promise(r => setTimeout(r, 80));
+    `);
+
+    const steps = [];
+    for (let i = 0; i < 5; i++) {
+      const step = await app.client.evaluate(`
+        document.querySelector('.cm-content').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', code: 'ArrowUp', keyCode: 38, which: 38, bubbles: true, cancelable: true }));
+        await new Promise(r => setTimeout(r, 60));
+        ${selectionLine()}
+      `);
+      steps.push(step);
+    }
+
+    assert.ok(
+      steps.every((s) => !(s.lineClass || '').includes('cm-scene-name-comment')),
+      `caret rested inside the hidden name-comment line at some step: ${JSON.stringify(steps)}`
+    );
+  });
+
+  test('no console errors in this suite', () => {
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+});
+
 // Own instance: switches the editor font live, which the stateful suites
 // around it shouldn't inherit.
 describe('Baretext E2E: mono font flattens every heading to regular weight; other fonts keep bold', () => {
@@ -2025,8 +2145,8 @@ describe('Baretext E2E: rail drag-and-drop', () => {
     const before = await app.client.evaluate(`
       return {
         sceneRowCount: document.querySelectorAll('.rail-scene-row').length,
-        ch1SceneCount: [...document.querySelectorAll('.rail-chapter-row')].find(r => r.textContent.includes('Chapter One')).querySelector('.rail-dim').textContent,
-        ch3SceneCount: [...document.querySelectorAll('.rail-chapter-row')].find(r => r.textContent.includes('Chapter Three')).querySelector('.rail-dim').textContent,
+        ch1SceneCount: [...document.querySelectorAll('.rail-chapter-row')].find(r => r.textContent.includes('Chapter One')).querySelector('.rail-dim').textContent.split('/')[0],
+        ch3SceneCount: [...document.querySelectorAll('.rail-chapter-row')].find(r => r.textContent.includes('Chapter Three')).querySelector('.rail-dim').textContent.split('/')[0],
       };
     `);
 
@@ -2044,8 +2164,8 @@ describe('Baretext E2E: rail drag-and-drop', () => {
     const after = await app.client.evaluate(`
       return {
         sceneRowCount: document.querySelectorAll('.rail-scene-row').length,
-        ch1SceneCount: [...document.querySelectorAll('.rail-chapter-row')].find(r => r.textContent.includes('Chapter One')).querySelector('.rail-dim').textContent,
-        ch3SceneCount: [...document.querySelectorAll('.rail-chapter-row')].find(r => r.textContent.includes('Chapter Three')).querySelector('.rail-dim').textContent,
+        ch1SceneCount: [...document.querySelectorAll('.rail-chapter-row')].find(r => r.textContent.includes('Chapter One')).querySelector('.rail-dim').textContent.split('/')[0],
+        ch3SceneCount: [...document.querySelectorAll('.rail-chapter-row')].find(r => r.textContent.includes('Chapter Three')).querySelector('.rail-dim').textContent.split('/')[0],
       };
     `);
     // Total scene count must be unchanged by the move — this is the actual
@@ -2130,7 +2250,7 @@ describe('Baretext E2E: Cold Storage parks cut scenes without deleting them', ()
       };
     `);
     assert.equal(after.headerText, '1 ch · 1', 'the moved scene must no longer count toward the real chapter/scene total');
-    assert.equal(after.coldStorageCount, '1');
+    assert.match(after.coldStorageCount, /^1\/\d+$/, 'Cold Storage meta is "scenes/words"'); // 1 scene now parked there
     assert.equal(after.wordCount, '19 words', 'Cold Storage words must not count toward the manuscript word count');
     assert.ok(!after.visibleText.includes('COLD STORAGE'), 'Cold Storage must not be scrollable into from the main manuscript view');
     assert.ok(!after.visibleText.includes('Second scene'), 'the moved scene\'s own text must not be visible either');
@@ -2175,7 +2295,7 @@ describe('Baretext E2E: Cold Storage parks cut scenes without deleting them', ()
       };
     `);
     assert.equal(after.headerText, '1 ch · 2');
-    assert.equal(after.coldStorageCount, '0');
+    assert.equal(after.coldStorageCount, '0/0'); // emptied -- 0 scenes, 0 words
     assert.equal(after.coldStorageStillVisible, true, 'Cold Storage stays a persistent drop zone even once emptied');
     assert.equal(after.wordCount, '37 words');
 
@@ -3205,5 +3325,212 @@ describe('Baretext E2E: a failed save surfaces to the user instead of failing si
     } finally {
       fixSavePath();
     }
+  });
+});
+
+// Regression coverage for a design-system rail redesign that was attempted
+// once before, shipped as a full implementation, and then fully reverted
+// after real visual review found four concrete bugs (see PROGRESS.md and
+// git stash — "Aug 2026 design-system/rail redesign attempt — reverted,
+// didn't work out"). This second attempt fixes the same underlying design
+// direction (JetBrains Mono, a floating rail panel, a timeline connector)
+// while specifically avoiding each of those four failure modes — this
+// suite locks each one in so a future change can't silently reintroduce
+// any of them.
+describe('Baretext E2E: rail redesign — regression coverage for four previously-reverted bugs', () => {
+  let app;
+  const fixture = [
+    '# A Turning Point',
+    '',
+    'Opening prose long enough to clear the draft threshold for this test case easily.',
+    '',
+    '---',
+    '<!-- A Fairly Long Named Scene Title -->',
+    '',
+    'Named scene prose, also long enough to clear the draft threshold nicely here.',
+    '',
+    '<!-- COLD STORAGE -->',
+    '',
+    '<!-- A Cut Scene -->',
+    '',
+    'Cut scene content, long enough to clear the draft threshold nicely as well.',
+  ].join('\n');
+
+  before(async () => {
+    app = await launchApp({ fixtureContent: fixture, mode: 'editor' });
+    await app.client.evaluate('window.resizeTo(1400, 900); return true;');
+    await app.client.evaluate(`
+      const deadline = Date.now() + 2000;
+      while (Date.now() < deadline) {
+        if (document.querySelectorAll('.rail-scene-row').length >= 1) break;
+        await new Promise(r => setTimeout(r, 100));
+      }
+    `);
+  });
+
+  after(async () => {
+    if (app) await app.close();
+  });
+
+  // The original bug's root cause was the chevron losing its explicit
+  // font-size when rows moved to grid, so an unsized icon-font glyph
+  // rendered at an unpredictable width and spilled into the handle's
+  // column. The chevron now deliberately sits right at the row's edge
+  // (aligned with the connector, per a later round of feedback), and the
+  // handle -- only ever visible on hover -- floats over that same space
+  // rather than reserving its own column, so their bounding boxes DO
+  // overlap by design now (two sparse glyphs, ⋮⋮ and >, whose visible ink
+  // doesn't actually collide). The real regression guard is that the
+  // chevron has a real, explicit size, not that the boxes never touch.
+  test('bug 1: the chevron has an explicit, non-auto font-size (the original bug\'s actual root cause)', async () => {
+    const fontSize = await app.client.evaluate(
+      "return getComputedStyle(document.querySelector('.rail-chevron')).fontSize;"
+    );
+    assert.notEqual(fontSize, '0px');
+    assert.ok(parseFloat(fontSize) >= 10, `chevron font-size looks unset/collapsed: ${fontSize}`);
+  });
+
+  test('the chapter chevron aligns with the timeline connector below it', async () => {
+    const result = await app.client.evaluate(`
+      const chevron = document.querySelector('.rail-chevron').getBoundingClientRect();
+      const connector = document.querySelector('.rail-connector').getBoundingClientRect();
+      return {
+        chevronCenterX: chevron.left + chevron.width / 2,
+        connectorCenterX: connector.left + connector.width / 2,
+      };
+    `);
+    assert.ok(
+      Math.abs(result.chevronCenterX - result.connectorCenterX) <= 3,
+      `chevron not aligned with connector: ${JSON.stringify(result)}`
+    );
+  });
+
+  test('the add-scene "+" icon aligns with scene name text above it', async () => {
+    const result = await app.client.evaluate(`
+      const sceneName = document.querySelector('.rail-scene-name').getBoundingClientRect();
+      const plusIcon = document.querySelector('.rail-scene-add .ti-plus').getBoundingClientRect();
+      return { sceneNameLeft: sceneName.left, plusIconLeft: plusIcon.left };
+    `);
+    assert.ok(
+      Math.abs(result.sceneNameLeft - result.plusIconLeft) <= 2,
+      `add-scene icon not aligned with scene text: ${JSON.stringify(result)}`
+    );
+  });
+
+  // scrollWidth reflects full content size regardless of clipping -- a hit-
+  // target ::before pseudo-element (deliberately extending a few px past
+  // its own visible box, by design, to keep a real click target on a small
+  // icon) will always make scrollWidth a few px larger than clientWidth.
+  // The actual bug was a VISIBLE horizontal scrollbar; the real assertion
+  // is that the axis is clipped, not that content never technically
+  // overflows it.
+  test('bug 1b: the rail never shows a horizontal scrollbar (overflow-x is clipped)', async () => {
+    const overflowX = await app.client.evaluate(
+      "return getComputedStyle(document.getElementById('scene-rail').querySelector('.rail-list')).overflowX;"
+    );
+    assert.equal(overflowX, 'hidden');
+  });
+
+  // "A Turning Point" (16 chars) is the longest real title in this
+  // project's own E2E fixture (test/fixtures/manuscript.md) -- a realistic
+  // bar, not an arbitrarily long invented string (truncation for a
+  // genuinely long title is expected/fine in any fixed-width sidebar).
+  test('bug 2: a realistic-length chapter title does not truncate at the current rail width', async () => {
+    const result = await app.client.evaluate(`
+      const title = document.querySelector('.rail-chapter-title');
+      return { text: title.textContent, scrollWidth: title.scrollWidth, clientWidth: title.clientWidth };
+    `);
+    assert.ok(result.scrollWidth <= result.clientWidth + 1, `chapter title truncated: ${JSON.stringify(result)}`);
+  });
+
+  // The original bug (a mostly-empty floating card reading as "container in
+  // a container" on a short document) was fixed by hugging content instead
+  // of stretching -- then explicitly reversed later in the same session:
+  // the user asked for the rail to always be full height regardless of
+  // content. This asserts the CURRENT, deliberate direction; if the
+  // hug-content look ever comes back, this is the test to update, not
+  // silently leave contradicting the shipped behavior.
+  test('the rail panel is always full column height, regardless of content length', async () => {
+    const result = await app.client.evaluate(`
+      const rail = document.getElementById('scene-rail').getBoundingClientRect();
+      const contentRow = document.getElementById('content-row').getBoundingClientRect();
+      return { railHeight: rail.height, contentRowHeight: contentRow.height };
+    `);
+    assert.ok(
+      result.railHeight > result.contentRowHeight - 30,
+      `rail is not full height: ${JSON.stringify(result)}`
+    );
+  });
+
+  test('bug 4: Cold Storage\'s card background is visibly distinct from the rail panel it sits inside', async () => {
+    const result = await app.client.evaluate(`
+      const section = document.querySelector('.rail-cold-storage-section');
+      const rail = document.getElementById('scene-rail');
+      return { coldBg: getComputedStyle(section).backgroundColor, railBg: getComputedStyle(rail).backgroundColor };
+    `);
+    assert.notEqual(result.coldBg, result.railBg, `Cold Storage card has zero contrast against its own container: ${JSON.stringify(result)}`);
+  });
+
+  test('the rail uses JetBrains Mono, not IBM Plex Mono', async () => {
+    const fontFamily = await app.client.evaluate(
+      "return getComputedStyle(document.getElementById('scene-rail')).fontFamily;"
+    );
+    assert.match(fontFamily, /JetBrains Mono/);
+  });
+
+  test('the rail panel has no border stroke -- depth comes from the shadow alone', async () => {
+    const borderWidth = await app.client.evaluate(
+      "return getComputedStyle(document.getElementById('scene-rail')).borderWidth;"
+    );
+    assert.equal(borderWidth, '0px');
+  });
+
+  test('the footer button reads "New Chapter" and adds a new blank chapter before Cold Storage', async () => {
+    const before = await app.client.evaluate("return document.querySelector('.rail-footer').textContent.trim();");
+    assert.match(before, /New Chapter/);
+
+    const chaptersBefore = await app.client.evaluate(
+      "return document.querySelectorAll('.rail-chapter-row:not(.rail-cold-storage-row)').length;"
+    );
+    await app.client.evaluate(`
+      document.querySelector('.rail-footer').click();
+      await new Promise(r => setTimeout(r, 200));
+    `);
+    const result = await app.client.evaluate(`
+      const rows = [...document.querySelectorAll('.rail-chapter-row:not(.rail-cold-storage-row)')];
+      const coldStorage = document.querySelector('.rail-cold-storage-row');
+      const coldStorageIndex = [...document.querySelectorAll('.rail-chapter-row')].indexOf(coldStorage);
+      return {
+        chapterCount: rows.length,
+        lastChapterBeforeColdStorage: coldStorageIndex - 1 === rows.length - 1,
+      };
+    `);
+    assert.equal(result.chapterCount, chaptersBefore + 1);
+    assert.equal(result.lastChapterBeforeColdStorage, true, 'new chapter should land right before Cold Storage');
+  });
+
+  test('a chapter row\'s trailing meta shows "scenes/words", not just a bare scene count', async () => {
+    const meta = await app.client.evaluate("return document.querySelector('.rail-trailing-meta').textContent;");
+    assert.match(meta, /^\d+\/\d+$/, `chapter meta not in "scenes/words" format: ${meta}`);
+    const [sceneCount, wordCount] = meta.split('/').map(Number);
+    assert.equal(sceneCount, 2); // this fixture's chapter has 2 scenes
+    assert.ok(wordCount > 0, 'word count should reflect real prose, not be stuck at 0');
+  });
+
+  test('Cold Storage is anchored to the bottom of the panel, not floating directly under the last chapter', async () => {
+    const result = await app.client.evaluate(`
+      const coldSection = document.querySelector('.rail-cold-storage-section').getBoundingClientRect();
+      const footer = document.querySelector('.rail-footer').getBoundingClientRect();
+      return { gapBelowColdStorage: footer.top - coldSection.bottom };
+    `);
+    assert.ok(
+      result.gapBelowColdStorage >= 0 && result.gapBelowColdStorage < 20,
+      `Cold Storage isn't anchored against the footer: ${JSON.stringify(result)}`
+    );
+  });
+
+  test('no console errors in this suite', () => {
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
   });
 });

@@ -1,0 +1,46 @@
+/* Baretext — Elevation / shadow / glass tokens
+   Extracted verbatim from src/index.html's :root (--shadow-*, --glass-blur)
+   and the per-theme "derived tokens" block (--glass-*, --wash-*,
+   --stripe-accent, --kbd-*, which mix in theme color so they live in
+   tokens/colors.css per-theme, not here — see colors.css). As of commit
+   72a86cf (2026-08-17).
+
+   Elevation philosophy (from the app's own design intent, still
+   accurate): large, soft, BLACK shadows only — no mid-tone or colored
+   shadows, no small tight drop-shadows. Two surface levels (bg / bg-alt,
+   see colors.css) plus floating "glass" panels that go further: a
+   translucent color-mix over whatever's behind them, not a solid card. */
+
+:root {
+  /* ── Shadows — ordered largest/most-dramatic → smallest. Named by
+     SURFACE (same convention as radius.css), not by size. ── */
+  --shadow-window:  0 40px 110px rgba(0, 0, 0, .55); /* the app window itself */
+  --shadow-palette: 0 28px 90px rgba(0, 0, 0, .55);  /* command palette — largest floating panel */
+  --shadow-panel:   0 22px 60px rgba(0, 0, 0, .50);  /* general floating panels */
+  --shadow-toast:   0 16px 44px rgba(0, 0, 0, .50);  /* toast notifications */
+
+  /* ── Glass panel recipe (command palette, font picker, toast) ──
+     background:      color-mix(in srgb, var(--bg-alt) 82-90%, transparent)
+                       (colors.css's --glass-bg uses 86% as the default;
+                       the palette itself uses 82% directly, font
+                       picker/toast lean closer to 90% — a range, not
+                       one fixed number, tuned per panel's size/weight)
+     backdrop-filter:  blur(16-28px) saturate(160%)
+                       (--glass-blur below is the 22px "default"; the
+                       palette itself uses 28px, smaller panels less)
+     border:           1px, color-mix(in srgb, var(--border) 60-70%, transparent)
+                       (colors.css's --glass-border uses 65%)
+     shadow:           the panel's own --shadow-* above, PLUS a 1px inset
+                       highlight line (colors.css's --glass-highlight)
+                       PLUS, on the command palette specifically, a thin
+                       accent-tinted top edge (colors.css's --glass-edge)
+     radius:           see radius.css — --radius-palette (14px) for the
+                       command palette, --radius-picker (8px) for the font
+                       picker, --radius-toast (5px) for toasts */
+  --glass-blur: blur(22px) saturate(160%);
+}
+
+/* Wash/stripe/kbd tokens (--wash-accent, --stripe-accent, --kbd-bg, etc.)
+   mix in the active theme's --accent/--bg/--border, so they're declared
+   per-theme in tokens/colors.css rather than here — see that file's
+   "Derived tokens" block under each [data-theme] rule. */

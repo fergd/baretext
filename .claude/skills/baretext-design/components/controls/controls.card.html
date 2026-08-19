@@ -1,0 +1,28 @@
+<!-- @dsCard group="Components" viewport="700x150" name="Controls" subtitle="IconButton · Disclosure · TextButton" -->
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../../styles.css">
+<style>html,body{margin:0}body{background:var(--surface-panel);color:var(--text-title);font-family:var(--font-mono);padding:20px}</style>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="../../_ds_bundle.js"></script>
+</head><body><div id="root"></div>
+<script type="text/babel">
+const NS = window.Baretext || window.BaretextDesignSystem || window.DS || {};
+const { IconButton, Disclosure, TextButton } = NS;
+const [open, setOpen] = [true];
+function Demo(){
+  const [o,setO] = React.useState(true);
+  return (<div style={{display:'flex',alignItems:'center',gap:24,flexWrap:'wrap'}}>
+    <div style={{display:'flex',gap:2}}>
+      <IconButton icon="pencil" label="Edit" />
+      <IconButton icon="trash" label="Delete" />
+      <IconButton icon="grid" label="Corkboard" iconSize={16} />
+      <IconButton icon="plus" label="Add" />
+    </div>
+    <Disclosure open={o} onToggle={()=>setO(!o)} />
+    <TextButton icon="plus">add scene</TextButton>
+  </div>);
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<Demo/>);
+</script></body></html>

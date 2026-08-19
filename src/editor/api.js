@@ -3,7 +3,7 @@ import { EditorState } from '@codemirror/state';
 import { theme, injectSelectionFix, injectHeadingColors } from './theme.js';
 import { markdownExtensions } from './markdown-language.js';
 import { livePreviewPlugin, renderedModeField } from './live-preview.js';
-import { sceneBreakDecorator, injectSceneBreakStyle } from './scene-breaks.js';
+import { sceneBreakDecorator, sceneBreakAtomicRanges, injectSceneBreakStyle } from './scene-breaks.js';
 import { blockSpacingPlugin, injectBlockSpacingStyle } from './block-spacing.js';
 import { historyAndKeymaps, boldItalicKeymap } from './history-commands.js';
 import { searchExtension, injectSearchMatchStyle } from './search.js';
@@ -54,6 +54,7 @@ export function create(container, initialDoc, onChange, placeholderText) {
         editorModeField,
         livePreviewPlugin,
         sceneBreakDecorator,
+        sceneBreakAtomicRanges,
         blockSpacingPlugin,
         chapterPlaceholderPlugin,
         manuscriptGutterPlugin,

@@ -1,0 +1,77 @@
+/* Baretext — Spacing tokens
+   Status as of commit 72a86cf (2026-08-17): there is NO formal spacing
+   scale in the shipping app. Every padding/margin/gap value in every
+   feature module is a hand-picked literal px number — "whatever looked
+   right" per component, not drawn from a shared scale.
+
+   What follows is an HONEST AUDIT, not an extraction: grepped every
+   padding/margin/gap declaration across src/*.js, src/features/*.js,
+   src/editor/*.js, and src/index.html, then bucketed by frequency. Use
+   this to see what's actually in use before inventing a new scale from
+   nothing — and to decide whether to formalize the near-scale that's
+   already implicit here, or replace it outright. */
+
+/* ── Raw frequency, all padding/margin/gap declarations (2026-08-17) ──
+     2px  ×10   4px  ×10   5px  ×7    6px  ×15   7px  ×3    8px  ×12
+     9px  ×5    10px ×10   11px ×4    12px ×3    13px ×3    14px ×6
+     16px ×6    18px ×6    28px ×2    40px ×3    72px ×1    116px ×1
+
+   The shape: a dense, mostly-4px-ish cluster from 2-18px covering nearly
+   every component (buttons, badges, list rows, panels), then a handful
+   of large one-offs (28/40/72/116) for page-level layout (editor
+   padding, manuscript-surface top offset). There is a LOT of noise in
+   the small end — 5, 7, 9, 11, 13px are all real, recurring values, not
+   typos — meaning components were tuned individually rather than
+   snapped to a grid. */
+
+:root {
+  /* ── Proposed scale — NOT wired into the app yet ──
+     A 4px base grid that covers the actual cluster above reasonably
+     well (loses the odd 5/7/9/11/13px in-between values — those were
+     each picked by eye against ~4 different base sizes, not on a fixed
+     rhythm, so snapping them is a real design decision, not a mechanical
+     one). Proposed as a starting point to build on, not a finished
+     system — the "Known deltas" list below shows exactly which existing
+     values would move, and by how much, if this scale were adopted. */
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 10px;
+  --space-6: 12px;
+  --space-7: 14px;
+  --space-8: 16px;
+  --space-9: 18px;
+  --space-10: 24px;
+  --space-11: 32px;
+  --space-12: 40px;
+
+  /* ── Page-level / layout values already in use, kept as named tokens
+     rather than folded into the numeric scale — these are structural
+     measurements (component widths, editor padding), not general-purpose
+     spacing units, and reusing them as if they were would be a coincidence,
+     not a relationship. ── */
+  --rail-w: 250px;              /* scene rail width */
+  --gutter: 88px;                /* manuscript-surface number-gutter column width */
+  --gap-gutter: 40px;             /* gutter → text gap (index.html's --gap, renamed
+                                      here to avoid colliding with a generic --gap) */
+  --editor-padding-sprinter: 20px 40px 60px 40px;
+  --editor-padding-manuscript: 72px 40px 40vh;   /* Editor mode's manuscript surface */
+}
+
+/* ── Known deltas if --space-* above were adopted verbatim ──
+   (component : current value → nearest scale step)
+
+   rail row padding            8px           → --space-4 (exact)
+   rail row gap                7px           → --space-3 (6px, -1) or --space-4 (8px, +1)
+   command-palette search row  15px 18px     → --space-7/--space-9 (14px/18px, close)
+   command-palette item        8px 18px      → --space-4/--space-9 (exact)
+   status bar height           30px          → no scale step this close; keep as a
+                                                 named --statusbar-h, not a spacing token
+   status bar h-padding        24px          → --space-10 (exact)
+   kbd badge padding           2px 6px       → --space-1/--space-3 (exact)
+   cold-storage banner height  44px          → no clean step; keep named
+   cold-storage banner padding 0 20px        → between --space-9 (18) and --space-10 (24)
+
+   None of this is applied to the app yet — it's the starting map for
+   whoever formalizes the scale, not a change already made. */

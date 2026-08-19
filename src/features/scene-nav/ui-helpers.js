@@ -15,9 +15,14 @@ import { btn, icon } from '../../dom.js';
 // deleteBtnClass scopes the "disarm every OTHER delete button" query to
 // just this surface's own buttons — rail.js and corkboard.js each render
 // their own independent set of delete buttons, and arming one in the rail
-// has no business disarming one in the corkboard (or vice versa).
+// has no business disarming one in the corkboard (or vice versa). May be a
+// single class or a space-separated list (e.g. a shared icon-button style
+// plus the scoping class); turned into a compound selector below rather
+// than interpolated as one raw string, which would parse a space as a
+// descendant combinator instead of a second class.
 export function makeDeleteButton(deleteBtnClass, label, onConfirm) {
   const button = btn(deleteBtnClass);
+  const disarmSelector = '.' + deleteBtnClass.trim().split(/\s+/).join('.');
   let armed = false;
   let timer = null;
 
@@ -50,7 +55,7 @@ export function makeDeleteButton(deleteBtnClass, label, onConfirm) {
       onConfirm();
       return;
     }
-    document.querySelectorAll('.' + deleteBtnClass).forEach((b) => { if (b !== button && b._disarm) b._disarm(); });
+    document.querySelectorAll(disarmSelector).forEach((b) => { if (b !== button && b._disarm) b._disarm(); });
     armed = true;
     paint();
     timer = setTimeout(disarm, 3000);

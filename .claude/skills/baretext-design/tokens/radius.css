@@ -1,0 +1,15 @@
+:root {
+  --radius-xs:   4px;
+  --radius-sm:   8px;
+  --radius-md:   12px;
+  --radius-lg:   16px;
+  --radius-xl:   20px;
+  --radius-pill: 9999px;
+  --radius-round: 50%;
+
+  /* ---- Semantic ---- */
+  --radius-row:     var(--radius-md);
+  --radius-panel:   var(--radius-xl);
+  --radius-control: var(--radius-round);
+  --radius-card:    var(--radius-lg);
+}

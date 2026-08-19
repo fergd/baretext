@@ -10,6 +10,133 @@ Also see: `README.md` (how to run/build/test, feature overview),
 `docs/theme-spec.md` (design tokens), `TYPEWRITER_MODE.md` (typewriter
 focus-mode spec).
 
+## Where things stand (as of 2026-08-18)
+
+**Pick up here.** A second attempt at the rail/design-system redesign —
+same direction as the one described below (Aug 2026, fully reverted), this
+time built to specifically avoid the four concrete bugs that sank it. Not
+a blind reapply of the old stash; a fresh implementation informed by
+reading it read-only (`git stash show`).
+
+Context: a design-system **skill** (`.claude/skills/baretext-design/`,
+installed this session from a standalone folder at `~/Projects/barebones
+design system/Design Component Redesign/` — it wasn't actually registered
+as a skill anywhere before this) proposed the same visual direction again
+(JetBrains Mono, 4px spacing grid, a floating rail panel, a timeline
+connector) as its own fixed dark/coral palette + React component
+references — neither of which fit this app (5 real themes, vanilla JS not
+React). Decided with the user up front: adopt JetBrains Mono as the real
+typeface (bundled locally, recovered byte-identical from the old stash's
+untracked-files parent — `git show 'stash@{0}^3:path'`, not a fresh CDN
+fetch), but keep the app's actual 5-theme color identity — new semantic
+tokens (`--surface-panel`, `--text-title`, `--connector`, etc., in
+`index.html`) alias onto the EXISTING per-theme `--bg`/`--text`/`--accent`
+tokens rather than a new fixed palette. Scope: rail only, same as last
+time — titlebar/fullscreen (confirmed pure scope creep last time, not
+required for the redesign) untouched.
+
+The four bugs and their fixes:
+1. **Drag-handle collided with the chevron** — root cause (confirmed by
+   reading the stash): the chevron lost its explicit `font-size` when rows
+   moved to CSS grid, so an unconstrained icon-font glyph spilled into the
+   handle's own cramped column. Fix: real, generously-sized, explicit grid
+   columns for both from the start, chevron re-given an explicit size.
+   Also: the reference design's own components give chapters NO drag
+   handle at all (only scenes) — this app already has real, tested
+   chapter-level drag-and-drop, so the chapter row's grid had to budget a
+   handle column deliberately rather than retrofitting one.
+2. **Rail widened but titles still truncated** — root cause: the old
+   attempt bumped rail text 12px→14px alongside widening `--rail-w`,
+   eating the width gain right back. This pass changes font (JetBrains
+   Mono) without bumping size; rail text stays at its existing ~12px.
+   `--rail-w` went 250px→320px, verified via CDP against the project's own
+   fixture's longest real title ("A Turning Point") rather than picked by
+   feel. A NEW, unrelated overflow also turned up live during this pass —
+   the tightly-packed grid columns made hit-target `::before`
+   pseudo-elements (intentionally larger than their visible icons) push a
+   few px past each row's edge, which showed up as an unwanted horizontal
+   scrollbar. Fixed by clipping `.rail-list`'s horizontal axis outright
+   (`overflow-x: hidden`) — this rail was never meant to scroll
+   sideways at all.
+3. **Floating card stretched to fill empty height** — root cause:
+   `#content-row`'s default `align-items: stretch`. Reused the fix already
+   correctly diagnosed in the old stash verbatim: `align-self: flex-start`
+   + a `max-height` cap on `#scene-rail`.
+4. **Cold Storage's "raised card" had zero contrast** — root cause: it was
+   aliased straight to the same token as its own container. Fixed with
+   `color-mix(in srgb, var(--text) 6%, var(--surface-panel))` (also
+   reused from the stash's own already-correct fix) instead of a second
+   alias to the same color.
+
+Also fixed live during CDP verification, not part of the original four:
+the editor's font-picker "mono" prose option hardcoded its own separate
+`'IBM Plex Mono'` font-stack string (not `var(--font-mono)`) — deleting the
+now-unused IBM Plex Mono files/`@font-face` rules would have silently
+regressed that specific picker option to system SF Mono. Re-pointed it at
+`var(--font-mono)` so it can never drift from the chrome font again.
+
+Live-verified via CDP (hidden launch) in both Ember (dark) and Parchment
+(light) — screenshots of rest state and a real-hover state (actual CDP
+pointer movement, not synthetic DOM events, which don't trigger real
+`:hover`). Added a `screenshot()` helper to `test/e2e/cdp-client.js`
+(generically useful, not redesign-specific) to support this. **New
+persisted E2E suite** ("rail redesign — regression coverage for four
+previously-reverted bugs", 7 tests) locks in all four fixes plus the font
+swap, so a future change can't silently reintroduce any of them. **Full
+suite: 133 unit + 127 E2E, all passing.**
+
+**Not yet rebuilt/reinstalled to `/Applications/Baretext.app`** — given
+this exact feature's history (passed every automated check once before,
+then failed real user review on four counts), waiting for the user's own
+visual sign-off on the screenshots before installing, rather than
+installing straight through. `src/index.html`, `src/features/scene-nav/
+rail.js`, `src/features/scene-nav/ui-helpers.js`, `src/app.js`,
+`test/e2e/cdp-client.js`, `test/e2e/smoke.test.js`, and the new
+`.claude/skills/baretext-design/` are all uncommitted — standing rule is
+commit-only-when-asked. (Also still uncommitted from the prior session,
+untouched by this one: the named-scene-break cursor fix — see below.)
+
+---
+
+## Where things stand (as of 2026-08-17)
+
+**Pick up here.** Since the 2026-08-16 write-up below: item 3 there (native
+spellcheck mode-awareness) was committed as `72a86cf`, rebuilt, and
+reinstalled — that install is what was running at the start of today's
+session.
+
+**Cursor landed inside a named scene break's hidden comment text — found
+and fixed.** User reported via screenshots: arrowing down into a freshly
+created/renamed named scene, or clicking right after renaming one via the
+rail, could leave the caret sitting partway through the scene's raw
+`<!-- Name -->` comment — real document text kept invisible
+(`color: transparent`) behind `SceneNameWidget` so `.cm-line.textContent`
+still equals the doc's actual text (see `scene-breaks.js`) — instead of
+skipping onto real content. Visually the caret ended up right at (or past)
+the end of the rendered heading with nothing actually there to edit. Root
+cause: nothing told CodeMirror the marker + name-comment lines are one
+non-editable "chrome" unit, so ordinary cursor motion and click-to-position
+could resolve to any offset inside that invisible text.
+
+Fixed with a new `EditorView.atomicRanges` extension
+(`scene-breaks.js`'s `sceneBreakAtomicRanges`, wired into `api.js`): each
+marker (+ its name-comment line, when present) is one atomic span, its end
+pushed one character past the line's own end so the only legal landing spot
+on the far side is the real next line — not the far edge of the invisible
+comment (tried first; still left the caret resting in dead space past the
+visible heading). Live-verified via CDP — arrow-down, arrow-up, and a
+direct click on the rendered heading label, in a hidden/headless launch —
+with pixel-level measurement of the caret before landing on the final
+approach. New E2E regression suite added ("cursor never rests inside a
+named scene break's hidden comment text", 4 tests). **Full suite: 133 unit
++ 120 E2E, all passing.** Rebuilt (`npm run build:editor` then `npm run
+build`) and reinstalled to `/Applications/Baretext.app`.
+`src/editor/scene-breaks.js`, `src/editor/api.js`, `src/editor-bundle.js`,
+and `test/e2e/smoke.test.js` are uncommitted — standing rule is
+commit-only-when-asked.
+
+---
+
 ## Where things stand (as of 2026-08-16)
 
 **Pick up here.** Since the 2026-08-12 write-up below: that session's work

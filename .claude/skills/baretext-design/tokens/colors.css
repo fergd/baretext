@@ -1,0 +1,52 @@
+:root {
+  /* ---- Base ramp: cool-charcoal neutrals (dark-first) ---- */
+  --bt-black:   #0a0e11;
+  --bt-ink-0:   #0e1113;
+  --bt-ink-1:   #171b1e;
+  --bt-ink-2:   #1c2124;
+  --bt-ink-3:   #21262a;
+  --bt-ink-4:   #262c30;
+  --bt-line:    #2a3033;
+
+  /* ---- Base text ---- */
+  --bt-fg-0: #eef1ef;
+  --bt-fg-1: #d6dbd8;
+  --bt-fg-2: #9aa2a1;
+  --bt-fg-3: #828b83;
+  --bt-fg-4: #5c635f;
+
+  /* ---- Base accent: coral (primary) ---- */
+  --bt-accent:            #ec9a63;
+  --bt-accent-strong:     #f2b183;
+  --bt-accent-container:  #3d322a;  /* tonal: accent mixed into ink-1 */
+  --bt-on-accent-cont:    #f7d7c1;
+  --bt-info:              #7fa6c4;  /* frost / cold-storage glyph */
+
+  /* ---- State overlays (neutral, tone-on-surface) ---- */
+  --bt-overlay-hover: rgba(226,229,228,0.055);
+  --bt-overlay-press: rgba(226,229,228,0.10);
+  --bt-overlay-icon:  rgba(226,229,228,0.09);
+  --bt-accent-wash:   rgba(236,154,99,0.10);
+
+  /* ================= Semantic aliases ================= */
+  --surface-canvas: var(--bt-black);
+  --surface-panel:  var(--bt-ink-1);
+  --surface-raised: var(--bt-ink-2);
+  --surface-inset:  var(--bt-ink-3);
+  --border-subtle:  var(--bt-line);
+  --border-strong:  var(--bt-ink-4);
+
+  --text-strong: var(--bt-fg-0);
+  --text-title:  var(--bt-fg-1);
+  --text-muted:  var(--bt-fg-2);
+  --text-meta:   var(--bt-fg-3);
+  --text-faint:  var(--bt-fg-4);
+
+  --accent:           var(--bt-accent);
+  --accent-hover:     var(--bt-accent-strong);
+  --selected-surface: var(--bt-accent-container);
+  --selected-text:    var(--bt-on-accent-cont);
+  --focus-ring:       var(--bt-accent);
+  --connector:        var(--bt-line);
+  --connector-active: #4a3a2c; /* accent mixed into ink for the live timeline */
+}

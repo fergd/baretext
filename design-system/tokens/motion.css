@@ -1,0 +1,40 @@
+/* Baretext — Motion tokens
+   Extracted verbatim from src/index.html's :root. As of commit 72a86cf
+   (2026-08-17). */
+
+:root {
+  --ease-panel: cubic-bezier(0.16, 1, 0.3, 1); /* fast-out, no overshoot —
+                                                   crisp, not springy */
+  --dur-panel: .2s;   /* panel open/close */
+  --dur-theme: .35s;  /* theme wash — deliberately slow, a "wash" not a snap */
+  --dur-micro: .1s;   /* hover/active micro-interactions */
+}
+
+/* ── Usage patterns (audited across the app, not all formally tokenized —
+   most components hardcode a duration/easing literal that happens to
+   match one of the above rather than referencing the custom property;
+   same gap as radius.css documents for --radius-*) ──
+
+   Theme/color changes:  background/color/border-color 0.35s ease
+                          (= --dur-theme, always plain "ease", never
+                          --ease-panel — this is deliberately a slow,
+                          gentle wash, not a snappy panel motion)
+
+   Panel open/close:     opacity 0.16-0.22s ease
+                          + transform on var(--ease-panel), 0.2-0.22s
+                          (command palette: opacity .16s ease, transform
+                          .22s var(--ease-panel) — the two run at
+                          slightly different durations on purpose, not a
+                          typo)
+
+   Micro-interactions
+   (hover, active):      0.08-0.15s ease — most commonly .1s
+                          (= --dur-micro), color/background/box-shadow
+                          only, never transform (hover states in this
+                          app change color/wash, not scale/position,
+                          except the font-picker's `scale(1.04)` — see
+                          components/patterns.md)
+
+   Theme switch flash:   a full-viewport overlay in --bg, opacity
+                          0 → 0.35 → 0 over ~0.3s, masks the repaint
+                          when every themed surface recolors at once */

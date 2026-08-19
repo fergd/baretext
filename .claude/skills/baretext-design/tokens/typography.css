@@ -1,0 +1,31 @@
+:root {
+  /* ---- Families ---- */
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+
+  /* ---- Size scale (px; type is not on the 4px grid) ---- */
+  --text-2xs: 11px;
+  --text-xs:  12px;
+  --text-sm:  13px;
+  --text-md:  14px;
+  --text-lg:  16px;
+  --text-xl:  20px;
+
+  /* ---- Weights ---- */
+  --weight-regular:  400;
+  --weight-medium:   500;
+  --weight-semibold: 600;
+  --weight-bold:     700;
+
+  /* ---- Line height & tracking ---- */
+  --leading-tight:   1.2;
+  --leading-normal:  1.4;
+  --leading-relaxed: 1.6;
+  --tracking-overline: 0.16em;
+
+  /* ---- Semantic roles ---- */
+  --type-overline: var(--weight-semibold) var(--text-2xs)/1 var(--font-mono);
+  --type-title:    var(--weight-semibold) var(--text-md)/var(--leading-tight) var(--font-mono);
+  --type-body:     var(--weight-regular)  var(--text-md)/var(--leading-normal) var(--font-mono);
+  --type-meta:     var(--weight-regular)  var(--text-sm)/var(--leading-normal) var(--font-mono);
+}

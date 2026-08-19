@@ -23,12 +23,17 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
   <title>Baretext</title>
   <style>
-    /* ── IBM Plex fonts (local, no network) ── */
-    @font-face { font-family: 'IBM Plex Mono'; font-weight: 400; font-style: normal;  src: url('fonts/ibm-plex-mono-400-normal.woff2') format('woff2'); }
-    @font-face { font-family: 'IBM Plex Mono'; font-weight: 400; font-style: italic;  src: url('fonts/ibm-plex-mono-400-italic.woff2') format('woff2'); }
-    @font-face { font-family: 'IBM Plex Mono'; font-weight: 700; font-style: normal;  src: url('fonts/ibm-plex-mono-700-normal.woff2') format('woff2'); }
-    @font-face { font-family: 'IBM Plex Mono'; font-weight: 700; font-style: italic;  src: url('fonts/ibm-plex-mono-700-italic.woff2') format('woff2'); }
+    /* ── JetBrains Mono (local, no network) — the app's chrome + default
+       writing typeface as of the design-system pass. SIL Open Font License
+       1.1, see src/fonts/LICENSES/jetbrains-mono-OFL.txt. IBM Plex Serif/
+       Sans (below) stay as the other two user-selectable editor prose
+       fonts — only the mono face changed. ── */
+    @font-face { font-family: 'JetBrains Mono'; font-weight: 400; font-style: normal; src: url('fonts/jetbrains-mono-400-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'JetBrains Mono'; font-weight: 400; font-style: italic; src: url('fonts/jetbrains-mono-400-italic.woff2') format('woff2'); }
+    @font-face { font-family: 'JetBrains Mono'; font-weight: 700; font-style: normal; src: url('fonts/jetbrains-mono-700-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'JetBrains Mono'; font-weight: 700; font-style: italic; src: url('fonts/jetbrains-mono-700-italic.woff2') format('woff2'); }
 
+    /* ── IBM Plex Serif/Sans (local, no network) ── */
     @font-face { font-family: 'IBM Plex Serif'; font-weight: 400; font-style: normal; src: url('fonts/ibm-plex-serif-400-normal.woff2') format('woff2'); }
     @font-face { font-family: 'IBM Plex Serif'; font-weight: 400; font-style: italic; src: url('fonts/ibm-plex-serif-400-italic.woff2') format('woff2'); }
     @font-face { font-family: 'IBM Plex Serif'; font-weight: 700; font-style: normal; src: url('fonts/ibm-plex-serif-700-normal.woff2') format('woff2'); }
@@ -42,7 +47,13 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --font-mono: 'IBM Plex Mono', 'SF Mono', 'Menlo', monospace;
+      /* --font-mono is the app's actual primary typeface (chrome + default
+         writing face) — JetBrains Mono as of the design-system pass. IBM
+         Plex Serif/Sans stay available as the other two user-selectable
+         editor prose fonts (mono/serif/sans, see theme-picker/app.js's
+         setFont) — only the CHROME default and --font-editor's own default
+         changed. */
+      --font-mono: 'JetBrains Mono', 'SF Mono', 'Menlo', monospace;
       --font-serif: 'IBM Plex Serif', 'Georgia', serif;
       --font-sans: 'IBM Plex Sans', -apple-system, sans-serif;
       /* editor prose font is user-switchable (mono/serif/sans); chrome always uses --font-mono */
@@ -54,7 +65,7 @@
       --text-body: 15px;
       --lh-body: 1.9;
       --editor-measure: 75ch; /* line measure — tune this one value to adjust editor line width */
-      --rail-w: 250px;
+      --rail-w: 320px; /* verified via CDP against real long titles -- see PROGRESS.md */
 
       /* Manuscript surface (Editor mode only — see design_handoff_baretext/
          MANUSCRIPT_SURFACE.md). Defaults here match the editor's existing
@@ -75,6 +86,62 @@
       --ms-h3-weight: 600;    /* scene heading weight */
       --ms-h3-lh:     1.4;    /* scene heading line-height */
 
+      /* ---- Design-system foundations (rail redesign) ----
+         4px spacing grid, a new radius/motion/icon/type-role scale for the
+         rail's rebuilt components. Additive — distinct names from the
+         existing per-surface tokens below (--radius-toast/picker/etc.,
+         --shadow-*, --ease-panel/--dur-panel/theme/micro), which keep their
+         current values for their current surfaces (font picker, toast,
+         command palette, ...) untouched by this pass. */
+      --space-hair: 1px;
+      --space-2xs:  2px;
+      --space-1:    4px;
+      --space-2:    8px;
+      --space-3:    12px;
+      --space-4:    16px;
+      --space-5:    20px;
+      --space-6:    24px;
+      --space-7:    28px;
+      --space-8:    32px;
+      --space-10:   40px;
+      --space-12:   48px;
+      --space-16:   64px;
+
+      /* Semantic row tokens -- rail.js's chapter/scene rows and the
+         connector alignment math all reference these directly. */
+      --row-pad-y:   var(--space-2);  /* 8px */
+      --row-pad-x:   var(--space-3);  /* 12px */
+      --row-min-h:   40px;
+      --scene-inset: var(--space-6);  /* 24px -- scene rows clear the connector */
+
+      --radius-xs:    4px;
+      --radius-sm:    8px;
+      --radius-md:    12px;
+      --radius-lg:    16px;
+      --radius-xl:    20px;
+      --radius-pill:  9999px;
+      --radius-round: 50%;
+      --radius-row:     var(--radius-md);
+      --radius-control: var(--radius-round);
+
+      --ease-standard:   cubic-bezier(.4, 0, .2, 1);
+      --ease-decelerate: cubic-bezier(0, 0, .2, 1);
+      --ease-accelerate: cubic-bezier(.4, 0, 1, 1);
+      --dur-1: 120ms;  /* hover/press state layers */
+      --dur-2: 180ms;  /* chevron rotate */
+      --dur-3: 220ms;  /* trailing meta <-> controls swap */
+      --dur-4: 320ms;  /* disclosure expand */
+      --motion-hover:  background var(--dur-1) var(--ease-standard);
+      --motion-rotate: transform var(--dur-2) var(--ease-standard);
+      --motion-swap:   opacity var(--dur-3) var(--ease-standard), transform var(--dur-3) var(--ease-standard);
+
+      /* This app draws icons via Tabler's icon font (already CSP-approved),
+         not raw SVG, so these are sizing references for icon-font glyphs/
+         hit areas rather than something applied to an SVG stroke. */
+      --icon-sm: 16px;
+      --icon-md: 20px;
+      --icon-lg: 24px;
+
       /* corner radii (per surface) */
       --radius-toast:   5px;
       --radius-picker:  8px;
@@ -89,6 +156,18 @@
       --shadow-palette: 0 28px 90px rgba(0, 0, 0, .55);
       --shadow-panel:   0 22px 60px rgba(0, 0, 0, .50);
       --shadow-toast:   0 16px 44px rgba(0, 0, 0, .50);
+
+      /* Rail type roles — sized at the rail's existing, already-tested
+         values (11/12px), NOT the design skill's own 14px preset. A prior
+         attempt at this same redesign bumped rail text to 14px alongside
+         widening --rail-w, and the size increase ate the width gain right
+         back — titles kept truncating even at a wider rail. Font FAMILY is
+         the only thing changing here (JetBrains Mono via --font-mono);
+         size stays put. */
+      --type-overline: 600 10px/1 var(--font-mono);
+      --type-title:    700 12px/1.3 var(--font-mono);
+      --type-body:     400 12px/1.3 var(--font-mono);
+      --type-meta:     400 11px/1.3 var(--font-mono);
 
       /* glass blur is color-independent */
       --glass-blur: blur(22px) saturate(160%);
@@ -172,6 +251,37 @@
       --stripe-accent:      inset 3px 0 0 var(--accent);
       --kbd-bg:             color-mix(in srgb, var(--bg) 55%, transparent);
       --kbd-border:         color-mix(in srgb, var(--border) 80%, transparent);
+
+      /* Rail redesign's component aliases — the rail's new markup reads
+         these generic surface/text/accent role names so its CSS stays
+         theme-agnostic; every one maps onto this app's OWN existing
+         per-theme tokens above, never a second copy of a color. Declared
+         in this same recomposing block for the same reason as the tokens
+         above it. */
+      --surface-panel:  var(--bg-alt);
+      /* Must read as a distinct tier ABOVE --surface-panel (Cold Storage's
+         raised card sits inside the rail panel) — a flat alias to --bg-alt
+         here would make it identical to --surface-panel, zero contrast
+         against its own container (confirmed real bug in an earlier
+         attempt at this same redesign). */
+      --surface-raised: color-mix(in srgb, var(--text) 6%, var(--surface-panel));
+      --surface-inset:  var(--bg);
+
+      --text-title: var(--text);
+      --text-muted: var(--text-dim);
+      --text-meta:  var(--text-dim);
+      --text-faint: var(--text-dimmer);
+
+      --border-subtle: var(--border);
+      --border-strong: var(--border);
+
+      --selected-surface: var(--wash-accent-strong);
+      --selected-text:    var(--text);
+      --focus-ring:        var(--accent);
+      --connector:         var(--border);
+      --connector-active:  color-mix(in srgb, var(--accent) 45%, var(--border));
+
+      --icon-btn-hover: var(--wash-accent);
     }
 
     html, body {
@@ -226,13 +336,21 @@
       position: relative;
     }
 
+    /* A floating panel, not a flush sidebar -- its own radius/shadow, inset
+       from the window edges on all but the outer side. No border stroke --
+       the shadow alone reads as "detached from the editor" without needing
+       a hard outline too. Always the full column height (the default
+       align-items:stretch from #content-row) -- a deliberate choice, not
+       just an unoverridden default; see git history if revisiting. */
     #scene-rail {
       display: none;
       flex-direction: column;
       flex: none;
       width: var(--rail-w);
-      background: var(--bg-alt);
-      border-right: 1px solid var(--border);
+      margin: var(--space-3) 0 var(--space-3) var(--space-3);
+      background: var(--surface-panel);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-panel);
       overflow: hidden;
     }
 

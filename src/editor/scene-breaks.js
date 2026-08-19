@@ -1,4 +1,5 @@
-import { Decoration, ViewPlugin, WidgetType } from '@codemirror/view';
+import { Decoration, EditorView, ViewPlugin, WidgetType } from '@codemirror/view';
+import { StateField } from '@codemirror/state';
 import { injectStyle as injectStyleTag } from '../dom.js';
 
 const sceneBreakLine = Decoration.line({ class: 'cm-scene-break' });
@@ -94,6 +95,68 @@ export const sceneBreakDecorator = ViewPlugin.fromClass(class {
     if (update.docChanged || update.viewportChanged) this.decorations = build(update.view);
   }
 }, { decorations: v => v.decorations });
+
+// Marker lines ("---") and their name-comment line ("<!-- Name -->", when
+// present) are pure chrome — real, editable document text kept invisible
+// behind the ornament/heading widgets above (see SceneNameWidget's own
+// comment for why the raw text has to stay real rather than being replaced
+// outright: E2E's exact .cm-line-text assertions depend on it). Because
+// that invisible text is still really there, the caret could rest partway
+// through it — confirmed bug: arrowing down from the previous scene, or
+// clicking near a scene heading, could land the caret mid-comment (visually
+// well past where the rendered heading text ends, since "Doc Interrogation"
+// the widget and "<!-- Doc Interrogation -->" the real text aren't the same
+// length). Marking each marker(+name-comment) pair as one atomic range for
+// cursor motion means arrowing/clicking always jumps clean over the whole
+// unit, landing on the real content before or after it instead. The range's
+// end is pushed one further, onto the very first position of the following
+// line (not the chrome's own last line) — ending it AT the chrome's own
+// last character left that position itself as a legal (non-atomic)
+// boundary, which is still real invisible text and stops the caret exactly
+// as visually adrift as the original bug, just at the far edge instead of
+// the middle of it. Landing on real content's own first line is the only
+// boundary that isn't itself part of the invisible span.
+function buildAtomicRanges(state) {
+  const doc = state.doc;
+  const docLength = doc.length;
+  const ranges = [];
+  let awaitingFirstContent = false;
+
+  for (let i = 1; i <= doc.lines; i++) {
+    const line = doc.line(i);
+    const trimmed = line.text.trim();
+    const headingMatch = line.text.match(/^(#{1,3})(?:[ \t]+.*)?$/);
+
+    if (headingMatch) {
+      awaitingFirstContent = headingMatch[1].length === 1;
+      continue;
+    }
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
+      awaitingFirstContent = false;
+      let chromeEnd = line.to;
+      if (i + 1 <= doc.lines) {
+        const next = doc.line(i + 1);
+        if (NAME_COMMENT_RE.test(next.text.trim())) chromeEnd = next.to;
+      }
+      ranges.push(Decoration.mark({}).range(line.from, Math.min(chromeEnd + 1, docLength)));
+      continue;
+    }
+    if (awaitingFirstContent) {
+      if (NAME_COMMENT_RE.test(trimmed)) {
+        ranges.push(Decoration.mark({}).range(line.from, Math.min(line.to + 1, docLength)));
+        continue;
+      }
+      if (trimmed !== '') awaitingFirstContent = false;
+    }
+  }
+  return Decoration.set(ranges, true);
+}
+
+export const sceneBreakAtomicRanges = StateField.define({
+  create: (state) => buildAtomicRanges(state),
+  update: (value, tr) => (tr.docChanged ? buildAtomicRanges(tr.state) : value.map(tr.changes)),
+  provide: (f) => EditorView.atomicRanges.from(f, (ranges) => () => ranges),
+});
 
 export function injectSceneBreakStyle() {
   injectStyleTag('bt-scene-break', `

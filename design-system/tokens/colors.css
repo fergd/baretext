@@ -1,0 +1,238 @@
+/* Baretext — Color tokens
+   Extracted verbatim from the live app at commit 72a86cf (2026-08-17):
+   src/index.html's [data-theme] blocks (base palette + derived/glass
+   tokens) and src/editor/theme.js's injectHeadingColors() (per-theme
+   heading colors, previously a second, separate injection point — merged
+   here as one palette per theme since conceptually they're the same
+   thing).
+
+   Five themes, switched by setting data-theme on <html>. "dark" (Ember) is
+   the default/native theme — warm amber-on-charcoal, not a corporate
+   dark mode. Every other theme matches this same token set so components
+   never special-case a theme by name.
+
+   Status: LIVE — this is what's actually shipping, not aspirational. Safe
+   to treat as ground truth for a redesign's starting point; not safe to
+   assume every value here is "correct" or final — see the "Known gaps"
+   note at the bottom for colors used in the app that never made it into
+   this token system. */
+
+:root {
+  /* ── Semantic base (per-theme values below fill these in) ──
+     bg           canvas / editor background
+     bg-alt       panels, status bar, rail — one step off canvas, no deeper
+                  elevation scale than this
+     text         primary reading/writing color
+     text-dim     secondary (labels, dim UI text)
+     text-dimmer  tertiary (placeholders, least emphasis) — every theme's
+                  text-dimmer must clear WCAG AA (4.5:1) against both bg
+                  and bg-alt; text-dim must stay visibly more prominent
+                  than text-dimmer. Enforced by test/unit/*.test.js in the
+                  main app — keep that invariant if you touch these.
+     accent       the one saturated color per theme — cursor, active
+                  states, H1. Never used for chrome/status bar fills.
+     scene        distinct-from-accent color for scene markers/headings on
+                  the manuscript surface (Editor mode) — must read as
+                  clearly different from accent at a glance.
+     border       hairline borders, 1px
+     cursor       editor caret color (usually = accent; text in themes
+                  where accent-as-caret reads poorly, e.g. Dracula)
+     sel          text selection background, accent at low alpha
+     placeholder  empty-state text ( = text-dimmer in every theme today)
+     h1..h4       markdown heading colors (editor syntax highlighting) —
+                  a separate, cooler-toned scale from accent/scene, one
+                  step dimmer per level */
+
+  /* ── Derived tokens — MUST be redeclared on every themed container
+     (not :root alone), so nested var()s recompose from that scope's own
+     colors instead of baking in the default theme's. In the app this
+     rule is `:root, [data-theme] { ... }`; reproduced per-theme below so
+     this file works standalone without relying on selector duplication
+     order. ── */
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Ember — dark, default/native theme
+   ══════════════════════════════════════════════════════════════════════ */
+[data-theme="dark"], .theme-dark {
+  --bg: #242424;
+  --bg-alt: #191919;
+  --text: #faf2d6;
+  --text-dim: #bdae93;
+  --text-dimmer: #968d78;
+  --accent: #f8c537;
+  --scene: #d98a3f;
+  --border: #3a3a3a;
+  --cursor: #f8c537;
+  --sel: rgba(248, 197, 55, 0.22);
+  --placeholder: var(--text-dimmer);
+  --syntax-2: #f8c537;
+  --typewriter-focus: #fbe6a0;
+
+  --h1: #e8c97a;
+  --h2: #c4a85a;
+  --h3: #a08844;
+  --h4: #7a6832;
+
+  --glass-bg:           color-mix(in srgb, var(--bg-alt) 86%, transparent);
+  --glass-border:       color-mix(in srgb, var(--border) 65%, transparent);
+  --glass-highlight:    inset 0 1px 0 color-mix(in srgb, var(--text) 8%, transparent);
+  --glass-edge:         color-mix(in srgb, var(--accent) 40%, transparent);
+  --wash-accent:        color-mix(in srgb, var(--accent) 9%,  transparent);
+  --wash-accent-strong: color-mix(in srgb, var(--accent) 15%, transparent);
+  --stripe-accent:      inset 3px 0 0 var(--accent);
+  --kbd-bg:             color-mix(in srgb, var(--bg) 55%, transparent);
+  --kbd-border:         color-mix(in srgb, var(--border) 80%, transparent);
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Parchment — light. Warm parchment, deliberately never white/gray.
+   ══════════════════════════════════════════════════════════════════════ */
+[data-theme="light"], .theme-light {
+  --bg: #f5f0e8;
+  --bg-alt: #ede8de;
+  --text: #2a2218;
+  --text-dim: #6b5f4a;
+  --text-dimmer: #70685b;
+  --accent: #b8820a;
+  --scene: #a8631a;
+  --border: #d0c8b8;
+  --cursor: #b8820a;
+  --sel: rgba(184, 130, 10, 0.20);
+  --placeholder: var(--text-dimmer);
+  --syntax-2: #b8820a;
+  --typewriter-focus: #1a1206;
+
+  --h1: #8b5e0a;
+  --h2: #b07820;
+  --h3: #7a5515;
+  --h4: #5a3e0e;
+
+  --glass-bg:           color-mix(in srgb, var(--bg-alt) 86%, transparent);
+  --glass-border:       color-mix(in srgb, var(--border) 65%, transparent);
+  --glass-highlight:    inset 0 1px 0 color-mix(in srgb, var(--text) 8%, transparent);
+  --glass-edge:         color-mix(in srgb, var(--accent) 40%, transparent);
+  --wash-accent:        color-mix(in srgb, var(--accent) 9%,  transparent);
+  --wash-accent-strong: color-mix(in srgb, var(--accent) 15%, transparent);
+  --stripe-accent:      inset 3px 0 0 var(--accent);
+  --kbd-bg:             color-mix(in srgb, var(--bg) 55%, transparent);
+  --kbd-border:         color-mix(in srgb, var(--border) 80%, transparent);
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Amstrad — toned-down Amstrad CPC green-phosphor terminal.
+   ══════════════════════════════════════════════════════════════════════ */
+[data-theme="amstrad"], .theme-amstrad {
+  --bg: #0d130d;
+  --bg-alt: #0a0f0a;
+  --text: #c8e6b0;
+  --text-dim: #79956c;
+  --text-dimmer: #6f8562;
+  --accent: #7dc45a;
+  --scene: #7dc45a;
+  --border: #1c281a;
+  --cursor: #7dc45a;
+  --sel: rgba(125, 196, 90, 0.18);
+  --placeholder: var(--text-dimmer);
+  --syntax-2: #7dc45a;
+  --typewriter-focus: #b6e85a;
+
+  --h1: #8fd670;
+  --h2: #6fb050;
+  --h3: #549040;
+  --h4: #3d6c30;
+
+  --glass-bg:           color-mix(in srgb, var(--bg-alt) 86%, transparent);
+  --glass-border:       color-mix(in srgb, var(--border) 65%, transparent);
+  --glass-highlight:    inset 0 1px 0 color-mix(in srgb, var(--text) 8%, transparent);
+  --glass-edge:         color-mix(in srgb, var(--accent) 40%, transparent);
+  --wash-accent:        color-mix(in srgb, var(--accent) 9%,  transparent);
+  --wash-accent-strong: color-mix(in srgb, var(--accent) 15%, transparent);
+  --stripe-accent:      inset 3px 0 0 var(--accent);
+  --kbd-bg:             color-mix(in srgb, var(--bg) 55%, transparent);
+  --kbd-border:         color-mix(in srgb, var(--border) 80%, transparent);
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Grove — Everforest Dark (Obsidian port), verbatim palette.
+   Cursor is Everforest blue, not this theme's own accent.
+   ══════════════════════════════════════════════════════════════════════ */
+[data-theme="grove"], .theme-grove {
+  --bg: #2f383e;
+  --bg-alt: #272f34;
+  --text: #d3c6aa;
+  --text-dim: #9aa79d;
+  --text-dimmer: #9ca293;
+  --accent: #a7c080;
+  --scene: #e69875;
+  --border: #525c62;
+  --cursor: #7fbbb3;
+  --sel: rgba(82, 92, 98, 0.55);
+  --placeholder: var(--text-dimmer);
+  --syntax-2: #e69875;
+  --typewriter-focus: #e0c583;
+
+  --h1: #a7c080;
+  --h2: #e69875;
+  --h3: #dbbc7f;
+  --h4: #83c092;
+
+  --glass-bg:           color-mix(in srgb, var(--bg-alt) 86%, transparent);
+  --glass-border:       color-mix(in srgb, var(--border) 65%, transparent);
+  --glass-highlight:    inset 0 1px 0 color-mix(in srgb, var(--text) 8%, transparent);
+  --glass-edge:         color-mix(in srgb, var(--accent) 40%, transparent);
+  --wash-accent:        color-mix(in srgb, var(--accent) 9%,  transparent);
+  --wash-accent-strong: color-mix(in srgb, var(--accent) 15%, transparent);
+  --stripe-accent:      inset 3px 0 0 var(--accent);
+  --kbd-bg:             color-mix(in srgb, var(--bg) 55%, transparent);
+  --kbd-border:         color-mix(in srgb, var(--border) 80%, transparent);
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Dracula — the standard Dracula palette. Cursor is text, not accent.
+   ══════════════════════════════════════════════════════════════════════ */
+[data-theme="dracula"], .theme-dracula {
+  --bg: #282a36;
+  --bg-alt: #21222c;
+  --text: #f8f8f2;
+  --text-dim: #97a1bf;
+  --text-dimmer: #91929b;
+  --accent: #bd93f9;
+  --scene: #8be9fd;
+  --border: #44475a;
+  --cursor: #f8f8f2;
+  --sel: rgba(68, 71, 90, 0.70);
+  --placeholder: var(--text-dimmer);
+  --syntax-2: #8be9fd;
+  --typewriter-focus: #ffffff;
+
+  --h1: #bd93f9;
+  --h2: #ff79c6;
+  --h3: #8be9fd;
+  --h4: #50fa7b;
+
+  --glass-bg:           color-mix(in srgb, var(--bg-alt) 86%, transparent);
+  --glass-border:       color-mix(in srgb, var(--border) 65%, transparent);
+  --glass-highlight:    inset 0 1px 0 color-mix(in srgb, var(--text) 8%, transparent);
+  --glass-edge:         color-mix(in srgb, var(--accent) 40%, transparent);
+  --wash-accent:        color-mix(in srgb, var(--accent) 9%,  transparent);
+  --wash-accent-strong: color-mix(in srgb, var(--accent) 15%, transparent);
+  --stripe-accent:      inset 3px 0 0 var(--accent);
+  --kbd-bg:             color-mix(in srgb, var(--bg) 55%, transparent);
+  --kbd-border:         color-mix(in srgb, var(--border) 80%, transparent);
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Known gaps — real colors used in the shipping app that never got
+   promoted to a token. Listed here so a redesign either tokenizes them
+   properly or deliberately keeps them one-off:
+
+   #e05c5c   "danger" — save-error dot (#save-error), delete-button hover/
+             armed state (two-click delete confirm — see components/patterns.md).
+             Same hardcoded hex in both places today; wants a --danger token.
+   #ff5555   native (OS-level) spellcheck squiggle color
+             (::spelling-error), independent of the app's own
+             .cm-spellError decoration, which currently reuses --danger's
+             hex directly too. Two different mechanisms drawing the same
+             red — worth one shared token.
+   ══════════════════════════════════════════════════════════════════════ */

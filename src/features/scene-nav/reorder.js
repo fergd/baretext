@@ -174,3 +174,16 @@ export function deleteChapter(chapters, chapterIndex) {
   const next = chapters.filter((_, i) => i !== chapterIndex);
   return buildDocument(next);
 }
+
+// Appends a new, blank chapter (empty title -- shows the "Untitled"
+// placeholder, see chapter-placeholder.js -- and no scenes yet, a normal
+// draft state) as the last REAL chapter, i.e. right before Cold Storage if
+// it exists (Cold Storage must always serialize last -- see buildDocument's
+// own comment) rather than at the true end of the chapters[] array.
+export function addChapter(chapters) {
+  const next = chapters.map((c) => ({ title: c.title, synthetic: c.synthetic, coldStorage: c.coldStorage, scenes: c.scenes.slice() }));
+  const coldStorageIndex = next.findIndex((c) => c.coldStorage);
+  const insertAt = coldStorageIndex === -1 ? next.length : coldStorageIndex;
+  next.splice(insertAt, 0, { title: '', synthetic: false, coldStorage: false, scenes: [] });
+  return buildDocument(next);
+}

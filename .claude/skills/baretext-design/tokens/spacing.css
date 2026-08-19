@@ -1,0 +1,27 @@
+:root {
+  /* 4px grid. Sub-grid exceptions (1px, 2px) reserved for hairlines only. */
+  --space-0:    0;
+  --space-hair: 1px;   /* exception */
+  --space-2xs:  2px;   /* exception */
+  --space-1:    4px;
+  --space-2:    8px;
+  --space-3:    12px;
+  --space-4:    16px;
+  --space-5:    20px;
+  --space-6:    24px;
+  --space-7:    28px;
+  --space-8:    32px;
+  --space-10:   40px;
+  --space-12:   48px;
+  --space-16:   64px;
+
+  /* ---- Semantic ---- */
+  --row-pad-y:   var(--space-2);
+  --row-pad-x:   var(--space-3);
+  --row-min-h:   40px;
+  --rail-pad-y:  var(--space-4);
+  --rail-pad-x:  var(--space-2);
+  --group-gap:   var(--space-2);
+  --scene-inset: var(--space-6);  /* 24px: scene rows clear the connector */
+  --title-col:   68px;            /* shared title column start (chapter + scene) */
+}

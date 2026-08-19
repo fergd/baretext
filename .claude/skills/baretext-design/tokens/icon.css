@@ -1,0 +1,7 @@
+:root {
+  --icon-sm: 16px;
+  --icon-md: 20px;
+  --icon-lg: 24px;
+  --hit-target: 40px;   /* minimum click target (macOS pointer) */
+  --icon-stroke: 1.7;   /* default line-icon stroke width */
+}

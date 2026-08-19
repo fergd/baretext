@@ -244,8 +244,11 @@ function setTheme(t) {
 }
 
 // ── Font ──
+// mono deliberately references --font-mono itself (not a second copy of the
+// stack) so the editor's "mono" prose option always matches whatever the
+// app's actual chrome typeface is, rather than drifting out of sync with it.
 const fontVars = {
-  mono:  "'IBM Plex Mono', 'SF Mono', monospace",
+  mono:  'var(--font-mono)',
   serif: "'IBM Plex Serif', 'Georgia', serif",
   sans:  "'IBM Plex Sans', -apple-system, sans-serif",
 };

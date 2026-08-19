@@ -93,6 +93,16 @@ export async function connect(port) {
   }
 
   await send('Input.enable');
+  await send('Page.enable');
 
-  return { evaluate, getConsoleMessages, clearConsoleMessages, close, mouseEvent, realDrag };
+  // PNG screenshot of the current viewport, base64-encoded — used for
+  // manual/live visual verification (not asserted on directly by any test;
+  // Node has no pixel-diffing here), e.g. to eyeball a redesign against a
+  // real rendered window before/after a change.
+  async function screenshot() {
+    const result = await send('Page.captureScreenshot', { format: 'png' });
+    return result.result.data;
+  }
+
+  return { evaluate, getConsoleMessages, clearConsoleMessages, close, mouseEvent, realDrag, screenshot };
 }

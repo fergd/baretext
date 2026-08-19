@@ -1,0 +1,37 @@
+/* Baretext — Corner-radius tokens
+   The named --radius-* scale below is extracted verbatim from
+   src/index.html's :root (this part IS a real, already-formal token
+   system in the app — unlike spacing). As of commit 72a86cf (2026-08-17). */
+
+:root {
+  /* Ordered smallest → largest. Named by SURFACE, not by size — each
+     token maps to one specific kind of element everywhere it appears, so
+     "what radius does a toast get" is always --radius-toast regardless
+     of which component happens to render one. */
+  --radius-kbd:     4px;  /* keycap badges (⌘, ⇧, etc.) */
+  --radius-toast:   5px;  /* toast notifications */
+  --radius-item:    6px;  /* list rows, buttons, small interactive chips */
+  --radius-picker:  8px;  /* font picker, mode-switch pill */
+  --radius-card:    10px; /* corkboard scene cards */
+  --radius-panel:   12px; /* larger floating panels */
+  --radius-palette: 14px; /* command palette (the largest surface, most rounded) */
+}
+
+/* ── Known gaps — un-tokenized radius values found in component CSS,
+   not drawn from the scale above (audited 2026-08-17):
+
+     2px   ×6   scrollbar thumbs
+     3px   ×1   (one-off — verify before reusing)
+     4px   ×8   — mostly agrees with --radius-kbd, but declared as a
+                  literal in most call sites rather than var(--radius-kbd)
+     5px   ×2   — agrees with --radius-toast, same issue
+     6px   ×5   — agrees with --radius-item, same issue
+     8px   ×2   — agrees with --radius-picker, same issue
+     14px  ×1   — agrees with --radius-palette, same issue
+
+   Net effect: the SCALE this file documents is real and already
+   consistent — nothing above contradicts it — but most components don't
+   actually reference the --radius-* custom properties, they just happen
+   to use the same numbers as literals. Wiring components to the real
+   tokens (rather than adding new radius values) is the low-risk fix here;
+   the values themselves don't need to change. ── */
