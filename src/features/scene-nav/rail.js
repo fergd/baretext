@@ -7,6 +7,12 @@ let ctx = null;
 let railEl = null;
 let collapsed = new Set(); // chapter indices
 
+function railAssetIcon(name) {
+  const span = el('span', 'rail-svg-icon rail-svg-' + name);
+  span.setAttribute('aria-hidden', 'true');
+  return span;
+}
+
 // "scenes/words" -- e.g. "5/2997" -- a chapter's own trailing meta. Total
 // word count across every scene in the chapter, not the chapter's own doc
 // length, so it matches what the writer actually cares about (prose
@@ -14,6 +20,20 @@ let collapsed = new Set(); // chapter indices
 function chapterMeta(chapter) {
   const words = chapter.scenes.reduce((sum, s) => sum + s.wordCount, 0);
   return chapter.scenes.length + '/' + words;
+}
+
+// The manuscript belongs to the writer, so its header uses their document
+// name rather than an app-owned section label. Files created by Baretext have
+// date-based working names; those remain visually "Untitled" until the user
+// gives the file a meaningful name.
+function novelTitle(filePath) {
+  if (!filePath) return { text: 'Untitled', placeholder: true };
+  const fileName = filePath.split(/[\\/]/).pop() || '';
+  const stem = fileName.replace(/\.[^.]+$/, '').trim();
+  const generatedName = /^\d{4}-\d{2}-\d{2}(?:-\d+)?$/.test(stem);
+  return stem && !generatedName
+    ? { text: stem, placeholder: false }
+    : { text: 'Untitled', placeholder: true };
 }
 // { type: 'chapter', chapterIndex } or { type: 'scene', chapterIndex, sceneIndex }
 // while a drag is in progress -- set on dragstart, read by whatever row the
@@ -35,15 +55,27 @@ function clearDropIndicators() {
 function injectStyle() {
   injectStyleTag('scene-rail-style', `
 #scene-rail { font-family: var(--font-mono); }
+.rail-svg-icon {
+  display: block; width: var(--space-4); height: var(--space-4); flex: none;
+  background: currentColor; mask: center / contain no-repeat; -webkit-mask: center / contain no-repeat;
+}
+.rail-svg-cards { mask-image: url('icons/rail-cards.svg'); -webkit-mask-image: url('icons/rail-cards.svg'); }
+.rail-svg-chevron-open { mask-image: url('icons/rail-chevron-open.svg'); -webkit-mask-image: url('icons/rail-chevron-open.svg'); }
+.rail-svg-chevron-closed { mask-image: url('icons/rail-chevron-closed.svg'); -webkit-mask-image: url('icons/rail-chevron-closed.svg'); }
 .rail-header {
   display: flex; align-items: center; justify-content: space-between;
-  padding: var(--space-3) var(--space-4) var(--space-2);
+  box-sizing: border-box; flex: 0 0 var(--row-min-h);
+  min-height: var(--row-min-h); margin: var(--space-4) var(--space-2) var(--space-1);
+  padding: var(--space-1); border-radius: var(--radius-row);
 }
-.rail-header-right { display: flex; align-items: center; gap: var(--space-2); }
+.rail-header-left { display: flex; flex: 1; min-width: 0; align-items: center; gap: var(--space-2); }
 .rail-label {
-  font: var(--type-overline); letter-spacing: .12em; text-transform: uppercase;
-  color: var(--accent); opacity: .85;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  font: var(--type-overline); letter-spacing: 0;
+  white-space: nowrap;
+  color: var(--accent); opacity: .85; cursor: text;
 }
+.rail-label.rail-label-placeholder { font-style: italic; }
 .rail-dim { font: var(--type-meta); color: var(--text-faint); font-variant-numeric: tabular-nums; }
 /* overflow-x: hidden, not just overflow:auto -- rows are tightly packed
    grid layouts now, and hit-target ::before pseudo-elements (negative
@@ -61,7 +93,11 @@ function injectStyle() {
    the panel), margin-top:auto collapses to 0 and everything scrolls
    normally -- this only ever pins Cold Storage down, never cuts scrolling
    short. */
-.rail-list { flex: 1; display: flex; flex-direction: column; overflow-x: hidden; overflow-y: auto; padding: 0 var(--space-2); }
+/* Left side trimmed tighter than the right (--space-1 vs --space-2) so a
+   row's hover highlight reads closer to the panel's own rounded edge --
+   the right side keeps its full inset since trailing icon buttons still
+   need real breathing room from the panel's other edge. */
+.rail-list { flex: 1; display: flex; flex-direction: column; gap: var(--space-1); overflow-x: hidden; overflow-y: auto; padding: 0 var(--space-2); }
 
 /* Shared round icon-button visual (corkboard/rename/delete) — one circular
    hover state-layer instead of each control having its own bespoke hover
@@ -70,16 +106,16 @@ function injectStyle() {
    selector/test contracts elsewhere), not a replacement for it. */
 .rail-icon-btn {
   all: unset; box-sizing: border-box; position: relative; flex-shrink: 0; cursor: pointer;
-  width: 26px; height: 26px; border-radius: var(--radius-control);
+  width: var(--space-4); height: var(--space-4); border-radius: var(--radius-control);
   display: inline-flex; align-items: center; justify-content: center;
   color: var(--text-muted);
   transition: var(--motion-hover), color var(--dur-1) var(--ease-standard);
 }
-.rail-icon-btn::before { content: ''; position: absolute; inset: -5px; } /* nets >=24px hit target -- checked by hit-target test */
-.rail-icon-btn .ti { font-size: 13px; }
+.rail-icon-btn::before { content: ''; position: absolute; inset: -6px; } /* 28px hit target around a 16px glyph */
+.rail-icon-btn .ti { font-size: var(--space-4); }
 .rail-icon-btn:hover, .rail-icon-btn:focus-visible { background: var(--icon-btn-hover); color: var(--text-strong); }
-.rail-corkboard-btn.rail-icon-btn { width: 28px; height: 28px; }
-.rail-corkboard-btn .ti { font-size: 15px; }
+.rail-corkboard-btn.rail-icon-btn { width: var(--space-4); height: var(--space-4); }
+.rail-corkboard-btn .ti { font-size: var(--space-4); }
 .rail-delete-btn.confirm {
   width: auto; padding: 0 var(--space-2); gap: 4px;
   color: #e05c5c; font-weight: 600;
@@ -87,50 +123,45 @@ function injectStyle() {
 }
 
 .rail-chapter-row, .rail-scene-row {
-  position: relative; cursor: pointer;
-  min-height: var(--row-min-h); padding: var(--row-pad-y) var(--row-pad-x);
+  box-sizing: border-box; position: relative; cursor: pointer;
+  height: var(--row-min-h);
+  min-height: var(--row-min-h); padding: var(--row-pad-y) var(--row-pad-end) var(--row-pad-y) var(--row-pad-x);
   border-radius: var(--radius-row);
-  align-items: center; gap: var(--space-2);
+  align-items: center;
   transition: var(--motion-hover);
 }
 .rail-chapter-row:hover, .rail-scene-row:hover { background: var(--icon-btn-hover); }
-/* The chevron gets a real, explicit size here on purpose: a cramped/unsized
-   icon column is exactly what let a chevron glyph spill into the handle's
-   column in an earlier pass at this same redesign. The chapter's own grab
-   handle (below) is NOT a grid column here, unlike scene rows -- it's only
-   ever visible on hover, so permanently reserving layout space for it would
-   push the chevron (and the whole heading) to the right of where the
-   timeline connector actually sits. Floated instead, absolutely positioned
-   over the row's own left padding, so the chevron aligns with the
-   connector at rest and the handle only ever overlaps hover-revealed
-   space, never pushes real content. */
-.rail-chapter-row {
-  display: grid; grid-template-columns: 18px auto 1fr 64px;
+/* One disclosure/action column, one 20px chapter-number column, then title.
+   The chapter drag handle swaps into the chevron's exact grid cell on row
+   hover/focus; it never consumes a third leading column or collides with
+   the disclosure glyph. Cold Storage uses the same geometry, with its
+   blue snowflake occupying the node column. */
+.rail-chapter-row, .rail-cold-storage-row {
+  display: grid; grid-template-columns: var(--rail-node) var(--rail-node) minmax(0, 1fr) 48px; gap: var(--space-2);
 }
-.rail-cold-storage-row { grid-template-columns: 18px 22px 1fr 64px; } /* no grab column -- not a reorder target */
 .rail-chapter-row .rail-drag-handle {
-  position: absolute; left: -4px; top: 50%; transform: translateY(-50%);
-  width: 16px; /* overrides the general rule's width:100% below, which
-                  assumes a grid-cell context this element no longer has;
-                  also narrower than scene rows' 20px handle -- pulled left
-                  into the rail-list's own padding gutter (safe: overflow
-                  clips at the padding edge, not the content edge) to open
-                  real breathing room before the chevron, rather than the
-                  two icons sitting edge-to-edge. */
+  grid-column: 2; grid-row: 1; border-radius: var(--radius-control);
 }
-.rail-chevron {
+.rail-chapter-row .rail-drag-handle:hover { background: var(--icon-btn-hover); color: var(--accent); }
+.rail-chevron-btn {
+  all: unset; box-sizing: border-box; position: relative; grid-column: 1; grid-row: 1;
+  width: var(--rail-node); height: var(--rail-node); cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center;
-  font-size: 14px; color: var(--text-muted);
-  margin-left: 3px; /* the small remaining half of that breathing room --
-                        keeps the chevron close enough to the connector
-                        below it to still read as aligned, while giving the
-                        hover-revealed handle real clearance on its left. */
-  transition: var(--motion-rotate);
+  color: var(--text-muted); border-radius: var(--radius-control);
 }
-.rail-chevron.collapsed { transform: rotate(-90deg); }
-/* auto-width (not a fixed column) -- "Ch. N" grows past two digits without
-   truncating or forcing the column wider than any real chapter needs. */
-.rail-chapter-num { min-width: 24px; font: var(--type-meta); color: var(--text-muted); text-align: center; font-variant-numeric: tabular-nums; }
+.rail-chevron-btn::before { content: ''; position: absolute; inset: -6px; }
+.rail-chevron-btn:hover, .rail-chevron-btn:focus-visible { background: var(--icon-btn-hover); color: var(--text-strong); }
+.rail-chapter-num {
+  grid-column: 2; grid-row: 1;
+  width: var(--rail-node); height: var(--rail-node); border-radius: var(--space-3);
+  display: inline-flex; align-items: center; justify-content: center;
+  font: 400 12px/normal var(--font-mono); color: var(--text-muted); background: var(--surface-raised);
+  font-variant-numeric: tabular-nums;
+}
+.rail-chapter-row > .rail-chapter-title { grid-column: 3; }
+.rail-chapter-row > .rail-trailing { grid-column: 4; }
+.rail-chapter-row:hover > .rail-chapter-num,
+.rail-chapter-row:focus-within > .rail-chapter-num { opacity: 0; }
 .rail-chapter-title { font: var(--type-title); color: var(--text-title); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rail-chapter-title.placeholder { color: var(--text-faint); font-weight: 500; font-style: italic; }
 
@@ -138,12 +169,12 @@ function injectStyle() {
    controls on hover OR :focus-within (so tabbing into a row reveals them
    too, not just mouse hover -- rename/delete/drag are core actions, must
    stay reachable without a mouse). */
-.rail-trailing { position: relative; height: 26px; display: flex; align-items: center; justify-content: flex-end; }
+.rail-trailing { position: relative; height: var(--space-6); display: flex; align-items: center; justify-content: flex-end; }
 .rail-trailing-meta {
   position: absolute; right: 0; transition: var(--motion-swap);
 }
 .rail-trailing-controls {
-  display: flex; gap: var(--space-2xs);
+  display: flex; gap: var(--space-3);
   opacity: 0; transform: translateX(6px); pointer-events: none;
   transition: var(--motion-swap);
 }
@@ -160,26 +191,15 @@ function injectStyle() {
    click, not on mouseleave. */
 .rail-trailing-controls:has(.rail-delete-btn.confirm) { opacity: 1 !important; transform: translateX(0) !important; pointer-events: auto !important; }
 
-/* Timeline connector — a vertical spine tracking each chapter/Cold
-   Storage's own scene list, sitting in the gutter between the chevron
-   column and where scene rows start (see --scene-inset below). Its ends
-   are deliberately NOT flush against the chapter row or the add-scene
-   button: it starts with real clearance below the chapter row's own row
-   rhythm (matching a full row's worth of breathing room, not just its
-   literal rendered height), and its bottom edge lands exactly at the
-   vertical CENTER of the add-scene row -- aligned with its own + icon --
-   not just "some clearance above it". Both computed from real tokens
-   (row height / padding), not a guessed pixel value, so they stay correct
-   if either scale. */
-.rail-scene-list { position: relative; display: flex; flex-direction: column; gap: var(--space-hair); padding-bottom: var(--space-1); }
-.rail-connector { position: absolute; left: 19px; top: var(--space-2); bottom: calc(var(--space-1) + var(--row-min-h) / 2); width: 2px; border-radius: 2px; background: var(--connector); pointer-events: none; }
-.rail-connector.active { background: var(--connector-active); }
-.rail-cold-storage-row + .rail-scene-list .rail-connector { bottom: var(--space-1); } /* no add-scene row to center on -- just clear the container's own bottom padding */
+.rail-scene-list { display: flex; flex-direction: column; gap: var(--space-1); }
 
 .rail-scene-row {
-  display: grid; grid-template-columns: 20px 1fr 64px;
+  display: grid; grid-template-columns: var(--space-4) minmax(0, 1fr) 48px; gap: var(--space-1);
   margin-left: var(--scene-inset);
 }
+.rail-scene-row .rail-drag-handle { grid-column: 1; }
+.rail-scene-row .rail-scene-name { grid-column: 2; }
+.rail-scene-row .rail-trailing { grid-column: 3; }
 .rail-scene-row.active { background: var(--selected-surface); }
 .rail-scene-row .rail-scene-name { font: var(--type-body); color: var(--text-title); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rail-scene-row.active .rail-scene-name { color: var(--selected-text); }
@@ -193,32 +213,23 @@ function injectStyle() {
   color: var(--text); font: var(--type-body); outline: none;
 }
 .rail-footer {
-  all: unset; box-sizing: border-box; width: 100%; cursor: pointer;
-  display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-4); min-height: 44px;
+  all: unset; box-sizing: border-box; cursor: pointer;
+  display: flex; align-items: center; gap: var(--space-1);
+  height: var(--row-min-h); margin: var(--space-1) var(--space-2) var(--space-4);
+  padding: var(--row-pad-y) var(--row-pad-end) var(--row-pad-y) var(--row-pad-x); border-radius: var(--radius-row);
   color: var(--text-muted); font: var(--type-meta);
 }
 .rail-footer:hover { color: var(--text-strong); }
-/* Real row-height slot (matching --row-min-h, same as every other row) —
-   not just shrink-wrapped to its own icon+text -- so it has a well-defined
-   vertical center for the connector above to align its bottom edge to
-   (see .rail-connector's bottom calc). The button's own padding keeps its
-   visible content compact within that taller slot; it doesn't need to
-   visually fill it to BE it, for alignment purposes. */
 .rail-scene-add {
   all: unset; box-sizing: border-box; cursor: pointer;
-  min-height: var(--row-min-h);
-  /* Lands the + icon at the exact same x as scene name text above it:
-     scene rows start at --scene-inset, then their own row padding, then
-     their 20px grab-handle column and its gap -- minus this button's own
-     left padding (--space-2), which sits before its icon the same way. */
-  margin-left: calc(var(--scene-inset) + var(--row-pad-x) + 20px);
-  padding: var(--space-1) var(--space-2); border-radius: var(--radius-row);
-  display: inline-flex; align-items: center; gap: var(--space-2xs);
-  font: var(--type-meta); color: var(--text-faint); opacity: .8;
+  height: var(--row-min-h); margin-left: var(--scene-inset);
+  padding: var(--row-pad-y) var(--row-pad-end) var(--row-pad-y) var(--row-pad-x); border-radius: var(--radius-row);
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  font: var(--type-body); color: var(--text-faint); opacity: .8;
   transition: var(--motion-hover), opacity var(--dur-1) var(--ease-standard), color var(--dur-1) var(--ease-standard);
 }
 .rail-scene-add:hover, .rail-scene-add:focus-visible { opacity: 1; color: var(--accent); background: var(--icon-btn-hover); }
-.rail-scene-add .ti-plus { font-size: 12px; }
+.rail-scene-add .ti-plus { width: var(--space-4); font-size: var(--space-4); text-align: center; }
 
 /* Grab handle -- fixed 20x20 hit target of its own (the drag listeners live
    on the ROW, gated by this handle's mousedown; see makeDragHandle below),
@@ -228,14 +239,17 @@ function injectStyle() {
    hover/focus-within rule as the trailing controls. */
 .rail-drag-handle {
   all: unset; box-sizing: border-box; position: relative; cursor: grab;
-  width: 100%; height: 20px; display: flex; align-items: center; justify-content: center;
+  width: 100%; height: var(--space-6); display: flex; align-items: center; justify-content: center;
   color: var(--text-faint); opacity: 0;
   transition: opacity var(--dur-1) var(--ease-standard), color var(--dur-1) var(--ease-standard);
 }
-.rail-drag-handle::before { content: ''; position: absolute; inset: -4px -6px; } /* nets >=24px net hit target */
-.rail-drag-handle .ti { font-size: 13px; }
+/* nets >=24px hit target (checked by the hit-target test) on both the
+   16px chapter handle and the 20px scene handle. */
+.rail-drag-handle::before { content: ''; position: absolute; inset: calc(-1 * var(--space-1)) calc(-1 * (var(--space-1) + var(--space-2xs))); }
+.rail-drag-handle .ti { font-size: var(--space-4); }
 .rail-chapter-row:hover .rail-drag-handle, .rail-scene-row:hover .rail-drag-handle,
-.rail-chapter-row:focus-within .rail-drag-handle, .rail-scene-row:focus-within .rail-drag-handle { opacity: 1; }
+.rail-chapter-row:focus-within .rail-drag-handle, .rail-scene-row:focus-within .rail-drag-handle,
+.rail-drag-handle:focus, .rail-drag-handle:focus-visible { opacity: 1; }
 .rail-drag-handle:hover { color: var(--accent); }
 .rail-drag-handle:active { cursor: grabbing; }
 
@@ -267,15 +281,16 @@ function injectStyle() {
    zero contrast against its own container. */
 .rail-cold-storage-section {
   background: var(--surface-raised); border-radius: var(--radius-lg);
-  padding: var(--space-2); margin-top: var(--space-2);
+  display: flex; flex-direction: column; gap: var(--space-1);
+  padding: var(--space-1) 0; margin-top: var(--space-1);
 }
-.rail-cold-storage-row .ti-snowflake { font-size: 14px; color: var(--syntax-2, var(--text-muted)); display: flex; justify-content: center; }
+.rail-cold-storage-row .ti-snowflake { font-size: var(--space-4); color: var(--cold-storage-accent); display: flex; justify-content: center; }
 .rail-cold-storage-title {
   font: var(--type-title); font-style: italic; color: var(--text-title);
   min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .rail-cold-storage-hint {
-  margin-left: var(--scene-inset); padding: var(--space-2) var(--space-3);
+  margin-left: var(--scene-inset); padding: var(--space-1) 6px;
   font: var(--type-meta); font-style: italic; color: var(--text-faint);
 }
 `);
@@ -329,8 +344,16 @@ function jumpTo(scene) {
   // outside the isolated scene is hidden while it's on. No-ops if scene
   // view isn't active.
   ctx.exitColdStorageScene();
-  ctx.editor.setCursorPos(ctx.view, scene.pos);
-  ctx.editor.scrollToTop(ctx.view);
+  ctx.editor.setCursorPos(ctx.view, scene.contentPos);
+  ctx.editor.scrollToTop(ctx.view, scene.pos);
+  ctx.focusEditor();
+  ctx.refreshNav();
+}
+
+function jumpToChapter(chapter) {
+  ctx.exitColdStorageScene();
+  ctx.editor.setCursorPos(ctx.view, chapter.pos);
+  ctx.editor.scrollToTop(ctx.view, chapter.pos);
   ctx.focusEditor();
   ctx.refreshNav();
 }
@@ -435,11 +458,9 @@ function onTreeKeydown(e) {
     // a focused non-form element otherwise scrolls the rail.
     e.preventDefault();
     row.click();
-    // A chapter's click rebuilds the whole rail (render()), which drops
-    // focus since the old row element is gone -- restore it. A scene's
-    // click (jumpTo) deliberately moves focus into the editor instead, so
-    // leave that alone.
-    if (type === 'chapter') refocusRow('chapter', ci, null);
+    // Real chapters and scenes move focus into the editor. Cold Storage
+    // still toggles its local disclosure state, which rebuilds the rail.
+    if (row.dataset.coldStorage === 'true') refocusRow('chapter', ci, null);
     return;
   }
   if (e.key === 'F2') {
@@ -558,7 +579,6 @@ function buildSceneRow(chapters, ci, si, active) {
 function buildColdStorageSection(chapters, coldStorageIndex, active) {
   const coldStorage = chapters[coldStorageIndex];
   const isCollapsed = collapsed.has(coldStorageIndex);
-  const isActiveBranch = !!(active && active.chapterIndex === coldStorageIndex);
   const section = el('div', 'rail-cold-storage-section');
 
   const row = el('div', 'rail-chapter-row rail-cold-storage-row');
@@ -568,9 +588,18 @@ function buildColdStorageSection(chapters, coldStorageIndex, active) {
   row.tabIndex = 0;
   row.dataset.type = 'chapter';
   row.dataset.ci = String(coldStorageIndex);
+  row.dataset.coldStorage = 'true';
 
-  const chevron = icon('ti-chevron-down');
-  chevron.className += ' rail-chevron' + (isCollapsed ? ' collapsed' : '');
+  const chevron = btn('rail-chevron-btn');
+  chevron.appendChild(railAssetIcon(isCollapsed ? 'chevron-closed' : 'chevron-open'));
+  chevron.title = isCollapsed ? 'expand Cold Storage' : 'collapse Cold Storage';
+  chevron.setAttribute('aria-label', chevron.title);
+  chevron.setAttribute('aria-expanded', String(!isCollapsed));
+  chevron.addEventListener('mousedown', (event) => event.stopPropagation());
+  chevron.addEventListener('click', (event) => {
+    event.stopPropagation();
+    toggleChapter(coldStorageIndex);
+  });
   row.append(
     chevron,
     icon('ti-snowflake'),
@@ -606,7 +635,6 @@ function buildColdStorageSection(chapters, coldStorageIndex, active) {
     const sceneList = el('div', 'rail-scene-list');
     sceneList.setAttribute('role', 'group');
     if (coldStorage.scenes.length) {
-      sceneList.appendChild(el('div', 'rail-connector' + (isActiveBranch ? ' active' : '')));
       coldStorage.scenes.forEach((scene, si) => {
         sceneList.appendChild(buildSceneRow(chapters, coldStorageIndex, si, active));
       });
@@ -633,14 +661,33 @@ export function render() {
 
   const totalScenes = chapters.reduce((sum, c, i) => (i === coldStorageIndex ? sum : sum + c.scenes.length), 0);
   const header = el('div', 'rail-header');
-  const headerRight = el('div', 'rail-header-right');
+  const headerLeft = el('div', 'rail-header-left');
   const corkBtn = btn('rail-icon-btn rail-corkboard-btn');
   corkBtn.title = 'open corkboard (⌘⇧C)';
   corkBtn.setAttribute('aria-label', 'Open corkboard');
-  corkBtn.appendChild(icon('ti-layout-grid'));
+  corkBtn.appendChild(railAssetIcon('cards'));
   corkBtn.addEventListener('click', () => ctx.openCorkboard());
-  headerRight.append(corkBtn, el('span', 'rail-dim', realChapterCount + ' ch · ' + totalScenes));
-  header.append(el('span', 'rail-label', 'manuscript'), headerRight);
+  const fallbackTitle = novelTitle(ctx.state.filePath);
+  const title = chapters.bookTitle
+    ? { text: chapters.bookTitle, placeholder: false }
+    : fallbackTitle;
+  const titleEl = el('span', 'rail-label' + (title.placeholder ? ' rail-label-placeholder' : ''), title.text);
+  titleEl.tabIndex = 0;
+  titleEl.setAttribute('role', 'button');
+  titleEl.setAttribute('aria-label', 'Edit book title');
+  const editBookTitle = () => beginEdit(titleEl, title.text, (newTitle) => {
+    ctx.editor.setBookTitle(ctx.view, newTitle);
+    render();
+  }, render);
+  titleEl.addEventListener('click', editBookTitle);
+  titleEl.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === 'F2') {
+      event.preventDefault();
+      editBookTitle();
+    }
+  });
+  headerLeft.append(corkBtn, titleEl);
+  header.append(headerLeft, el('span', 'rail-dim', realChapterCount + 'ch/' + totalScenes));
   railEl.appendChild(header);
 
   const list = el('div', 'rail-list');
@@ -650,7 +697,7 @@ export function render() {
     if (chapter.coldStorage) return; // rendered separately below
     const isCollapsed = collapsed.has(ci);
     const chHasTitle = chapter.title.trim() !== '';
-    const chLabel = chHasTitle ? chapter.title : chapter.displayTitle;
+    const chLabel = chHasTitle ? chapter.title : 'Untitled';
 
     const chRow = el('div', 'rail-chapter-row');
     chRow.setAttribute('role', 'treeitem');
@@ -660,9 +707,17 @@ export function render() {
     chRow.dataset.type = 'chapter';
     chRow.dataset.ci = String(ci);
 
-    const chevron = icon('ti-chevron-down');
-    chevron.className += ' rail-chevron' + (isCollapsed ? ' collapsed' : '');
-    const chTitle = el('span', 'rail-chapter-title' + (chHasTitle ? '' : ' placeholder'), chapter.displayTitle);
+    const chevron = btn('rail-chevron-btn');
+    chevron.appendChild(railAssetIcon(isCollapsed ? 'chevron-closed' : 'chevron-open'));
+    chevron.title = isCollapsed ? 'expand ' + chLabel : 'collapse ' + chLabel;
+    chevron.setAttribute('aria-label', chevron.title);
+    chevron.setAttribute('aria-expanded', String(!isCollapsed));
+    chevron.addEventListener('mousedown', (event) => event.stopPropagation());
+    chevron.addEventListener('click', (event) => {
+      event.stopPropagation();
+      toggleChapter(ci);
+    });
+    const chTitle = el('span', 'rail-chapter-title' + (chHasTitle ? '' : ' placeholder'), chLabel);
     const chEditBtn = btn('rail-icon-btn rail-edit-btn');
     chEditBtn.appendChild(icon('ti-pencil'));
     chEditBtn.title = 'rename chapter';
@@ -679,8 +734,8 @@ export function render() {
     chControls.append(chEditBtn, chDeleteBtn);
     const chTrailing = el('span', 'rail-trailing');
     chTrailing.append(chMetaSpan, chControls);
-    chRow.append(chHandle, chevron, el('span', 'rail-chapter-num', 'Ch. ' + chapter.number), chTitle, chTrailing);
-    onActivate(chRow, () => toggleChapter(ci));
+    chRow.append(chevron, chHandle, el('span', 'rail-chapter-num', String(chapter.number)), chTitle, chTrailing);
+    onActivate(chRow, () => jumpToChapter(chapter));
 
     chRow.addEventListener('dragstart', (e) => {
       dragSource = { type: 'chapter', chapterIndex: ci };
@@ -740,8 +795,6 @@ export function render() {
     if (!isCollapsed) {
       const sceneList = el('div', 'rail-scene-list');
       sceneList.setAttribute('role', 'group');
-      const isActiveBranch = !!(active && active.chapterIndex === ci);
-      sceneList.appendChild(el('div', 'rail-connector' + (isActiveBranch ? ' active' : '')));
       chapter.scenes.forEach((scene, si) => {
         sceneList.appendChild(buildSceneRow(chapters, ci, si, active));
       });

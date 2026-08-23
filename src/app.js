@@ -140,8 +140,11 @@ function stripColdStorage(text) {
   const idx = text.indexOf(COLD_STORAGE_MARKER);
   return idx === -1 ? text : text.slice(0, idx);
 }
+function stripBookTitle(text) {
+  return String(text || '').replace(/^<!--\s*BOOK TITLE:\s*.*?\s*-->\s*/, '');
+}
 function updateCounts(doc) {
-  const t = stripColdStorage(doc || '');
+  const t = stripBookTitle(stripColdStorage(doc || ''));
   const w = t.trim() === '' ? 0 : t.trim().split(/\s+/).length;
   state.wordCount = w;
   elWord.textContent = w + (w === 1 ? ' word' : ' words');

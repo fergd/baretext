@@ -6,6 +6,7 @@ const DRAFT_WORD_THRESHOLD = 20;
 const SYNOPSIS_MAX_CHARS = 100;
 
 const NAME_COMMENT_RE = /^<!--.*-->$/;
+const BOOK_TITLE_RE = /^<!--\s*BOOK TITLE:\s*(.*?)\s*-->$/;
 
 function countWords(text) {
   const t = text.trim();
@@ -25,6 +26,21 @@ function synopsisFrom(text) {
   const cut = prose.slice(0, SYNOPSIS_MAX_CHARS);
   const lastSpace = cut.lastIndexOf(' ');
   return (lastSpace > 0 ? cut.slice(0, lastSpace) : cut) + '…';
+}
+
+function firstProsePos(doc, item, endPos) {
+  if (item.type === 'scene' && !/^(-{3,}|\*{3,}|_{3,})$/.test(doc.slice(item.pos, endPos).split('\n', 1)[0].trim())) {
+    return item.pos;
+  }
+  const raw = doc.slice(item.pos, endPos);
+  const lines = raw.split('\n');
+  let offset = 0;
+  for (let i = 1; i < lines.length; i++) {
+    offset += lines[i - 1].length + 1;
+    const trimmed = lines[i].trim();
+    if (trimmed && !NAME_COMMENT_RE.test(trimmed)) return item.pos + offset;
+  }
+  return item.pos;
 }
 
 // Chapters = h1 headings. Scenes = everything else getOutline() returns
@@ -47,6 +63,8 @@ export function getManuscript(view) {
   const docLength = doc.length;
 
   const chapters = [];
+  const titleMatch = doc.split('\n', 1)[0].match(BOOK_TITLE_RE);
+  chapters.bookTitle = titleMatch ? titleMatch[1].trim() : '';
   const coldStorage = { title: 'Cold Storage', coldStorage: true, pos: null, scenes: [] };
   let currentChapter = null;
   let inColdStorage = false;
@@ -93,6 +111,7 @@ export function getManuscript(view) {
       named: !!item.named,
       pos: item.pos,
       endPos,
+      contentPos: firstProsePos(doc, item, endPos),
       rawText,
       wordCount,
       synopsis: synopsisFrom(rawText),

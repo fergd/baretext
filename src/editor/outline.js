@@ -15,6 +15,7 @@ const NAME_COMMENT_RE = /^<!--\s*(.*?)\s*-->$/;
 // so it needs to be checked on its own before that per-scene comment logic
 // ever runs.
 const COLD_STORAGE_MARKER = '<!-- COLD STORAGE -->';
+const BOOK_TITLE_RE = /^<!--\s*BOOK TITLE:\s*.*?\s*-->$/;
 
 // Scans the document for headings (# / ## / ###) and scene breaks
 // (---/***/___), plus an implicit "Scene 1" at the first content after a
@@ -39,6 +40,7 @@ export function getOutline(view) {
     const line = doc.line(lineNum);
     const text = line.text;
     const trimmed = text.trim();
+    if (lineNum === 1 && BOOK_TITLE_RE.test(trimmed)) continue;
     // CommonMark allows an ATX heading with no title at all ("#", or "#"
     // plus trailing whitespace) — the title group is wrapped in an optional
     // non-capturing group (not \s+(.+), which requires at least one

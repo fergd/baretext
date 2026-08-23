@@ -80,6 +80,17 @@ test('short prose synopsis is not truncated and has no ellipsis', () => {
   assert.equal(chapters[0].scenes[0].synopsis, 'Just a short scene.');
 });
 
+test('scene navigation keeps the boundary position but targets the first prose line for the caret', () => {
+  const text = '# Chapter\n\n## Visible Scene Title\n\nFirst prose line.\n\n---\n<!-- Named Marker Scene -->\n\nMarker prose line.';
+  const chapters = getManuscript(makeView(text));
+  const [headingScene, markerScene] = chapters[0].scenes;
+
+  assert.equal(text.slice(headingScene.pos).startsWith('## Visible Scene Title'), true);
+  assert.equal(text.slice(headingScene.contentPos).startsWith('First prose line.'), true);
+  assert.equal(text.slice(markerScene.pos).startsWith('---'), true);
+  assert.equal(text.slice(markerScene.contentPos).startsWith('Marker prose line.'), true);
+});
+
 test('findActiveScene finds the scene containing the cursor', () => {
   const text = `# Chapter\n\n${LONG_ENOUGH}\n\n---\n\n${LONG_ENOUGH}`;
   const view = makeView(text);

@@ -41,6 +41,7 @@ function nameWidget(name) {
 }
 
 const NAME_COMMENT_RE = /^<!--\s*(.*?)\s*-->$/;
+const BOOK_TITLE_RE = /^<!--\s*BOOK TITLE:\s*.*?\s*-->$/;
 
 // Kept independent of outline.js on purpose — this only ever needs to know
 // "hide this line, show that instead," not the full chapter/scene model
@@ -60,6 +61,7 @@ function build(view) {
   for (let i = 1; i <= doc.lines; i++) {
     const line = doc.line(i);
     const trimmed = line.text.trim();
+    if (i === 1 && BOOK_TITLE_RE.test(trimmed)) continue;
     const headingMatch = line.text.match(/^(#{1,3})(?:[ \t]+.*)?$/);
 
     if (headingMatch) {
@@ -125,6 +127,7 @@ function buildAtomicRanges(state) {
   for (let i = 1; i <= doc.lines; i++) {
     const line = doc.line(i);
     const trimmed = line.text.trim();
+    if (i === 1 && BOOK_TITLE_RE.test(trimmed)) continue;
     const headingMatch = line.text.match(/^(#{1,3})(?:[ \t]+.*)?$/);
 
     if (headingMatch) {

@@ -49,13 +49,13 @@ describe('Baretext E2E smoke test', () => {
       let text = '';
       while (Date.now() < deadline) {
         text = document.getElementById('scene-rail').innerText;
-        if (text.includes('Ch. 1')) break;
+        if (text.includes('Chapter One')) break;
         await new Promise(r => setTimeout(r, 100));
       }
       return text;
     `);
-    assert.match(railText, /Ch\. 1/);
-    assert.match(railText, /Ch\. 2/);
+    assert.match(railText, /(?:^|\n)1\nChapter One/);
+    assert.match(railText, /(?:^|\n)2\nChapter Two/);
     assert.match(railText, /A Turning Point/);
   });
 
@@ -825,18 +825,20 @@ describe('Baretext E2E: chapter placeholders and per-chapter scene targeting', (
       let railText = '';
       while (Date.now() < deadline) {
         railText = document.getElementById('scene-rail').innerText;
-        if (railText.includes('Ch. 1')) break;
+        if (document.querySelector('.rail-chapter-title.placeholder')) break;
         await new Promise(r => setTimeout(r, 100));
       }
       const widget = document.querySelector('.cm-chapter-placeholder');
       return { railText, widgetText: widget ? widget.textContent : null };
     `);
-    assert.match(result.railText, /Chapter 1/);
-    // The rail still falls back to "Chapter N" (model.js's displayTitle),
-    // but the manuscript surface itself uses "Untitled" — see
-    // MANUSCRIPT_SURFACE.md — since the number gutter to its left already
-    // shows the chapter's index, so a generic label reads better there than
-    // a duplicate number.
+    assert.match(result.railText, /Untitled/);
+    const railPlaceholderStyle = await app.client.evaluate(`
+      const el = document.querySelector('.rail-chapter-title.placeholder');
+      return { text: el.textContent, fontStyle: getComputedStyle(el).fontStyle };
+    `);
+    assert.deepEqual(railPlaceholderStyle, { text: 'Untitled', fontStyle: 'italic' });
+    // The manuscript surface uses the same label without italic styling;
+    // the rail's italic treatment distinguishes placeholder from user text.
     assert.equal(result.widgetText, 'Untitled');
 
     // Force a save and check the actual bytes on disk — the placeholder must
@@ -2057,26 +2059,28 @@ describe('Baretext E2E: rail drag-and-drop', () => {
     assert.deepEqual(bad, []);
   });
 
-  // Regression: the drag handle scopes native drag-and-drop so it doesn't
-  // steal the row's normal click behavior (collapse-toggle for a chapter
-  // row) -- clicking anywhere else on the row must still work exactly as
-  // before drag support was added.
-  test('clicking a chapter row body (not the handle) still toggles collapse', async () => {
+  // The Figma interaction separates navigation from disclosure: the row
+  // body jumps to the chapter, while only the persistent chevron toggles.
+  test('chapter body navigates while its chevron alone toggles collapse', async () => {
     const result = await app.client.evaluate(`
       const row = [...document.querySelectorAll('.rail-chapter-row')].find(r => r.textContent.includes('Chapter One'));
       const before = document.querySelectorAll('.rail-scene-row').length;
       row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       row.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 100));
-      const collapsed = document.querySelectorAll('.rail-scene-row').length;
-      row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-      row.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      const afterBody = document.querySelectorAll('.rail-scene-row').length;
+      const chevron = [...document.querySelectorAll('.rail-chapter-row')].find(r => r.textContent.includes('Chapter One')).querySelector('.rail-chevron-btn');
+      chevron.click();
+      await new Promise(r => setTimeout(r, 100));
+      const afterChevron = document.querySelectorAll('.rail-scene-row').length;
+      [...document.querySelectorAll('.rail-chapter-row')].find(r => r.textContent.includes('Chapter One')).querySelector('.rail-chevron-btn').click();
       await new Promise(r => setTimeout(r, 100));
       const restored = document.querySelectorAll('.rail-scene-row').length;
-      return { before, collapsed, restored };
+      return { before, afterBody, afterChevron, restored };
     `);
-    assert.ok(result.collapsed < result.before);
-    assert.equal(result.restored, result.before);
+    assert.equal(result.afterBody, result.before, 'chapter body must not collapse the chapter');
+    assert.ok(result.afterChevron < result.before, 'the chevron should collapse the chapter');
+    assert.equal(result.restored, result.before, 'the second chevron click should restore suite state');
   });
 
   // Regression test for a real bug the synthetic-DragEvent tests above could
@@ -2213,7 +2217,7 @@ describe('Baretext E2E: Cold Storage parks cut scenes without deleting them', ()
       };
     `);
     assert.equal(state.visible, true);
-    assert.equal(state.headerText, '1 ch · 2'); // 1 real chapter, 2 real scenes -- Cold Storage doesn't count
+    assert.equal(state.headerText, '1ch/2'); // 1 real chapter, 2 real scenes -- Cold Storage doesn't count
     assert.ok(!state.docText.includes('COLD STORAGE')); // never touches the doc until actually used
   });
 
@@ -2249,7 +2253,7 @@ describe('Baretext E2E: Cold Storage parks cut scenes without deleting them', ()
         visibleText: document.querySelector('.cm-content').innerText,
       };
     `);
-    assert.equal(after.headerText, '1 ch · 1', 'the moved scene must no longer count toward the real chapter/scene total');
+    assert.equal(after.headerText, '1ch/1', 'the moved scene must no longer count toward the real chapter/scene total');
     assert.match(after.coldStorageCount, /^1\/\d+$/, 'Cold Storage meta is "scenes/words"'); // 1 scene now parked there
     assert.equal(after.wordCount, '19 words', 'Cold Storage words must not count toward the manuscript word count');
     assert.ok(!after.visibleText.includes('COLD STORAGE'), 'Cold Storage must not be scrollable into from the main manuscript view');
@@ -2294,7 +2298,7 @@ describe('Baretext E2E: Cold Storage parks cut scenes without deleting them', ()
         wordCount: document.getElementById('word-count').textContent,
       };
     `);
-    assert.equal(after.headerText, '1 ch · 2');
+    assert.equal(after.headerText, '1ch/2');
     assert.equal(after.coldStorageCount, '0/0'); // emptied -- 0 scenes, 0 words
     assert.equal(after.coldStorageStillVisible, true, 'Cold Storage stays a persistent drop zone even once emptied');
     assert.equal(after.wordCount, '37 words');
@@ -2880,30 +2884,26 @@ describe('Baretext E2E: accessibility pass', () => {
     assert.equal(result.sceneTabIndex, 0);
   });
 
-  test('Enter on a focused chapter row toggles it; arrow keys move focus between rows', async () => {
+  test('Enter on a focused chapter row navigates; arrow keys move focus between rows', async () => {
     const result = await app.client.evaluate(`
       const chRow = document.querySelector('.rail-chapter-row');
       const before = document.querySelectorAll('.rail-scene-row').length;
       chRow.focus();
       chRow.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 100));
-      const collapsed = document.querySelectorAll('.rail-scene-row').length;
-      const stillFocused = document.activeElement && document.activeElement.classList.contains('rail-chapter-row');
+      const afterEnter = document.querySelectorAll('.rail-scene-row').length;
+      const editorFocused = !!document.activeElement?.closest('.cm-editor');
 
       const chRowAfter = document.querySelector('.rail-chapter-row');
-      chRowAfter.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
-      await new Promise(r => setTimeout(r, 100));
-      const restored = document.querySelectorAll('.rail-scene-row').length;
-
-      document.querySelector('.rail-chapter-row').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+      chRowAfter.focus();
+      chRowAfter.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 50));
       const focusedAfterArrow = document.activeElement ? document.activeElement.className : null;
 
-      return { before, collapsed, restored, stillFocused, focusedAfterArrow };
+      return { before, afterEnter, editorFocused, focusedAfterArrow };
     `);
-    assert.ok(result.collapsed < result.before, 'Enter should collapse the chapter');
-    assert.equal(result.stillFocused, true, 'focus should stay on the row after toggling, not get lost');
-    assert.equal(result.restored, result.before, 'a second Enter should expand it back');
+    assert.equal(result.afterEnter, result.before, 'Enter must not collapse the chapter');
+    assert.equal(result.editorFocused, true, 'navigation should return focus to the editor');
     assert.match(result.focusedAfterArrow || '', /rail-scene-row|rail-chapter-row/);
   });
 
@@ -2988,14 +2988,14 @@ describe('Baretext E2E: accessibility pass', () => {
         editBtn: effectiveSize('.rail-edit-btn'),
         deleteBtn: effectiveSize('.rail-delete-btn'),
         dragHandle: effectiveSize('.rail-drag-handle'),
-        footerMinHeight: getComputedStyle(document.querySelector('.rail-footer')).minHeight,
+        footerHeight: document.querySelector('.rail-footer').getBoundingClientRect().height,
       };
     `);
     for (const [name, size] of Object.entries(result)) {
-      if (name === 'footerMinHeight') continue;
+      if (name === 'footerHeight') continue;
       assert.ok(size.w >= 24 && size.h >= 24, `${name} effective hit target should be >= 24px (got ${size.w}x${size.h})`);
     }
-    assert.equal(result.footerMinHeight, '44px');
+    assert.equal(result.footerHeight, 32);
   });
 
   // P0-hover: rename/delete/drag-handle must never be hover-only -- a
@@ -3333,7 +3333,7 @@ describe('Baretext E2E: a failed save surfaces to the user instead of failing si
 // after real visual review found four concrete bugs (see PROGRESS.md and
 // git stash — "Aug 2026 design-system/rail redesign attempt — reverted,
 // didn't work out"). This second attempt fixes the same underlying design
-// direction (JetBrains Mono, a floating rail panel, a timeline connector)
+// direction (JetBrains Mono and a floating rail panel)
 // while specifically avoiding each of those four failure modes — this
 // suite locks each one in so a future change can't silently reintroduce
 // any of them.
@@ -3372,49 +3372,182 @@ describe('Baretext E2E: rail redesign — regression coverage for four previousl
     if (app) await app.close();
   });
 
-  // The original bug's root cause was the chevron losing its explicit
-  // font-size when rows moved to grid, so an unsized icon-font glyph
-  // rendered at an unpredictable width and spilled into the handle's
-  // column. The chevron now deliberately sits right at the row's edge
-  // (aligned with the connector, per a later round of feedback), and the
-  // handle -- only ever visible on hover -- floats over that same space
-  // rather than reserving its own column, so their bounding boxes DO
-  // overlap by design now (two sparse glyphs, ⋮⋮ and >, whose visible ink
-  // doesn't actually collide). The real regression guard is that the
-  // chevron has a real, explicit size, not that the boxes never touch.
-  test('bug 1: the chevron has an explicit, non-auto font-size (the original bug\'s actual root cause)', async () => {
-    const fontSize = await app.client.evaluate(
-      "return getComputedStyle(document.querySelector('.rail-chevron')).fontSize;"
-    );
-    assert.notEqual(fontSize, '0px');
-    assert.ok(parseFloat(fontSize) >= 10, `chevron font-size looks unset/collapsed: ${fontSize}`);
+  test('bug 1: the Figma chevron is an exact 16px asset in its own persistent column', async () => {
+    const result = await app.client.evaluate(`
+      const row = document.querySelector('.rail-chapter-row');
+      const button = row.querySelector('.rail-chevron-btn').getBoundingClientRect();
+      const glyph = row.querySelector('.rail-svg-icon').getBoundingClientRect();
+      return { button: [button.width, button.height], glyph: [glyph.width, glyph.height] };
+    `);
+    assert.deepEqual(result, { button: [16, 16], glyph: [16, 16] });
   });
 
-  test('the chapter chevron aligns with the timeline connector below it', async () => {
+  test('chapter hover keeps the chevron and swaps the number for the aligned drag handle', async () => {
     const result = await app.client.evaluate(`
-      const chevron = document.querySelector('.rail-chevron').getBoundingClientRect();
-      const connector = document.querySelector('.rail-connector').getBoundingClientRect();
+      const row = document.querySelector('.rail-chapter-row');
+      const chevron = row.querySelector('.rail-chevron-btn');
+      const number = row.querySelector('.rail-chapter-num');
+      const handle = row.querySelector('.rail-drag-handle');
+      handle.focus();
+      await new Promise(resolve => setTimeout(resolve, 180));
+      const c = chevron.getBoundingClientRect();
+      const n = number.getBoundingClientRect();
+      const h = handle.getBoundingClientRect();
       return {
-        chevronCenterX: chevron.left + chevron.width / 2,
-        connectorCenterX: connector.left + connector.width / 2,
+        chevronOpacity: getComputedStyle(chevron).opacity,
+        numberOpacity: getComputedStyle(number).opacity,
+        handleOpacity: getComputedStyle(handle).opacity,
+        numberX: n.left, handleX: h.left,
+        chevronBeforeHandle: c.right <= h.left,
       };
     `);
-    assert.ok(
-      Math.abs(result.chevronCenterX - result.connectorCenterX) <= 3,
-      `chevron not aligned with connector: ${JSON.stringify(result)}`
-    );
+    assert.equal(result.chevronOpacity, '1');
+    assert.equal(result.numberOpacity, '0');
+    assert.equal(result.handleOpacity, '1');
+    assert.equal(result.numberX, result.handleX);
+    assert.equal(result.chevronBeforeHandle, true);
   });
 
-  test('the add-scene "+" icon aligns with scene name text above it', async () => {
+  test('the rail keeps the Figma structure with a tightened panel, row, inset, radius, and gap rhythm', async () => {
     const result = await app.client.evaluate(`
-      const sceneName = document.querySelector('.rail-scene-name').getBoundingClientRect();
-      const plusIcon = document.querySelector('.rail-scene-add .ti-plus').getBoundingClientRect();
-      return { sceneNameLeft: sceneName.left, plusIconLeft: plusIcon.left };
+      const panel = document.getElementById('scene-rail').getBoundingClientRect();
+      const header = document.querySelector('.rail-header').getBoundingClientRect();
+      const chapter = document.querySelector('.rail-chapter-row').getBoundingClientRect();
+      const scene = document.querySelector('.rail-scene-row').getBoundingClientRect();
+      const node = document.querySelector('.rail-chapter-num').getBoundingClientRect();
+      return {
+        panelWidth: panel.width,
+        headerWidth: header.width,
+        headerTop: header.top - panel.top,
+        chapterWidth: chapter.width,
+        chapterHeight: chapter.height,
+        chapterInset: chapter.left - panel.left,
+        sceneWidth: scene.width,
+        sceneHeight: scene.height,
+        sceneInset: scene.left - chapter.left,
+        rowGap: scene.top - chapter.bottom,
+        rowRadius: getComputedStyle(document.querySelector('.rail-chapter-row')).borderRadius,
+        nodeWidth: node.width, nodeHeight: node.height,
+      };
     `);
-    assert.ok(
-      Math.abs(result.sceneNameLeft - result.plusIconLeft) <= 2,
-      `add-scene icon not aligned with scene text: ${JSON.stringify(result)}`
-    );
+    assert.deepEqual(result, {
+      panelWidth: 336, headerWidth: 320, headerTop: 16,
+      chapterWidth: 320, chapterHeight: 32, chapterInset: 8,
+      sceneWidth: 291, sceneHeight: 32, sceneInset: 29, rowGap: 4,
+      rowRadius: '8px', nodeWidth: 16, nodeHeight: 16,
+    });
+  });
+
+  test('the header matches the Figma hierarchy: squares + title left, compact counter right', async () => {
+    const result = await app.client.evaluate(`
+      const panel = document.getElementById('scene-rail').getBoundingClientRect();
+      const header = document.querySelector('.rail-header').getBoundingClientRect();
+      const button = document.querySelector('.rail-corkboard-btn').getBoundingClientRect();
+      const labelEl = document.querySelector('.rail-label');
+      const label = labelEl.getBoundingClientRect();
+      const counterEl = document.querySelector('.rail-header > .rail-dim');
+      const counter = counterEl.getBoundingClientRect();
+      const labelStyle = getComputedStyle(labelEl);
+      const counterStyle = getComputedStyle(counterEl);
+      return {
+        children: Array.from(document.querySelector('.rail-header').children).map(el => el.className),
+        headerX: header.left - panel.left,
+        headerY: header.top - panel.top,
+        headerWidth: header.width,
+        headerHeight: header.height,
+        iconX: button.left - header.left,
+        iconSize: [button.width, button.height],
+        labelX: label.left - header.left,
+        counterRightInset: header.right - counter.right,
+        labelText: labelEl.textContent,
+        counterText: counterEl.textContent,
+        labelFont: [labelStyle.fontSize, labelStyle.lineHeight, labelStyle.fontWeight, labelStyle.letterSpacing],
+        counterFont: [counterStyle.fontSize, counterStyle.lineHeight, counterStyle.fontWeight],
+      };
+    `);
+    assert.deepEqual(result, {
+      children: ['rail-header-left', 'rail-dim'],
+      headerX: 8, headerY: 16, headerWidth: 320, headerHeight: 32,
+      iconX: 4, iconSize: [16, 16], labelX: 28, counterRightInset: 4,
+      labelText: 'test', counterText: '1ch/2',
+      labelFont: ['14px', '24px', '700', 'normal'],
+      counterFont: ['10px', '24px', '400'],
+    });
+  });
+
+  test('the filename is only the default book title; a rail edit creates the shared manuscript title', async () => {
+    const fromRail = await app.client.evaluate(`
+      document.querySelector('.rail-label').click();
+      const input = document.querySelector('.rail-header .inline-rename-input');
+      input.value = 'Warfare Winter';
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await new Promise(r => setTimeout(r, 220));
+      return {
+        label: document.querySelector('.rail-label').textContent,
+        firstLine: document.querySelector('.cm-line').textContent,
+        fileName: document.getElementById('file-name').textContent,
+      };
+    `);
+    assert.deepEqual(fromRail, {
+      label: 'Warfare Winter', firstLine: 'Warfare Winter', fileName: 'test.md',
+    });
+
+  });
+
+  test('the chapter drag-handle has real breathing room from the row\'s left edge, not butted against it', async () => {
+    const gap = await app.client.evaluate(`
+      const handle = document.querySelector('.rail-chapter-row .rail-drag-handle').getBoundingClientRect();
+      const row = document.querySelector('.rail-chapter-row').getBoundingClientRect();
+      return handle.left - row.left;
+    `);
+    assert.ok(gap > 0, `drag handle has no left breathing room (gap: ${gap}px)`);
+  });
+
+  test('the timeline is gone and add-scene follows the inset scene-row geometry', async () => {
+    const result = await app.client.evaluate(`
+      const chapter = document.querySelector('.rail-chapter-row').getBoundingClientRect();
+      const add = document.querySelector('.rail-scene-add').getBoundingClientRect();
+      const plusIcon = document.querySelector('.rail-scene-add .ti-plus').getBoundingClientRect();
+      return {
+        connectors: document.querySelectorAll('.rail-connector').length,
+        addInset: add.left - chapter.left,
+        addHeight: add.height,
+        plusWidth: plusIcon.width,
+      };
+    `);
+    assert.deepEqual(result, { connectors: 0, addInset: 29, addHeight: 32, plusWidth: 16 });
+  });
+
+  test('chapter and scene columns retain exact offsets in the tightened rhythm', async () => {
+    const result = await app.client.evaluate(`
+      const panel = document.getElementById('scene-rail').getBoundingClientRect();
+      const chapterTitle = document.querySelector('.rail-chapter-title').getBoundingClientRect();
+      const sceneTitle = document.querySelector('.rail-scene-name').getBoundingClientRect();
+      return {
+        chapterTitleX: chapterTitle.left - panel.left,
+        sceneTitleX: sceneTitle.left - panel.left,
+      };
+    `);
+    assert.deepEqual(result, { chapterTitleX: 60, sceneTitleX: 61 });
+  });
+
+  test('Cold Storage uses the same columns and its snowflake stays blue', async () => {
+    const result = await app.client.evaluate(`
+      const chapterNode = document.querySelector('.rail-chapter-num').getBoundingClientRect();
+      const frost = document.querySelector('.rail-cold-storage-row .ti-snowflake');
+      const frostRect = frost.getBoundingClientRect();
+      const style = getComputedStyle(frost);
+      return {
+        chapterNodeCenterX: chapterNode.left + chapterNode.width / 2,
+        frostCenterX: frostRect.left + frostRect.width / 2,
+        frostColor: style.color,
+        expectedColor: getComputedStyle(document.documentElement).getPropertyValue('--cold-storage-accent').trim(),
+      };
+    `);
+    assert.ok(Math.abs(result.chapterNodeCenterX - result.frostCenterX) <= 1,
+      `snowflake not aligned with chapter nodes: ${JSON.stringify(result)}`);
+    assert.equal(result.frostColor, 'rgb(127, 166, 196)');
+    assert.equal(result.expectedColor, '#7fa6c4');
   });
 
   // scrollWidth reflects full content size regardless of clipping -- a hit-

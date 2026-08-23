@@ -65,7 +65,7 @@
       --text-body: 15px;
       --lh-body: 1.9;
       --editor-measure: 75ch; /* line measure — tune this one value to adjust editor line width */
-      --rail-w: 320px; /* verified via CDP against real long titles -- see PROGRESS.md */
+      --rail-w: 336px; /* deliberately narrower than the 377px Figma specimen */
 
       /* Manuscript surface (Editor mode only — see design_handoff_baretext/
          MANUSCRIPT_SURFACE.md). Defaults here match the editor's existing
@@ -107,12 +107,17 @@
       --space-12:   48px;
       --space-16:   64px;
 
-      /* Semantic row tokens -- rail.js's chapter/scene rows and the
-         connector alignment math all reference these directly. */
-      --row-pad-y:   var(--space-2);  /* 8px */
-      --row-pad-x:   var(--space-3);  /* 12px */
-      --row-min-h:   40px;
-      --scene-inset: var(--space-6);  /* 24px -- scene rows clear the connector */
+      /* Semantic row tokens for the Figma rail components. */
+      --row-pad-y:   var(--space-1);  /* 4px */
+      --row-pad-x:   var(--space-1);  /* 4px leading edge */
+      --row-pad-end: var(--space-2);  /* 8px trailing edge */
+      --row-min-h:   var(--space-8);  /* 32px */
+      --rail-node:   var(--space-4);  /* 16px chapter-number / frost node */
+      --scene-inset: 29px;            /* exact Figma scene-row inset */
+
+      /* Cold Storage is the rail's sole secondary hue. It stays blue in
+         every theme rather than inheriting a theme's syntax palette. */
+      --cold-storage-accent: #7fa6c4;
 
       --radius-xs:    4px;
       --radius-sm:    8px;
@@ -121,8 +126,9 @@
       --radius-xl:    20px;
       --radius-pill:  9999px;
       --radius-round: 50%;
-      --radius-row:     var(--radius-md);
+      --radius-row:     var(--radius-sm);
       --radius-control: var(--radius-round);
+      --radius-rail:    var(--space-6);
 
       --ease-standard:   cubic-bezier(.4, 0, .2, 1);
       --ease-decelerate: cubic-bezier(0, 0, .2, 1);
@@ -157,17 +163,11 @@
       --shadow-panel:   0 22px 60px rgba(0, 0, 0, .50);
       --shadow-toast:   0 16px 44px rgba(0, 0, 0, .50);
 
-      /* Rail type roles — sized at the rail's existing, already-tested
-         values (11/12px), NOT the design skill's own 14px preset. A prior
-         attempt at this same redesign bumped rail text to 14px alongside
-         widening --rail-w, and the size increase ate the width gain right
-         back — titles kept truncating even at a wider rail. Font FAMILY is
-         the only thing changing here (JetBrains Mono via --font-mono);
-         size stays put. */
-      --type-overline: 600 10px/1 var(--font-mono);
-      --type-title:    700 12px/1.3 var(--font-mono);
-      --type-body:     400 12px/1.3 var(--font-mono);
-      --type-meta:     400 11px/1.3 var(--font-mono);
+      /* Exact Figma rail type roles. */
+      --type-overline: 700 14px/24px var(--font-mono);
+      --type-title:    400 14px/24px var(--font-mono);
+      --type-body:     400 14px/24px var(--font-mono);
+      --type-meta:     400 10px/24px var(--font-mono);
 
       /* glass blur is color-independent */
       --glass-blur: blur(22px) saturate(160%);
@@ -278,8 +278,6 @@
       --selected-surface: var(--wash-accent-strong);
       --selected-text:    var(--text);
       --focus-ring:        var(--accent);
-      --connector:         var(--border);
-      --connector-active:  color-mix(in srgb, var(--accent) 45%, var(--border));
 
       --icon-btn-hover: var(--wash-accent);
     }
@@ -349,7 +347,7 @@
       width: var(--rail-w);
       margin: var(--space-3) 0 var(--space-3) var(--space-3);
       background: var(--surface-panel);
-      border-radius: var(--radius-xl);
+      border-radius: var(--radius-rail);
       box-shadow: var(--shadow-panel);
       overflow: hidden;
     }

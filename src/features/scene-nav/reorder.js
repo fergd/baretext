@@ -9,6 +9,12 @@
 
 const NAME_COMMENT_RE = /^<!--.*-->$/;
 const COLD_STORAGE_MARKER = '<!-- COLD STORAGE -->';
+const BOOK_TITLE_PREFIX = '<!-- BOOK TITLE: ';
+
+function carryBookTitle(from, to) {
+  to.bookTitle = from.bookTitle || '';
+  return to;
+}
 
 // Strips a leading ---/***/___ marker line and, if present immediately after
 // it (no blank line between -- see model.js/rename.js), the waypoint-name
@@ -110,6 +116,8 @@ function buildDocument(chapters) {
     })
     .filter((part) => part !== '');
 
+  if (chapters.bookTitle) parts.unshift(BOOK_TITLE_PREFIX + chapters.bookTitle + ' -->');
+
   if (coldStorage && coldStorage.scenes.length) {
     parts.push(COLD_STORAGE_MARKER + '\n\n' + joinScenes(coldStorage.scenes));
   }
@@ -125,7 +133,7 @@ function buildDocument(chapters) {
 export function reorderScenes(chapters, moveSpec) {
   const { fromChapterIndex, fromSceneIndex, toChapterIndex, toSceneIndex } = moveSpec;
 
-  const next = chapters.map((c) => ({ title: c.title, synthetic: c.synthetic, coldStorage: c.coldStorage, scenes: c.scenes.slice() }));
+  const next = carryBookTitle(chapters, chapters.map((c) => ({ title: c.title, synthetic: c.synthetic, coldStorage: c.coldStorage, scenes: c.scenes.slice() })));
 
   const [moved] = next[fromChapterIndex].scenes.splice(fromSceneIndex, 1);
   if (!moved) return null;
@@ -145,7 +153,7 @@ export function reorderScenes(chapters, moveSpec) {
 export function reorderChapters(chapters, { fromIndex, toIndex }) {
   if (!chapters[fromIndex]) return null;
 
-  const next = chapters.map((c) => ({ title: c.title, synthetic: c.synthetic, coldStorage: c.coldStorage, scenes: c.scenes.slice() }));
+  const next = carryBookTitle(chapters, chapters.map((c) => ({ title: c.title, synthetic: c.synthetic, coldStorage: c.coldStorage, scenes: c.scenes.slice() })));
   const [moved] = next.splice(fromIndex, 1);
 
   let insertAt = toIndex;
@@ -159,7 +167,7 @@ export function reorderChapters(chapters, { fromIndex, toIndex }) {
 // Removes one scene from a chapter and returns the rebuilt document, or
 // null if the target doesn't exist.
 export function deleteScene(chapters, { chapterIndex, sceneIndex }) {
-  const next = chapters.map((c) => ({ title: c.title, synthetic: c.synthetic, coldStorage: c.coldStorage, scenes: c.scenes.slice() }));
+  const next = carryBookTitle(chapters, chapters.map((c) => ({ title: c.title, synthetic: c.synthetic, coldStorage: c.coldStorage, scenes: c.scenes.slice() })));
   const chapter = next[chapterIndex];
   if (!chapter) return null;
   const [removed] = chapter.scenes.splice(sceneIndex, 1);
@@ -171,7 +179,7 @@ export function deleteScene(chapters, { chapterIndex, sceneIndex }) {
 // rebuilt document, or null if the target doesn't exist.
 export function deleteChapter(chapters, chapterIndex) {
   if (!chapters[chapterIndex]) return null;
-  const next = chapters.filter((_, i) => i !== chapterIndex);
+  const next = carryBookTitle(chapters, chapters.filter((_, i) => i !== chapterIndex));
   return buildDocument(next);
 }
 
@@ -181,7 +189,7 @@ export function deleteChapter(chapters, chapterIndex) {
 // it exists (Cold Storage must always serialize last -- see buildDocument's
 // own comment) rather than at the true end of the chapters[] array.
 export function addChapter(chapters) {
-  const next = chapters.map((c) => ({ title: c.title, synthetic: c.synthetic, coldStorage: c.coldStorage, scenes: c.scenes.slice() }));
+  const next = carryBookTitle(chapters, chapters.map((c) => ({ title: c.title, synthetic: c.synthetic, coldStorage: c.coldStorage, scenes: c.scenes.slice() })));
   const coldStorageIndex = next.findIndex((c) => c.coldStorage);
   const insertAt = coldStorageIndex === -1 ? next.length : coldStorageIndex;
   next.splice(insertAt, 0, { title: '', synthetic: false, coldStorage: false, scenes: [] });

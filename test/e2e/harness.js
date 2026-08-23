@@ -106,7 +106,9 @@ async function waitForAppReady(client, timeoutMs) {
     if (ready) return;
     await new Promise((r) => setTimeout(r, 100));
   }
-  throw new Error('app did not finish loading real content within timeout');
+  const messages = client.getConsoleMessages();
+  throw new Error('app did not finish loading real content within timeout' +
+    (messages.length ? ': ' + JSON.stringify(messages) : ''));
 }
 
 // Launches a fully isolated instance of the real app: its own --user-data-dir

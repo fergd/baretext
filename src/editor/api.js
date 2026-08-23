@@ -13,6 +13,7 @@ import { chapterPlaceholderPlugin, injectChapterPlaceholderStyle } from './chapt
 import { manuscriptGutterPlugin, manuscriptGutterAlignPlugin, injectManuscriptGutterStyle } from './manuscript-gutter.js';
 import { editorModeField, setEditorMode as setEditorModeField } from './mode-state.js';
 import { coldStorageViewField, coldStorageHideField, setColdStorageViewEffect } from './cold-storage-view.js';
+import { bookTitlePlugin, injectBookTitleStyle } from './book-title.js';
 
 let registeredKeys = {};
 
@@ -42,6 +43,7 @@ export function create(container, initialDoc, onChange, placeholderText) {
   injectSpellcheckStyle();
   injectChapterPlaceholderStyle();
   injectManuscriptGutterStyle();
+  injectBookTitleStyle();
 
   const view = new EditorView({
     parent: container,
@@ -53,6 +55,7 @@ export function create(container, initialDoc, onChange, placeholderText) {
         renderedModeField,
         editorModeField,
         livePreviewPlugin,
+        bookTitlePlugin,
         sceneBreakDecorator,
         sceneBreakAtomicRanges,
         blockSpacingPlugin,
@@ -112,8 +115,8 @@ export function centerCursor(view) {
 // from it. setCursorPos()'s own scroll (used by outline jump, search, etc.)
 // stays centered — this is a deliberate, separate choice for jump
 // navigation specifically, not a change to cursor-positioning in general.
-export function scrollToTop(view) {
-  const pos = view.state.selection.main.head;
+export function scrollToTop(view, targetPos) {
+  const pos = typeof targetPos === 'number' ? targetPos : view.state.selection.main.head;
   view.dispatch({ effects: EditorView.scrollIntoView(pos, { y: 'start', yMargin: 24 }) });
 }
 

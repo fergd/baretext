@@ -93,9 +93,15 @@ title). Two views onto the same manuscript model:
   corkboard stays open until you dismiss it (Esc) or click a card's
   "open in manuscript" button to jump to that scene deliberately.
 
-A chapter with no title yet shows a non-persisted "Chapter N" placeholder
-(in both the rail and the editor) instead of rendering blank — it's a
-default label, not a saved value, so typing a real title replaces it.
+A chapter with no title yet shows a non-persisted "Untitled" placeholder
+(in both the rail and the editor) instead of rendering blank. Named chapters
+always show the writer's text verbatim; Baretext does not add "Part N" or
+another generated prefix.
+
+The rail header defaults to the Markdown filename (without `.md`). Clicking
+that title creates an independent book title at the beginning of the
+manuscript without renaming the file. The rail and manuscript are two editors
+for that same title, so changing either updates the other.
 
 Chapters and scenes can be deleted from either the rail or the corkboard:
 click the delete icon once to arm it (it turns red), click again within a

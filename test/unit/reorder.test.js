@@ -39,6 +39,15 @@ test('within-chapter forward move re-orders and re-separates with ---', () => {
   );
 });
 
+test('structural edits preserve an explicit book title at the beginning', () => {
+  const chapters = [chapter('One', [scene('First.'), scene('---\n\nSecond.')])];
+  chapters.bookTitle = 'Warfare Winter';
+  const doc = reorderScenes(chapters, {
+    fromChapterIndex: 0, fromSceneIndex: 1, toChapterIndex: 0, toSceneIndex: 0,
+  });
+  assert.ok(doc.startsWith('<!-- BOOK TITLE: Warfare Winter -->\n\n# One\n\n'));
+});
+
 test('within-chapter backward move (last scene to front)', () => {
   const chapters = [
     chapter('One', [
