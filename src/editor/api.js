@@ -14,6 +14,7 @@ import { manuscriptGutterPlugin, manuscriptGutterAlignPlugin, injectManuscriptGu
 import { editorModeField, setEditorMode as setEditorModeField } from './mode-state.js';
 import { coldStorageViewField, coldStorageHideField, setColdStorageViewEffect } from './cold-storage-view.js';
 import { bookTitlePlugin, injectBookTitleStyle } from './book-title.js';
+import { mapPosAcrossReplace } from './cursor-map.js';
 
 let registeredKeys = {};
 
@@ -93,9 +94,28 @@ export function getDoc(view) {
   return view.state.doc.toString();
 }
 
+// setDoc replaces the ENTIRE buffer as one big change (from 0 to doc.length)
+// rather than a targeted edit, because every caller (file load, and every
+// scene-nav structural mutation -- add/delete/reorder chapters and scenes)
+// rebuilds the whole document text from scratch rather than tracking a
+// precise sub-range to splice. CodeMirror maps the old selection through
+// that change automatically, but a single change spanning the whole old
+// document gives it nothing to anchor to -- every prior cursor position
+// collapses to the very start of the new text. Structural rail edits are
+// meant to leave the reader's position alone (see e.g. addNewScene's "never
+// navigate away" contract), so we diff old/new text ourselves (see
+// cursor-map.js) and re-anchor the cursor there explicitly. File load
+// overrides this with its own saved cursorPos immediately after (see
+// app.js), so it's unaffected either way.
 export function setDoc(view, text) {
+  const newText = text || '';
+  const oldText = view.state.doc.toString();
+  const newPos = mapPosAcrossReplace(oldText, newText, view.state.selection.main.head);
   view._setSuppressed(true);
-  view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text || '' } });
+  view.dispatch({
+    changes: { from: 0, to: view.state.doc.length, insert: newText },
+    selection: { anchor: newPos },
+  });
   view._setSuppressed(false);
 }
 

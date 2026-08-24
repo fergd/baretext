@@ -3579,17 +3579,39 @@ describe('Baretext E2E: rail redesign — regression coverage for four previousl
     assert.equal(borderWidth, '0px');
   });
 
-  test('the footer button reads "New Chapter" and adds a new blank chapter before Cold Storage', async () => {
+  test('the footer button reads "New Chapter" and adds a new blank chapter before Cold Storage, without resetting the cursor to the start of the document', async () => {
     const before = await app.client.evaluate("return document.querySelector('.rail-footer').textContent.trim();");
     assert.match(before, /New Chapter/);
 
     const chaptersBefore = await app.client.evaluate(
       "return document.querySelectorAll('.rail-chapter-row:not(.rail-cold-storage-row)').length;"
     );
+
+    // Reproduces the reported bug: land the cursor at the end of the last
+    // real chapter (via the rail, same as a reader who was just writing
+    // there) before adding a new chapter after it -- setDoc's full-buffer
+    // replace used to collapse the cursor/scroll position to the very start
+    // of the document regardless of where the writer actually was.
+    await app.client.evaluate(`
+      const rows = [...document.querySelectorAll('.rail-scene-row')];
+      const target = rows.find(r => r.getAttribute('aria-label').includes('Named Scene'));
+      target.click();
+      await new Promise(r => setTimeout(r, 200));
+    `);
+    const activeBefore = await app.client.evaluate(
+      "const a = document.querySelector('.rail-scene-row.active'); return a ? a.getAttribute('aria-label') : null;"
+    );
+    assert.match(activeBefore || '', /Named Scene/, 'setup: clicking the scene row should have made it active first');
+
     await app.client.evaluate(`
       document.querySelector('.rail-footer').click();
       await new Promise(r => setTimeout(r, 200));
     `);
+    const activeAfter = await app.client.evaluate(
+      "const a = document.querySelector('.rail-scene-row.active'); return a ? a.getAttribute('aria-label') : null;"
+    );
+    assert.equal(activeAfter, activeBefore, 'adding a new chapter should not move the cursor away from the scene the writer was in');
+
     const result = await app.client.evaluate(`
       const rows = [...document.querySelectorAll('.rail-chapter-row:not(.rail-cold-storage-row)')];
       const coldStorage = document.querySelector('.rail-cold-storage-row');
