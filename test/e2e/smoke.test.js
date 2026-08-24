@@ -1897,8 +1897,6 @@ describe('Baretext E2E: rail drag-and-drop', () => {
       const dt = { effectAllowed: '', dropEffect: '', data: {}, setData(k,v){this.data[k]=v;}, getData(k){return this.data[k];} };
       const from = ${fromExpr};
       const to = ${toExpr};
-      from.querySelector('.rail-drag-handle').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-      await new Promise(r => setTimeout(r, 30));
       fireDnd('dragstart', from, dt);
       fireDnd('dragover', to, dt);
       fireDnd('drop', to, dt);
@@ -2033,8 +2031,6 @@ describe('Baretext E2E: rail drag-and-drop', () => {
         el.dispatchEvent(e);
       }
       const dt = { effectAllowed: '', dropEffect: '', data: {}, setData(k,v){this.data[k]=v;}, getData(k){return this.data[k];} };
-      from.querySelector('.rail-drag-handle').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-      await new Promise(r => setTimeout(r, 30));
       fireDnd('dragstart', from, dt);
 
       const rect = target.getBoundingClientRect();
@@ -2084,16 +2080,18 @@ describe('Baretext E2E: rail drag-and-drop', () => {
   });
 
   // Regression test for a real bug the synthetic-DragEvent tests above could
-  // not have caught: btn()'s mousedown->preventDefault() (used everywhere
-  // else to keep the editor from losing focus on a chrome click) silently
-  // stops Chromium from ever starting a native drag when it's on the same
-  // element the drag initiates from. The drag handle was built with btn()
-  // until this was found and fixed -- every dragScript() test above still
-  // passed throughout because fireDnd() hand-dispatches DragEvent objects
-  // directly, which runs the app's own dragstart/dragover/drop handlers but
-  // never exercises the browser's actual "should a drag even start here"
-  // decision. A real press+move+release through the CDP Input domain does.
-  test('a real mouse-driven press+move+release on the drag handle actually reorders (not just a synthetic DragEvent)', async () => {
+  // not have caught: mousedown->preventDefault() (used everywhere else to
+  // keep the editor from losing focus on a chrome click) silently stops
+  // Chromium from ever starting a native drag when it's on the same element
+  // the drag initiates from. Rows are draggable directly now (no separate
+  // handle icon), wired via onActivateDraggable() specifically because it
+  // omits that preventDefault() -- every dragScript() test above still
+  // passed throughout regardless because fireDnd() hand-dispatches DragEvent
+  // objects directly, which runs the app's own dragstart/dragover/drop
+  // handlers but never exercises the browser's actual "should a drag even
+  // start here" decision. A real press+move+release through the CDP Input
+  // domain does.
+  test('a real mouse-driven press+move+release on a scene row actually reorders (not just a synthetic DragEvent)', async () => {
     // Earlier tests in this describe block already reordered A1/A2 at least
     // once, so don't assume which currently comes first -- read the live
     // order, then drag whichever row is second onto whichever is first.
@@ -2104,7 +2102,7 @@ describe('Baretext E2E: rail drag-and-drop', () => {
       const rows = [...document.querySelectorAll('.rail-scene-row')];
       const from = rows[1]; // whichever scene currently comes second
       const to = rows[0];   // whichever scene currently comes first
-      const h = from.querySelector('.rail-drag-handle').getBoundingClientRect();
+      const f = from.getBoundingClientRect();
       const t = to.getBoundingClientRect();
       // Land in the TOP quarter of the target row, not its exact center --
       // rail.js's before/after drop-indicator splits exactly at the
@@ -2112,7 +2110,7 @@ describe('Baretext E2E: rail drag-and-drop', () => {
       // side wins is an implementation detail, not something to depend on).
       // Landing clearly in the top half means "insert before", matching
       // the assertion below.
-      return { from: { x: h.x + h.width / 2, y: h.y + h.height / 2 }, to: { x: t.x + t.width / 2, y: t.y + t.height / 4 } };
+      return { from: { x: f.x + f.width / 2, y: f.y + f.height / 2 }, to: { x: t.x + t.width / 2, y: t.y + t.height / 4 } };
     `);
 
     await app.client.realDrag(rects.from.x, rects.from.y, rects.to.x, rects.to.y);
@@ -2158,9 +2156,9 @@ describe('Baretext E2E: rail drag-and-drop', () => {
       const ch1Rows = [...document.querySelectorAll('.rail-scene-row')].filter(r => r.closest('.rail-scene-list').previousElementSibling.textContent.includes('Chapter One'));
       const source = ch1Rows[ch1Rows.length - 1]; // the just-added empty scene, last in Chapter One
       const target = [...document.querySelectorAll('.rail-chapter-row')].find(r => r.textContent.includes('Chapter Three'));
-      const h = source.querySelector('.rail-drag-handle').getBoundingClientRect();
+      const s = source.getBoundingClientRect();
       const t = target.getBoundingClientRect();
-      return { from: { x: h.x + h.width / 2, y: h.y + h.height / 2 }, to: { x: t.x + t.width / 2, y: t.y + t.height / 2 } };
+      return { from: { x: s.x + s.width / 2, y: s.y + s.height / 2 }, to: { x: t.x + t.width / 2, y: t.y + t.height / 2 } };
     `);
     await app.client.realDrag(rects.from.x, rects.from.y, rects.to.x, rects.to.y);
     await new Promise((r) => setTimeout(r, 250));
@@ -2229,12 +2227,11 @@ describe('Baretext E2E: Cold Storage parks cut scenes without deleting them', ()
 
     const coords = await app.client.evaluate(`
       const sceneRow = [...document.querySelectorAll('.rail-scene-row')].find(r => r.textContent.includes('Scene 2'));
-      const handle = sceneRow.querySelector('.rail-drag-handle');
-      const hRect = handle.getBoundingClientRect();
+      const sRect = sceneRow.getBoundingClientRect();
       const coldRow = document.querySelector('.rail-cold-storage-row');
       const cRect = coldRow.getBoundingClientRect();
       return {
-        fromX: hRect.left + hRect.width / 2, fromY: hRect.top + hRect.height / 2,
+        fromX: sRect.left + sRect.width / 2, fromY: sRect.top + sRect.height / 2,
         toX: cRect.left + cRect.width / 2, toY: cRect.top + cRect.height / 2,
       };
     `);
@@ -2278,12 +2275,11 @@ describe('Baretext E2E: Cold Storage parks cut scenes without deleting them', ()
     const coordsBack = await app.client.evaluate(`
       const coldRow = document.querySelector('.rail-cold-storage-row');
       const sceneRow = coldRow.nextElementSibling.querySelector('.rail-scene-row');
-      const handle = sceneRow.querySelector('.rail-drag-handle');
-      const hRect = handle.getBoundingClientRect();
+      const sRect = sceneRow.getBoundingClientRect();
       const chRow = [...document.querySelectorAll('.rail-chapter-row')].find(r => r.textContent.includes('Chapter One'));
       const cRect = chRow.getBoundingClientRect();
       return {
-        fromX: hRect.left + hRect.width / 2, fromY: hRect.top + hRect.height / 2,
+        fromX: sRect.left + sRect.width / 2, fromY: sRect.top + sRect.height / 2,
         toX: cRect.left + cRect.width / 2, toY: cRect.top + cRect.height / 2,
       };
     `);
@@ -2847,7 +2843,7 @@ describe('Baretext E2E: accessibility pass', () => {
   test('rail/corkboard/sprint controls are real, focusable <button>s, not span/div+mousedown', async () => {
     const result = await app.client.evaluate(`
       const selectors = [
-        '.rail-corkboard-btn', '.rail-edit-btn', '.rail-delete-btn', '.rail-drag-handle',
+        '.rail-corkboard-btn', '.rail-edit-btn', '.rail-delete-btn',
         '.rail-scene-add', '.rail-footer', '#tw-status-indicator',
       ];
       return selectors.map(sel => {
@@ -2987,7 +2983,6 @@ describe('Baretext E2E: accessibility pass', () => {
         corkboardBtn: effectiveSize('.rail-corkboard-btn'),
         editBtn: effectiveSize('.rail-edit-btn'),
         deleteBtn: effectiveSize('.rail-delete-btn'),
-        dragHandle: effectiveSize('.rail-drag-handle'),
         footerHeight: document.querySelector('.rail-footer').getBoundingClientRect().height,
       };
     `);
@@ -2998,9 +2993,10 @@ describe('Baretext E2E: accessibility pass', () => {
     assert.equal(result.footerHeight, 32);
   });
 
-  // P0-hover: rename/delete/drag-handle must never be hover-only -- a
-  // keyboard/touch/screen-reader user can't hover, so they'd otherwise be
-  // permanently unreachable.
+  // P0-hover: rename/delete must never be hover-only -- a keyboard/touch/
+  // screen-reader user can't hover, so they'd otherwise be permanently
+  // unreachable. (Dragging isn't hover-gated at all now -- it's the whole
+  // row, always there.)
   test('rail action buttons are visible (not hover-gated to invisible) even without hovering', async () => {
     const result = await app.client.evaluate(`
       const editBtn = document.querySelector('.rail-edit-btn');
@@ -3382,32 +3378,6 @@ describe('Baretext E2E: rail redesign — regression coverage for four previousl
     assert.deepEqual(result, { button: [16, 16], glyph: [16, 16] });
   });
 
-  test('chapter hover keeps the chevron and swaps the number for the aligned drag handle', async () => {
-    const result = await app.client.evaluate(`
-      const row = document.querySelector('.rail-chapter-row');
-      const chevron = row.querySelector('.rail-chevron-btn');
-      const number = row.querySelector('.rail-chapter-num');
-      const handle = row.querySelector('.rail-drag-handle');
-      handle.focus();
-      await new Promise(resolve => setTimeout(resolve, 180));
-      const c = chevron.getBoundingClientRect();
-      const n = number.getBoundingClientRect();
-      const h = handle.getBoundingClientRect();
-      return {
-        chevronOpacity: getComputedStyle(chevron).opacity,
-        numberOpacity: getComputedStyle(number).opacity,
-        handleOpacity: getComputedStyle(handle).opacity,
-        numberX: n.left, handleX: h.left,
-        chevronBeforeHandle: c.right <= h.left,
-      };
-    `);
-    assert.equal(result.chevronOpacity, '1');
-    assert.equal(result.numberOpacity, '0');
-    assert.equal(result.handleOpacity, '1');
-    assert.equal(result.numberX, result.handleX);
-    assert.equal(result.chevronBeforeHandle, true);
-  });
-
   test('the rail keeps the Figma structure with a tightened panel, row, inset, radius, and gap rhythm', async () => {
     const result = await app.client.evaluate(`
       const panel = document.getElementById('scene-rail').getBoundingClientRect();
@@ -3433,7 +3403,7 @@ describe('Baretext E2E: rail redesign — regression coverage for four previousl
     assert.deepEqual(result, {
       panelWidth: 336, headerWidth: 320, headerTop: 16,
       chapterWidth: 320, chapterHeight: 32, chapterInset: 8,
-      sceneWidth: 291, sceneHeight: 32, sceneInset: 29, rowGap: 4,
+      sceneWidth: 271, sceneHeight: 32, sceneInset: 49, rowGap: 4,
       rowRadius: '8px', nodeWidth: 16, nodeHeight: 16,
     });
   });
@@ -3494,15 +3464,6 @@ describe('Baretext E2E: rail redesign — regression coverage for four previousl
 
   });
 
-  test('the chapter drag-handle has real breathing room from the row\'s left edge, not butted against it', async () => {
-    const gap = await app.client.evaluate(`
-      const handle = document.querySelector('.rail-chapter-row .rail-drag-handle').getBoundingClientRect();
-      const row = document.querySelector('.rail-chapter-row').getBoundingClientRect();
-      return handle.left - row.left;
-    `);
-    assert.ok(gap > 0, `drag handle has no left breathing room (gap: ${gap}px)`);
-  });
-
   test('the timeline is gone and add-scene follows the inset scene-row geometry', async () => {
     const result = await app.client.evaluate(`
       const chapter = document.querySelector('.rail-chapter-row').getBoundingClientRect();
@@ -3515,7 +3476,7 @@ describe('Baretext E2E: rail redesign — regression coverage for four previousl
         plusWidth: plusIcon.width,
       };
     `);
-    assert.deepEqual(result, { connectors: 0, addInset: 29, addHeight: 32, plusWidth: 16 });
+    assert.deepEqual(result, { connectors: 0, addInset: 49, addHeight: 32, plusWidth: 16 });
   });
 
   test('chapter and scene columns retain exact offsets in the tightened rhythm', async () => {

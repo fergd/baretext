@@ -113,7 +113,12 @@
       --row-pad-end: var(--space-2);  /* 8px trailing edge */
       --row-min-h:   var(--space-8);  /* 32px */
       --rail-node:   var(--space-4);  /* 16px chapter-number / frost node */
-      --scene-inset: 29px;            /* exact Figma scene-row inset */
+      --scene-inset: 49px;            /* Figma's 29px scene-row inset, plus the
+                                          16px+4px the drag-handle column used
+                                          to occupy -- keeps scene titles
+                                          aligned under chapter titles now that
+                                          rows are draggable directly and that
+                                          column is gone. */
 
       /* Cold Storage is the rail's sole secondary hue. It stays blue in
          every theme rather than inheriting a theme's syntax palette. */

@@ -132,17 +132,11 @@ function injectStyle() {
 }
 .rail-chapter-row:hover, .rail-scene-row:hover { background: var(--icon-btn-hover); }
 /* One disclosure/action column, one 20px chapter-number column, then title.
-   The chapter drag handle swaps into the chevron's exact grid cell on row
-   hover/focus; it never consumes a third leading column or collides with
-   the disclosure glyph. Cold Storage uses the same geometry, with its
-   blue snowflake occupying the node column. */
+   Cold Storage uses the same geometry, with its blue snowflake occupying
+   the node column. */
 .rail-chapter-row, .rail-cold-storage-row {
   display: grid; grid-template-columns: var(--rail-node) var(--rail-node) minmax(0, 1fr) 48px; gap: var(--space-2);
 }
-.rail-chapter-row .rail-drag-handle {
-  grid-column: 2; grid-row: 1; border-radius: var(--radius-control);
-}
-.rail-chapter-row .rail-drag-handle:hover { background: var(--icon-btn-hover); color: var(--accent); }
 .rail-chevron-btn {
   all: unset; box-sizing: border-box; position: relative; grid-column: 1; grid-row: 1;
   width: var(--rail-node); height: var(--rail-node); cursor: pointer;
@@ -160,8 +154,6 @@ function injectStyle() {
 }
 .rail-chapter-row > .rail-chapter-title { grid-column: 3; }
 .rail-chapter-row > .rail-trailing { grid-column: 4; }
-.rail-chapter-row:hover > .rail-chapter-num,
-.rail-chapter-row:focus-within > .rail-chapter-num { opacity: 0; }
 .rail-chapter-title { font: var(--type-title); color: var(--text-title); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rail-chapter-title.placeholder { color: var(--text-faint); font-weight: 500; font-style: italic; }
 
@@ -194,12 +186,11 @@ function injectStyle() {
 .rail-scene-list { display: flex; flex-direction: column; gap: var(--space-1); }
 
 .rail-scene-row {
-  display: grid; grid-template-columns: var(--space-4) minmax(0, 1fr) 48px; gap: var(--space-1);
+  display: grid; grid-template-columns: minmax(0, 1fr) 48px; gap: var(--space-1);
   margin-left: var(--scene-inset);
 }
-.rail-scene-row .rail-drag-handle { grid-column: 1; }
-.rail-scene-row .rail-scene-name { grid-column: 2; }
-.rail-scene-row .rail-trailing { grid-column: 3; }
+.rail-scene-row .rail-scene-name { grid-column: 1; }
+.rail-scene-row .rail-trailing { grid-column: 2; }
 .rail-scene-row.active { background: var(--selected-surface); }
 .rail-scene-row .rail-scene-name { font: var(--type-body); color: var(--text-title); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rail-scene-row.active .rail-scene-name { color: var(--selected-text); }
@@ -230,28 +221,6 @@ function injectStyle() {
 }
 .rail-scene-add:hover, .rail-scene-add:focus-visible { opacity: 1; color: var(--accent); background: var(--icon-btn-hover); }
 .rail-scene-add .ti-plus { width: var(--space-4); font-size: var(--space-4); text-align: center; }
-
-/* Grab handle -- fixed 20x20 hit target of its own (the drag listeners live
-   on the ROW, gated by this handle's mousedown; see makeDragHandle below),
-   sits in its own grid column so it never has to share space with, or
-   overflow into, the chevron next to it (see the .rail-chapter-row comment
-   above -- this is the specific fix for that). Reveal-on-hover, same
-   hover/focus-within rule as the trailing controls. */
-.rail-drag-handle {
-  all: unset; box-sizing: border-box; position: relative; cursor: grab;
-  width: 100%; height: var(--space-6); display: flex; align-items: center; justify-content: center;
-  color: var(--text-faint); opacity: 0;
-  transition: opacity var(--dur-1) var(--ease-standard), color var(--dur-1) var(--ease-standard);
-}
-/* nets >=24px hit target (checked by the hit-target test) on both the
-   16px chapter handle and the 20px scene handle. */
-.rail-drag-handle::before { content: ''; position: absolute; inset: calc(-1 * var(--space-1)) calc(-1 * (var(--space-1) + var(--space-2xs))); }
-.rail-drag-handle .ti { font-size: var(--space-4); }
-.rail-chapter-row:hover .rail-drag-handle, .rail-scene-row:hover .rail-drag-handle,
-.rail-chapter-row:focus-within .rail-drag-handle, .rail-scene-row:focus-within .rail-drag-handle,
-.rail-drag-handle:focus, .rail-drag-handle:focus-visible { opacity: 1; }
-.rail-drag-handle:hover { color: var(--accent); }
-.rail-drag-handle:active { cursor: grabbing; }
 
 .rail-chapter-row.dragging, .rail-scene-row.dragging { opacity: .35; }
 /* Dropping a scene directly ON a chapter header always appends it to that
@@ -296,45 +265,34 @@ function injectStyle() {
 `);
 }
 
-// Scopes native HTML5 drag-and-drop to a small handle icon instead of the
-// whole row: `row` only becomes draggable while the mouse is down on the
-// handle, and reverts right after (mouseup fires whether or not a drag
-// actually started) -- otherwise the whole row would initiate a drag on any
-// press+move, stealing the gesture from click-to-toggle/click-to-jump/
-// click-to-rename.
-//
-// Deliberately NOT built from btn(): btn()'s mousedown->preventDefault()
-// (the "don't steal focus from the editor" trick used everywhere else)
-// silently disables native drag here -- Chromium never starts a drag from a
-// mousedown whose default action was prevented, so the handle looked wired
-// up correctly but never actually initiated a drag (confirmed live: zero
-// drag events of any kind fired on a real mouse-driven press+move+release
-// over the handle before this fix). stopPropagation() alone is enough to
-// stop the row's own toggle/jump mousedown from also firing.
-function makeDragHandle(row, label) {
-  const handle = document.createElement('button');
-  handle.type = 'button';
-  handle.className = 'rail-drag-handle';
-  handle.appendChild(icon('ti-grip-vertical'));
-  handle.title = 'drag to reorder, or focus the row and use ⌥↑/⌥↓';
-  handle.setAttribute('aria-label', 'Reorder ' + label + ' (⌥↑/⌥↓ on the row)');
-  handle.addEventListener('mousedown', (e) => {
-    e.stopPropagation();
-    row.draggable = true;
-  });
-  // A plain click (press+release with no drag motion) has no action of its
-  // own here, but would otherwise bubble up and trigger the row's own
-  // toggle/jump click handler -- stop it, same as edit/delete already do.
-  handle.addEventListener('click', (e) => e.stopPropagation());
-  row.addEventListener('mouseup', () => { row.draggable = false; });
-  return handle;
-}
-
 // mousedown still gets preventDefault() (preserves "don't steal focus from
 // the editor on a mouse click" for the tree rows themselves, same trick as
 // btn()); the actual action binds to click, which still fires normally.
 function onActivate(element, handler) {
   element.addEventListener('mousedown', (e) => e.preventDefault());
+  element.addEventListener('click', handler);
+}
+
+// Chapter/scene rows are draggable directly -- no separate grip-icon handle
+// -- same whole-row-draggable approach the corkboard already uses for its
+// cards. `row.draggable` is set once and stays true; a plain press+release
+// still fires a normal click (jump/toggle), and a press+move starts a
+// native drag instead, because that's how the browser's own drag-vs-click
+// arbitration already works for a draggable element: dragstart only fires
+// once the pointer has actually moved past its internal threshold while the
+// button is down, and it suppresses the click that would otherwise follow
+// mouseup once a drag has started. So no manual distance/time tracking is
+// needed here to tell the two gestures apart.
+//
+// Deliberately does NOT preventDefault() on mousedown the way onActivate()
+// does -- Chromium never starts a drag from a mousedown whose default
+// action was prevented (confirmed live: with preventDefault() in place, zero
+// drag events fired on a real mouse-driven press+move+release, even with
+// draggable already true). Losing that "don't steal focus from the editor"
+// guard is fine here specifically because jumpTo/jumpToChapter already
+// explicitly call ctx.focusEditor() at the end of the click handler, so
+// focus lands back in the editor regardless.
+function onActivateDraggable(element, handler) {
   element.addEventListener('click', handler);
 }
 
@@ -422,9 +380,9 @@ function moveScene(ci, si, dir) {
 // inline action button (which stay independently reachable via Tab).
 function onTreeKeydown(e) {
   // Only handle keys when the ROW ITSELF has focus, not a nested button
-  // (edit/delete/drag-handle) -- those are real buttons with their own
-  // native Enter/Space activation; re-interpreting the same keydown here
-  // too (it still bubbles) would double-fire both actions.
+  // (edit/delete) -- those are real buttons with their own native
+  // Enter/Space activation; re-interpreting the same keydown here too (it
+  // still bubbles) would double-fire both actions.
   if (!e.target.matches('.rail-chapter-row, .rail-scene-row')) return;
   const row = e.target;
   const type = row.dataset.type;
@@ -507,21 +465,22 @@ function buildSceneRow(chapters, ci, si, active) {
     beginEdit(nameSpan, scene.title, (newTitle) => ctx.renameTitle(scene, newTitle), render);
   });
   const deleteBtn = makeDeleteButton('rail-icon-btn rail-delete-btn', scene.title, () => ctx.deleteScene(ci, si, chapters));
-  const rowHandle = makeDragHandle(row, scene.title);
   const metaSpan = el('span', 'rail-trailing-meta rail-dim', scene.isDraft ? 'draft' : String(scene.wordCount));
   const controls = el('span', 'rail-trailing-controls');
   controls.append(editBtn, deleteBtn);
   const trailing = el('span', 'rail-trailing');
   trailing.append(metaSpan, controls);
-  row.append(rowHandle, nameSpan, trailing);
+  row.append(nameSpan, trailing);
+  row.title = 'drag to reorder, or focus the row and use ⌥↑/⌥↓';
   // Cold Storage scenes aren't reachable by scrolling the main manuscript
   // at all (see cold-storage-view.js) -- clicking one has to open the
   // isolated scene view instead of the normal jump-and-scroll.
-  onActivate(row, () => {
+  onActivateDraggable(row, () => {
     if (chapter.coldStorage) ctx.enterColdStorageScene(scene, si);
     else jumpTo(scene);
   });
 
+  row.draggable = true;
   row.addEventListener('dragstart', (e) => {
     dragSource = { type: 'scene', chapterIndex: ci, sceneIndex: si };
     row.classList.add('dragging');
@@ -530,7 +489,6 @@ function buildSceneRow(chapters, ci, si, active) {
   });
   row.addEventListener('dragend', () => {
     row.classList.remove('dragging');
-    row.draggable = false;
     dragSource = null;
     clearDropIndicators();
   });
@@ -728,15 +686,16 @@ export function render() {
       beginEdit(chTitle, chapter.title, (newTitle) => ctx.renameTitle(chapter, newTitle), render);
     });
     const chDeleteBtn = makeDeleteButton('rail-icon-btn rail-delete-btn', chLabel, () => ctx.deleteChapter(ci, chapters));
-    const chHandle = makeDragHandle(chRow, chLabel);
     const chMetaSpan = el('span', 'rail-trailing-meta rail-dim', chapterMeta(chapter));
     const chControls = el('span', 'rail-trailing-controls');
     chControls.append(chEditBtn, chDeleteBtn);
     const chTrailing = el('span', 'rail-trailing');
     chTrailing.append(chMetaSpan, chControls);
-    chRow.append(chevron, chHandle, el('span', 'rail-chapter-num', String(chapter.number)), chTitle, chTrailing);
-    onActivate(chRow, () => jumpToChapter(chapter));
+    chRow.append(chevron, el('span', 'rail-chapter-num', String(chapter.number)), chTitle, chTrailing);
+    chRow.title = 'drag to reorder, or focus the row and use ⌥↑/⌥↓';
+    onActivateDraggable(chRow, () => jumpToChapter(chapter));
 
+    chRow.draggable = true;
     chRow.addEventListener('dragstart', (e) => {
       dragSource = { type: 'chapter', chapterIndex: ci };
       chRow.classList.add('dragging');
@@ -745,7 +704,6 @@ export function render() {
     });
     chRow.addEventListener('dragend', () => {
       chRow.classList.remove('dragging');
-      chRow.draggable = false;
       dragSource = null;
       clearDropIndicators();
     });
