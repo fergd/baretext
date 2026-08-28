@@ -3650,3 +3650,146 @@ describe('Baretext E2E: rail redesign — regression coverage for four previousl
     assert.deepEqual(bad, []);
   });
 });
+
+describe('Baretext E2E: Backspace cannot delete a scene or chapter boundary', () => {
+  let app;
+  const fixture = [
+    '# A Turning Point',
+    '',
+    'Opening prose long enough to clear the draft threshold for this test case easily.',
+    '',
+    '---',
+    '<!-- A Fairly Long Named Scene Title -->',
+    '',
+    'Named scene prose, also long enough to clear the draft threshold nicely here.',
+    '',
+    '# Second Chapter',
+    '',
+    'More prose here for the second chapter body text.',
+  ].join('\n');
+
+  before(async () => {
+    app = await launchApp({ fixtureContent: fixture, mode: 'editor' });
+    await app.client.evaluate(`
+      const deadline = Date.now() + 2000;
+      while (Date.now() < deadline) {
+        if (document.querySelectorAll('.rail-scene-row').length >= 1) break;
+        await new Promise(r => setTimeout(r, 100));
+      }
+    `);
+  });
+
+  after(async () => {
+    if (app) await app.close();
+  });
+
+  // Rail navigation (jumpTo/jumpToChapter) lands the cursor at an exact,
+  // known document position -- far more reliable for this than a pixel
+  // click, which has to fight the heading's own inline gutter-number widget
+  // and live-preview's hidden "#" concealment for exact character offsets.
+  async function clickChapterRow(matchText) {
+    await app.client.evaluate(`
+      const rows = [...document.querySelectorAll('.rail-chapter-row:not(.rail-cold-storage-row)')];
+      rows.find(r => r.textContent.includes(${JSON.stringify(matchText)})).click();
+      await new Promise(r => setTimeout(r, 150));
+    `);
+  }
+  async function clickSceneRow(matchText) {
+    await app.client.evaluate(`
+      const rows = [...document.querySelectorAll('.rail-scene-row')];
+      rows.find(r => r.getAttribute('aria-label').includes(${JSON.stringify(matchText)})).click();
+      await new Promise(r => setTimeout(r, 150));
+    `);
+  }
+  async function pressKey(key, mods = {}) {
+    await app.client.evaluate(`
+      document.querySelector('.cm-content').dispatchEvent(new KeyboardEvent('keydown', {
+        key: ${JSON.stringify(key)}, bubbles: true, cancelable: true, ...${JSON.stringify(mods)}
+      }));
+      await new Promise(r => setTimeout(r, 60));
+    `);
+  }
+  async function docText() {
+    return app.client.evaluate("return document.querySelector('.cm-content').innerText;");
+  }
+
+  test('Backspace at the very start of a chapter heading does nothing', async () => {
+    await clickChapterRow('Second Chapter');
+    const before = await docText();
+    await pressKey('Backspace');
+    assert.equal(await docText(), before);
+  });
+
+  test('Backspace in the middle of a chapter title still edits normally', async () => {
+    await clickChapterRow('Second Chapter');
+    for (let i = 0; i < 9; i++) await pressKey('ArrowRight'); // past "# Second "
+    const before = await docText();
+    await pressKey('Backspace');
+    assert.notEqual(await docText(), before);
+  });
+
+  test('Backspace at the start of a named scene (right after its marker + waypoint comment) does nothing', async () => {
+    await clickSceneRow('Named Scene Title');
+    const before = await docText();
+    await pressKey('Backspace');
+    assert.equal(await docText(), before);
+  });
+
+  test('Backspace in the middle of scene prose still edits normally', async () => {
+    await clickSceneRow('Named Scene Title');
+    for (let i = 0; i < 6; i++) await pressKey('ArrowRight');
+    const before = await docText();
+    await pressKey('Backspace');
+    assert.notEqual(await docText(), before);
+  });
+
+  test('Backspace at the start of chapter 1\'s implicit first scene does nothing', async () => {
+    await clickSceneRow('Scene 1');
+    const before = await docText();
+    await pressKey('Backspace');
+    assert.equal(await docText(), before);
+  });
+
+  test('Alt-Backspace (word-delete backward) is guarded the same way as plain Backspace', async () => {
+    await clickSceneRow('Named Scene Title');
+    const before = await docText();
+    await pressKey('Backspace', { altKey: true });
+    assert.equal(await docText(), before);
+  });
+
+  test('a freshly added chapter\'s auto-created blank scene is protected too', async () => {
+    await app.client.evaluate(`
+      document.querySelector('.rail-footer').click();
+      await new Promise(r => setTimeout(r, 250));
+    `);
+    await app.client.evaluate(`
+      const rows = [...document.querySelectorAll('.rail-scene-row')];
+      rows[rows.length - 1].click();
+      await new Promise(r => setTimeout(r, 150));
+    `);
+    const before = await docText();
+    await pressKey('Backspace');
+    assert.equal(await docText(), before);
+  });
+
+  test('the rail\'s own delete button is unaffected by the guard', async () => {
+    const chaptersBefore = await app.client.evaluate(
+      "return document.querySelectorAll('.rail-chapter-row:not(.rail-cold-storage-row)').length;"
+    );
+    await app.client.evaluate(`
+      const rows = [...document.querySelectorAll('.rail-chapter-row:not(.rail-cold-storage-row)')];
+      const del = rows[rows.length - 1].querySelector('.rail-delete-btn');
+      del.click(); del.click();
+      await new Promise(r => setTimeout(r, 200));
+    `);
+    const chaptersAfter = await app.client.evaluate(
+      "return document.querySelectorAll('.rail-chapter-row:not(.rail-cold-storage-row)').length;"
+    );
+    assert.equal(chaptersAfter, chaptersBefore - 1);
+  });
+
+  test('no console errors in this suite', () => {
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+});

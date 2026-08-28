@@ -15,6 +15,7 @@ import { editorModeField, setEditorMode as setEditorModeField } from './mode-sta
 import { coldStorageViewField, coldStorageHideField, setColdStorageViewEffect } from './cold-storage-view.js';
 import { bookTitlePlugin, injectBookTitleStyle } from './book-title.js';
 import { mapPosAcrossReplace } from './cursor-map.js';
+import { sceneBoundaryGuardKeymap } from './scene-boundary-guard.js';
 
 let registeredKeys = {};
 
@@ -69,6 +70,7 @@ export function create(container, initialDoc, onChange, placeholderText) {
         spellcheckField,
         spellcheckPlugin,
         boldItalicKeymap(),
+        sceneBoundaryGuardKeymap(),
         emDashInputHandler,
         appKeymap,
         ...markdownExtensions(),
