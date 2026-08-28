@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { reorderScenes, deleteScene, deleteChapter, reorderChapters } from '../../src/features/scene-nav/reorder.js';
+import { reorderScenes, deleteScene, deleteChapter, reorderChapters, addChapter } from '../../src/features/scene-nav/reorder.js';
 
 // Builds a minimal chapters[] shape matching what model.js's getManuscript()
 // produces — reorderScenes only reads .title/.scenes per chapter and
@@ -393,4 +393,19 @@ test('deleteScene works on a scene inside Cold Storage', () => {
   ];
   const doc = deleteScene(chapters, { chapterIndex: 1, sceneIndex: 1 });
   assert.equal(doc, '# One\n\nA1.\n\n<!-- COLD STORAGE -->\n\nKeep.\n');
+});
+
+test('addChapter seeds the new chapter with one blank scene, not zero', () => {
+  const chapters = [chapter('One', [scene('A1.')])];
+  const doc = addChapter(chapters);
+  // The explicit "---" marker (rather than nothing) is what makes the blank
+  // scene round-trip back out of getManuscript() as a real draft scene next
+  // render, instead of vanishing back into an empty, scene-less chapter.
+  assert.equal(doc, '# One\n\nA1.\n\n# \n\n---\n\n\n');
+});
+
+test('addChapter inserts the new chapter (with its blank scene) before Cold Storage, not after', () => {
+  const chapters = [chapter('One', [scene('A1.')]), coldStorage([scene('Cut material.')])];
+  const doc = addChapter(chapters);
+  assert.equal(doc, '# One\n\nA1.\n\n# \n\n---\n\n\n\n<!-- COLD STORAGE -->\n\nCut material.\n');
 });

@@ -184,14 +184,22 @@ export function deleteChapter(chapters, chapterIndex) {
 }
 
 // Appends a new, blank chapter (empty title -- shows the "Untitled"
-// placeholder, see chapter-placeholder.js -- and no scenes yet, a normal
-// draft state) as the last REAL chapter, i.e. right before Cold Storage if
-// it exists (Cold Storage must always serialize last -- see buildDocument's
-// own comment) rather than at the true end of the chapters[] array.
+// placeholder, see chapter-placeholder.js) as the last REAL chapter, i.e.
+// right before Cold Storage if it exists (Cold Storage must always
+// serialize last -- see buildDocument's own comment) rather than at the
+// true end of the chapters[] array. Seeded with one blank scene rather than
+// none -- a chapter with zero scenes has nowhere for the writer to actually
+// start typing (the rail's own "+ add scene" row is the only way in, one
+// extra click every single time) and doesn't match how every other chapter
+// in a real manuscript looks. joinScenes' i===0 empty-body case already
+// emits an explicit marker for exactly this "scene with no prose yet"
+// shape, so it round-trips back out of getManuscript() as a real (draft)
+// scene next render, not as an empty chapter.
 export function addChapter(chapters) {
   const next = carryBookTitle(chapters, chapters.map((c) => ({ title: c.title, synthetic: c.synthetic, coldStorage: c.coldStorage, scenes: c.scenes.slice() })));
   const coldStorageIndex = next.findIndex((c) => c.coldStorage);
   const insertAt = coldStorageIndex === -1 ? next.length : coldStorageIndex;
-  next.splice(insertAt, 0, { title: '', synthetic: false, coldStorage: false, scenes: [] });
+  const blankScene = { title: '', type: 'scene', named: false, rawText: '' };
+  next.splice(insertAt, 0, { title: '', synthetic: false, coldStorage: false, scenes: [blankScene] });
   return buildDocument(next);
 }
