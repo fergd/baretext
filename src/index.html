@@ -661,6 +661,16 @@
       transition: color var(--dur-theme) ease;
     }
     .status-item.dimmer { color: var(--text-dimmer); }
+    /* Filename display doubles as a "reveal in Finder" button -- it has no
+       other purpose. all:unset resets browser <button> chrome, same
+       #id-beats-.class reasoning as #tw-status-indicator above. */
+    #file-name {
+      all: unset; box-sizing: border-box; cursor: pointer;
+      font-size: 11px; font-family: var(--font-mono); letter-spacing: 0.03em;
+      color: var(--text-dimmer);
+      transition: color var(--dur-theme) ease;
+    }
+    #file-name:hover, #file-name:focus-visible { color: var(--text-dim); }
 
     #save-error {
       width: 6px; height: 6px;
@@ -986,7 +996,7 @@
     </div>
     <div class="status-group">
       <div id="save-error" title="save failed"></div>
-      <span class="status-item dimmer" id="file-name">untitled</span>
+      <button type="button" class="status-item dimmer" id="file-name" title="Show in Finder" aria-label="Show in Finder">untitled</button>
     </div>
   </div>
 </div>

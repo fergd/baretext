@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, nativeTheme, Menu, session } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, nativeTheme, Menu, session, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -288,6 +288,12 @@ ipcMain.on('typewriter-changed', (event, on) => {
 ipcMain.on('rail-collapsed-changed', (event, on) => {
   settings.railCollapsed = !!on;
   saveSettings(settings);
+});
+
+// Status bar's filename display doubles as a "reveal in Finder" control --
+// it otherwise has no purpose of its own beyond showing the current path.
+ipcMain.on('show-in-finder', (event, filePath) => {
+  if (filePath) shell.showItemInFolder(filePath);
 });
 
 // Spellcheck ignore list (names, jargon, ...) — global, not per-file, so it

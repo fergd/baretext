@@ -2879,7 +2879,7 @@ describe('Baretext E2E: accessibility pass', () => {
     const result = await app.client.evaluate(`
       const selectors = [
         '.rail-corkboard-btn', '.rail-edit-btn', '.rail-delete-btn',
-        '.rail-scene-add', '.rail-footer', '#tw-status-indicator',
+        '.rail-scene-add', '.rail-footer', '#tw-status-indicator', '#file-name',
       ];
       return selectors.map(sel => {
         const el = document.querySelector(sel);
@@ -4241,3 +4241,63 @@ describe('Baretext E2E: scene dividers are never directly editable', () => {
     assert.deepEqual(bad, []);
   });
 });
+
+describe('Baretext E2E: status bar filename reveals the file in Finder', () => {
+  let app;
+
+  before(async () => {
+    app = await launchApp({ fixtureContent: '# One\n\nSome prose.', mode: 'editor' });
+    await app.client.evaluate(`
+      const deadline = Date.now() + 2000;
+      while (Date.now() < deadline) {
+        if (document.getElementById('file-name').textContent !== 'untitled') break;
+        await new Promise(r => setTimeout(r, 100));
+      }
+    `);
+  });
+
+  after(async () => {
+    if (app) await app.close();
+  });
+
+  // Deliberately does NOT actually click through to window.api.showInFinder
+  // here -- that reaches shell.showItemInFolder() in the real main process,
+  // which pops a real Finder window/tab on whatever machine runs this
+  // suite. Verified live by hand instead (clicked it, confirmed Finder
+  // opened showing the right file); this locks in the wiring that would
+  // most plausibly regress silently -- the button's own semantics, that it
+  // doesn't steal editor focus, and that the preload bridge still exposes
+  // the function this handler calls.
+  test('the filename is a real button, shows a pointer cursor, and does not steal editor focus', async () => {
+    const before = await app.client.evaluate(`
+      document.querySelector('.cm-content').focus();
+      return document.activeElement === document.querySelector('.cm-content');
+    `);
+    assert.equal(before, true, 'setup: editor should have focus');
+
+    const result = await app.client.evaluate(`
+      const btn = document.getElementById('file-name');
+      btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      return {
+        tag: btn.tagName,
+        type: btn.type,
+        cursor: getComputedStyle(btn).cursor,
+        text: btn.textContent,
+        stillEditorFocused: document.activeElement === document.querySelector('.cm-content'),
+        apiHasShowInFinder: typeof window.api.showInFinder,
+      };
+    `);
+    assert.equal(result.tag, 'BUTTON');
+    assert.equal(result.type, 'button');
+    assert.equal(result.cursor, 'pointer');
+    assert.equal(result.text, 'test.md');
+    assert.equal(result.stillEditorFocused, true);
+    assert.equal(result.apiHasShowInFinder, 'function');
+  });
+
+  test('no console errors in this suite', () => {
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+});
+

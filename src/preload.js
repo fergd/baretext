@@ -32,6 +32,9 @@ contextBridge.exposeInMainWorld('api', {
   // Rail collapsed (Editor mode) — persisted across launches
   setRailCollapsed: (on) => ipcRenderer.send('rail-collapsed-changed', on),
 
+  // Status bar filename -- click reveals the current file in Finder
+  showInFinder: (filePath) => ipcRenderer.send('show-in-finder', filePath),
+
   // Spellcheck ignore list — persisted across launches
   setIgnoredWords: (words) => ipcRenderer.send('ignored-words-changed', words),
 

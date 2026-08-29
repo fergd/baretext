@@ -158,6 +158,8 @@ function updateCounts(doc) {
   elWord.textContent = w + (w === 1 ? ' word' : ' words');
 }
 function setFileName(fp) { elFile.textContent = fp ? fp.split('/').pop() : 'untitled'; }
+elFile.addEventListener('mousedown', (e) => e.preventDefault());
+elFile.addEventListener('click', () => { if (state.filePath) window.api.showInFinder(state.filePath); });
 
 // ── Toast ──
 let toastTimer = null;
