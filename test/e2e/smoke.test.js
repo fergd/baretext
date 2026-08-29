@@ -3981,3 +3981,263 @@ describe('Baretext E2E: rail collapse/expand', () => {
   });
 });
 
+describe('Baretext E2E: inline rename input (chapter/scene titles)', () => {
+  let app;
+  const fixture = [
+    '# A Turning Point',
+    '',
+    'Opening prose long enough to clear the draft threshold for this test case easily.',
+    '',
+    '---',
+    '<!-- A Fairly Long Named Scene Title -->',
+    '',
+    'Named scene prose, also long enough to clear the draft threshold nicely here.',
+  ].join('\n');
+
+  before(async () => {
+    app = await launchApp({ fixtureContent: fixture, mode: 'editor' });
+    await app.client.evaluate('window.resizeTo(1400, 900); return true;');
+    await app.client.evaluate(`
+      const deadline = Date.now() + 2000;
+      while (Date.now() < deadline) {
+        if (document.querySelectorAll('.rail-scene-row').length >= 1) break;
+        await new Promise(r => setTimeout(r, 100));
+      }
+    `);
+  });
+
+  after(async () => {
+    if (app) await app.close();
+  });
+
+  // Real bug: clicking into the rename input to reposition the caret (a
+  // plain click, not a drag-select) bubbled up to the row's own jump/toggle
+  // click handler underneath -- mousedown alone was stopped, but 'click' is
+  // a separate event that isn't derived from mousedown's propagation. That
+  // silently discarded whatever the writer had already typed.
+  test('clicking inside an active rename input repositions the caret instead of canceling the edit', async () => {
+    await app.client.evaluate(`
+      document.querySelector('.rail-chapter-row .rail-edit-btn').click();
+      await new Promise(r => setTimeout(r, 150));
+    `);
+    const present = await app.client.evaluate("return !!document.querySelector('.inline-rename-input');");
+    assert.equal(present, true, 'setup: edit button should have opened the rename input');
+
+    await app.client.evaluate(`
+      const input = document.querySelector('.inline-rename-input');
+      const rect = input.getBoundingClientRect();
+      const x = rect.left + 5, y = rect.top + rect.height / 2;
+      input.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, clientX: x, clientY: y }));
+      input.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, clientX: x, clientY: y }));
+      input.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, clientX: x, clientY: y }));
+      await new Promise(r => setTimeout(r, 150));
+    `);
+    const stillPresent = await app.client.evaluate("return !!document.querySelector('.inline-rename-input');");
+    assert.equal(stillPresent, true, 'clicking inside the input should not have canceled the edit');
+
+    await app.client.evaluate(`
+      document.querySelector('.inline-rename-input').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 150));
+    `);
+  });
+
+  // Real bug: clearing a title to blank and hitting Enter silently reverted
+  // to the old title instead of committing -- there was no way to actually
+  // wipe a title out once set.
+  test('clearing a chapter title to blank commits and falls back to the Untitled placeholder', async () => {
+    await app.client.evaluate(`
+      document.querySelector('.rail-chapter-row .rail-edit-btn').click();
+      await new Promise(r => setTimeout(r, 150));
+      const input = document.querySelector('.inline-rename-input');
+      input.value = '';
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 250));
+    `);
+    const result = await app.client.evaluate(`
+      return {
+        railTitle: document.querySelector('.rail-chapter-title').textContent,
+        railPlaceholder: document.querySelector('.rail-chapter-title').classList.contains('placeholder'),
+        // chapter-placeholder.js's ghost "Untitled" widget only ever renders
+        // when the real heading line's own title text is blank -- its
+        // presence here confirms the doc itself was actually cleared, not
+        // just the rail's own display.
+        ghostPlaceholderShown: !!document.querySelector('.cm-chapter-placeholder'),
+      };
+    `);
+    assert.equal(result.railTitle, 'Untitled');
+    assert.equal(result.railPlaceholder, true);
+    assert.equal(result.ghostPlaceholderShown, true);
+  });
+
+  test('clearing a named scene\'s title to blank commits, removing the name comment and falling back to "Scene N"', async () => {
+    const before = await app.client.evaluate(`
+      const rows = [...document.querySelectorAll('.rail-scene-row')];
+      return rows.find(r => r.getAttribute('aria-label').includes('Named Scene Title')) ? true : false;
+    `);
+    assert.equal(before, true, 'setup: the named scene should exist before clearing it');
+
+    await app.client.evaluate(`
+      const rows = [...document.querySelectorAll('.rail-scene-row')];
+      const target = rows.find(r => r.getAttribute('aria-label').includes('Named Scene Title'));
+      target.querySelector('.rail-edit-btn').click();
+      await new Promise(r => setTimeout(r, 150));
+      const input = document.querySelector('.inline-rename-input');
+      input.value = '';
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 250));
+    `);
+    const labels = await app.client.evaluate(
+      "return [...document.querySelectorAll('.rail-scene-row')].map(r => r.getAttribute('aria-label'));"
+    );
+    assert.deepEqual(labels, ['Scene 1', 'Scene 2']);
+
+    const docText = await app.client.evaluate("return document.querySelector('.cm-content').innerText;");
+    assert.ok(!docText.includes('Named Scene Title'), 'the name comment should be gone entirely, not just emptied');
+  });
+
+  test('no console errors in this suite', () => {
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+});
+
+describe('Baretext E2E: scene dividers are never directly editable', () => {
+  let app;
+  const fixture = [
+    '# One',
+    '',
+    'First scene prose long enough to clear the draft threshold nicely here.',
+    '',
+    '---',
+    '',
+    'Second scene prose long enough to clear the draft threshold nicely too.',
+    '',
+    '---',
+    '<!-- Named Third Scene -->',
+    '',
+    'Third scene prose long enough to clear the draft threshold nicely also.',
+  ].join('\n');
+
+  before(async () => {
+    app = await launchApp({ fixtureContent: fixture, mode: 'editor' });
+    await app.client.evaluate('window.resizeTo(1400, 900); return true;');
+    await app.client.evaluate(`
+      const deadline = Date.now() + 2000;
+      while (Date.now() < deadline) {
+        if (document.querySelectorAll('.rail-scene-row').length >= 1) break;
+        await new Promise(r => setTimeout(r, 100));
+      }
+    `);
+  });
+
+  after(async () => {
+    if (app) await app.close();
+  });
+
+  function clickAt(selector, frac) {
+    return app.client.evaluate(`
+      const el = document.querySelector(${JSON.stringify(selector)});
+      const rect = el.getBoundingClientRect();
+      const x = rect.left + rect.width * ${frac}, y = rect.top + rect.height / 2;
+      el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, clientX: x, clientY: y }));
+      el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, clientX: x, clientY: y }));
+      await new Promise(r => setTimeout(r, 100));
+      const sel = document.getSelection();
+      let node = sel.anchorNode;
+      let lineEl = node && node.nodeType === 3 ? node.parentElement : node;
+      while (lineEl && !lineEl.classList.contains('cm-line')) lineEl = lineEl.parentElement;
+      return { onDivider: !!lineEl && (lineEl.classList.contains('cm-scene-break') || lineEl.classList.contains('cm-scene-name-comment')), lineText: lineEl ? lineEl.textContent : null };
+    `);
+  }
+
+  // Real bug, confirmed live before this fix: clicking ANYWHERE along a
+  // "---" line (every x-offset tested) landed the caret directly on the
+  // marker itself -- CodeMirror's atomic-range snapping for a mouse click
+  // resolves to the range's near edge, not forward past it the way arrow-
+  // key movement does. One Backspace from there started eating the divider.
+  test('clicking anywhere along an unnamed divider lands on the next scene\'s content, never on the marker', async () => {
+    for (const frac of [0.1, 0.5, 0.9]) {
+      const result = await clickAt('.cm-scene-break', frac);
+      assert.equal(result.onDivider, false, `click at ${frac} landed on the divider: ${JSON.stringify(result)}`);
+      assert.equal(result.lineText, 'Second scene prose long enough to clear the draft threshold nicely too.');
+    }
+  });
+
+  test('clicking a named divider (marker or its comment) lands on that scene\'s content, never on the chrome', async () => {
+    const result = await app.client.evaluate(`
+      const breaks = document.querySelectorAll('.cm-scene-break');
+      const target = breaks[1]; // the second, named divider
+      const rect = target.getBoundingClientRect();
+      const x = rect.left + rect.width / 2, y = rect.top + rect.height / 2;
+      target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, clientX: x, clientY: y }));
+      target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, clientX: x, clientY: y }));
+      await new Promise(r => setTimeout(r, 100));
+      const sel = document.getSelection();
+      let node = sel.anchorNode;
+      let lineEl = node && node.nodeType === 3 ? node.parentElement : node;
+      while (lineEl && !lineEl.classList.contains('cm-line')) lineEl = lineEl.parentElement;
+      return { onDivider: !!lineEl && (lineEl.classList.contains('cm-scene-break') || lineEl.classList.contains('cm-scene-name-comment')), lineText: lineEl ? lineEl.textContent : null };
+    `);
+    assert.equal(result.onDivider, false);
+    assert.equal(result.lineText, 'Third scene prose long enough to clear the draft threshold nicely also.');
+  });
+
+  test('clicking a still-empty scene\'s divider lands past it, and typing lands in the scene, not on the marker', async () => {
+    await app.client.evaluate(`
+      document.querySelector('.rail-footer').click();
+      await new Promise(r => setTimeout(r, 250));
+    `);
+    const clicked = await app.client.evaluate(`
+      const breaks = document.querySelectorAll('.cm-scene-break');
+      const last = breaks[breaks.length - 1];
+      const rect = last.getBoundingClientRect();
+      const x = rect.left + rect.width / 2, y = rect.top + rect.height / 2;
+      last.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, clientX: x, clientY: y }));
+      last.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, clientX: x, clientY: y }));
+      await new Promise(r => setTimeout(r, 100));
+      const sel = document.getSelection();
+      let node = sel.anchorNode;
+      let lineEl = node && node.nodeType === 3 ? node.parentElement : node;
+      while (lineEl && !lineEl.classList.contains('cm-line')) lineEl = lineEl.parentElement;
+      return { onDivider: !!lineEl && lineEl.classList.contains('cm-scene-break') };
+    `);
+    assert.equal(clicked.onDivider, false, 'clicking a fresh empty scene\'s divider should not leave the caret on it');
+
+    await app.client.evaluate(`
+      document.execCommand('insertText', false, 'Fresh content.');
+      await new Promise(r => setTimeout(r, 200));
+    `);
+    const text = await app.client.evaluate("return document.querySelector('.cm-content').innerText;");
+    assert.ok(text.includes('Fresh content.'));
+    assert.ok(text.includes('---'), 'the marker itself must still be intact');
+  });
+
+  // Same guarantee via the rail (rather than a raw editor click) -- tapping
+  // a brand new empty scene must not land the caret on its own marker.
+  test('jumping to a still-empty scene via the rail lands past its divider too', async () => {
+    const otherRow = await app.client.evaluate(`
+      const rows = [...document.querySelectorAll('.rail-scene-row')];
+      rows[0].click();
+      await new Promise(r => setTimeout(r, 150));
+      return true;
+    `);
+    assert.equal(otherRow, true);
+
+    const result = await app.client.evaluate(`
+      const rows = [...document.querySelectorAll('.rail-scene-row')];
+      rows[rows.length - 1].click();
+      await new Promise(r => setTimeout(r, 150));
+      const sel = document.getSelection();
+      let node = sel.anchorNode;
+      let lineEl = node && node.nodeType === 3 ? node.parentElement : node;
+      while (lineEl && !lineEl.classList.contains('cm-line')) lineEl = lineEl.parentElement;
+      return { onDivider: !!lineEl && lineEl.classList.contains('cm-scene-break') };
+    `);
+    assert.equal(result.onDivider, false);
+  });
+
+  test('no console errors in this suite', () => {
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+});

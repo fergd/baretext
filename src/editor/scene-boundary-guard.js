@@ -16,9 +16,12 @@ const HEADING_PREFIX_RE = /^#{1,3}[ \t]*/;
 
 // Mirrors scene-nav/model.js's firstProsePos for an explicit-marker scene:
 // skip the marker line itself and, if present, its waypoint-name comment,
-// landing on the first real content line -- or the marker's own position if
-// the scene is still empty (a fresh draft with nothing typed into it yet),
-// same fallback firstProsePos uses.
+// landing on the first real content line -- or, if the scene is still an
+// empty draft with nothing typed into it yet, right after that same
+// marker/comment preamble (NOT the marker's own position -- rail
+// navigation lands there now too, see model.js's firstProsePos, and this
+// boundary has to cover wherever the cursor can actually legitimately be
+// for the protection below to still mean anything).
 function contentStartFor(doc, itemPos, endPos) {
   const raw = doc.sliceString(itemPos, endPos);
   const lines = raw.split('\n');
@@ -28,7 +31,9 @@ function contentStartFor(doc, itemPos, endPos) {
     const trimmed = lines[i].trim();
     if (trimmed && !NAME_COMMENT_RE.test(trimmed)) return itemPos + offset;
   }
-  return itemPos;
+  let preambleEnd = lines[0].length + 1;
+  if (lines.length > 1 && NAME_COMMENT_RE.test(lines[1].trim())) preambleEnd += lines[1].length + 1;
+  return itemPos + preambleEnd;
 }
 
 // True if backspacing (or word/group-backward deleting) from the current

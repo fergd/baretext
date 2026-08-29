@@ -42,6 +42,7 @@ function nameWidget(name) {
 
 const NAME_COMMENT_RE = /^<!--\s*(.*?)\s*-->$/;
 const BOOK_TITLE_RE = /^<!--\s*BOOK TITLE:\s*.*?\s*-->$/;
+const MARKER_RE = /^(-{3,}|\*{3,}|_{3,})$/;
 
 // Kept independent of outline.js on purpose — this only ever needs to know
 // "hide this line, show that instead," not the full chapter/scene model
@@ -160,6 +161,62 @@ export const sceneBreakAtomicRanges = StateField.define({
   update: (value, tr) => (tr.docChanged ? buildAtomicRanges(tr.state) : value.map(tr.changes)),
   provide: (f) => EditorView.atomicRanges.from(f, (ranges) => () => ranges),
 });
+
+// Confirmed live: atomicRanges (above) governs keyboard cursor MOTION over
+// the marker/comment chrome, but a mouse click's own position resolution
+// still snaps into the atomic range's NEAR edge -- i.e. the marker line's
+// own start -- rather than jumping past it the way arrowing through does.
+// Every click anywhere along a "---" line (confirmed across its full
+// width) landed the caret on the marker itself, one keystroke away from
+// deleting it. Scene/chapter dividers are never meant to be directly
+// editable at all (see scene-boundary-guard.js's Backspace protection for
+// the deletion half of this) -- clicking one should behave exactly like
+// tapping that scene in the rail: land on its first real content line, or
+// just past the marker/comment if it's still an empty draft with nothing
+// typed into it yet. Mirrors scene-nav/model.js's firstProsePos, redone
+// locally against view.state.doc rather than importing across the editor/
+// features boundary (same duplication precedent as scene-boundary-guard.js's
+// contentStartFor).
+export function safeCaretLine(doc, clickedLineNum) {
+  // The click may have landed on the marker line itself or, if named, its
+  // adjacent comment line right after -- normalize to the marker's own
+  // line number either way so the scan below always starts from the same
+  // place.
+  let markerLineNum = clickedLineNum;
+  if (!MARKER_RE.test(doc.line(clickedLineNum).text.trim()) && clickedLineNum > 1) {
+    const prev = doc.line(clickedLineNum - 1);
+    if (MARKER_RE.test(prev.text.trim())) markerLineNum = clickedLineNum - 1;
+  }
+  let n = markerLineNum + 1;
+  if (n <= doc.lines && NAME_COMMENT_RE.test(doc.line(n).text.trim())) n++;
+  const preambleEndLine = Math.min(n, doc.lines);
+  for (let i = n; i <= doc.lines; i++) {
+    const text = doc.line(i).text;
+    const trimmed = text.trim();
+    if (trimmed === '') continue;
+    if (/^#{1,3}(?:[ \t]|$)/.test(text) || MARKER_RE.test(trimmed) || trimmed === '<!-- COLD STORAGE -->') break;
+    return i; // real content found
+  }
+  return preambleEndLine; // still empty -- land right after the preamble
+}
+
+export function sceneBreakClickGuard() {
+  return EditorView.domEventHandlers({
+    mousedown(event, view) {
+      const lineEl = event.target.closest && event.target.closest('.cm-line');
+      if (!lineEl || !(lineEl.classList.contains('cm-scene-break') || lineEl.classList.contains('cm-scene-name-comment'))) {
+        return false;
+      }
+      const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+      if (pos == null) return false;
+      const doc = view.state.doc;
+      const targetLine = doc.line(safeCaretLine(doc, doc.lineAt(pos).number));
+      event.preventDefault();
+      view.dispatch({ selection: { anchor: targetLine.from } });
+      return true;
+    },
+  });
+}
 
 export function injectSceneBreakStyle() {
   injectStyleTag('bt-scene-break', `

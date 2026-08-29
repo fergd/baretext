@@ -64,6 +64,29 @@ test('re-naming an already-named implicit first scene replaces the comment in pl
   );
 });
 
+test('clearing a named marker-line scene to blank removes the comment entirely, not just empties it', () => {
+  const text = '# Chapter\n\nFirst.\n\n---\n<!-- Confrontation -->\n\nSecond.';
+  const view = makeView(text);
+  renameTitle(view, { pos: text.indexOf('---'), type: 'scene' }, '   ');
+  // Must land back on the ordinary unnamed "---\n\n" shape -- an empty
+  // `<!-- -->` would still parse as a (blank-named) named scene.
+  assert.equal(view.state.doc.toString(), '# Chapter\n\nFirst.\n\n---\n\nSecond.');
+});
+
+test('clearing an unnamed marker-line scene to blank is a no-op (nothing to remove)', () => {
+  const text = '# Chapter\n\nFirst.\n\n---\n\nSecond.';
+  const view = makeView(text);
+  renameTitle(view, { pos: text.indexOf('---'), type: 'scene' }, '   ');
+  assert.equal(view.state.doc.toString(), text);
+});
+
+test('clearing a named implicit first scene to blank removes the comment and its spacing', () => {
+  const text = '# Chapter\n\n<!-- The Beginning -->\n\nOpening prose with no marker before it.';
+  const view = makeView(text);
+  renameTitle(view, { pos: text.indexOf('Opening prose'), type: 'scene' }, '   ');
+  assert.equal(view.state.doc.toString(), '# Chapter\n\nOpening prose with no marker before it.');
+});
+
 test('inserts a real heading for the synthesized Untitled chapter', () => {
   const text = 'Prose before any heading exists.\n\n# Chapter Two\n\nMore.';
   const view = makeView(text);
@@ -74,10 +97,17 @@ test('inserts a real heading for the synthesized Untitled chapter', () => {
   );
 });
 
-test('a blank or whitespace-only title is a no-op', () => {
+test('a blank or whitespace-only title clears a heading back to untitled, not a no-op', () => {
   const text = '# Old Title\n\nSome prose.';
   const view = makeView(text);
   renameTitle(view, { pos: 0, type: 'h1' }, '   ');
+  assert.equal(view.state.doc.toString(), '# \n\nSome prose.');
+});
+
+test('a blank title on the synthesized Untitled chapter is a genuine no-op (no heading line to clear)', () => {
+  const text = 'Prose before any heading exists.';
+  const view = makeView(text);
+  renameTitle(view, { pos: 0, synthetic: true }, '   ');
   assert.equal(view.state.doc.toString(), text);
 });
 

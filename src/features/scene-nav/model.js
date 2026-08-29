@@ -40,7 +40,17 @@ function firstProsePos(doc, item, endPos) {
     const trimmed = lines[i].trim();
     if (trimmed && !NAME_COMMENT_RE.test(trimmed)) return item.pos + offset;
   }
-  return item.pos;
+  // No real content yet (a fresh, still-empty draft scene) -- land right
+  // after the marker line, plus its waypoint-name comment if it has one,
+  // rather than at the marker's own position. The marker/comment lines
+  // are never directly editable (see editor/scene-breaks.js's click guard
+  // and atomic-range treatment of them) -- landing there was the actual
+  // bug this whole function exists to avoid: jumping to a brand new empty
+  // scene put the caret ON the "---" ornament instead of the blank line
+  // right after it, where the writer would actually start typing.
+  let preambleEnd = lines[0].length + 1;
+  if (lines.length > 1 && NAME_COMMENT_RE.test(lines[1].trim())) preambleEnd += lines[1].length + 1;
+  return item.pos + preambleEnd;
 }
 
 // Chapters = h1 headings. Scenes = everything else getOutline() returns

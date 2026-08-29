@@ -66,9 +66,11 @@ export function makeDeleteButton(deleteBtnClass, label, onConfirm) {
 }
 
 // Swaps a title's display span for an inline <input>. Enter or blur commits
-// (only if the value actually changed and isn't blank); Escape cancels. On
-// either path a re-render restores the row — via ctx.refreshNav() after a
-// real commit, or a plain local render() when nothing changed.
+// (whenever the value actually changed, including clearing it to blank —
+// blank is a real, valid title that falls back to the "Untitled"/"Scene N"
+// placeholder, not a cancel); Escape cancels. On either path a re-render
+// restores the row — via ctx.refreshNav() after a real commit, or a plain
+// local render() when nothing changed.
 //
 // render is passed in rather than imported: rail.js and corkboard.js each
 // own their own render() closure, and this helper has no rendering context
@@ -88,12 +90,20 @@ export function beginEdit(displayEl, currentValue, onCommit, render) {
     done = true;
     input.removeEventListener('blur', onBlur);
     const v = input.value.trim();
-    if (shouldCommit && v && v !== currentValue) { onCommit(v); return; }
+    if (shouldCommit && v !== currentValue) { onCommit(v); return; }
     render();
   }
   function onBlur() { finish(true); }
   input.addEventListener('blur', onBlur);
+  // mousedown alone isn't enough -- the row's own jump/toggle handler listens
+  // for 'click', a separate event that still bubbles up on a plain
+  // click-to-place-the-caret even though its mousedown was already stopped
+  // here. Without this, clicking into the input to reposition the caret
+  // (rather than just typing after the initial focus+select) got read as a
+  // click on the row underneath, which jumped/toggled it and blew away the
+  // edit in progress.
   input.addEventListener('mousedown', (e) => e.stopPropagation());
+  input.addEventListener('click', (e) => e.stopPropagation());
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); finish(true); }
     else if (e.key === 'Escape') { e.preventDefault(); finish(false); }

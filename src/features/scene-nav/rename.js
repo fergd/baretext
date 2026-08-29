@@ -22,13 +22,22 @@ function commentFor(title) {
   return '<!-- ' + title + ' -->';
 }
 
+// A blank title is a real, valid rename (falls back to the "Untitled"/
+// "Scene N" placeholder), not a no-op or a cancel -- the only way to
+// actually clear a title once it's been set. It's handled differently per
+// target shape below: a heading just goes back to a bare "#"-line (already
+// what chapter-placeholder.js treats as untitled); a bare scene's name only
+// exists as a comment at all, so clearing it means deleting that comment
+// line outright rather than writing an empty one (an empty `<!-- -->`
+// would itself still count as "named" to outline.js's own parser).
 export function renameTitle(view, target, newTitle) {
   const title = newTitle.trim();
-  if (!title) return;
-
   const doc = view.state.doc;
 
   if (target.synthetic) {
+    // No heading line exists yet to clear -- already as untitled as this
+    // chapter can be.
+    if (!title) return;
     view.dispatch({ changes: { from: 0, to: 0, insert: '# ' + title + '\n\n' } });
     return;
   }
@@ -44,11 +53,16 @@ export function renameTitle(view, target, newTitle) {
   // implicit first scene) no marker line at all, just prose starting cold.
   const line = doc.lineAt(Math.min(target.pos, doc.length));
   const isMarkerLine = /^(-{3,}|\*{3,}|_{3,})$/.test(line.text.trim());
-  const comment = commentFor(title);
 
   if (isMarkerLine) {
     const nextLine = line.number < doc.lines ? doc.line(line.number + 1) : null;
-    if (nextLine && NAME_COMMENT_RE.test(nextLine.text.trim())) {
+    const hasComment = nextLine && NAME_COMMENT_RE.test(nextLine.text.trim());
+    if (!title) {
+      if (hasComment) view.dispatch({ changes: { from: nextLine.from, to: Math.min(nextLine.to + 1, doc.length) } });
+      return;
+    }
+    const comment = commentFor(title);
+    if (hasComment) {
       view.dispatch({ changes: { from: nextLine.from, to: nextLine.to, insert: comment } });
     } else {
       view.dispatch({ changes: { from: line.to, to: line.to, insert: '\n' + comment } });
@@ -64,7 +78,13 @@ export function renameTitle(view, target, newTitle) {
   let checkNum = line.number - 1;
   while (checkNum >= 1 && doc.line(checkNum).text.trim() === '') checkNum--;
   const prevLine = checkNum >= 1 ? doc.line(checkNum) : null;
-  if (prevLine && NAME_COMMENT_RE.test(prevLine.text.trim())) {
+  const hasComment = prevLine && NAME_COMMENT_RE.test(prevLine.text.trim());
+  if (!title) {
+    if (hasComment) view.dispatch({ changes: { from: prevLine.from, to: line.from } });
+    return;
+  }
+  const comment = commentFor(title);
+  if (hasComment) {
     view.dispatch({ changes: { from: prevLine.from, to: prevLine.to, insert: comment } });
   } else {
     view.dispatch({ changes: { from: line.from, to: line.from, insert: comment + '\n\n' } });
