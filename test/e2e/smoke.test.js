@@ -4301,3 +4301,67 @@ describe('Baretext E2E: status bar filename reveals the file in Finder', () => {
   });
 });
 
+describe('Baretext E2E: hidden scene-break/comment chrome never shows a native spellcheck squiggle', () => {
+  let app;
+  const fixture = [
+    '# One',
+    '',
+    'First scene prose long enough to clear the draft threshold nicely here.',
+    '',
+    '---',
+    '<!-- Zyanya -->',
+    '',
+    'Second scene prose long enough to clear the draft threshold nicely too.',
+  ].join('\n');
+
+  before(async () => {
+    app = await launchApp({ fixtureContent: fixture, mode: 'editor' });
+    await app.client.evaluate('window.resizeTo(1400, 900); return true;');
+    await app.client.evaluate(`
+      const deadline = Date.now() + 2000;
+      while (Date.now() < deadline) {
+        if (document.querySelectorAll('.rail-scene-row').length >= 1) break;
+        await new Promise(r => setTimeout(r, 100));
+      }
+    `);
+  });
+
+  after(async () => {
+    if (app) await app.close();
+  });
+
+  // Real bug: `color: transparent` (scene-breaks.js's own concealment CSS)
+  // only hides the glyph fill -- it does nothing to Chromium's native
+  // as-you-type spellchecker, which drew its own wavy red underline
+  // wherever it found a word it didn't recognize (e.g. a waypoint name
+  // like "Zyanya") regardless of whether the text above it was visible.
+  // The fix sets the plain `spellcheck` DOM attribute to false directly on
+  // these lines, which suppresses the native checker for that subtree
+  // outright rather than fighting it cosmetically.
+  test('the marker line and its name-comment line both opt out of native spellcheck', async () => {
+    const result = await app.client.evaluate(`
+      const breakLine = document.querySelector('.cm-scene-break');
+      const commentLine = document.querySelector('.cm-scene-name-comment');
+      return {
+        breakLineSpellcheck: breakLine ? breakLine.getAttribute('spellcheck') : null,
+        commentLineSpellcheck: commentLine ? commentLine.getAttribute('spellcheck') : null,
+      };
+    `);
+    assert.equal(result.breakLineSpellcheck, 'false');
+    assert.equal(result.commentLineSpellcheck, 'false');
+  });
+
+  test('ordinary prose is unaffected -- native spellcheck stays on for real content', async () => {
+    const result = await app.client.evaluate(`
+      const lines = [...document.querySelectorAll('.cm-line')];
+      const prose = lines.find(l => l.textContent.includes('First scene prose'));
+      return prose ? prose.getAttribute('spellcheck') : 'NOT FOUND';
+    `);
+    assert.notEqual(result, 'false');
+  });
+
+  test('no console errors in this suite', () => {
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+});
