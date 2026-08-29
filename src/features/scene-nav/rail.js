@@ -62,6 +62,8 @@ function injectStyle() {
 .rail-svg-cards { mask-image: url('icons/rail-cards.svg'); -webkit-mask-image: url('icons/rail-cards.svg'); }
 .rail-svg-chevron-open { mask-image: url('icons/rail-chevron-open.svg'); -webkit-mask-image: url('icons/rail-chevron-open.svg'); }
 .rail-svg-chevron-closed { mask-image: url('icons/rail-chevron-closed.svg'); -webkit-mask-image: url('icons/rail-chevron-closed.svg'); }
+.rail-svg-panel-collapse { mask-image: url('icons/rail-panel-collapse.svg'); -webkit-mask-image: url('icons/rail-panel-collapse.svg'); }
+.rail-svg-panel-expand { mask-image: url('icons/rail-panel-expand.svg'); -webkit-mask-image: url('icons/rail-panel-expand.svg'); }
 .rail-header {
   display: flex; align-items: center; justify-content: space-between;
   box-sizing: border-box; flex: 0 0 var(--row-min-h);
@@ -69,6 +71,7 @@ function injectStyle() {
   padding: var(--space-1); border-radius: var(--radius-row);
 }
 .rail-header-left { display: flex; flex: 1; min-width: 0; align-items: center; gap: var(--space-2); }
+.rail-header-right { display: flex; flex: none; align-items: center; gap: var(--space-2); }
 .rail-label {
   min-width: 0; overflow: hidden; text-overflow: ellipsis;
   font: var(--type-overline); letter-spacing: 0;
@@ -645,7 +648,14 @@ export function render() {
     }
   });
   headerLeft.append(corkBtn, titleEl);
-  header.append(headerLeft, el('span', 'rail-dim', realChapterCount + 'ch/' + totalScenes));
+  const headerRight = el('div', 'rail-header-right');
+  const collapseBtn = btn('rail-icon-btn rail-panel-collapse-btn');
+  collapseBtn.title = 'Collapse rail';
+  collapseBtn.setAttribute('aria-label', 'Collapse rail');
+  collapseBtn.appendChild(railAssetIcon('panel-collapse'));
+  collapseBtn.addEventListener('click', () => ctx.toggleRailCollapsed());
+  headerRight.append(el('span', 'rail-dim', realChapterCount + 'ch/' + totalScenes), collapseBtn);
+  header.append(headerLeft, headerRight);
   railEl.appendChild(header);
 
   const list = el('div', 'rail-list');

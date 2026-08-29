@@ -23,6 +23,7 @@ const statusLeft = statusbar.querySelector('.status-group');
 const twIndicator = document.getElementById('tw-status-indicator');
 const modeSwitch = document.getElementById('mode-switch');
 const modeTabs   = [...modeSwitch.querySelectorAll('.mode-tab')];
+const railExpandTab = document.getElementById('rail-expand-tab');
 
 const state = {
   theme: document.documentElement.getAttribute('data-theme'),
@@ -32,8 +33,15 @@ const state = {
   filePath: null,
   sourceMode: false,
   mode: document.documentElement.getAttribute('data-mode') || DEFAULT_MODE,
+  railCollapsed: document.documentElement.getAttribute('data-rail-collapsed') === '1',
   wordCount: 0,
 };
+// Matches the `inert` toggle in setRailCollapsed() below, applied once
+// up front for whatever state was restored synchronously at boot (see
+// index.html's early script) -- without this, a launch that restores
+// already-collapsed keeps the panel's own buttons reachable by Tab until
+// the first actual toggle ever runs.
+if (state.railCollapsed) document.getElementById('scene-rail').setAttribute('inert', '');
 
 // ── Create the CodeMirror editor ──
 let view = window.BaretextEditor.create(
@@ -341,6 +349,21 @@ function setTypewriter(on, opts = {}) {
   }
 }
 function toggleTypewriter() { setTypewriter(!state.typewriter); }
+function setRailCollapsed(collapsed) {
+  state.railCollapsed = collapsed;
+  document.documentElement.setAttribute('data-rail-collapsed', collapsed ? '1' : '0');
+  // The CSS collapse (width/opacity, see index.html) leaves the panel's own
+  // buttons/rows with real (zero-size) layout boxes, not display:none --
+  // needed so the width actually transitions -- which means they'd
+  // otherwise still sit in the keyboard Tab order and be clickable at their
+  // old on-screen position mid-transition. inert removes the whole
+  // collapsed subtree from focus and hit-testing regardless.
+  document.getElementById('scene-rail').toggleAttribute('inert', collapsed);
+  window.api.setRailCollapsed(collapsed);
+}
+function toggleRailCollapsed() { setRailCollapsed(!state.railCollapsed); }
+railExpandTab.addEventListener('mousedown', (e) => e.preventDefault());
+railExpandTab.addEventListener('click', () => { setRailCollapsed(false); focusEditor(); });
 function toggleFocus() {
   state.focusMode = !state.focusMode;
   statusbar.classList.toggle('hidden', state.focusMode);
@@ -631,6 +654,7 @@ const ctx = {
   cmdSave, cmdOpen, cmdNew, cmdExport, cmdSaveDir,
   setTheme, setFont, toggleFontPicker,
   setTypewriter, toggleTypewriter, toggleFocus, toggleRenderedMode, insertSceneBreak,
+  setRailCollapsed, toggleRailCollapsed,
   openThemePicker: () => themePicker.show(),
 };
 

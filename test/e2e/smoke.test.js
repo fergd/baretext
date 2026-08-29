@@ -3408,19 +3408,22 @@ describe('Baretext E2E: rail redesign — regression coverage for four previousl
     });
   });
 
-  test('the header matches the Figma hierarchy: squares + title left, compact counter right', async () => {
+  test('the header matches the Figma hierarchy: squares + title left, compact counter + collapse right', async () => {
     const result = await app.client.evaluate(`
       const panel = document.getElementById('scene-rail').getBoundingClientRect();
       const header = document.querySelector('.rail-header').getBoundingClientRect();
       const button = document.querySelector('.rail-corkboard-btn').getBoundingClientRect();
       const labelEl = document.querySelector('.rail-label');
       const label = labelEl.getBoundingClientRect();
-      const counterEl = document.querySelector('.rail-header > .rail-dim');
+      const headerRightEl = document.querySelector('.rail-header-right');
+      const counterEl = document.querySelector('.rail-header-right > .rail-dim');
       const counter = counterEl.getBoundingClientRect();
+      const collapseBtn = document.querySelector('.rail-panel-collapse-btn').getBoundingClientRect();
       const labelStyle = getComputedStyle(labelEl);
       const counterStyle = getComputedStyle(counterEl);
       return {
         children: Array.from(document.querySelector('.rail-header').children).map(el => el.className),
+        headerRightChildren: Array.from(headerRightEl.children).map(el => el.className),
         headerX: header.left - panel.left,
         headerY: header.top - panel.top,
         headerWidth: header.width,
@@ -3428,7 +3431,8 @@ describe('Baretext E2E: rail redesign — regression coverage for four previousl
         iconX: button.left - header.left,
         iconSize: [button.width, button.height],
         labelX: label.left - header.left,
-        counterRightInset: header.right - counter.right,
+        collapseBtnSize: [collapseBtn.width, collapseBtn.height],
+        collapseBtnRightInset: header.right - collapseBtn.right,
         labelText: labelEl.textContent,
         counterText: counterEl.textContent,
         labelFont: [labelStyle.fontSize, labelStyle.lineHeight, labelStyle.fontWeight, labelStyle.letterSpacing],
@@ -3436,9 +3440,11 @@ describe('Baretext E2E: rail redesign — regression coverage for four previousl
       };
     `);
     assert.deepEqual(result, {
-      children: ['rail-header-left', 'rail-dim'],
+      children: ['rail-header-left', 'rail-header-right'],
+      headerRightChildren: ['rail-dim', 'rail-icon-btn rail-panel-collapse-btn'],
       headerX: 8, headerY: 16, headerWidth: 320, headerHeight: 32,
-      iconX: 4, iconSize: [16, 16], labelX: 28, counterRightInset: 4,
+      iconX: 4, iconSize: [16, 16], labelX: 28,
+      collapseBtnSize: [16, 16], collapseBtnRightInset: 4,
       labelText: 'test', counterText: '1ch/2',
       labelFont: ['14px', '24px', '700', 'normal'],
       counterFont: ['10px', '24px', '400'],
@@ -3793,3 +3799,150 @@ describe('Baretext E2E: Backspace cannot delete a scene or chapter boundary', ()
     assert.deepEqual(bad, []);
   });
 });
+
+describe('Baretext E2E: rail collapse/expand', () => {
+  let app;
+  const fixture = ['# One', '', 'Opening prose long enough to clear the draft threshold easily.'].join('\n');
+
+  before(async () => {
+    app = await launchApp({ fixtureContent: fixture, mode: 'editor' });
+    await app.client.evaluate('window.resizeTo(1400, 900); return true;');
+    await app.client.evaluate(`
+      const deadline = Date.now() + 2000;
+      while (Date.now() < deadline) {
+        if (document.querySelectorAll('.rail-scene-row').length >= 1) break;
+        await new Promise(r => setTimeout(r, 100));
+      }
+    `);
+  });
+
+  after(async () => {
+    if (app) await app.close();
+  });
+
+  async function state() {
+    return app.client.evaluate(`
+      return {
+        dataCollapsed: document.documentElement.getAttribute('data-rail-collapsed'),
+        railWidth: getComputedStyle(document.getElementById('scene-rail')).width,
+        tabDisplay: getComputedStyle(document.getElementById('rail-expand-tab')).display,
+        railInert: document.getElementById('scene-rail').inert,
+      };
+    `);
+  }
+
+  test('the rail starts expanded, with the expand tab hidden', async () => {
+    assert.deepEqual(await state(), { dataCollapsed: null, railWidth: '336px', tabDisplay: 'none', railInert: false });
+  });
+
+  test('clicking the header\'s collapse button collapses the rail and reveals the expand tab', async () => {
+    await app.client.evaluate(`
+      document.querySelector('.rail-panel-collapse-btn').click();
+      await new Promise(r => setTimeout(r, 300));
+    `);
+    assert.deepEqual(await state(), { dataCollapsed: '1', railWidth: '0px', tabDisplay: 'flex', railInert: true });
+  });
+
+  test('the expand tab is a bare icon at rest -- no background, border, or shadow', async () => {
+    // Real bug: the button had no `all: unset` reset (every other icon
+    // button in this app gets one via .rail-icon-btn), so Chromium's native
+    // <button> chrome -- a raised 2px outset gray border -- rendered
+    // underneath and read as an unwanted circle around the icon.
+    const style = await app.client.evaluate(`
+      const cs = getComputedStyle(document.getElementById('rail-expand-tab'));
+      return { background: cs.backgroundColor, boxShadow: cs.boxShadow, border: cs.border };
+    `);
+    assert.equal(style.background, 'rgba(0, 0, 0, 0)');
+    assert.equal(style.boxShadow, 'none');
+    assert.match(style.border, /^0px/);
+  });
+
+  test('a collapsed rail is not reachable by keyboard focus', async () => {
+    const result = await app.client.evaluate(`
+      const cork = document.querySelector('.rail-corkboard-btn');
+      cork.focus();
+      return { focusWentToCork: document.activeElement === cork };
+    `);
+    assert.equal(result.focusWentToCork, false);
+  });
+
+  test('clicking the expand tab restores the rail and hides the tab again', async () => {
+    await app.client.evaluate(`
+      document.getElementById('rail-expand-tab').click();
+      await new Promise(r => setTimeout(r, 300));
+    `);
+    assert.deepEqual(await state(), { dataCollapsed: '0', railWidth: '336px', tabDisplay: 'none', railInert: false });
+  });
+
+  test('the expand tab never shows in Sprinter mode, even while collapsed', async () => {
+    await app.client.evaluate(`
+      document.querySelector('.rail-panel-collapse-btn').click();
+      await new Promise(r => setTimeout(r, 300));
+      document.querySelector('.mode-tab[data-mode="sprinter"]').click();
+      await new Promise(r => setTimeout(r, 200));
+    `);
+    const tabDisplay = await app.client.evaluate(
+      "return getComputedStyle(document.getElementById('rail-expand-tab')).display;"
+    );
+    assert.equal(tabDisplay, 'none');
+
+    await app.client.evaluate(`
+      document.querySelector('.mode-tab[data-mode="editor"]').click();
+      await new Promise(r => setTimeout(r, 200));
+    `);
+    assert.deepEqual(await state(), { dataCollapsed: '1', railWidth: '0px', tabDisplay: 'flex', railInert: true });
+  });
+
+  test('the manuscript re-centers on the window once the rail collapses out of the way', async () => {
+    // Real bug: the rail-open centering shift (index.html, keyed off
+    // data-mode="editor" alone) was still applying at full strength even
+    // once the rail had shrunk to zero width, pushing the manuscript
+    // rail-w/2 too far left of the window's actual center. Inherits a
+    // collapsed rail from the previous test and leaves it collapsed again
+    // at the end -- the next test (persistence across a relaunch) depends
+    // on that being the current state.
+    function centerDelta() {
+      return app.client.evaluate(`
+        const win = window.innerWidth;
+        const content = document.querySelector('.cm-content').getBoundingClientRect();
+        return Math.round((content.left + content.width / 2) - win / 2);
+      `);
+    }
+    const collapsedDelta = await centerDelta();
+    assert.equal(collapsedDelta, 0, `manuscript should sit dead-center while the rail is collapsed, got delta ${collapsedDelta}`);
+
+    await app.client.evaluate(`
+      document.getElementById('rail-expand-tab').click();
+      await new Promise(r => setTimeout(r, 400));
+    `);
+    const expandedDelta = await centerDelta();
+    assert.ok(Math.abs(expandedDelta) < 20, `expected the rail-open centering shift to still be small: ${expandedDelta}`);
+
+    await app.client.evaluate(`
+      document.querySelector('.rail-panel-collapse-btn').click();
+      await new Promise(r => setTimeout(r, 400));
+    `);
+    assert.equal(await centerDelta(), 0, 're-collapsing should restore dead-center too');
+  });
+
+  test('collapsed state persists across a relaunch', async () => {
+    const settingsBefore = app.readSettings();
+    assert.equal(settingsBefore.railCollapsed, true);
+
+    await app.restart();
+    await app.client.evaluate(`
+      const deadline = Date.now() + 3000;
+      while (Date.now() < deadline) {
+        if (document.documentElement.getAttribute('data-rail-collapsed') === '1') break;
+        await new Promise(r => setTimeout(r, 100));
+      }
+    `);
+    assert.deepEqual(await state(), { dataCollapsed: '1', railWidth: '0px', tabDisplay: 'flex', railInert: true });
+  });
+
+  test('no console errors in this suite', () => {
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+});
+

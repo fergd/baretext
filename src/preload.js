@@ -29,6 +29,9 @@ contextBridge.exposeInMainWorld('api', {
   // Typewriter mode — persisted across launches
   setTypewriter: (on) => ipcRenderer.send('typewriter-changed', on),
 
+  // Rail collapsed (Editor mode) — persisted across launches
+  setRailCollapsed: (on) => ipcRenderer.send('rail-collapsed-changed', on),
+
   // Spellcheck ignore list — persisted across launches
   setIgnoredWords: (words) => ipcRenderer.send('ignored-words-changed', words),
 

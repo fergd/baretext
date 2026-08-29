@@ -71,6 +71,9 @@ const accentTheme = VALID_ACCENT_THEMES.includes(settings.accentTheme) ? setting
 const VALID_MODES = ['sprinter', 'editor'];
 const mode = VALID_MODES.includes(settings.mode) ? settings.mode : 'sprinter';
 
+// Rail collapsed (Editor mode) — persisted the same way.
+const railCollapsed = !!settings.railCollapsed;
+
 function getDefaultFilePath() {
   const now = new Date();
   const stamp = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
@@ -102,7 +105,7 @@ function createWindow() {
   // Pass the saved accent theme via query string so index.html can apply
   // it synchronously on first paint — no flash of the default theme while
   // waiting on an IPC round-trip.
-  mainWindow.loadFile(path.join(__dirname, 'index.html'), { query: { theme: accentTheme, mode } });
+  mainWindow.loadFile(path.join(__dirname, 'index.html'), { query: { theme: accentTheme, mode, railCollapsed: railCollapsed ? '1' : '0' } });
   Menu.setApplicationMenu(null);
 }
 
@@ -278,6 +281,12 @@ ipcMain.on('mode-changed', (event, newMode) => {
 // Typewriter mode — persisted so the app reopens with it in the same state
 ipcMain.on('typewriter-changed', (event, on) => {
   settings.typewriter = !!on;
+  saveSettings(settings);
+});
+
+// Rail collapsed (Editor mode) — persisted so the app reopens with it in the same state
+ipcMain.on('rail-collapsed-changed', (event, on) => {
+  settings.railCollapsed = !!on;
   saveSettings(settings);
 });
 

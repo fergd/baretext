@@ -18,6 +18,10 @@
       if (mm && validModes.indexOf(mm[1]) !== -1) {
         document.documentElement.setAttribute('data-mode', mm[1]);
       }
+      var rc = /[?&]railCollapsed=([01])/.exec(location.search);
+      if (rc && rc[1] === '1') {
+        document.documentElement.setAttribute('data-rail-collapsed', '1');
+      }
     })();
   </script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
@@ -355,7 +359,36 @@
       border-radius: var(--radius-rail);
       box-shadow: var(--shadow-panel);
       overflow: hidden;
+      transition: width var(--dur-panel) var(--ease-panel), margin-left var(--dur-panel) var(--ease-panel), opacity var(--dur-panel) var(--ease-panel);
     }
+    /* Collapsed: shrunk to nothing rather than display:none, so the width
+       change above actually animates -- display toggling (used for the
+       Sprinter/Editor mode switch, see rail.js's mount()/unmount()) can't
+       transition at all. pointer-events:none keeps a zero-width panel from
+       still eating clicks meant for the editor beside it. */
+    html[data-rail-collapsed="1"] #scene-rail {
+      width: 0; margin-left: 0; opacity: 0; pointer-events: none;
+    }
+    /* The only way back once the rail's own collapse button (inside it) has
+       scrolled out of existence with it -- a small persistent tab flush
+       against the left edge, in the exact corner the rail's own header
+       would occupy if it were open. Editor-mode + collapsed only: Sprinter
+       has no rail to re-open, and the corkboard already forcibly hides
+       #content-row (including this) while it's showing. */
+    #rail-expand-tab {
+      all: unset; box-sizing: border-box; cursor: pointer;
+      display: none;
+      position: absolute; left: var(--space-3); top: var(--space-3);
+      width: var(--space-6); height: var(--space-6);
+      align-items: center; justify-content: center;
+      background: transparent; border-radius: var(--radius-control);
+      color: var(--text-muted);
+      z-index: 1;
+      transition: var(--motion-hover), color var(--dur-1) var(--ease-standard);
+    }
+    #rail-expand-tab:hover, #rail-expand-tab:focus-visible { background: var(--icon-btn-hover); color: var(--text-strong); }
+    #rail-expand-tab .rail-svg-icon { width: var(--space-5); height: var(--space-5); }
+    html[data-mode="editor"][data-rail-collapsed="1"] #rail-expand-tab { display: flex; }
 
     /* Full-window scene-card view, replaces #content-row (not a floating
        overlay) — visibility toggled by scene-nav/corkboard.js. */
@@ -403,9 +436,15 @@
        via negative margin / absolute-within-content, so it rides along
        with this transform automatically. Below the breakpoint (a smaller
        or split-screen window) none of this applies -- lays out exactly as
-       it always has, constrained by whatever room the rail leaves. */
+       it always has, constrained by whatever room the rail leaves.
+       Collapsed (see rail collapse/expand, data-rail-collapsed) excluded
+       too -- #editor-host already spans the FULL window width then (the
+       rail isn't eating anything), so .cm-content's own margin:0 auto
+       already centers it correctly; applying this shift on top of that
+       would push it --rail-w/2 too far left, exactly as if the rail were
+       still open and taking up space it no longer is. */
     @media (min-width: 1400px) {
-      html[data-mode="editor"] #editor-host .cm-content {
+      html[data-mode="editor"]:not([data-rail-collapsed="1"]) #editor-host .cm-content {
         transform: translateX(calc(var(--rail-w) / -2));
       }
     }
@@ -919,6 +958,9 @@
   <div id="titlebar"></div>
   <div id="content-row">
     <div id="scene-rail"></div>
+    <button id="rail-expand-tab" title="Expand rail" aria-label="Expand rail">
+      <span class="rail-svg-icon rail-svg-panel-expand" aria-hidden="true"></span>
+    </button>
     <div id="editor-host">
       <div id="tw-fade"></div>
       <div id="tw-guide"></div>
