@@ -1160,6 +1160,41 @@ describe('Baretext E2E: manuscript surface (number gutter, named/unnamed scenes)
     assert.equal(backToEditorState, 'true');
   });
 
+  // Regression: toggling this app's OWN spellcheck off (⌘⇧P) only ever
+  // dispatched the custom setSpellcheckEffect -- it never touched the
+  // native `spellcheck` DOM attribute Chromium's as-you-type spellchecker
+  // reads, which stayed 'true' the whole time (see the mode-based test
+  // above). So the very next freshly-typed typo still got a native red
+  // squiggle, which looked exactly like spellcheck had turned itself back
+  // on. spellcheck.js's apply() now moves both together.
+  test('toggling spellcheck off also disables native spellcheck, and it stays off after typing a new typo', async () => {
+    await app.client.evaluate(`
+      document.querySelector('.cm-content').focus();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'p', code: 'KeyP', metaKey: true, shiftKey: true, bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 200));
+    `);
+    const offState = await app.client.evaluate(`return document.querySelector('.cm-content').getAttribute('spellcheck');`);
+    assert.equal(offState, 'false');
+
+    await app.client.evaluate(`
+      document.execCommand('insertText', false, ' hellooooo');
+      await new Promise(r => setTimeout(r, 200));
+    `);
+    const stillOff = await app.client.evaluate(`return document.querySelector('.cm-content').getAttribute('spellcheck');`);
+    assert.equal(stillOff, 'false', 'typing a fresh typo should not silently re-enable native spellcheck');
+    const flagged = await app.client.evaluate("return document.querySelectorAll('.cm-spellError').length;");
+    assert.equal(flagged, 0, "this app's own spellcheck decorations should also stay off");
+
+    // Restore -- defensive, matches this describe's own convention of not
+    // leaking state, even though this is the last substantive test here.
+    await app.client.evaluate(`
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'p', code: 'KeyP', metaKey: true, shiftKey: true, bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 200));
+    `);
+    const backOn = await app.client.evaluate(`return document.querySelector('.cm-content').getAttribute('spellcheck');`);
+    assert.equal(backOn, 'true');
+  });
+
   test('no console errors in this suite', () => {
     const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
     assert.deepEqual(bad, []);

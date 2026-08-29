@@ -37,8 +37,23 @@ function injectStyle() {
 `);
 }
 
+// Two independent spellcheck layers exist here, and both need to move
+// together or toggling "off" is a lie: this app's own Hunspell-backed
+// checker (spellcheckField/.cm-spellError, toggled via setSpellcheck above)
+// AND Chromium's native as-you-type spellchecker (the plain `spellcheck`
+// DOM attribute + its ::spelling-error pseudo-element, styled in
+// index.html). app.js's applyNativeSpellcheck() only ever keys that
+// attribute off the current MODE, with no idea this toggle exists -- so
+// turning this off used to leave native spellcheck running untouched,
+// meaning the very next freshly-typed typo got flagged anyway and looked
+// exactly like spellcheck "turning itself back on". Setting the attribute
+// here too keeps them in lockstep regardless of which one changes it:
+// mode switches still go through applyNativeSpellcheck() first (see
+// activateMode()), and this runs again right after via init()'s own
+// apply() call, so entering Editor mode still ends with both correctly on.
 function apply() {
   ctx.editor.setSpellcheck(ctx.view, enabled);
+  ctx.dom.host.querySelector('.cm-content').setAttribute('spellcheck', String(enabled));
 }
 
 function toggle() {
