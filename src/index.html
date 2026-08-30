@@ -9,7 +9,7 @@
     // below is parsed, so there's no flash of the default theme on launch.
     (function () {
       var m = /[?&]theme=([a-z]+)/.exec(location.search);
-      var valid = ['dark', 'light', 'amstrad', 'grove', 'dracula'];
+      var valid = ['dark', 'light', 'amstrad', 'grove', 'dracula', 'crt'];
       if (m && valid.indexOf(m[1]) !== -1) {
         document.documentElement.setAttribute('data-theme', m[1]);
       }
@@ -245,6 +245,118 @@
       --cursor: #f8f8f2; --sel: rgba(68,71,90,0.70); --placeholder: var(--text-dimmer);
       --syntax-2: #8be9fd;
       --typewriter-focus: #ffffff;
+    }
+
+    /* ── CRT — a just-for-fun bonus theme, not part of the original design
+       spec (see design_handoff_baretext/THEMES.md for that). Shares
+       Amstrad's exact palette on purpose (that's the phosphor color the
+       effect below was tuned against) but is its own separate theme id --
+       Amstrad itself stays exactly as designed, undecorated. ── */
+    [data-theme="crt"] {
+      --bg: #0d130d;  --bg-alt: #0a0f0a;
+      --text: #c8e6b0; --text-dim: #79956c; --text-dimmer: #6f8562;
+      --accent: #7dc45a; --scene: #7dc45a; --border: #1c281a;
+      --cursor: #7dc45a; --sel: rgba(125,196,90,0.18); --placeholder: var(--text-dimmer);
+      --syntax-2: #7dc45a;
+      --typewriter-focus: #b6e85a;
+    }
+
+    /* CRT shader — scanline spacing/opacity (2px tile, 50/50 split, .25
+       alpha) follows the widely-referenced technique at
+       aleclownes.com/2017/02/01/crt-display -- deliberately skips that
+       piece's vertical RGB-mask layer and any chromatic-aberration/color-
+       split treatment, both of which simulate a shadow-mask COLOR tube;
+       this is a single-phosphor monochrome green screen (real period
+       monochrome monitors had no color fringing at all), so that cue would
+       read as wrong rather than authentic here. Layered as #app::after so
+       no extra DOM element is needed; #app is already position:relative
+       (see its own rule above) and this pseudo-element is taken out of its
+       flex flow via position:absolute, so it just overlays the whole
+       window rather than becoming a flex child. pointer-events:none and a
+       z-index well below the palette/toast/tooltip layers (50/200/9999
+       respectively) keeps it inert and never in the way. The flicker
+       keyframes are brief, irregular, and low-amplitude on purpose -- the
+       classic reference animates true per-frame noise (133fps), which is a
+       fun demo but would be genuinely unpleasant to write beside for an
+       hour; this trades strict authenticity for something that reads as
+       "alive" at a glance without being distracting. Automatically
+       neutralized by the existing prefers-reduced-motion rule below (it
+       targets *::after broadly). */
+    [data-theme="crt"] #app::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      z-index: 5;
+      pointer-events: none;
+      background:
+        repeating-linear-gradient(
+          to bottom,
+          transparent 0px,
+          transparent 1px,
+          rgba(0, 0, 0, 0.25) 1px,
+          rgba(0, 0, 0, 0.25) 2px
+        ),
+        radial-gradient(ellipse at center, transparent 45%, rgba(0, 0, 0, 0.45) 100%);
+      mix-blend-mode: multiply;
+      animation: crt-flicker 6s infinite;
+    }
+    @keyframes crt-flicker {
+      0%, 100% { opacity: 1; }
+      41% { opacity: 1; }
+      41.5% { opacity: 0.91; }
+      42% { opacity: 1; }
+      73% { opacity: 1; }
+      73.3% { opacity: 0.96; }
+      73.9% { opacity: 1; }
+    }
+
+    /* Phosphor glow + a thicker "electron beam" on the manuscript itself --
+       real monochrome CRTs rendered text with a soft self-glow (halation
+       off the phosphor coating) and a beam that was relatively thick for
+       the screen's resolution, both of which read as bolder/softer than a
+       modern crisp LCD render (confirmed against period write-ups while
+       building this, not just a guess). currentColor keeps the glow
+       matching whatever color each element already is -- the heading, a
+       dimmer placeholder, spellcheck-flagged text -- without hardcoding a
+       second palette here; text-shadow is inherited, and currentColor
+       inside an inherited value re-resolves per element, so this one rule
+       covers all of them correctly. Scoped to data-font="mono" specifically
+       because that's the one case where headings get forced back to weight
+       400 (see the html[data-font="mono"] rule below) -- serif/sans headings
+       are already bold by default, nothing to override there. Real weight-
+       700 JetBrains Mono files are loaded (see the @font-face block up
+       top), so this is the font's own bold cut, not the browser's
+       synthetic/faux-bold -- true monospace bold preserves the fixed
+       character width, so this doesn't reintroduce the misalignment that
+       rule was originally written to avoid. */
+    html[data-theme="crt"][data-font="mono"] {
+      --ms-h1-weight: 700;
+      --ms-h2-weight: 700;
+      --ms-h3-weight: 700;
+    }
+    [data-theme="crt"] #editor-host .cm-content {
+      font-weight: 700;
+      text-shadow: 0 0 1px currentColor, 0 0 5px currentColor;
+    }
+    /* Old computers had a solid block caret, not a thin bar -- editor/
+       theme.js's default `.cm-cursor` rule (border-left, 2px) is CodeMirror
+       chrome shared by every theme, and it has no ancestor-selector concept
+       for scoping to one html[data-theme] value, so the block override
+       lives here in plain CSS instead, against the same real rendered
+       class CodeMirror itself applies. `1ch` is exactly one monospace
+       character cell, so it reads as "the character position" the way a
+       real terminal block cursor did, not an arbitrary width. Semi-
+       transparent rather than fully opaque -- a true opaque block would
+       completely hide whatever character is under it while typing, which
+       is authentic but actively hard to write with; this keeps the block
+       shape while leaving the glyph faintly legible through it. The
+       existing blink animation (CodeMirror's own, on .cm-cursorLayer) is
+       untouched and still applies on top of this. */
+    [data-theme="crt"] #editor-host .cm-cursor {
+      border-left: none;
+      background-color: var(--cursor);
+      width: 1ch;
+      opacity: 0.55;
     }
 
     /* ── Derived tokens — glass, washes, keycap. MUST be redeclared on every

@@ -10,7 +10,7 @@ import { THEMES } from '../themes.js';
 // least THOSE stay in sync automatically; only dark/light get a suffix
 // since "Ember"/"Parchment" don't otherwise signal which they are, unlike
 // Amstrad/Grove/Dracula.
-const THEME_ICONS = { dark: 'ti-moon', light: 'ti-sun', amstrad: 'ti-terminal-2', grove: 'ti-trees', dracula: 'ti-ghost' };
+const THEME_ICONS = { dark: 'ti-moon', light: 'ti-sun', amstrad: 'ti-terminal-2', grove: 'ti-trees', dracula: 'ti-ghost', crt: 'ti-device-tv-old' };
 const THEME_LABEL_SUFFIX = { dark: ' (dark)', light: ' (light)' };
 
 export default {

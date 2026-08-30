@@ -2732,7 +2732,7 @@ describe('Baretext E2E: theme picker', () => {
     `;
   }
 
-  test('"Change theme…" opens a 5-card gallery, each card resolving its own theme\'s tokens', async () => {
+  test('"Change theme…" opens a 6-card gallery, each card resolving its own theme\'s tokens', async () => {
     const result = await app.client.evaluate(`
       ${openViaPalette('Change theme')}
       return {
@@ -2747,12 +2747,16 @@ describe('Baretext E2E: theme picker', () => {
     `);
     assert.equal(result.pickerDisplay, 'flex');
     assert.equal(result.contentRowDisplay, 'none');
-    assert.deepEqual(result.cards.map((c) => c.theme), ['dark', 'light', 'amstrad', 'grove', 'dracula']);
+    assert.deepEqual(result.cards.map((c) => c.theme), ['dark', 'light', 'amstrad', 'grove', 'dracula', 'crt']);
     assert.ok(result.cards.every((c) => c.role === 'radio'));
     // Each card must render its OWN theme's --bg, not the app's actual
     // active theme -- the whole point of the nested data-theme scope trick.
     assert.equal(result.cards[0].bg, 'rgb(36, 36, 36)');   // dark --bg #242424
     assert.equal(result.cards[3].bg, 'rgb(47, 56, 62)');   // grove --bg #2f383e
+    // CRT deliberately shares Amstrad's exact --bg (it's a bonus shader
+    // variant of the same palette, not a distinct color scheme) -- 6 cards,
+    // 5 distinct backgrounds.
+    assert.equal(result.cards[5].bg, result.cards[2].bg);
     const distinctBgs = new Set(result.cards.map((c) => c.bg));
     assert.equal(distinctBgs.size, 5);
   });
@@ -2815,7 +2819,7 @@ describe('Baretext E2E: theme picker', () => {
         draculaKbdFocus: dracula.classList.contains('kbd-focus'),
       };
     `);
-    assert.equal(result.cardCount, 5);
+    assert.equal(result.cardCount, 6);
     assert.equal(result.draculaApplied, true);
     assert.equal(result.draculaKbdFocus, true);
   });
@@ -4358,6 +4362,116 @@ describe('Baretext E2E: hidden scene-break/comment chrome never shows a native s
       return prose ? prose.getAttribute('spellcheck') : 'NOT FOUND';
     `);
     assert.notEqual(result, 'false');
+  });
+
+  test('no console errors in this suite', () => {
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+});
+
+describe('Baretext E2E: CRT is a separate bonus theme; Amstrad stays plain', () => {
+  let app;
+  const fixture = '# One\n\nSome prose.';
+
+  before(async () => {
+    app = await launchApp({ fixtureContent: fixture, mode: 'editor', accentTheme: 'amstrad' });
+    await app.client.evaluate(`
+      const deadline = Date.now() + 2000;
+      while (Date.now() < deadline) {
+        if (document.querySelectorAll('.cm-line').length >= 1) break;
+        await new Promise(r => setTimeout(r, 100));
+      }
+    `);
+  });
+
+  after(async () => {
+    if (app) await app.close();
+  });
+
+  async function shaderState() {
+    return app.client.evaluate(`
+      const content = document.querySelector('.cm-content');
+      return {
+        theme: document.documentElement.getAttribute('data-theme'),
+        appAfterContent: getComputedStyle(document.getElementById('app'), '::after').content,
+        fontWeight: getComputedStyle(content).fontWeight,
+        textShadow: getComputedStyle(content).textShadow,
+      };
+    `);
+  }
+
+  test('Amstrad has no CRT shader -- it renders exactly as originally designed', async () => {
+    const state = await shaderState();
+    assert.equal(state.theme, 'amstrad');
+    assert.equal(state.appAfterContent, 'none');
+    assert.equal(state.fontWeight, '400');
+    assert.equal(state.textShadow, 'none');
+  });
+
+  test('switching to CRT applies the scanline/glow/bold shader, reusing Amstrad\'s exact palette', async () => {
+    await app.client.evaluate(`
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 150));
+      document.getElementById('palette-input').value = 'CRT';
+      document.getElementById('palette-input').dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 100));
+      const target = [...document.querySelectorAll('.pitem')].find(el => el.querySelector('.pitem-label').textContent.includes('CRT'));
+      target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 300));
+    `);
+    const state = await shaderState();
+    assert.equal(state.theme, 'crt');
+    assert.notEqual(state.appAfterContent, 'none');
+    assert.equal(state.fontWeight, '700');
+    assert.notEqual(state.textShadow, 'none');
+
+    const bg = await app.client.evaluate("return getComputedStyle(document.getElementById('app')).backgroundColor;");
+    // CRT shares Amstrad's --bg (#0d130d) on purpose.
+    assert.equal(bg, 'rgb(13, 19, 13)');
+  });
+
+  // Old computers had a solid block caret, not a thin bar. Checks the
+  // resolved CSS directly rather than a rendered screenshot -- CodeMirror
+  // only shows .cm-cursor once its .cm-focused class is applied, which
+  // depends on real window/document focus that this suite's hidden
+  // (BARETEXT_HIDDEN) windows never actually receive; getComputedStyle
+  // still resolves width/background/border correctly regardless of the
+  // element's display:none state, so this is a faithful check of the
+  // actual rule without needing a visible window. Verified manually by
+  // forcing .cm-focused on and screenshotting during development.
+  test('the caret is a solid block (1ch wide), not the default thin bar', async () => {
+    await app.client.evaluate(`
+      document.querySelector('.cm-content').focus();
+      document.execCommand('insertText', false, 'X');
+      await new Promise(r => setTimeout(r, 150));
+    `);
+    const style = await app.client.evaluate(`
+      const cursor = document.querySelector('.cm-cursor');
+      const cs = getComputedStyle(cursor);
+      return { width: cs.width, background: cs.backgroundColor, borderLeftWidth: cs.borderLeftWidth };
+    `);
+    assert.equal(style.borderLeftWidth, '0px');
+    assert.equal(style.background, 'rgb(125, 196, 90)'); // --cursor #7dc45a
+    assert.ok(parseFloat(style.width) > 5, `expected a full character-width block, got ${style.width}`);
+  });
+
+  test('CRT persists across a relaunch like any other theme', async () => {
+    const settings = app.readSettings();
+    assert.equal(settings.accentTheme, 'crt');
+
+    await app.restart();
+    await app.client.evaluate(`
+      const deadline = Date.now() + 3000;
+      while (Date.now() < deadline) {
+        if (document.documentElement.getAttribute('data-theme') === 'crt') break;
+        await new Promise(r => setTimeout(r, 100));
+      }
+    `);
+    const state = await shaderState();
+    assert.equal(state.theme, 'crt');
+    assert.notEqual(state.appAfterContent, 'none');
   });
 
   test('no console errors in this suite', () => {

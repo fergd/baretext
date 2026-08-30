@@ -1,4 +1,4 @@
-import { EditorView, keymap, placeholder } from '@codemirror/view';
+import { EditorView, keymap, placeholder, drawSelection } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
 import { theme, injectSelectionFix, injectHeadingColors } from './theme.js';
 import { markdownExtensions } from './markdown-language.js';
@@ -54,6 +54,18 @@ export function create(container, initialDoc, onChange, placeholderText) {
       extensions: [
         ...historyAndKeymaps(),
         EditorView.lineWrapping,
+        // Takes over cursor rendering from the browser's native caret with
+        // CodeMirror's own decorated one -- needed so the CRT theme's block
+        // cursor (see index.html) can actually change the caret's WIDTH,
+        // not just its color. Native carets have no cross-browser way to
+        // do that (the standards-track `caret-shape` property isn't
+        // supported by this Electron's bundled Chromium yet, confirmed
+        // live). theme.js's own `.cm-cursor` rule already existed for
+        // this before drawSelection() was ever enabled -- it was dead CSS
+        // targeting an element CodeMirror never rendered, matching the
+        // native caret's thin-bar look closely enough that every other
+        // theme should look unchanged now that it's real.
+        drawSelection(),
         renderedModeField,
         editorModeField,
         livePreviewPlugin,

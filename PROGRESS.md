@@ -10,6 +10,104 @@ Also see: `README.md` (how to run/build/test, feature overview),
 `docs/theme-spec.md` (design tokens), `TYPEWRITER_MODE.md` (typewriter
 focus-mode spec).
 
+## Where things stand (as of 2026-08-29)
+
+**Pick up here.** A long run of small, mostly user-reported bug fixes and
+two real features on top of the rail redesign below, all in one extended
+session. In commit order (oldest first):
+
+1. **Cursor jumped to the start of the document on rail structural edits**
+   (`b0e5d3e`) — `setDoc()`'s full-buffer replace gave CodeMirror nothing to
+   map the old selection through, so it collapsed to 0. Fixed by diffing
+   old/new text (common prefix/suffix) and re-anchoring the cursor —
+   `src/editor/cursor-map.js` (new).
+2. **New chapters now seed one blank scene** (`ff251df`) instead of zero —
+   there was nowhere to start typing otherwise, and it didn't round-trip
+   the same way every other chapter does.
+3. **Backspace can no longer delete a scene/chapter boundary** (`b8a2f28`)
+   — a keymap guard (`src/editor/scene-boundary-guard.js`, new) blocks
+   Backspace/Alt-Backspace whenever it would cross into a heading's `#`
+   prefix or a scene break's marker/comment preamble. Structural deletion
+   stays rail-only (two-click confirm), as designed.
+4. **Rail collapse/expand** (`ecc16b2`) — a collapse toggle in the rail's
+   own header (Lucide `panel-left-close`, fetched from source for fidelity)
+   and a persistent expand tab at the top-left (`panel-left-open`) that
+   survives the rail collapsing to width 0. Persists across launches like
+   theme/mode. Two bugs found building it, fixed in the same commit: the
+   expand tab rendered with an unwanted circle (never got `all: unset`,
+   so native `<button>` chrome bled through) and the manuscript-centering
+   shift kept applying at full strength after the rail collapsed to zero
+   width.
+5. **Spellcheck toggle now actually disables native spellcheck too**
+   (`7ff7b5f`) — the app's own toggle only ever touched its custom
+   Hunspell-backed checker; Chromium's native as-you-type spellchecker
+   (a separate DOM `spellcheck` attribute, keyed only on Editor/Sprinter
+   mode) kept running regardless, so the very next typo looked like
+   spellcheck turning itself back on.
+6. **Rename-input click-through, blank titles, scene-divider safety**
+   (`5376e22`) — three related editing bugs reported together:
+   - Clicking inside an active chapter/scene rename `<input>` to reposition
+     the caret bubbled up as a `click` on the row underneath and canceled
+     the edit (only `mousedown` was stopped, not the separate `click`).
+   - Clearing a title to blank and hitting Enter silently reverted instead
+     of committing — blank is now a real, valid title that falls back to
+     "Untitled"/"Scene N"; clearing a named bare scene removes its waypoint
+     comment outright (an empty one would still parse as "named").
+   - Clicking anywhere along a `---` divider landed the caret directly on
+     the marker (confirmed live at multiple x-offsets — CodeMirror's
+     atomic-range click resolution snaps to the near edge, not forward).
+     Added a click guard (`scene-breaks.js`) redirecting to the scene's
+     first real content line, and fixed rail navigation's landing position
+     to match for a still-empty scene.
+7. **"Show in Finder"** (`89ed8be`) — the status-bar filename had no other
+   purpose, so it's now a real `<button>` (main.js: `shell.showItemInFolder`
+   via a new IPC channel).
+8. **Native spellcheck squiggle on hidden scene-break chrome** (`16ac4f5`)
+   — `color: transparent` (the concealment technique for marker/name-comment
+   lines) hides the glyph fill but not a native spellcheck squiggle, which
+   draws its own wavy underline regardless. Fixed by setting the actual
+   `spellcheck="false"` DOM attribute on those lines via CodeMirror's line
+   decoration `attributes` option.
+
+**CRT bonus theme** — user asked, half-joking, how hard a CRT
+shader would be for the Amstrad theme; built as a CSS-only experiment first
+(scanlines, vignette, phosphor glow via `text-shadow: currentColor`, real
+bundled JetBrains Mono 700-weight for the "thick electron beam" look,
+researched against a well-known reference implementation + why old
+monochrome text actually looked bolder), user liked it enough to ask for it
+as its **own separate theme** rather than modifying Amstrad — Amstrad
+reverted to exactly its original design; `crt` added everywhere a theme id
+is enumerated (`themes.js`, `main.js` THEME_BG, `core.js` THEME_ICONS,
+`editor/theme.js` heading colors, three small color maps in `app.js`),
+reusing Amstrad's palette verbatim. Then a follow-up: old computers had a
+**block cursor**, not a thin bar. Turned out this app renders the plain
+*native* browser caret (`caret-color` only — no cross-browser way to change
+its width; the standards-track `caret-shape` property isn't supported by
+this Electron's bundled Chromium 120, confirmed live) — enabled
+CodeMirror's `drawSelection()` extension app-wide to get a real styleable
+cursor element (`editor/theme.js` already had a dead `.cm-cursor` rule
+written for exactly this, never active until now), then gave CRT specifically
+a `1ch`-wide, 55%-opacity green block. **Full regression suite re-run after
+enabling `drawSelection()`** (a rendering-mechanism change affecting every
+theme, not just CRT) — all 175 e2e + 166 unit passing, including everything
+that depends on precise cursor positioning. Other themes' cursors are
+visually unchanged (still a 2px bar).
+Touches: `src/app.js`, `src/editor/api.js`, `src/editor/theme.js`,
+`src/features/core.js`, `src/index.html`, `src/main.js`, `src/themes.js`,
+plus test updates. **This is already rebuilt and installed** into
+`/Applications/Baretext.app` (the user runs the CRT theme + block cursor
+today).
+
+Every fix above was live-verified via the CDP E2E harness (hidden launch)
+before being called done, per this project's standing rule — several
+(the divider click landing on the marker, the native-spellcheck-attribute
+gap, the `caret-shape`/`drawSelection()` situation) were confirmed by
+direct experiment rather than assumed from reading the code. Commit-only-
+when-asked held throughout; the user explicitly asked for commit+push at
+several checkpoints along the way (hence the granular commit list above),
+each split into logically separate commits even when multiple fixes had
+accumulated uncommitted together.
+
 ## Where things stand (as of 2026-08-18)
 
 **Pick up here.** A second attempt at the rail/design-system redesign —

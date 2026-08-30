@@ -16,4 +16,9 @@ export const THEMES = [
   { id: 'amstrad', name: 'Amstrad' },
   { id: 'grove', name: 'Grove' },
   { id: 'dracula', name: 'Dracula' },
+  // Just-for-fun bonus, not part of the original design spec (see
+  // design_handoff_baretext/THEMES.md) -- appended last rather than next
+  // to Amstrad (whose palette it borrows) so it reads as a bonus discovery
+  // at the end of the gallery, not a variant of an existing card.
+  { id: 'crt', name: 'CRT' },
 ];
