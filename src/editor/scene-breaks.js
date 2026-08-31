@@ -2,22 +2,14 @@ import { Decoration, EditorView, ViewPlugin, WidgetType } from '@codemirror/view
 import { StateField } from '@codemirror/state';
 import { injectStyle as injectStyleTag } from '../dom.js';
 
-// spellcheck: 'false' on all three -- `color: transparent` (below) only
-// hides the glyph fill, not a native spellcheck squiggly, which draws its
-// own wavy underline color regardless and doesn't care whether the text
-// above it is visible. Confirmed live: a name comment's own text (e.g. a
-// waypoint name Chromium's dictionary doesn't recognize) got flagged and
-// rendered a real red squiggle floating under otherwise-invisible text --
-// exactly the "what's going on here" a user would ask about a stray mark
-// with no visible word attached to it.
-const sceneBreakLine = Decoration.line({ class: 'cm-scene-break', attributes: { spellcheck: 'false' } });
+const sceneBreakLine = Decoration.line({ class: 'cm-scene-break' });
 // A marker immediately followed by a name comment gets this extra class so
 // Editor-mode CSS can suppress its ornament (the name renders as a heading
 // instead — see MANUSCRIPT_SURFACE.md's "named vs unnamed" scene
 // treatment). Sprinter mode ignores the extra class and keeps showing the
 // ornament for every marker, named or not, same as before this feature.
-const sceneBreakNamedLine = Decoration.line({ class: 'cm-scene-break cm-scene-break-named', attributes: { spellcheck: 'false' } });
-const nameCommentLine = Decoration.line({ class: 'cm-scene-name-comment', attributes: { spellcheck: 'false' } });
+const sceneBreakNamedLine = Decoration.line({ class: 'cm-scene-break cm-scene-break-named' });
+const nameCommentLine = Decoration.line({ class: 'cm-scene-name-comment' });
 
 // The visible name itself — a WIDGET, not a line-level `content: attr(...)`
 // pseudo-element as this used to be. Reason: a `::before` pseudo is always

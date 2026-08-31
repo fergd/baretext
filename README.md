@@ -1,14 +1,14 @@
 # Baretext
 
 Distraction-free writing for Mac, with live markdown styling, a chapter/scene
-rail and corkboard, spellcheck, find/replace, and a sprint timer for focused
+rail and corkboard, find/replace, and a sprint timer for focused
 writing sessions.
 
 Baretext has two modes:
 - **Sprinter** — the minimal writing surface: markdown editor, typewriter
   focus mode, and the sprint timer. No navigation chrome.
 - **Editor** — the same writing surface plus the chapter/scene rail,
-  corkboard, find/replace, and spellcheck, for structuring and revising a
+  corkboard and find/replace, for structuring and revising a
   longer manuscript.
 
 Switch between them with ⌘⇧D, the command palette's Mode group, or the
@@ -53,7 +53,7 @@ making changes.
 
 ## Editor internals (src/editor/)
 The text-editing engine (markdown live-preview, scene-break/block-spacing
-rendering, search, spellcheck, typewriter focus-dimming) is real source in
+rendering, search, typewriter focus-dimming) is real source in
 `src/editor/`, built with CodeMirror 6 packages and compiled to
 `src/editor-bundle.js` via esbuild:
 
@@ -112,13 +112,89 @@ undo (⌘Z) is the safety net.
 Every save is also committed to a local git repo alongside your save
 directory (`src/backup.js` + `src/backup-providers/local-git.js`), so you
 always have version history independent of the file itself. This is
-provider-based — adding real cloud sync later means writing one more
-provider module with the same `init`/`onSave`/`flush` shape.
+provider-based — a second provider now covers real cloud sync.
+
+**Google Drive** (`src/google-drive.js` + `src/google-drive-auth.js` +
+`src/google-drive-api.js` + `src/backup-providers/google-drive.js`) mirrors
+every manuscript in your save folder to Google Drive — a "Baretext Backups"
+folder by default, or one you pick yourself — rate-limited like local-git
+(at most once per 5 minutes of activity, plus one attempt on quit). Requires
+a one-time setup:
+
+1. In [Google Cloud Console](https://console.cloud.google.com), create a
+   project, enable the **Google Drive API**, and add an **OAuth consent
+   screen** (**External** user type — Internal is only offered for
+   Workspace-linked accounts and, confusingly, can appear as the default
+   even on a personal account; Testing publishing status — add your own
+   account as a test user, no verification needed for personal use).
+2. On the consent screen's **Data Access** tab, explicitly add the
+   `https://www.googleapis.com/auth/drive.file` scope (find it under
+   "Google Drive API" once that API is enabled, or paste the scope URL into
+   "Manually add scopes" if it doesn't show up) — a scope requested by the
+   app but not declared here gets silently dropped from the granted token,
+   which surfaces later as a Drive API "insufficient authentication scopes"
+   error rather than as anything at consent time.
+3. Create an **OAuth client ID** of type **Desktop app**.
+4. In Baretext, open **Baretext → Backup Settings…**, paste the Client ID
+   and Secret, click **save**, then **connect google drive** to sign in.
+   (If you change the Data Access scopes after already connecting once,
+   disconnect and reconnect — an existing grant doesn't retroactively pick
+   up newly-added scopes.)
+
+The Client ID/Secret and refresh token are encrypted with macOS Keychain,
+same as the OpenAI key below; Baretext only ever sees files/folders it
+creates itself or that you explicitly pick (`drive.file` scope), never the
+rest of your Drive.
+
+**Choosing the backup folder** — by default Baretext finds-or-creates
+"Baretext Backups" at the root of your Drive. To point it at an existing
+folder instead:
+
+1. Enable **Google Picker API** in the API Library (separate from the Drive
+   API above).
+2. Credentials → Create Credentials → **API key**, then restrict it to just
+   the Picker API.
+3. Paste that key into Backup Settings' **Picker API key** field and
+   **save**. A **choose folder…** button then appears once connected —
+   Google's own folder picker opens, and Baretext only gains access to
+   whatever you select there (still `drive.file` scope — this is the
+   standard, narrow way to grant an app access to one existing item without
+   widening its Drive permissions). **use default** reverts to the
+   auto-managed "Baretext Backups" folder. If a chosen folder is later
+   deleted or trashed in Drive, Baretext surfaces a clear error rather than
+   silently falling back to the default folder.
+
+## AI helpers (personal builds)
+The Editor corkboard has optional, on-demand AI helpers:
+
+- **summarize all** in the corkboard toolbar generates concise summaries for
+  every scene card;
+- each card also has its own summarize action;
+- **suggest name** actions beside scene and chapter titles offer three naming
+  suggestions, and only apply one when you click it.
+
+Choose **Baretext → AI Settings…** (or **AI settings…** in the command
+palette) and save an OpenAI API key. Electron encrypts it through macOS
+Keychain; the renderer can replace or remove the key but can never read it
+back. The same panel accepts examples under **titles I like**; Baretext uses
+them together with the book, chapter, neighboring scenes, and existing title
+vocabulary when suggesting names. `OPENAI_API_KEY` remains available as a development-only fallback.
+`BARETEXT_AI_MODEL` can optionally override the default `gpt-5.6-luna`.
+Naming uses `gpt-5.6-terra` with low reasoning by default and can be overridden
+separately with `BARETEXT_AI_NAMING_MODEL`.
+Requests are made only after an explicit click. Credentials and provider
+logic stay in Electron's main process, and responses use strict structured
+output. Scene summaries are cached locally by a hash of their prose, so an
+unchanged scene is not sent again; editing it naturally invalidates the
+cached result. Applied AI summaries and names surface an immediate undo
+action; undoing a summary removes its cache entry too. The provider boundary lives in `src/ai.js` and
+`src/ai-providers/`, ready to swap to a hosted service before distribution.
 
 ## Shortcuts
 - ⌘K — command palette (everything lives here)
 - ⌘B / ⌘I — bold / italic selected text
 - ⌘S — save
+- ⌘P — print
 - ⌘N — new file
 - ⌘O — open file
 - ⌘⇧E — export markdown
@@ -132,7 +208,6 @@ provider module with the same `init`/`onSave`/`flush` shape.
 - ⌘⇧S — start (or restore) a writing sprint, Sprinter mode
 - ⌘⇧H — hide the sprint timer, Sprinter mode
 - ⌘F — find & replace, Editor mode
-- ⌘⇧P — toggle spellcheck, Editor mode
 - ⌘⇧C — toggle corkboard, Editor mode
 
 The active sprint panel also has a **pause** button (next to minimize/end)
@@ -174,7 +249,7 @@ the command palette). The app reopens your most recently edited file on launch.
 - `src/modes.js` — the two-mode registry (`sprinter` / `editor`), each a
   list of feature ids.
 - `src/features/*.js` — one self-contained module per feature
-  (`sprint-timer`, `find-replace`, `spellcheck`, `scene-nav/`). Each
+  (`sprint-timer`, `find-replace`, `scene-nav/`). Each
   exports `{ id, init(ctx), destroy(), commandGroups(), keybindings() }`;
   `ctx` gives it the CodeMirror view, `window.api`, and shared helpers like
   `getDoc`/`setDoc`. Adding a new feature means adding one file here plus
@@ -185,7 +260,7 @@ the command palette). The app reopens your most recently edited file on launch.
   lifecycle. Same `mount`/`show`/`close`/`toggle`/`isOpen` shape as
   `scene-nav/corkboard.js`.
 - `src/editor/` — the CodeMirror 6 engine itself (markdown live-preview,
-  scene-break/block-spacing rendering, search, spellcheck, outline
+  scene-break/block-spacing rendering, search, outline
   parsing, typewriter focus-dimming), compiled to `src/editor-bundle.js`
   via esbuild (`npm run build:editor`). This is the one layer that needs a
   rebuild step — `src/app.js` and `src/features/` load the bundle directly

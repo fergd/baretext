@@ -14,7 +14,31 @@ contextBridge.exposeInMainWorld('api', {
   // File ops
   openFile: () => ipcRenderer.invoke('open-file'),
   exportFile: (content) => ipcRenderer.invoke('export-file', content),
+  printDocument: () => ipcRenderer.invoke('print-document'),
   newFile: () => ipcRenderer.invoke('new-file'),
+
+  // Provider-neutral AI tasks. API credentials remain in the main process.
+  aiStatus: () => ipcRenderer.invoke('ai-status'),
+  aiTitlePreferences: () => ipcRenderer.invoke('ai-title-preferences'),
+  aiSaveTitlePreferences: (payload) => ipcRenderer.invoke('ai-save-title-preferences', payload),
+  aiSaveKey: (apiKey) => ipcRenderer.invoke('ai-save-key', apiKey),
+  aiRemoveKey: () => ipcRenderer.invoke('ai-remove-key'),
+  onOpenAiSettings: (cb) => ipcRenderer.on('open-ai-settings', cb),
+  aiCachedSummaries: (scenes) => ipcRenderer.invoke('ai-cached-summaries', scenes),
+  aiRemoveCachedSummaries: (scenes) => ipcRenderer.invoke('ai-remove-cached-summaries', scenes),
+  aiSummarizeScenes: (scenes) => ipcRenderer.invoke('ai-summarize-scenes', scenes),
+  aiSuggestTitles: (payload) => ipcRenderer.invoke('ai-suggest-titles', payload),
+
+  // Google Drive backup. Client credentials and tokens remain in the main process.
+  backupStatus: () => ipcRenderer.invoke('backup-status'),
+  backupSaveClientCredentials: (payload) => ipcRenderer.invoke('backup-save-client-credentials', payload),
+  backupConnect: () => ipcRenderer.invoke('backup-connect'),
+  backupDisconnect: () => ipcRenderer.invoke('backup-disconnect'),
+  backupNow: () => ipcRenderer.invoke('backup-now'),
+  backupSavePickerKey: (payload) => ipcRenderer.invoke('backup-save-picker-key', payload),
+  backupChooseFolder: () => ipcRenderer.invoke('backup-choose-folder'),
+  backupClearFolder: () => ipcRenderer.invoke('backup-clear-folder'),
+  onOpenBackupSettings: (cb) => ipcRenderer.on('open-backup-settings', cb),
 
   // Theme
   setTheme: (theme) => ipcRenderer.send('set-theme', theme),
@@ -34,9 +58,6 @@ contextBridge.exposeInMainWorld('api', {
 
   // Status bar filename -- click reveals the current file in Finder
   showInFinder: (filePath) => ipcRenderer.send('show-in-finder', filePath),
-
-  // Spellcheck ignore list — persisted across launches
-  setIgnoredWords: (words) => ipcRenderer.send('ignored-words-changed', words),
 
   // File loaded / auto-saved feedback
   onFileLoaded: (cb) => ipcRenderer.on('file-loaded', (_, data) => cb(data)),

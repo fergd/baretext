@@ -5,7 +5,7 @@ import { makeView } from './helpers/make-view.js';
 
 // setDoc (api.js) is exercised end-to-end via its exported cursor-mapping
 // logic here rather than by importing api.js itself -- api.js pulls in the
-// full editor bundle (spellcheck's dictionary files included), which isn't
+// full editor bundle, which isn't
 // loadable under a plain Node test runner. dispatchSetDoc below reproduces
 // setDoc's actual dispatch shape against a real EditorState (via makeView),
 // so these tests still exercise the real CodeMirror selection-mapping

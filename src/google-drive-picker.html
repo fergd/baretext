@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<!--
+  This page is deliberately separate from index.html (whose CSP is a strict
+  default-src 'self') because Google's Picker widget is a hosted, iframed
+  web component: it needs to load Google's JS loader, talk to Google's
+  APIs, and render its own UI in a frame from a Google-owned origin. Scoped
+  to exactly the hosts Google's Picker integration guide requires, so
+  index.html's CSP itself never has to loosen.
+-->
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'none';
+  script-src 'self' 'unsafe-inline' https://apis.google.com https://content.googleapis.com;
+  frame-src https://*.google.com https://accounts.google.com;
+  connect-src https://*.googleapis.com https://content.googleapis.com;
+  style-src 'self' 'unsafe-inline' https://*.gstatic.com https://*.google.com;
+  img-src 'self' data: https://*.gstatic.com https://*.googleusercontent.com https://*.google.com;
+  font-src https://*.gstatic.com;
+">
+<style>
+  html, body { margin: 0; height: 100%; background: #1a1a1a; }
+  #status { font: 13px -apple-system, sans-serif; color: #999; padding: 24px; }
+</style>
+</head>
+<body>
+<div id="status">Loading Google Drive…</div>
+<script>
+  // Defined BEFORE the external <script src> below, deliberately: its
+  // onload/onerror attributes can fire before the parser would otherwise
+  // reach a later inline block, so onApiLoad must already exist in global
+  // scope by the time api.js finishes loading — not after.
+  let pickerApiLoaded = false;
+  let config = null;
+
+  function setStatus(text) {
+    const el = document.getElementById('status');
+    if (el) el.textContent = text;
+  }
+
+  function onLoadError() {
+    setStatus("Couldn't reach Google — check your internet connection and try again.");
+  }
+
+  function onApiLoad() {
+    gapi.load('picker', () => { pickerApiLoaded = true; maybeCreatePicker(); });
+  }
+
+  window.pickerBridge.getConfig().then((c) => { config = c; maybeCreatePicker(); });
+
+  function maybeCreatePicker() {
+    if (!pickerApiLoaded || !config) return;
+    setStatus('');
+    createPicker(config.accessToken, config.apiKey);
+  }
+
+  function createPicker(accessToken, apiKey) {
+    try {
+      const view = new google.picker.DocsView(google.picker.ViewId.FOLDERS)
+        .setIncludeFolders(true)
+        .setSelectFolderEnabled(true);
+      const picker = new google.picker.PickerBuilder()
+        .addView(view)
+        .setOAuthToken(accessToken)
+        .setDeveloperKey(apiKey)
+        .setTitle('Choose a Baretext backup folder')
+        .setCallback(pickerCallback)
+        .build();
+      picker.setVisible(true);
+    } catch (e) {
+      setStatus('Could not open the folder picker: ' + e.message);
+    }
+  }
+
+  function pickerCallback(data) {
+    if (data.action === google.picker.Action.PICKED) {
+      const doc = data.docs && data.docs[0];
+      if (doc) window.pickerBridge.folderChosen({ id: doc.id, name: doc.name });
+      else window.pickerBridge.cancelled();
+    } else if (data.action === google.picker.Action.CANCEL) {
+      window.pickerBridge.cancelled();
+    }
+  }
+</script>
+<script src="https://apis.google.com/js/api.js" onload="onApiLoad()" onerror="onLoadError()"></script>
+</body>
+</html>

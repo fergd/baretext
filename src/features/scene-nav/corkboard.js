@@ -7,6 +7,12 @@ let ctx = null;
 let boardEl = null;
 let open = false;
 let dragSource = null; // { chapterIndex, sceneIndex } while a card drag is in progress
+const aiSummaries = new Map(); // scene rawText -> generated summary
+const summaryLoading = new Set(); // scene rawText currently in flight
+const summaryErrors = new Map(); // scene rawText -> most recent summary error
+let namingState = null; // { key, loading, titles, error }
+let aiStatus = null; // safe configuration metadata; never contains the API key
+let titleStyleExamples = '';
 
 function injectStyle() {
   injectStyleTag('corkboard-style', `
@@ -19,6 +25,9 @@ function injectStyle() {
 .corkboard-toolbar-left .ti-layout-grid { font-size: 15px; color: var(--syntax-2, var(--accent)); }
 .corkboard-label { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--syntax-2, var(--accent)); font-weight: 600; }
 .corkboard-meta { font-size: 12px; color: var(--text-dimmer); }
+.corkboard-ai-status { all: unset; cursor: pointer; font-size: 10px; color: var(--text-dimmer); white-space: nowrap; }
+.corkboard-ai-status.ready { color: var(--syntax-2, var(--accent)); }
+.corkboard-ai-status:hover, .corkboard-ai-status:focus-visible { color: var(--text); }
 .corkboard-back {
   all: unset; box-sizing: border-box; cursor: pointer; padding: 4px 6px; margin: -4px -6px;
   display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-dim);
@@ -32,6 +41,15 @@ function injectStyle() {
   transition: color .15s ease;
 }
 .corkboard-tool-btn:hover { color: var(--syntax-2, var(--accent)); }
+.corkboard-tool-btn.loading, .corkboard-ai-btn.loading { color: var(--syntax-2, var(--accent)); opacity: .72; }
+.corkboard-ai-btn { color: var(--syntax-2, var(--accent)); }
+.corkboard-ai-text-btn {
+  all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;
+  color: var(--text-dim); font-family: var(--font-mono); font-size: 10px; line-height: 1;
+}
+.corkboard-ai-text-btn:hover, .corkboard-ai-text-btn:focus-visible { color: var(--syntax-2, var(--accent)); }
+.corkboard-ai-text-btn.loading { color: var(--syntax-2, var(--accent)); opacity: .72; }
+.corkboard-ai-text-btn:disabled { cursor: default; }
 .corkboard-body { flex: 1; overflow: auto; padding: 22px 26px; }
 .corkboard-chapter { margin-bottom: 24px; }
 .corkboard-chapter-header { display: flex; align-items: center; gap: 11px; margin-bottom: 13px; }
@@ -85,7 +103,11 @@ function injectStyle() {
 .scene-card .scene-card-title { font-size: 13px; color: var(--text); font-weight: 700; display: flex; align-items: baseline; gap: 4px; }
 .scene-card.draft .scene-card-title { color: var(--text-dim); }
 .scene-card-title-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scene-card-ai-actions { display: flex; align-items: center; gap: 12px; min-height: 14px; }
 .scene-card .scene-card-synopsis { font-size: 11px; line-height: 1.55; color: var(--text-dim); flex: 1; }
+.scene-card .scene-card-synopsis.ai { color: var(--text); }
+.scene-card .scene-card-synopsis.error, .ai-title-state.error { color: #e05c5c; }
+.scene-card-summary-label { font-size: 9px; line-height: 1; color: var(--syntax-2, var(--accent)); letter-spacing: .12em; text-transform: uppercase; }
 .scene-card.draft .scene-card-synopsis { font-style: italic; color: var(--text-dimmer); }
 .scene-card .scene-card-meta { font-size: 10px; color: var(--text-dimmer); letter-spacing: .05em; }
 .inline-rename-input {
@@ -102,7 +124,133 @@ function injectStyle() {
 .scene-card-new:hover { color: var(--text); border-color: var(--text-dim); }
 .scene-card-new .ti-plus { font-size: 18px; }
 .scene-card-new span { font-size: 11px; }
+.ai-title-suggestions {
+  display: flex; flex-wrap: wrap; gap: 6px; margin: 1px 0 10px 26px;
+}
+.scene-card .ai-title-suggestions { margin: 0; }
+.ai-title-suggestion, .ai-title-state {
+  all: unset; box-sizing: border-box; font-family: var(--font-mono); font-size: 10px;
+  line-height: 1.35; color: var(--text-dim);
+}
+.ai-title-suggestion {
+  cursor: pointer; padding: 4px 7px; border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px); background: var(--bg);
+}
+.ai-title-suggestion:hover, .ai-title-suggestion:focus-visible {
+  color: var(--text); border-color: var(--syntax-2, var(--accent));
+}
+.ai-title-state { color: var(--text-dimmer); padding: 4px 0; }
 `);
+}
+
+function scenePayload(scenes) {
+  return scenes.map((scene) => ({ id: scene.id, text: scene.rawText }));
+}
+
+function storeSummaryResult(result, scenes) {
+  if (!result || !result.summaries) return;
+  const byId = new Map(scenes.map((scene) => [scene.id, scene]));
+  Object.entries(result.summaries).forEach(([id, summary]) => {
+    const scene = byId.get(id);
+    if (scene && summary) aiSummaries.set(scene.rawText, summary);
+  });
+}
+
+async function loadCachedSummaries(scenes) {
+  const cached = await ctx.api.aiCachedSummaries(scenePayload(scenes));
+  storeSummaryResult({ summaries: cached }, scenes);
+  if (open) render();
+}
+
+async function summarizeScenes(scenes) {
+  const eligible = scenes.filter((scene) => scene.rawText.trim());
+  if (!eligible.length) { ctx.showToast('nothing to summarize'); return; }
+  const previous = new Map(eligible.map((scene) => [scene.rawText, aiSummaries.get(scene.rawText)]));
+  eligible.forEach((scene) => { summaryLoading.add(scene.rawText); summaryErrors.delete(scene.rawText); });
+  render();
+  const result = await ctx.api.aiSummarizeScenes(scenePayload(eligible));
+  eligible.forEach((scene) => summaryLoading.delete(scene.rawText));
+  if (!result.ok) {
+    eligible.forEach((scene) => summaryErrors.set(scene.rawText, result.error));
+    ctx.showToast(result.error, { icon: 'ti-alert-triangle', tone: 'error' });
+  }
+  else {
+    storeSummaryResult(result, eligible);
+    const changed = eligible.filter((scene) => previous.get(scene.rawText) !== aiSummaries.get(scene.rawText));
+    if (changed.length) {
+      ctx.showToast(changed.length === 1 ? 'AI summary added' : `${changed.length} AI summaries added`, {
+        icon: 'ti-sparkles',
+        actionLabel: 'undo',
+        onAction: async () => {
+          await ctx.api.aiRemoveCachedSummaries(scenePayload(changed));
+          changed.forEach((scene) => {
+            const oldValue = previous.get(scene.rawText);
+            if (oldValue === undefined) aiSummaries.delete(scene.rawText);
+            else aiSummaries.set(scene.rawText, oldValue);
+          });
+          if (open) render();
+        },
+      });
+    }
+  }
+  if (open) render();
+}
+
+function titleContext(chapters, chapterIndex, sceneIndex = null) {
+  const chapter = chapters[chapterIndex];
+  const scenes = chapter ? chapter.scenes : [];
+  const existingTitles = chapters
+    .flatMap((item) => [item.title, ...item.scenes.map((scene) => scene.title)])
+    .filter((title) => title && !/^Scene \d+$/.test(title));
+  const context = {
+    bookTitle: ctx.editor.getBookTitle(ctx.view) || '',
+    chapterTitle: chapter && chapter.title || '',
+    existingTitles,
+  };
+  if (sceneIndex !== null) {
+    context.previousSceneTitle = sceneIndex > 0 ? scenes[sceneIndex - 1].title : '';
+    context.nextSceneTitle = sceneIndex + 1 < scenes.length ? scenes[sceneIndex + 1].title : '';
+  } else {
+    context.sceneTitles = scenes.map((scene) => scene.title).filter(Boolean);
+    context.previousChapterTitle = chapterIndex > 0 ? chapters[chapterIndex - 1].title : '';
+    context.nextChapterTitle = chapterIndex + 1 < chapters.length ? chapters[chapterIndex + 1].title : '';
+  }
+  return context;
+}
+
+async function suggestTitles(key, target, kind, text, context) {
+  namingState = { key, loading: true, titles: [], error: null };
+  render();
+  const result = await ctx.api.aiSuggestTitles({ kind, currentTitle: target.title, text, context, styleExamples: titleStyleExamples });
+  if (!result.ok) {
+    namingState = { key, loading: false, titles: [], error: result.error };
+    ctx.showToast(result.error, { icon: 'ti-alert-triangle', tone: 'error' });
+  } else {
+    namingState = { key, loading: false, titles: result.titles || [], error: null };
+  }
+  if (open) render();
+}
+
+function titleSuggestions(key, target) {
+  if (!namingState || namingState.key !== key) return null;
+  const row = el('div', 'ai-title-suggestions');
+  if (namingState.loading) row.appendChild(el('span', 'ai-title-state', 'thinking…'));
+  else if (namingState.error) row.appendChild(el('span', 'ai-title-state error', namingState.error));
+  else namingState.titles.forEach((title) => {
+    const choice = btn('ai-title-suggestion', title);
+    choice.addEventListener('click', (e) => {
+      e.stopPropagation();
+      namingState = null;
+      ctx.renameTitle(target, title);
+      ctx.showToast('AI name applied', {
+        icon: 'ti-sparkles',
+        actionLabel: 'undo',
+        onAction: () => { ctx.editor.undo(ctx.view); ctx.refreshNav(); },
+      });
+    });
+    row.appendChild(choice);
+  });
+  return row;
 }
 
 function jumpTo(scene) {
@@ -135,6 +283,13 @@ export function render() {
   const toolbar = el('div', 'corkboard-toolbar');
   const left = el('div', 'corkboard-toolbar-left');
   left.append(icon('ti-layout-grid'), el('span', 'corkboard-label', 'corkboard'), el('span', 'corkboard-meta', totalScenes + ' scenes'));
+  if (aiStatus) {
+    const statusText = aiStatus.configured ? 'ai · ready' : 'ai · key not detected';
+    const status = btn('corkboard-ai-status' + (aiStatus.configured ? ' ready' : ''), statusText);
+    status.title = aiStatus.configured ? `${aiStatus.provider} · ${aiStatus.model} · open settings` : 'set up a personal API key';
+    status.addEventListener('click', ctx.openAiSettings);
+    left.appendChild(status);
+  }
 
   const right = el('div', 'corkboard-toolbar-right');
   const undoBtn = btn('corkboard-tool-btn');
@@ -148,13 +303,23 @@ export function render() {
   redoBtn.title = 'redo (⌘⇧Z)';
   redoBtn.addEventListener('click', () => { ctx.editor.redo(ctx.view); ctx.refreshNav(); });
 
+  const allScenes = chapters.flatMap((chapter) => chapter.coldStorage ? [] : chapter.scenes);
+  const summarizeAllBtn = btn('corkboard-tool-btn' + (summaryLoading.size ? ' loading' : ''));
+  summarizeAllBtn.appendChild(icon('ti-sparkles'));
+  summarizeAllBtn.appendChild(document.createTextNode(summaryLoading.size ? ' summarizing…' : ' summarize all'));
+  summarizeAllBtn.title = 'generate summaries for all scene cards';
+  summarizeAllBtn.disabled = summaryLoading.size > 0;
+  summarizeAllBtn.addEventListener('click', () => summarizeScenes(allScenes));
+
   const back = btn('corkboard-back');
   const kbd = document.createElement('kbd');
   kbd.textContent = 'esc';
   back.append(kbd, document.createTextNode(' back to writing'));
   back.addEventListener('click', () => close());
 
-  right.append(undoBtn, redoBtn, back);
+  // Keep undo/redo first: beyond matching the visual action hierarchy, some
+  // keyboard/E2E affordances intentionally target the first toolbar action.
+  right.append(undoBtn, redoBtn, summarizeAllBtn, back);
   toolbar.append(left, right);
   boardEl.appendChild(toolbar);
 
@@ -180,9 +345,20 @@ export function render() {
       e.stopPropagation();
       beginEdit(chTitleText, chapter.title, (newTitle) => ctx.renameTitle(chapter, newTitle), render);
     });
+    const chAiKey = 'chapter:' + chapter.pos;
+    const chAiBtn = btn('corkboard-ai-text-btn' + (namingState && namingState.key === chAiKey && namingState.loading ? ' loading' : ''));
+    chAiBtn.append(icon('ti-sparkles'), document.createTextNode('suggest name'));
+    chAiBtn.title = 'suggest chapter names';
+    chAiBtn.setAttribute('aria-label', 'Suggest names for ' + chLabel);
+    chAiBtn.addEventListener('mousedown', (e) => e.stopPropagation());
+    chAiBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const text = chapter.scenes.map((scene) => scene.rawText).join('\n\n---\n\n');
+      suggestTitles(chAiKey, chapter, 'chapter', text, titleContext(chapters, ci));
+    });
     const chDeleteBtn = makeDeleteButton('corkboard-delete-btn', chLabel, () => ctx.deleteChapter(ci, chapters));
     const chTitleGroup = el('div', 'corkboard-chapter-title-group');
-    chTitleGroup.append(el('span', 'corkboard-chapter-num', 'Chapter ' + chapter.number), chTitleText, chEditBtn, chDeleteBtn);
+    chTitleGroup.append(el('span', 'corkboard-chapter-num', 'Chapter ' + chapter.number), chTitleText, chAiBtn, chEditBtn, chDeleteBtn);
 
     header.append(
       icon('ti-chevron-down'),
@@ -191,6 +367,8 @@ export function render() {
       el('span', 'corkboard-chapter-meta', chapter.scenes.length + ' scenes · ' + chapterWords + ' words')
     );
     section.appendChild(header);
+    const chapterSuggestions = titleSuggestions(chAiKey, chapter);
+    if (chapterSuggestions) section.appendChild(chapterSuggestions);
 
     const grid = el('div', 'corkboard-grid');
     chapter.scenes.forEach((scene, si) => {
@@ -207,6 +385,23 @@ export function render() {
         e.stopPropagation();
         beginEdit(titleTextSpan, scene.title, (newTitle) => ctx.renameTitle(scene, newTitle), render);
       });
+      const sceneAiKey = 'scene:' + scene.rawText;
+      const nameBtn = btn('corkboard-ai-text-btn' + (namingState && namingState.key === sceneAiKey && namingState.loading ? ' loading' : ''));
+      nameBtn.append(icon('ti-sparkles'), document.createTextNode('suggest name'));
+      nameBtn.title = 'suggest scene names';
+      nameBtn.setAttribute('aria-label', 'Suggest names for ' + scene.title);
+      nameBtn.addEventListener('mousedown', (e) => e.stopPropagation());
+      nameBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        suggestTitles(sceneAiKey, scene, 'scene', scene.rawText, titleContext(chapters, ci, si));
+      });
+      const summaryBtn = btn('corkboard-ai-text-btn' + (summaryLoading.has(scene.rawText) ? ' loading' : ''));
+      summaryBtn.append(icon('ti-sparkles'), document.createTextNode(summaryLoading.has(scene.rawText) ? 'summarizing…' : 'summary'));
+      summaryBtn.title = 'summarize scene';
+      summaryBtn.setAttribute('aria-label', 'Summarize ' + scene.title);
+      summaryBtn.disabled = summaryLoading.has(scene.rawText);
+      summaryBtn.addEventListener('mousedown', (e) => e.stopPropagation());
+      summaryBtn.addEventListener('click', (e) => { e.stopPropagation(); summarizeScenes([scene]); });
       // Explicit, deliberate navigation control — double-click also jumps,
       // but this is the discoverable version so no interaction with a card
       // (editing, dragging, adding) ever navigates away by surprise.
@@ -219,12 +414,23 @@ export function render() {
       const deleteBtn = makeDeleteButton('corkboard-delete-btn', scene.title, () => ctx.deleteScene(ci, si, chapters));
       const titleRow = el('div', 'scene-card-title');
       titleRow.append(el('span', undefined, (si + 1) + ' · '), titleTextSpan, editBtn, openBtn, deleteBtn);
+      const aiActions = el('div', 'scene-card-ai-actions');
+      aiActions.append(nameBtn, summaryBtn);
+
+      const generatedSummary = aiSummaries.get(scene.rawText);
+      const summaryError = summaryErrors.get(scene.rawText);
+      const synopsis = el('div', 'scene-card-synopsis' + (generatedSummary ? ' ai' : '') + (summaryError ? ' error' : ''),
+        summaryLoading.has(scene.rawText) ? 'summarizing…' : summaryError || generatedSummary || (scene.isDraft ? (scene.synopsis || 'empty') : scene.synopsis));
 
       card.append(
         titleRow,
-        el('div', 'scene-card-synopsis', scene.isDraft ? (scene.synopsis || 'empty') : scene.synopsis),
+        aiActions,
+        ...(generatedSummary ? [el('div', 'scene-card-summary-label', 'ai summary')] : []),
+        synopsis,
         el('div', 'scene-card-meta', scene.isDraft ? 'draft' : scene.wordCount + ' words')
       );
+      const sceneSuggestions = titleSuggestions(sceneAiKey, scene);
+      if (sceneSuggestions) card.appendChild(sceneSuggestions);
       card.title = 'double-click to jump to this scene · drag to reorder';
       card.addEventListener('dblclick', (e) => { e.preventDefault(); jumpTo(scene); });
 
@@ -322,6 +528,15 @@ export function show() {
   document.getElementById('content-row').style.display = 'none';
   boardEl.style.display = 'flex';
   render();
+  ctx.api.aiStatus().then((status) => {
+    aiStatus = status;
+    if (open) render();
+  });
+  ctx.api.aiTitlePreferences().then((preferences) => {
+    titleStyleExamples = preferences.styleExamples || '';
+  });
+  const chapters = getManuscript(ctx.view);
+  loadCachedSummaries(chapters.flatMap((chapter) => chapter.coldStorage ? [] : chapter.scenes));
 }
 
 export function close() {
@@ -342,4 +557,9 @@ export function unmount() {
   if (open) close();
   boardEl = null;
   ctx = null;
+  namingState = null;
+  summaryLoading.clear();
+  summaryErrors.clear();
+  aiStatus = null;
+  titleStyleExamples = '';
 }

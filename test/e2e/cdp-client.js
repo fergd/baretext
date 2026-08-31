@@ -104,5 +104,11 @@ export async function connect(port) {
     return result.result.data;
   }
 
-  return { evaluate, getConsoleMessages, clearConsoleMessages, close, mouseEvent, realDrag, screenshot };
+  // Switch CSS media without opening a native print dialog. Useful for
+  // asserting the document's @media print layout in ordinary E2E runs.
+  async function emulateMedia(media) {
+    await send('Emulation.setEmulatedMedia', { media });
+  }
+
+  return { evaluate, getConsoleMessages, clearConsoleMessages, close, mouseEvent, realDrag, screenshot, emulateMedia };
 }

@@ -29,6 +29,8 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import backup from '../../src/backup.js';
 
+const { createBackupRegistry } = backup;
+
 function mkTempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'baretext-backup-test-'));
 }
@@ -141,4 +143,77 @@ test('onSave() rate-limits: two calls in immediate succession with different con
   // Whatever ended up committed must be the FINAL content -- no data loss,
   // regardless of how the rate limit split the two onSave attempts.
   assert.equal(headContent(dir, 'rate-limit.md'), 'second version, changed moments later');
+});
+
+// The default export above always runs the real local-git + google-drive
+// providers together; createBackupRegistry() lets these next tests swap in
+// fake providers to prove the registry's own fan-out/fault-isolation
+// contract in isolation — nothing previously covered this.
+function fakeProvider() {
+  const calls = { init: [], onSave: [], flush: [] };
+  return {
+    calls,
+    init: (dir) => calls.init.push(dir),
+    onSave: (dir, filePath) => calls.onSave.push([dir, filePath]),
+    flush: (dir, filePath, cb) => { calls.flush.push([dir, filePath]); cb(); },
+  };
+}
+
+test('init()/onSave() run every provider', () => {
+  const a = fakeProvider();
+  const b = fakeProvider();
+  const registry = createBackupRegistry([a, b]);
+
+  registry.init('/dir');
+  registry.onSave('/dir', '/dir/book.md');
+
+  assert.deepEqual(a.calls.init, ['/dir']);
+  assert.deepEqual(b.calls.init, ['/dir']);
+  assert.deepEqual(a.calls.onSave, [['/dir', '/dir/book.md']]);
+  assert.deepEqual(b.calls.onSave, [['/dir', '/dir/book.md']]);
+});
+
+test('flush() waits for every provider before firing its callback', async () => {
+  const a = fakeProvider();
+  const slow = {
+    calls: [],
+    init() {}, onSave() {},
+    flush(dir, filePath, cb) { slow.calls.push([dir, filePath]); setTimeout(cb, 5); },
+  };
+  const registry = createBackupRegistry([a, slow]);
+
+  await new Promise((resolve) => registry.flush('/dir', '/dir/book.md', resolve));
+
+  assert.deepEqual(a.calls.flush, [['/dir', '/dir/book.md']]);
+  assert.deepEqual(slow.calls, [['/dir', '/dir/book.md']]);
+});
+
+test('a provider that throws synchronously does not stop the others, in init(), onSave(), or flush()', async () => {
+  const good = fakeProvider();
+  const broken = {
+    init: () => { throw new Error('init boom'); },
+    onSave: () => { throw new Error('onSave boom'); },
+    flush: () => { throw new Error('flush boom'); },
+  };
+  // Order matters for this test: the broken provider throwing must not
+  // prevent the callback firing for whoever comes after it in the list.
+  const registry = createBackupRegistry([broken, good]);
+
+  registry.init('/dir'); // must not throw out of the call
+  assert.deepEqual(good.calls.init, ['/dir']);
+
+  registry.onSave('/dir', '/dir/book.md');
+  assert.deepEqual(good.calls.onSave, [['/dir', '/dir/book.md']]);
+
+  let flushed = false;
+  await new Promise((resolve) => registry.flush('/dir', '/dir/book.md', () => { flushed = true; resolve(); }));
+  assert.equal(flushed, true, 'flush callback must still fire even though one provider threw');
+  assert.deepEqual(good.calls.flush, [['/dir', '/dir/book.md']]);
+});
+
+test('flush() with zero providers calls back immediately', async () => {
+  const registry = createBackupRegistry([]);
+  let called = false;
+  await new Promise((resolve) => registry.flush('/dir', '/dir/book.md', () => { called = true; resolve(); }));
+  assert.equal(called, true);
 });

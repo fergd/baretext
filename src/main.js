@@ -1,8 +1,12 @@
-const { app, BrowserWindow, ipcMain, dialog, nativeTheme, Menu, session, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, nativeTheme, Menu, session, shell, safeStorage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const http = require('http');
 const backup = require('./backup');
+const ai = require('./ai');
+const googleDrive = require('./google-drive');
+const { createCredentialStore } = require('./credential-store');
 
 // Set the app name BEFORE anything else — this controls the menu bar label
 // (next to the Apple logo) and the name shown in Activity Monitor / Force Quit.
@@ -12,6 +16,7 @@ app.setName('Baretext');
 let mainWindow;
 let currentFilePath = null;
 let saveTimeout = null;
+let credentialStore = null;
 
 // Default save location: ~/Documents/Barebones/
 const settingsPath = path.join(app.getPath('userData'), 'settings.json');
@@ -81,6 +86,66 @@ function getDefaultFilePath() {
   return path.join(defaultDir, `${stamp}.md`);
 }
 
+function printDocument(win) {
+  if (!win || win.isDestroyed()) return Promise.resolve({ ok: false, error: 'window unavailable' });
+  return new Promise((resolve) => {
+    win.webContents.print({ printBackground: false }, (success, failureReason) => {
+      if (success) resolve({ ok: true });
+      else if (/cancel/i.test(failureReason || '')) resolve({ ok: false, canceled: true });
+      else resolve({ ok: false, error: failureReason || 'printing failed' });
+    });
+  });
+}
+
+function installApplicationMenu() {
+  const template = [];
+
+  if (process.platform === 'darwin') {
+    template.push({
+      label: 'Baretext',
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        { label: 'AI Settings…', click: () => mainWindow && mainWindow.webContents.send('open-ai-settings') },
+        { label: 'Backup Settings…', click: () => mainWindow && mainWindow.webContents.send('open-backup-settings') },
+        { type: 'separator' },
+        { role: 'services' },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' },
+      ],
+    });
+  }
+
+  template.push(
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'Print…',
+          accelerator: 'CmdOrCtrl+P',
+          click: () => {
+            printDocument(BrowserWindow.getFocusedWindow() || mainWindow).then((result) => {
+              if (!result.ok && !result.canceled) console.error('Print failed:', result.error);
+            });
+          },
+        },
+        { type: 'separator' },
+        { role: 'close' },
+      ],
+    },
+    { role: 'editMenu' },
+    { role: 'viewMenu' },
+    { role: 'windowMenu' },
+    { role: 'help', submenu: [] },
+  );
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 900,
@@ -98,7 +163,7 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      spellcheck: true,
+    spellcheck: false,
       preload: path.join(__dirname, 'preload.js')
     }
   });
@@ -107,12 +172,109 @@ function createWindow() {
   // it synchronously on first paint — no flash of the default theme while
   // waiting on an IPC round-trip.
   mainWindow.loadFile(path.join(__dirname, 'index.html'), { query: { theme: accentTheme, mode, railCollapsed: railCollapsed ? '1' : '0' } });
-  Menu.setApplicationMenu(null);
+  installApplicationMenu();
+}
+
+// Google's Picker is a hosted web widget, not something a native Electron
+// dialog can show — this opens it in a small modal window loading
+// src/google-drive-picker.html, and resolves once that window reports a
+// folder was picked, was cancelled, or was just closed without a choice.
+// event.sender identity guards against cross-talk if this is ever somehow
+// called again before a previous picker window finished (each invocation's
+// listeners only react to its own window).
+function openDrivePickerWindow({ accessToken, apiKey }) {
+  return new Promise((resolve) => {
+    // Google's Picker backend rejects a file:// embedding origin outright
+    // (visible as a 403 fetching docs.google.com/pick..., independent of
+    // token/API-key validity — file:// isn't a real web origin Google's
+    // postMessage/frame-ancestors security model can validate against). A
+    // tiny local HTTP server gives it a real http://127.0.0.1 origin
+    // instead, the same fix the OAuth loopback flow already relies on for
+    // an analogous reason. Serves the one static file and nothing else.
+    const pickerHtml = fs.readFileSync(path.join(__dirname, 'google-drive-picker.html'));
+    const server = http.createServer((req, res) => {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(pickerHtml);
+    });
+
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      ipcMain.removeListener('picker-folder-chosen', onChosen);
+      ipcMain.removeListener('picker-cancelled', onCancelled);
+      if (!win.isDestroyed()) win.close();
+      resolve(result);
+    };
+    function onChosen(event, folder) {
+      if (event.sender !== win.webContents) return;
+      finish({ ok: true, folder });
+    }
+    function onCancelled(event) {
+      if (event.sender !== win.webContents) return;
+      finish({ ok: false, canceled: true });
+    }
+
+    const win = new BrowserWindow({
+      width: 640,
+      height: 540,
+      parent: mainWindow,
+      modal: true,
+      show: process.env.BARETEXT_HIDDEN !== '1',
+      title: 'Choose a backup folder',
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, 'google-drive-picker-preload.js'),
+      },
+    });
+    win.setMenuBarVisibility(false);
+    // Google refuses to render any sign-in-adjacent UI inside a webview
+    // whose user agent identifies it as an embedded app shell (Electron's
+    // default UA includes "Electron/x.x.x") — surfaces as a 403 right after
+    // the user enters their password. The Picker widget can hit this even
+    // with a valid OAuth token already supplied, apparently as an internal
+    // session-verification step. Presenting a plain desktop Chrome UA (same
+    // Chromium version Electron ships, just without the Electron marker)
+    // is the standard, widely-used workaround. Only this dedicated picker
+    // window's UA changes — the main window and its own actual OAuth
+    // consent (handled entirely in the system browser, never embedded)
+    // are unaffected.
+    win.webContents.setUserAgent(
+      `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`
+    );
+    win.webContents.once('did-finish-load', () => {
+      win.webContents.send('picker-init', { accessToken, apiKey });
+    });
+    win.on('closed', () => { server.close(); finish({ ok: false, canceled: true }); });
+
+    ipcMain.on('picker-folder-chosen', onChosen);
+    ipcMain.on('picker-cancelled', onCancelled);
+
+    server.listen(0, '127.0.0.1', () => {
+      win.loadURL(`http://127.0.0.1:${server.address().port}/`);
+    });
+  });
 }
 
 app.whenReady().then(() => {
-  session.defaultSession.setSpellCheckerEnabled(true);
-  session.defaultSession.setSpellCheckerLanguages(['en-US']);
+  credentialStore = createCredentialStore({
+    safeStorage,
+    filePath: path.join(app.getPath('userData'), 'openai-key.encrypted'),
+  });
+  const storedKey = credentialStore.get();
+  ai.init({
+    filePath: path.join(app.getPath('userData'), 'ai-cache.json'),
+    apiKey: storedKey || process.env.OPENAI_API_KEY,
+  });
+  googleDrive.init({
+    credentialFilePath: path.join(app.getPath('userData'), 'google-drive.encrypted'),
+    syncFilePath: path.join(app.getPath('userData'), 'google-drive-sync.json'),
+    safeStorage,
+    shell,
+  });
+
+  session.defaultSession.setSpellCheckerEnabled(false);
 
   // In dev mode (electron .) the Dock icon defaults to Electron's icon.
   // app.dock.setIcon() overrides it at runtime — only needed pre-packaging;
@@ -153,7 +315,6 @@ app.whenReady().then(() => {
     const cursorPos = (lastPath && filePath === lastPath) ? (settings.lastCursorPos || null) : null;
     mainWindow.webContents.send('file-loaded', {
       content, filePath, cursorPos, typewriter: !!settings.typewriter,
-      ignoredWords: Array.isArray(settings.ignoredWords) ? settings.ignoredWords : [],
     });
   });
 
@@ -168,7 +329,8 @@ app.on('window-all-closed', () => {
 
 // Flush a final backup commit before actually quitting, so the last few
 // minutes of a session (inside the normal commit interval) aren't lost.
-// Bounded by a timeout so a stuck git process can never hang app quit.
+// Bounded by a timeout so a stuck git process — or, since the Google Drive
+// provider joined, a slow network request — can never hang app quit.
 let quitting = false;
 app.on('before-quit', (event) => {
   if (quitting) return;
@@ -177,7 +339,7 @@ app.on('before-quit', (event) => {
   let finished = false;
   const finish = () => { if (finished) return; finished = true; app.quit(); };
   backup.flush(defaultDir, currentFilePath, finish);
-  setTimeout(finish, 2500);
+  setTimeout(finish, 5000);
 });
 
 // Auto-save: debounced 500ms after last keystroke
@@ -245,6 +407,115 @@ ipcMain.handle('export-file', async (event, content) => {
   }
 });
 
+// Print the writing surface through macOS's native print dialog. Print-only
+// CSS in index.html strips the app chrome and expands CodeMirror's scroller
+// so the whole manuscript (not just the visible viewport) is laid out.
+ipcMain.handle('print-document', async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  return printDocument(win);
+});
+
+// AI stays in the main process: credentials and provider-specific request
+// details never cross into the renderer. Each handler returns a stable,
+// task-shaped result so a future hosted provider can replace OpenAI without
+// changing the corkboard.
+function aiStatus() {
+  return { ...ai.status(), credentialStored: !!(credentialStore && credentialStore.get()) };
+}
+
+ipcMain.handle('ai-status', () => aiStatus());
+ipcMain.handle('ai-title-preferences', () => ({ styleExamples: String(settings.aiTitleStyleExamples || '') }));
+ipcMain.handle('ai-save-title-preferences', (event, payload) => {
+  settings.aiTitleStyleExamples = String(payload && payload.styleExamples || '').trim().slice(0, 2000);
+  saveSettings(settings);
+  return { ok: true };
+});
+ipcMain.handle('ai-save-key', (event, apiKey) => {
+  try {
+    credentialStore.set(apiKey);
+    ai.configure({ apiKey: credentialStore.get() });
+    return { ok: true, status: aiStatus() };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+ipcMain.handle('ai-remove-key', () => {
+  try {
+    credentialStore.remove();
+    ai.configure({ apiKey: process.env.OPENAI_API_KEY || null });
+    return { ok: true, status: aiStatus() };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+ipcMain.handle('ai-cached-summaries', (event, scenes) => ai.getCachedSummaries(scenes));
+ipcMain.handle('ai-remove-cached-summaries', (event, scenes) => {
+  ai.removeCachedSummaries(scenes);
+  return { ok: true };
+});
+ipcMain.handle('ai-summarize-scenes', async (event, scenes) => {
+  try { return { ok: true, ...(await ai.summarizeScenes(scenes)) }; }
+  catch (e) { return { ok: false, error: e.message }; }
+});
+ipcMain.handle('ai-suggest-titles', async (event, payload) => {
+  try { return { ok: true, ...(await ai.suggestTitles(payload)) }; }
+  catch (e) { return { ok: false, error: e.message }; }
+});
+
+// Google Drive backup. Client credentials and tokens stay in the main
+// process, same guarantee as the OpenAI key above.
+ipcMain.handle('backup-status', () => googleDrive.status());
+ipcMain.handle('backup-save-client-credentials', (event, payload) => {
+  try {
+    googleDrive.configure({ clientId: payload && payload.clientId, clientSecret: payload && payload.clientSecret });
+    return { ok: true, status: googleDrive.status() };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+ipcMain.handle('backup-connect', async () => {
+  try {
+    await googleDrive.connect();
+    return { ok: true, status: googleDrive.status() };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+ipcMain.handle('backup-disconnect', async () => {
+  try {
+    await googleDrive.disconnect();
+    return { ok: true, status: googleDrive.status() };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+ipcMain.handle('backup-now', async () => {
+  const result = await googleDrive.backupDirectory(defaultDir);
+  return { ...result, status: googleDrive.status() };
+});
+ipcMain.handle('backup-save-picker-key', (event, payload) => {
+  try {
+    googleDrive.configurePicker({ apiKey: payload && payload.apiKey });
+    return { ok: true, status: googleDrive.status() };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+ipcMain.handle('backup-choose-folder', async () => {
+  try {
+    const { accessToken, apiKey } = await googleDrive.getPickerCredentials();
+    const result = await openDrivePickerWindow({ accessToken, apiKey });
+    if (result.ok && result.folder) googleDrive.setDestinationFolder(result.folder);
+    return { ...result, status: googleDrive.status() };
+  } catch (e) {
+    return { ok: false, error: e.message, status: googleDrive.status() };
+  }
+});
+ipcMain.handle('backup-clear-folder', () => {
+  googleDrive.clearDestinationFolder();
+  return { ok: true, status: googleDrive.status() };
+});
+
 // New file
 ipcMain.handle('new-file', async () => {
   const now = new Date();
@@ -295,13 +566,6 @@ ipcMain.on('rail-collapsed-changed', (event, on) => {
 // it otherwise has no purpose of its own beyond showing the current path.
 ipcMain.on('show-in-finder', (event, filePath) => {
   if (filePath) shell.showItemInFolder(filePath);
-});
-
-// Spellcheck ignore list (names, jargon, ...) — global, not per-file, so it
-// persists across whatever document is open next.
-ipcMain.on('ignored-words-changed', (event, words) => {
-  settings.ignoredWords = Array.isArray(words) ? words : [];
-  saveSettings(settings);
 });
 
 // Returns true/false so callers (manual save above) know whether the write

@@ -7,7 +7,6 @@ import { sceneBreakDecorator, sceneBreakAtomicRanges, sceneBreakClickGuard, inje
 import { blockSpacingPlugin, injectBlockSpacingStyle } from './block-spacing.js';
 import { historyAndKeymaps, boldItalicKeymap } from './history-commands.js';
 import { searchExtension, injectSearchMatchStyle } from './search.js';
-import { spellcheckField, spellcheckPlugin, injectSpellcheckStyle } from './spellcheck.js';
 import { emDashInputHandler } from './em-dash.js';
 import { chapterPlaceholderPlugin, injectChapterPlaceholderStyle } from './chapter-placeholder.js';
 import { manuscriptGutterPlugin, manuscriptGutterAlignPlugin, injectManuscriptGutterStyle } from './manuscript-gutter.js';
@@ -42,7 +41,6 @@ export function create(container, initialDoc, onChange, placeholderText) {
   injectSceneBreakStyle();
   injectBlockSpacingStyle();
   injectSearchMatchStyle();
-  injectSpellcheckStyle();
   injectChapterPlaceholderStyle();
   injectManuscriptGutterStyle();
   injectBookTitleStyle();
@@ -80,8 +78,6 @@ export function create(container, initialDoc, onChange, placeholderText) {
         coldStorageViewField,
         coldStorageHideField,
         searchExtension,
-        spellcheckField,
-        spellcheckPlugin,
         boldItalicKeymap(),
         sceneBoundaryGuardKeymap(),
         emDashInputHandler,

@@ -1,6 +1,6 @@
 // Tiny DOM-creation primitives shared by every hand-rolled UI surface in
 // this app (rail, corkboard, sprint timer, find/replace, theme picker,
-// spellcheck's suggestion popup). Previously each of those files defined
+// transient feature panels). Previously each of those files defined
 // its own byte-identical copy of these three functions — six independent
 // copies of el(), four of icon(), three of btn() — with no code sharing
 // them, just repeated verbatim. Extracted here once an architecture review
@@ -35,7 +35,7 @@ export function icon(cls) {
 // reopening a picker never appends a duplicate copy — the exact same
 // five-line shape every injectXStyle() in this codebase (14 of them)
 // repeated independently before this. Each file keeps its own named
-// export (injectSpellcheckStyle, injectSceneBreakStyle, ...) — only the
+// export (injectSceneBreakStyle, ...) — only the
 // boilerplate body collapses to a single call here.
 export function injectStyle(id, css) {
   if (document.getElementById(id)) return;

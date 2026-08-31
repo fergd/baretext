@@ -10,6 +10,101 @@ Also see: `README.md` (how to run/build/test, feature overview),
 `docs/theme-spec.md` (design tokens), `TYPEWRITER_MODE.md` (typewriter
 focus-mode spec).
 
+## Current snapshot — 2026-08-31
+
+This is the point-in-time handoff for the current production state. Baretext
+is a macOS Electron writing tool with Editor and Sprinter modes, a chapter /
+scene rail (corkboard), persistent themes including CRT with a block cursor,
+native printing, backups, and find/replace. The old spellcheck feature has
+been removed because it was unreliable.
+
+### Working features
+
+- File → Print… (⌘P) and the command palette print the manuscript through the
+  native macOS dialog; print CSS produces a clean paper layout.
+- AI scene summaries work one card at a time or through “Summarize all”.
+- AI naming suggests chapter or scene titles using concrete, dramatic, and
+  thematic lanes, with book/chapter/neighbouring-title context and optional
+  personal “titles I like” examples.
+- AI actions use the sparkles icon, report errors directly, and offer a
+  six-second undo toast. Generated summaries can be undone without leaving
+  cached results behind; applied titles use the editor undo stack.
+- The personal OpenAI key is entered in Baretext → AI Settings and stored via
+  Electron `safeStorage` (macOS Keychain-backed encrypted file). It is never
+  exposed to the renderer. A key is optional until an AI action is used.
+- Google Drive backup: a second `backup.js` provider (alongside local-git)
+  that mirrors every manuscript in the save folder to Google Drive — a
+  "Baretext Backups" folder by default, or a user-chosen one — OAuth via a
+  loopback flow, rate-limited the same way as local-git. Baretext → Backup
+  Settings… (also in the command palette, and a cloud icon in the status
+  bar) holds the Client ID/Secret + Picker API key paste-in, connect/
+  disconnect, "choose folder…"/"use default", and a manual "back up now".
+  **Live-verified end to end this session**: real OAuth connect, a real
+  "back up now" landing a file in the user's actual Drive, disconnect/
+  reconnect. Along the way, fixed a real gap in the README's original setup
+  steps — the OAuth consent screen's Data Access scopes have to be added
+  explicitly (a requested-but-undeclared scope is silently dropped from the
+  token, surfacing later as "insufficient authentication scopes" rather
+  than anything at consent time) — now documented. The folder-picker piece
+  (choosing an existing Drive folder via Google's Picker widget, `drive.file`-
+  scope-compatible) is **also now live-verified** — real folder picked, round-
+  tripped back into Baretext. Two real bugs found and fixed getting there:
+  an `onload="onApiLoad()"` handler that could fire before its own
+  definition ran depending on script-load timing, and — the bigger one —
+  the picker window was loaded via `win.loadFile()`, giving it a `file://`
+  origin; Google's Picker backend flatly rejects that (a 403 fetching
+  `docs.google.com/pick...`, independent of token/key validity, since
+  `file://` isn't a real origin its postMessage/frame security model can
+  validate). Fixed by serving the picker page over a throwaway local HTTP
+  server (`http://127.0.0.1:<port>`) instead — same shape as the OAuth
+  loopback server, same underlying reason (Google needs a real web origin).
+  Also set a plain desktop Chrome user-agent on that window specifically,
+  since Google separately refuses to render sign-in-adjacent UI inside a
+  webview whose UA identifies it as an embedded app shell.
+
+### Run, build, and verify
+
+```text
+nvm use
+npm install
+npm start
+```
+
+Use the in-app AI Settings screen to save the key; do not put it in source or
+chat. A packaged build is produced with `npm run build` at
+`dist/mac-arm64/Baretext.app` (locally unsigned without a Developer ID).
+
+Latest verification: `npm run test:unit` — 198 passing; `npm run test:e2e` —
+168 passing across 26 suites; `npm run build:editor` and `npm run build` pass;
+`git diff --check` is clean.
+
+### Source of truth
+
+Start with `src/main.js`, `src/preload.js`, `src/ai.js`,
+`src/ai-providers/openai.js`, `src/credential-store.js`, `src/google-drive.js`
+(+ `src/google-drive-auth.js`, `src/google-drive-api.js`,
+`src/backup-providers/google-drive.js`, `src/google-drive-picker.html`,
+`src/google-drive-picker-preload.js`), `src/backup.js`,
+`src/features/scene-nav/corkboard.js`, `src/index.html`, `src/app.js`, and
+the generated `src/editor-bundle.js`. `README.md` documents the current user
+workflow and configuration.
+
+### Git / next handoff
+
+`HEAD` and `origin/main` remain at `8a5334a` (CRT theme with block cursor).
+Printing, AI, title-quality, spellcheck-removal, and Google Drive backup
+changes are intentionally uncommitted in the working tree. `.agents/` is an
+untracked local skills directory and should remain uncommitted unless
+explicitly requested.
+
+Next: Google Drive backup (default folder and the folder-picker) is now
+fully live-verified end to end — nothing further pending there. Separately:
+manually try title suggestions on representative scenes, add a few strong
+style examples in AI Settings, and tune prompts based on the results. Then
+review this batch and commit/push only when ready. If Baretext becomes a
+shared product later, move provider calls behind a hosted service or adopt
+per-user credentials rather than shipping one personal key in the app.
+
 ## Where things stand (as of 2026-08-29)
 
 **Pick up here.** A long run of small, mostly user-reported bug fixes and
@@ -108,7 +203,46 @@ several checkpoints along the way (hence the granular commit list above),
 each split into logically separate commits even when multiple fixes had
 accumulated uncommitted together.
 
-## Where things stand (as of 2026-08-18)
+After the CRT checkpoint was committed and pushed as `8a5334a`, native
+printing was added to both the macOS File menu and the command palette's
+File group with ⌘P. The explicit application menu also ensures development
+launches identify themselves as Baretext instead of inheriting Electron's
+generic menu. Electron opens the macOS print dialog through a narrow
+preload/IPC bridge; print-only CSS hides
+the rail and other app chrome, expands CodeMirror beyond its scroll viewport,
+and lays the manuscript out as black text on white paper while retaining the
+chosen prose font. The native dialog itself is deliberately not opened by
+automation, but the command/bridge wiring is covered by E2E. Full suite:
+166 unit + 176 E2E passing. The native-menu correction added one unit
+regression test (167 passing) and its focused real-Electron print checks pass.
+
+**In progress, uncommitted:** the first small AI layer for the corkboard.
+OpenAI is isolated behind `src/ai.js` + `src/ai-providers/openai.js`; only the
+main process sees credentials, and the provider can later be replaced by
+a hosted proxy without changing renderer features. Scene cards support both
+one-at-a-time summaries and toolbar-level “summarize all”; content-addressed
+summaries persist in `userData/ai-cache.json` and invalidate when scene text
+changes. Scene and chapter “suggest name” actions return three suggestions and apply
+nothing until the writer chooses one through the existing undoable rename
+path. A personal key can be saved from Baretext → AI Settings; Electron
+safeStorage encrypts it through macOS Keychain and only ciphertext is written
+to disk. All AI is explicit/on-demand. AI triggers share one sparkles icon;
+applied names and summaries surface an immediate undo action, with summary
+undo also removing the persistent cache entry. Current verification: 161
+unit tests and 167 real-Electron E2E tests pass.
+
+Title generation now uses three explicit lanes (concrete, dramatic,
+thematic), 2–5 word constraints, existing/neighboring manuscript titles,
+book/chapter context, and optional personal examples saved from AI Settings.
+Naming uses `gpt-5.6-terra` at low reasoning while summaries remain on Luna.
+
+## Historical note — spellcheck removal and earlier design-system work (2026-08-30)
+
+**Current uncommitted direction:** spellcheck has been removed at the user's
+request. The custom Hunspell/nspell engine, dictionaries, feature UI,
+suggestion/ignore persistence, dependency, and tests are gone; Chromium's
+native checker is disabled in the Electron session and on the editor surface.
+The older spellcheck entries below remain as historical context only.
 
 **Pick up here.** A second attempt at the rail/design-system redesign —
 same direction as the one described below (Aug 2026, fully reverted), this

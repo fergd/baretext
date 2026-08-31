@@ -21,6 +21,7 @@ export default {
       'Mod-s':           () => ctx.cmdSave(),
       'Mod-n':            () => ctx.cmdNew(),
       'Mod-o':            () => ctx.cmdOpen(),
+      'Mod-p':            () => ctx.cmdPrint(),
       'Mod-Shift-E':      () => ctx.cmdExport(),
       'Mod-Shift-T':      () => ctx.toggleTypewriter(),
       'Mod-Shift-F':      () => ctx.toggleFontPicker(),
@@ -39,6 +40,7 @@ export default {
           { label: 'New file',           icon: 'ti-file-plus',       keys: ['⌘','N'],         fn: ctx.cmdNew },
           { label: 'Open file',          icon: 'ti-folder-open',     keys: ['⌘','O'],         fn: ctx.cmdOpen },
           { label: 'Save',               icon: 'ti-device-floppy',   keys: ['⌘','S'],         fn: ctx.cmdSave },
+          { label: 'Print',              icon: 'ti-printer',         keys: ['⌘','P'],         fn: ctx.cmdPrint },
           { label: 'Export as Markdown', icon: 'ti-file-export',     keys: ['⌘','⇧','E'],    fn: ctx.cmdExport },
           { label: 'Set save location',  icon: 'ti-folder-pin',      keys: [],                fn: ctx.cmdSaveDir },
         ]
@@ -46,6 +48,16 @@ export default {
       { group: 'Navigate',
         items: [
           { label: 'Jump to chapter or scene', icon: 'ti-list-search', keys: ['⌘','⇧','O'],   fn: ctx.openOutline, keepOpen: true },
+        ]
+      },
+      { group: 'AI',
+        items: [
+          { label: 'AI settings…', icon: 'ti-sparkles', keys: [], fn: ctx.openAiSettings },
+        ]
+      },
+      { group: 'Backup',
+        items: [
+          { label: 'Backup settings…', icon: 'ti-cloud', keys: [], fn: ctx.openBackupSettings },
         ]
       },
       { group: 'Insert',

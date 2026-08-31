@@ -49,6 +49,46 @@
     @font-face { font-family: 'IBM Plex Sans'; font-weight: 700; font-style: italic;  src: url('fonts/ibm-plex-sans-700-italic.woff2') format('woff2'); }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    /* Every icon-button chrome-reset in this app uses `all: unset`, which
+       also wipes out the UA stylesheet's `[hidden] { display: none }` rule —
+       an element with the `hidden` attribute set would otherwise stay
+       visually rendered anyway. Restoring it globally, once, here. */
+    [hidden] { display: none !important; }
+
+    /* Native printing uses the live CodeMirror document, but none of the
+       application's surrounding chrome. `overflow: visible` is the key:
+       without it a scroll editor can print only its current viewport. */
+    @media print {
+      @page { margin: 0.75in; }
+      html, body, #app, #content-row, #editor-host,
+      #editor-host .cm-editor, #editor-host .cm-scroller,
+      #editor-host .cm-content {
+        width: auto !important;
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        overflow: visible !important;
+        background: #fff !important;
+        color: #111 !important;
+      }
+      #titlebar, #scene-rail, #rail-expand-tab, #statusbar,
+      #overlay, #font-picker, #toast, #corkboard, #theme-picker,
+      .sprint-panel, .sprint-chip, .sprint-edge,
+      .find-bar, #cold-storage-banner, .cm-gutters,
+      .cm-cursor, .cm-selectionLayer { display: none !important; }
+      #content-row, #editor-host { display: block !important; }
+      #editor-host .cm-content {
+        margin: 0 !important;
+        padding: 0 !important;
+        max-width: none !important;
+        caret-color: transparent !important;
+      }
+      #editor-host .cm-line {
+        color: #111 !important;
+        text-shadow: none !important;
+        break-inside: avoid;
+      }
+    }
 
     :root {
       /* --font-mono is the app's actual primary typeface (chrome + default
@@ -317,7 +357,7 @@
        modern crisp LCD render (confirmed against period write-ups while
        building this, not just a guess). currentColor keeps the glow
        matching whatever color each element already is -- the heading, a
-       dimmer placeholder, spellcheck-flagged text -- without hardcoding a
+       dimmer placeholder and other quiet metadata -- without hardcoding a
        second palette here; text-shadow is inherited, and currentColor
        inside an inherited value re-resolves per element, so this one rule
        covers all of them correctly. Scoped to data-font="mono" specifically
@@ -559,13 +599,6 @@
       html[data-mode="editor"]:not([data-rail-collapsed="1"]) #editor-host .cm-content {
         transform: translateX(calc(var(--rail-w) / -2));
       }
-    }
-
-    /* Native spellcheck styling (Electron/Chromium ::spelling-error) — no
-       decoration API needed from the editor bundle for this one. */
-    #editor-host .cm-content::spelling-error {
-      text-decoration: underline wavy #ff5555;
-      text-underline-offset: 3px;
     }
 
     /* Bold monospace glyphs render heavier/uneven compared to the font's own
@@ -895,6 +928,100 @@
       transition: background 0.08s ease, box-shadow 0.08s ease;
       box-shadow: inset 3px 0 0 transparent;
     }
+
+    /* Personal AI credential setup. The field is intentionally never
+       prefilled: the renderer can save/remove a key but cannot read it back. */
+    #ai-settings-overlay {
+      display: none; position: fixed; inset: 0; z-index: 10010;
+      align-items: flex-start; justify-content: center; padding-top: 96px;
+      background: rgba(0,0,0,.38);
+    }
+    #ai-settings-overlay.open { display: flex; }
+    #ai-settings-panel {
+      width: 480px; max-width: calc(100vw - 32px); padding: 24px;
+      background: var(--bg-alt); border: 1px solid var(--border);
+      border-radius: var(--radius-panel); box-shadow: var(--shadow-panel);
+      font-family: var(--font-mono);
+    }
+    #ai-settings-title { color: var(--text); font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+    #ai-settings-copy { color: var(--text-dim); font-size: 11px; line-height: 1.6; margin-bottom: 16px; }
+    #ai-key-input {
+      width: 100%; height: 40px; padding: 0 12px; color: var(--text);
+      background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
+      outline: none; font: 12px var(--font-mono); caret-color: var(--cursor);
+    }
+    #ai-key-input:focus { border-color: var(--accent); }
+    #ai-title-style-label { display: block; margin: 16px 0 8px; color: var(--text-dim); font-size: 10px; }
+    #ai-title-style {
+      width: 100%; min-height: 88px; resize: vertical; padding: 10px 12px;
+      color: var(--text); background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); outline: none; font: 11px/1.5 var(--font-mono);
+    }
+    #ai-title-style:focus { border-color: var(--accent); }
+    #ai-key-status { min-height: 16px; margin-top: 8px; color: var(--text-dimmer); font-size: 10px; }
+    #ai-key-status.ready { color: var(--accent); }
+    #ai-key-status.error { color: #e05c5c; }
+    #ai-settings-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+    .ai-settings-btn {
+      all: unset; box-sizing: border-box; cursor: pointer; min-height: 32px; padding: 6px 12px;
+      border-radius: var(--radius-sm); color: var(--text-dim); font: 11px var(--font-mono);
+    }
+    .ai-settings-btn:hover, .ai-settings-btn:focus-visible { color: var(--text); background: var(--wash); }
+    .ai-settings-btn.primary { color: var(--accent); background: var(--wash-accent); }
+    .ai-settings-btn.danger { margin-right: auto; color: #e05c5c; }
+
+    /* Google Drive backup credential setup. Same overlay+panel shape and
+       write-only-field convention as #ai-settings-overlay above. */
+    #backup-settings-overlay {
+      display: none; position: fixed; inset: 0; z-index: 10010;
+      align-items: flex-start; justify-content: center; padding-top: 96px;
+      background: rgba(0,0,0,.38);
+    }
+    #backup-settings-overlay.open { display: flex; }
+    #backup-settings-panel {
+      width: 480px; max-width: calc(100vw - 32px); padding: 24px;
+      background: var(--bg-alt); border: 1px solid var(--border);
+      border-radius: var(--radius-panel); box-shadow: var(--shadow-panel);
+      font-family: var(--font-mono);
+    }
+    #backup-settings-title { color: var(--text); font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+    #backup-settings-copy { color: var(--text-dim); font-size: 11px; line-height: 1.6; margin-bottom: 16px; }
+    #backup-client-id, #backup-client-secret, #backup-picker-key {
+      width: 100%; height: 40px; padding: 0 12px; color: var(--text);
+      background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
+      outline: none; font: 12px var(--font-mono); caret-color: var(--cursor); margin-bottom: 10px;
+    }
+    #backup-client-id:focus, #backup-client-secret:focus, #backup-picker-key:focus { border-color: var(--accent); }
+    #backup-key-status { min-height: 16px; margin-top: 8px; color: var(--text-dimmer); font-size: 10px; }
+    #backup-key-status.ready { color: var(--accent); }
+    #backup-key-status.error { color: #e05c5c; }
+    #backup-folder-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+    #backup-folder-name { color: var(--text-dim); font-size: 11px; margin-right: auto; }
+    #backup-settings-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+    /* Two-click arm/confirm disconnect button, built by makeDeleteButton()
+       (src/features/scene-nav/ui-helpers.js) — base look comes from the
+       .ai-settings-btn.danger classes it's also given; .confirm is its own
+       armed state, same red-fill treatment as the rail/corkboard delete
+       buttons (src/features/scene-nav/rail.js). */
+    .backup-disconnect-btn.confirm {
+      width: auto; padding: 0 8px; gap: 4px;
+      color: #e05c5c; font-weight: 600;
+      background: color-mix(in srgb, #e05c5c 15%, transparent);
+    }
+
+    /* Status-bar backup indicator — always visible, mirrors
+       #tw-status-indicator's reset + hover treatment. */
+    #backup-status-indicator {
+      all: unset; box-sizing: border-box; cursor: pointer;
+      font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.03em; color: var(--text-dimmer);
+      display: flex; align-items: center; gap: 6px; padding: 4px 6px; margin: -4px -6px;
+      transition: color 0.15s ease;
+    }
+    #backup-status-indicator .ti { font-size: 13px; transition: color 0.15s ease; }
+    #backup-status-indicator:hover { color: var(--text-dim); }
+    #backup-status-indicator.connected .ti { color: var(--syntax-2, var(--accent)); }
+    #backup-status-indicator.error .ti { color: #e05c5c; }
+
     .pitem:hover {
       background: color-mix(in srgb, var(--accent) 8%, transparent);
     }
@@ -1043,6 +1170,12 @@
       opacity: 1;
       transform: translateX(-50%) translateY(0) scale(1);
     }
+    #toast:has(.toast-action) { pointer-events: auto; }
+    .toast-action {
+      all: unset; box-sizing: border-box; cursor: pointer; margin-left: 12px;
+      color: var(--accent); font-weight: 700;
+    }
+    .toast-action:hover, .toast-action:focus-visible { color: var(--text); }
 
     ::-webkit-scrollbar { width: 4px; }
     ::-webkit-scrollbar-track { background: transparent; }
@@ -1108,6 +1241,7 @@
     </div>
     <div class="status-group">
       <div id="save-error" title="save failed"></div>
+      <button type="button" id="backup-status-indicator" aria-label="Backup settings"><i class="ti ti-cloud" aria-hidden="true"></i></button>
       <button type="button" class="status-item dimmer" id="file-name" title="Show in Finder" aria-label="Show in Finder">untitled</button>
     </div>
   </div>
@@ -1125,6 +1259,45 @@
       <span class="p-hint"><kbd class="phkey">↑↓</kbd> navigate</span>
       <span class="p-hint"><kbd class="phkey">↵</kbd> select</span>
       <span class="p-hint"><kbd class="phkey">esc</kbd> close</span>
+    </div>
+  </div>
+</div>
+
+<div id="ai-settings-overlay" role="presentation">
+  <div id="ai-settings-panel" role="dialog" aria-modal="true" aria-labelledby="ai-settings-title">
+    <div id="ai-settings-title">AI settings</div>
+    <div id="ai-settings-copy">Your OpenAI API key is encrypted with macOS Keychain and remains on this Mac. Baretext never displays a saved key.</div>
+    <input id="ai-key-input" type="password" placeholder="sk-…" autocomplete="off" spellcheck="false" aria-label="OpenAI API key">
+    <label id="ai-title-style-label" for="ai-title-style">titles I like · one per line</label>
+    <textarea id="ai-title-style" maxlength="2000" placeholder="The Long Goodbye&#10;A Clean, Well-Lighted Place&#10;What We Talk About When We Talk About Love" spellcheck="false"></textarea>
+    <div id="ai-key-status" role="status"></div>
+    <div id="ai-settings-actions">
+      <button type="button" id="ai-key-remove" class="ai-settings-btn danger">remove key</button>
+      <button type="button" id="ai-key-cancel" class="ai-settings-btn">cancel</button>
+      <button type="button" id="ai-key-save" class="ai-settings-btn primary">save</button>
+    </div>
+  </div>
+</div>
+
+<div id="backup-settings-overlay" role="presentation">
+  <div id="backup-settings-panel" role="dialog" aria-modal="true" aria-labelledby="backup-settings-title">
+    <div id="backup-settings-title">Backup settings</div>
+    <div id="backup-settings-copy">Baretext can back up every manuscript in your save folder to Google Drive — a "Baretext Backups" folder by default, or one you choose yourself. Register an OAuth client in Google Cloud Console (Desktop app type), then paste its Client ID and Secret below. All fields are encrypted with macOS Keychain and remain on this Mac.</div>
+    <input id="backup-client-id" type="text" placeholder="Client ID" autocomplete="off" spellcheck="false" aria-label="Google OAuth Client ID">
+    <input id="backup-client-secret" type="password" placeholder="Client Secret" autocomplete="off" spellcheck="false" aria-label="Google OAuth Client Secret">
+    <input id="backup-picker-key" type="password" placeholder="Picker API key (optional — lets you choose the folder)" autocomplete="off" spellcheck="false" aria-label="Google Picker API key">
+    <div id="backup-key-status" role="status"></div>
+    <div id="backup-folder-row">
+      <span id="backup-folder-name"></span>
+      <button type="button" id="backup-choose-folder-btn" class="ai-settings-btn">choose folder…</button>
+      <button type="button" id="backup-use-default-btn" class="ai-settings-btn">use default</button>
+    </div>
+    <div id="backup-settings-actions">
+      <span id="backup-disconnect-slot"></span>
+      <button type="button" id="backup-now-btn" class="ai-settings-btn">back up now</button>
+      <button type="button" id="backup-save-btn" class="ai-settings-btn">save</button>
+      <button type="button" id="backup-connect-btn" class="ai-settings-btn primary">connect google drive</button>
+      <button type="button" id="backup-settings-cancel" class="ai-settings-btn">close</button>
     </div>
   </div>
 </div>

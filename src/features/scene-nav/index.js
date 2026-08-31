@@ -1,7 +1,7 @@
 // Scene/chapter navigation — Editor mode only. Wires the always-visible left
 // rail (rail.js) and the summonable full-window corkboard (corkboard.js)
 // together on one shared manuscript model (model.js). Both are DOM-only and
-// sit outside CodeMirror, so — unlike spellcheck/live-preview/block-spacing,
+// sit outside CodeMirror, so — unlike live-preview/block-spacing,
 // which recompute via CodeMirror's own ViewPlugin update cycle — they need
 // this module to tell them when to re-render: on doc change / cursor move
 // (piggybacked on the same keyup/mouseup pattern app.js already uses for

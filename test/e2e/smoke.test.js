@@ -1,8 +1,7 @@
 // End-to-end smoke test — drives the real, packaged app (not a mock, not a
 // component test) through the golden paths verified manually throughout
 // this project's development: Sprinter mode, the sprint timer lifecycle,
-// mode switching, find/replace, spellcheck (flagging, suggestions, ignore,
-// persistence across a real relaunch), and scene-nav (rail, corkboard,
+// mode switching, find/replace, and scene-nav (rail, corkboard,
 // rename, drag-reorder, undo). Every launch runs against an isolated
 // scratch --user-data-dir/save directory — nothing here ever touches the
 // developer's real settings or Documents folder.
@@ -91,92 +90,6 @@ describe('Baretext E2E smoke test', () => {
     // under it — position + z-index is what makes that happen.
     assert.notEqual(result.position, 'static');
     assert.equal(result.zIndex, '1');
-  });
-
-  test('spellcheck flags the deliberate typos but not contractions', async () => {
-    const flagged = await app.client.evaluate(
-      'return [...document.querySelectorAll(".cm-spellError")].map(e => e.textContent);'
-    );
-    assert.ok(flagged.includes('teh'));
-    assert.ok(flagged.includes('recieve'));
-    assert.ok(!flagged.includes("shouldn't"));
-  });
-
-  // ── Spellcheck: suggestions, ignore, persistence ────────────────────────
-
-  test('right-clicking a flagged word shows suggestions and an ignore option', async () => {
-    const items = await app.client.evaluate(`
-      const el = [...document.querySelectorAll('.cm-spellError')].find(e => e.textContent === 'teh');
-      const rect = el.getBoundingClientRect();
-      el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: rect.left + 2, clientY: rect.top + 2 }));
-      await new Promise(r => setTimeout(r, 150));
-      return [...document.querySelectorAll('.spell-suggest-panel > div')].map(e => e.className + ':' + e.textContent);
-    `);
-    assert.ok(items.some((i) => i.includes('the')));
-    assert.ok(items.some((i) => i.includes('ignore "teh"')));
-  });
-
-  test('clicking a suggestion applies it in place', async () => {
-    await app.client.evaluate(`
-      const item = [...document.querySelectorAll('.spell-suggest-item')][0];
-      item.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-      await new Promise(r => setTimeout(r, 150));
-    `);
-    const text = await app.client.evaluate('return document.querySelector(".cm-content").innerText;');
-    assert.ok(text.includes('could the weather') || text.includes('could ' + 'the'.trim()));
-    assert.ok(!text.includes(' teh '));
-  });
-
-  test('ignoring a word silences it and persists to settings.json', async () => {
-    const stillFlagged = await app.client.evaluate('return [...document.querySelectorAll(".cm-spellError")].map(e => e.textContent);');
-    assert.ok(stillFlagged.includes('recieve'));
-
-    await app.client.evaluate(`
-      const el = [...document.querySelectorAll('.cm-spellError')].find(e => e.textContent === 'recieve');
-      const rect = el.getBoundingClientRect();
-      el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: rect.left + 2, clientY: rect.top + 2 }));
-      await new Promise(r => setTimeout(r, 150));
-      const ignoreItem = document.querySelector('.spell-suggest-ignore');
-      ignoreItem.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-      await new Promise(r => setTimeout(r, 150));
-    `);
-
-    const flaggedAfter = await app.client.evaluate('return [...document.querySelectorAll(".cm-spellError")].map(e => e.textContent);');
-    assert.ok(!flaggedAfter.includes('recieve'));
-
-    const settings = app.readSettings();
-    assert.ok(settings.ignoredWords.includes('recieve'));
-  });
-
-  test('the ignore persists across a real app relaunch', async () => {
-    await app.client.evaluate('return true;'); // let the 500ms autosave debounce clear before we quit
-    await new Promise((r) => setTimeout(r, 700));
-    await app.restart();
-    const flagged = await app.client.evaluate('return [...document.querySelectorAll(".cm-spellError")].map(e => e.textContent);');
-    assert.ok(!flagged.includes('recieve'));
-    assertNoConsoleErrors('relaunch');
-  });
-
-  test('"Clear ignored words" re-flags everything', async () => {
-    await app.client.evaluate(`
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true, cancelable: true }));
-      await new Promise(r => setTimeout(r, 150));
-      const input = document.getElementById('palette-input');
-      input.value = 'clear ignored';
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      await new Promise(r => setTimeout(r, 100));
-      const target = [...document.querySelectorAll('.pitem')].find(e => e.textContent.includes('Clear ignored'));
-      target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-      target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-      // closePalette() defers overlay.classList.remove('open') by 200ms —
-      // wait it out so the next test's Mod-key shortcuts aren't swallowed
-      // by app.js's "palette still open" guard.
-      await new Promise(r => setTimeout(r, 350));
-    `);
-    const flagged = await app.client.evaluate('return [...document.querySelectorAll(".cm-spellError")].map(e => e.textContent);');
-    assert.ok(flagged.includes('recieve'));
-    const settings = app.readSettings();
-    assert.deepEqual(settings.ignoredWords, []);
   });
 
   // ── Find & replace ──────────────────────────────────────────────────────
@@ -276,6 +189,114 @@ describe('Baretext E2E smoke test', () => {
     `);
     assert.equal(result.display, 'flex');
     assert.ok(result.titles.some((t) => t.startsWith('1 ·')));
+  });
+
+  test('corkboard exposes AI summaries per card and in bulk, plus scene/chapter naming helpers', async () => {
+    const result = await app.client.evaluate(`
+      await new Promise(r => setTimeout(r, 250));
+      if (getComputedStyle(document.getElementById('corkboard')).display === 'none') {
+        document.querySelector('.rail-corkboard-btn').click();
+        await new Promise(r => setTimeout(r, 150));
+      }
+      const cork = document.getElementById('corkboard');
+      return {
+        summarizeAll: [...cork.querySelectorAll('.corkboard-tool-btn')].some(b => b.textContent.includes('summarize all')),
+        sceneSummaryButtons: cork.querySelectorAll('button[aria-label^="Summarize "]').length,
+        sceneNamingButtons: cork.querySelectorAll('.scene-card button[title="suggest scene names"]').length,
+        chapterNamingButtons: cork.querySelectorAll('.corkboard-chapter-header button[aria-label^="Suggest names for "]').length,
+        aiButtonsUseAiIcon: [...cork.querySelectorAll('.corkboard-ai-text-btn')].every(b => b.querySelector('.ti-sparkles')),
+        apiMethods: ['aiCachedSummaries', 'aiRemoveCachedSummaries', 'aiSummarizeScenes', 'aiSuggestTitles', 'aiTitlePreferences', 'aiSaveTitlePreferences'].map(k => typeof window.api[k]),
+      };
+    `);
+    assert.equal(result.summarizeAll, true);
+    assert.ok(result.sceneSummaryButtons > 0);
+    assert.ok(result.sceneNamingButtons > 0);
+    assert.ok(result.chapterNamingButtons > 0);
+    assert.equal(result.aiButtonsUseAiIcon, true);
+    assert.deepEqual(result.apiMethods, ['function', 'function', 'function', 'function', 'function', 'function']);
+  });
+
+  test('personal AI key settings are reachable without exposing a saved credential', async () => {
+    const result = await app.client.evaluate(`
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      if (getComputedStyle(document.getElementById('corkboard')).display === 'none') {
+        document.querySelector('.rail-corkboard-btn').click();
+        await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+      document.querySelector('#corkboard .corkboard-ai-status').click();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      const overlay = document.getElementById('ai-settings-overlay');
+      const input = document.getElementById('ai-key-input');
+      return {
+        open: overlay.classList.contains('open'),
+        inputType: input.type,
+        inputValue: input.value,
+        hasTitleStyle: document.getElementById('ai-title-style').tagName === 'TEXTAREA',
+        copy: document.getElementById('ai-settings-copy').textContent,
+      };
+    `);
+    assert.equal(result.open, true);
+    assert.equal(result.inputType, 'password');
+    assert.equal(result.inputValue, '');
+    assert.equal(result.hasTitleStyle, true);
+    assert.match(result.copy, /macOS Keychain/);
+    await app.client.evaluate(`
+      document.getElementById('ai-title-style').value = ['Black Water', 'The Crossing'].join(String.fromCharCode(10));
+      document.getElementById('ai-key-save').click();
+      await new Promise(r => setTimeout(r, 100));
+      document.getElementById('ai-key-cancel').click();
+      return true;
+    `);
+    assert.equal(app.readSettings().aiTitleStyleExamples, ['Black Water', 'The Crossing'].join(String.fromCharCode(10)));
+  });
+
+  // Only the network-free "save" action is driven here — clicking "connect
+  // google drive" for real would open a system browser and hang waiting for
+  // an OAuth redirect that never comes in this headless harness.
+  test('Google Drive backup settings are reachable and never leak a saved client secret', async () => {
+    const opened = await app.client.evaluate(`
+      document.getElementById('backup-status-indicator').click();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      const overlay = document.getElementById('backup-settings-overlay');
+      const secretInput = document.getElementById('backup-client-secret');
+      return {
+        open: overlay.classList.contains('open'),
+        secretInputType: secretInput.type,
+        secretInputValue: secretInput.value,
+        idInputValue: document.getElementById('backup-client-id').value,
+        copy: document.getElementById('backup-settings-copy').textContent,
+      };
+    `);
+    assert.equal(opened.open, true);
+    assert.equal(opened.secretInputType, 'password');
+    assert.equal(opened.secretInputValue, '');
+    assert.equal(opened.idInputValue, '');
+    assert.match(opened.copy, /Google Cloud Console/);
+
+    const saved = await app.client.evaluate(`
+      document.getElementById('backup-client-id').value = 'test-client-id.apps.googleusercontent.com';
+      document.getElementById('backup-client-secret').value = 'test-client-secret';
+      document.getElementById('backup-save-btn').click();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      return await window.api.backupStatus();
+    `);
+    assert.equal(saved.hasClientCredentials, true);
+    assert.equal(saved.connected, false);
+
+    const reopened = await app.client.evaluate(`
+      document.getElementById('backup-settings-cancel').click();
+      document.getElementById('backup-status-indicator').click();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      return {
+        idInputValue: document.getElementById('backup-client-id').value,
+        secretInputValue: document.getElementById('backup-client-secret').value,
+      };
+    `);
+    assert.equal(reopened.idInputValue, '', 'a saved client id must never be re-shown in the field');
+    assert.equal(reopened.secretInputValue, '', 'a saved client secret must never be re-shown in the field');
+
+    await app.client.evaluate(`document.getElementById('backup-settings-cancel').click(); return true;`);
+    assertNoConsoleErrors('backup settings');
   });
 
   test('single click on a card does not navigate; double-click does', async () => {
@@ -430,7 +451,7 @@ describe('Baretext E2E smoke test', () => {
       await new Promise(r => setTimeout(r, 150));
       const cork = document.getElementById('corkboard');
       const card = [...cork.querySelectorAll('.scene-card')][0];
-      const openBtn = [...card.querySelectorAll('.corkboard-edit-btn')][1];
+      const openBtn = [...card.querySelectorAll('.corkboard-edit-btn')].find(btn => btn.title === 'open in manuscript');
       const title = openBtn.title;
       openBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       openBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
@@ -1132,67 +1153,18 @@ describe('Baretext E2E: manuscript surface (number gutter, named/unnamed scenes)
     `);
   });
 
-  // Regression: native (OS-level) spellcheck used to be forced on
-  // unconditionally at startup, independent of the app's own spellcheck
-  // FEATURE (which IS correctly excluded from Sprinter's feature list in
-  // modes.js) -- so red-squiggle native spellcheck kept showing during a
-  // sprint even though the app's own flagging never loaded there. This is
-  // the raw DOM attribute Chromium's spellchecker reads directly, not the
-  // .cm-spellError decorations covered by the tests above.
-  test('native spellcheck is off in Sprinter mode, on in Editor mode', async () => {
-    const editorState = await app.client.evaluate(`return document.querySelector('.cm-content').getAttribute('spellcheck');`);
-    assert.equal(editorState, 'true');
-
-    await app.client.evaluate(`
-      document.querySelector('.mode-tab[data-mode="sprinter"]').click();
-      return true;
-    `);
+  test('spellcheck remains absent in both Editor and Sprinter modes', async () => {
+    const editorState = await app.client.evaluate(`return {
+      native: document.querySelector('.cm-content').getAttribute('spellcheck'),
+      custom: document.querySelectorAll('.cm-spellError').length,
+    };`);
+    assert.deepEqual(editorState, { native: 'false', custom: 0 });
+    await app.client.evaluate(`document.querySelector('.mode-tab[data-mode="sprinter"]').click(); return true;`);
     await new Promise((r) => setTimeout(r, 300));
     const sprinterState = await app.client.evaluate(`return document.querySelector('.cm-content').getAttribute('spellcheck');`);
     assert.equal(sprinterState, 'false');
-
-    await app.client.evaluate(`
-      document.querySelector('.mode-tab[data-mode="editor"]').click();
-      return true;
-    `);
+    await app.client.evaluate(`document.querySelector('.mode-tab[data-mode="editor"]').click(); return true;`);
     await new Promise((r) => setTimeout(r, 300));
-    const backToEditorState = await app.client.evaluate(`return document.querySelector('.cm-content').getAttribute('spellcheck');`);
-    assert.equal(backToEditorState, 'true');
-  });
-
-  // Regression: toggling this app's OWN spellcheck off (⌘⇧P) only ever
-  // dispatched the custom setSpellcheckEffect -- it never touched the
-  // native `spellcheck` DOM attribute Chromium's as-you-type spellchecker
-  // reads, which stayed 'true' the whole time (see the mode-based test
-  // above). So the very next freshly-typed typo still got a native red
-  // squiggle, which looked exactly like spellcheck had turned itself back
-  // on. spellcheck.js's apply() now moves both together.
-  test('toggling spellcheck off also disables native spellcheck, and it stays off after typing a new typo', async () => {
-    await app.client.evaluate(`
-      document.querySelector('.cm-content').focus();
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'p', code: 'KeyP', metaKey: true, shiftKey: true, bubbles: true, cancelable: true }));
-      await new Promise(r => setTimeout(r, 200));
-    `);
-    const offState = await app.client.evaluate(`return document.querySelector('.cm-content').getAttribute('spellcheck');`);
-    assert.equal(offState, 'false');
-
-    await app.client.evaluate(`
-      document.execCommand('insertText', false, ' hellooooo');
-      await new Promise(r => setTimeout(r, 200));
-    `);
-    const stillOff = await app.client.evaluate(`return document.querySelector('.cm-content').getAttribute('spellcheck');`);
-    assert.equal(stillOff, 'false', 'typing a fresh typo should not silently re-enable native spellcheck');
-    const flagged = await app.client.evaluate("return document.querySelectorAll('.cm-spellError').length;");
-    assert.equal(flagged, 0, "this app's own spellcheck decorations should also stay off");
-
-    // Restore -- defensive, matches this describe's own convention of not
-    // leaking state, even though this is the last substantive test here.
-    await app.client.evaluate(`
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'p', code: 'KeyP', metaKey: true, shiftKey: true, bubbles: true, cancelable: true }));
-      await new Promise(r => setTimeout(r, 200));
-    `);
-    const backOn = await app.client.evaluate(`return document.querySelector('.cm-content').getAttribute('spellcheck');`);
-    assert.equal(backOn, 'true');
   });
 
   test('no console errors in this suite', () => {
@@ -1508,87 +1480,6 @@ describe('Baretext E2E: ⌘↵ scene break and sprint pause', () => {
     assert.equal(result.changed, true);
     assert.equal(result.dashesAfterCmdEnter, result.dashesBefore + 1);
     assert.equal(result.dashesAfterPlainEnter, result.dashesAfterCmdEnter); // plain Enter is just a newline, not a second break
-    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
-    assert.deepEqual(bad, []);
-  });
-});
-
-// Own instance: types real keystrokes and drives real mouse clicks to move
-// the caret, so it needs a document whose spellcheck state nothing else is
-// asserting on mid-suite.
-describe('Baretext E2E: spellcheck does not flag a word the caret is still inside', () => {
-  let app;
-
-  before(async () => {
-    app = await launchApp({ fixtureContent: '# One\n\nI wil go there teh other day.', mode: 'editor' });
-  });
-
-  after(async () => {
-    if (app) await app.close();
-  });
-
-  test('typing a misspelled word does not flag it until the caret leaves it', async () => {
-    const result = await app.client.evaluate(`
-      const cm = document.querySelector('.cm-content');
-      cm.focus();
-      const range = document.createRange();
-      const sel = window.getSelection();
-      range.selectNodeContents(cm);
-      range.collapse(false);
-      sel.removeAllRanges();
-      sel.addRange(range);
-
-      const word = 'helllo';
-      const flaggedWhileTyping = [];
-      for (const ch of word) {
-        document.execCommand('insertText', false, ch);
-        await new Promise(r => setTimeout(r, 30));
-        flaggedWhileTyping.push([...document.querySelectorAll('.cm-spellError')].some(e => e.textContent === 'helllo'));
-      }
-      document.execCommand('insertText', false, ' ');
-      await new Promise(r => setTimeout(r, 150));
-      const flaggedAfterCaretLeaves = [...document.querySelectorAll('.cm-spellError')].some(e => e.textContent === 'helllo');
-      return { flaggedWhileTyping, flaggedAfterCaretLeaves };
-    `);
-    assert.ok(result.flaggedWhileTyping.every((f) => f === false), 'a word being actively typed must never be flagged mid-keystroke');
-    assert.equal(result.flaggedAfterCaretLeaves, true, 'the finished word must be flagged once the caret has moved on');
-  });
-
-  test('clicking into an already-flagged word un-flags it; clicking away re-flags it', async () => {
-    const initial = await app.client.evaluate(
-      "return [...document.querySelectorAll('.cm-spellError')].map(e => e.textContent);"
-    );
-    assert.ok(initial.includes('teh'));
-
-    const tehRect = await app.client.evaluate(`
-      const el = [...document.querySelectorAll('.cm-spellError')].find(e => e.textContent === 'teh');
-      const r = el.getBoundingClientRect();
-      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
-    `);
-    await app.client.mouseEvent('mouseMoved', tehRect.x, tehRect.y);
-    await app.client.mouseEvent('mousePressed', tehRect.x, tehRect.y, 1);
-    await app.client.mouseEvent('mouseReleased', tehRect.x, tehRect.y, 0);
-    await new Promise((r) => setTimeout(r, 150));
-    const whileCaretInside = await app.client.evaluate(
-      "return [...document.querySelectorAll('.cm-spellError')].map(e => e.textContent);"
-    );
-    assert.ok(!whileCaretInside.includes('teh'), 'caret parked inside a flagged word must un-flag it live');
-
-    const endRect = await app.client.evaluate(`
-      const lines = document.querySelectorAll('.cm-line');
-      const last = lines[lines.length - 1];
-      const r = last.getBoundingClientRect();
-      return { x: r.right - 2, y: r.top + r.height / 2 };
-    `);
-    await app.client.mouseEvent('mouseMoved', endRect.x, endRect.y);
-    await app.client.mouseEvent('mousePressed', endRect.x, endRect.y, 1);
-    await app.client.mouseEvent('mouseReleased', endRect.x, endRect.y, 0);
-    await new Promise((r) => setTimeout(r, 150));
-    const afterMovingAway = await app.client.evaluate(
-      "return [...document.querySelectorAll('.cm-spellError')].map(e => e.textContent);"
-    );
-    assert.ok(afterMovingAway.includes('teh'), 'moving the caret away must re-flag the word');
-
     const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
     assert.deepEqual(bad, []);
   });
@@ -4299,69 +4190,47 @@ describe('Baretext E2E: status bar filename reveals the file in Finder', () => {
     assert.equal(result.apiHasShowInFinder, 'function');
   });
 
-  test('no console errors in this suite', () => {
-    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
-    assert.deepEqual(bad, []);
-  });
-});
-
-describe('Baretext E2E: hidden scene-break/comment chrome never shows a native spellcheck squiggle', () => {
-  let app;
-  const fixture = [
-    '# One',
-    '',
-    'First scene prose long enough to clear the draft threshold nicely here.',
-    '',
-    '---',
-    '<!-- Zyanya -->',
-    '',
-    'Second scene prose long enough to clear the draft threshold nicely too.',
-  ].join('\n');
-
-  before(async () => {
-    app = await launchApp({ fixtureContent: fixture, mode: 'editor' });
-    await app.client.evaluate('window.resizeTo(1400, 900); return true;');
-    await app.client.evaluate(`
-      const deadline = Date.now() + 2000;
-      while (Date.now() < deadline) {
-        if (document.querySelectorAll('.rail-scene-row').length >= 1) break;
-        await new Promise(r => setTimeout(r, 100));
-      }
-    `);
-  });
-
-  after(async () => {
-    if (app) await app.close();
-  });
-
-  // Real bug: `color: transparent` (scene-breaks.js's own concealment CSS)
-  // only hides the glyph fill -- it does nothing to Chromium's native
-  // as-you-type spellchecker, which drew its own wavy red underline
-  // wherever it found a word it didn't recognize (e.g. a waypoint name
-  // like "Zyanya") regardless of whether the text above it was visible.
-  // The fix sets the plain `spellcheck` DOM attribute to false directly on
-  // these lines, which suppresses the native checker for that subtree
-  // outright rather than fighting it cosmetically.
-  test('the marker line and its name-comment line both opt out of native spellcheck', async () => {
+  // Do not activate this item in automation: it intentionally opens the
+  // host machine's native print dialog. This locks in the renderer/preload
+  // wiring and the user-visible File command without causing UI side effects.
+  test('File commands expose Print with Cmd-P and a preload implementation', async () => {
     const result = await app.client.evaluate(`
-      const breakLine = document.querySelector('.cm-scene-break');
-      const commentLine = document.querySelector('.cm-scene-name-comment');
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 50));
+      const item = [...document.querySelectorAll('.pitem')].find(e => e.textContent.includes('Print'));
       return {
-        breakLineSpellcheck: breakLine ? breakLine.getAttribute('spellcheck') : null,
-        commentLineSpellcheck: commentLine ? commentLine.getAttribute('spellcheck') : null,
+        apiHasPrintDocument: typeof window.api.printDocument,
+        found: !!item,
+        label: item && item.textContent,
       };
     `);
-    assert.equal(result.breakLineSpellcheck, 'false');
-    assert.equal(result.commentLineSpellcheck, 'false');
+    assert.equal(result.apiHasPrintDocument, 'function');
+    assert.equal(result.found, true);
+    assert.match(result.label, /Print/);
+    assert.match(result.label, /⌘/);
+    assert.match(result.label, /P/);
   });
 
-  test('ordinary prose is unaffected -- native spellcheck stays on for real content', async () => {
+  test('print media strips app chrome and expands the full writing surface onto white paper', async () => {
+    await app.client.emulateMedia('print');
     const result = await app.client.evaluate(`
-      const lines = [...document.querySelectorAll('.cm-line')];
-      const prose = lines.find(l => l.textContent.includes('First scene prose'));
-      return prose ? prose.getAttribute('spellcheck') : 'NOT FOUND';
+      const rail = document.getElementById('scene-rail');
+      const scroller = document.querySelector('.cm-scroller');
+      const content = document.querySelector('.cm-content');
+      return {
+        railDisplay: getComputedStyle(rail).display,
+        scrollerOverflow: getComputedStyle(scroller).overflow,
+        contentBackground: getComputedStyle(content).backgroundColor,
+        contentColor: getComputedStyle(content).color,
+        contentHeight: getComputedStyle(content).height,
+      };
     `);
-    assert.notEqual(result, 'false');
+    await app.client.emulateMedia('screen');
+    assert.equal(result.railDisplay, 'none');
+    assert.equal(result.scrollerOverflow, 'visible');
+    assert.equal(result.contentBackground, 'rgb(255, 255, 255)');
+    assert.equal(result.contentColor, 'rgb(17, 17, 17)');
+    assert.notEqual(result.contentHeight, '700px');
   });
 
   test('no console errors in this suite', () => {

@@ -2,11 +2,11 @@ import { MODES, DEFAULT_MODE } from './modes.js';
 import core from './features/core.js';
 import sprintTimer from './features/sprint-timer.js';
 import findReplace from './features/find-replace.js';
-import spellcheck from './features/spellcheck.js';
 import sceneNav from './features/scene-nav/index.js';
 import * as themePicker from './theme-picker.js';
+import { makeDeleteButton } from './features/scene-nav/ui-helpers.js';
 
-const FEATURES = { core, 'sprint-timer': sprintTimer, 'find-replace': findReplace, spellcheck, 'scene-nav': sceneNav };
+const FEATURES = { core, 'sprint-timer': sprintTimer, 'find-replace': findReplace, 'scene-nav': sceneNav };
 
 const app        = document.getElementById('app');
 const host       = document.getElementById('editor-host');
@@ -24,6 +24,38 @@ const twIndicator = document.getElementById('tw-status-indicator');
 const modeSwitch = document.getElementById('mode-switch');
 const modeTabs   = [...modeSwitch.querySelectorAll('.mode-tab')];
 const railExpandTab = document.getElementById('rail-expand-tab');
+const aiSettingsOverlay = document.getElementById('ai-settings-overlay');
+const aiKeyInput = document.getElementById('ai-key-input');
+const aiKeyStatus = document.getElementById('ai-key-status');
+const aiKeyRemove = document.getElementById('ai-key-remove');
+const aiTitleStyle = document.getElementById('ai-title-style');
+const backupSettingsOverlay = document.getElementById('backup-settings-overlay');
+const backupClientId = document.getElementById('backup-client-id');
+const backupClientSecret = document.getElementById('backup-client-secret');
+const backupPickerKey = document.getElementById('backup-picker-key');
+const backupKeyStatus = document.getElementById('backup-key-status');
+const backupConnectBtn = document.getElementById('backup-connect-btn');
+const backupSaveBtn = document.getElementById('backup-save-btn');
+const backupNowBtn = document.getElementById('backup-now-btn');
+const backupFolderName = document.getElementById('backup-folder-name');
+const backupChooseFolderBtn = document.getElementById('backup-choose-folder-btn');
+const backupUseDefaultBtn = document.getElementById('backup-use-default-btn');
+const backupStatusIndicator = document.getElementById('backup-status-indicator');
+// Built once here (not static markup) so it gets the shared two-click
+// arm/confirm behavior from makeDeleteButton() — same helper rail.js and
+// corkboard.js use for scene/chapter deletion, this app's only "destructive
+// action" pattern (never a native confirm() dialog).
+const backupDisconnectBtn = makeDeleteButton('backup-disconnect-btn ai-settings-btn danger', 'Google Drive connection', async () => {
+  const result = await window.api.backupDisconnect();
+  if (!result.ok) {
+    backupKeyStatus.className = 'error';
+    backupKeyStatus.textContent = result.error;
+    return;
+  }
+  updateBackupUI(result.status);
+  showToast('Google Drive disconnected');
+});
+document.getElementById('backup-disconnect-slot').replaceWith(backupDisconnectBtn);
 
 const state = {
   theme: document.documentElement.getAttribute('data-theme'),
@@ -54,22 +86,8 @@ let view = window.BaretextEditor.create(
   },
   'start writing...'
 );
-// Native (OS-level) spellcheck on the editable surface — belt and
-// suspenders alongside webPreferences.spellcheck, and independent of the
-// spellcheck FEATURE's own decorations (features/spellcheck.js only ever
-// toggles those; this raw DOM attribute is a completely separate mechanism
-// Chromium's own spellchecker reads directly). It used to be forced on
-// unconditionally here, which meant native red squiggles kept showing in
-// Sprinter mode too — Sprinter's feature list never includes 'spellcheck'
-// (see modes.js), but nothing was ever un-forcing this attribute, so that
-// exclusion only ever stopped the app's own flagging, never the OS's.
-// Mode-aware now: on in Editor, off in Sprinter — see the call in
-// activateMode() below for the half that keeps it in sync on every switch.
 const cmContent = host.querySelector('.cm-content');
-function applyNativeSpellcheck(modeId) {
-  if (cmContent) cmContent.setAttribute('spellcheck', modeId === 'editor' ? 'true' : 'false');
-}
-applyNativeSpellcheck(state.mode);
+if (cmContent) cmContent.setAttribute('spellcheck', 'false');
 
 function getDoc()      { return window.BaretextEditor.getDoc(view); }
 // window.BaretextEditor.setDoc() deliberately suppresses the editor's own
@@ -85,13 +103,12 @@ function focusEditor() { window.BaretextEditor.focus(view); }
 
 // ── IPC from main ──
 window.api.onThemeChanged(() => {});
-window.api.onFileLoaded(({ content, filePath, cursorPos, typewriter, ignoredWords }) => {
+window.api.onFileLoaded(({ content, filePath, cursorPos, typewriter }) => {
   if (content !== null && content !== undefined) setDoc(content);
   state.filePath = filePath;
   setFileName(filePath);
   updateCounts(getDoc());
   if (typeof typewriter === 'boolean') setTypewriter(typewriter, { silent: true });
-  if (Array.isArray(ignoredWords)) window.BaretextEditor.setIgnoredWords(view, ignoredWords);
   requestAnimationFrame(() => {
     if (typeof cursorPos === 'number' && cursorPos >= 0) {
       window.BaretextEditor.setCursorPos(view, cursorPos);
@@ -116,6 +133,244 @@ window.api.onSaveError((data) => {
   elSaveErr.title = 'save failed: ' + ((data && data.message) || 'unknown error');
   if (!alreadyShowing) showToast('save failed — your changes are not being saved', { icon: 'ti-alert-triangle', tone: 'error' });
 });
+
+async function refreshAiSettingsStatus() {
+  const [status, preferences] = await Promise.all([window.api.aiStatus(), window.api.aiTitlePreferences()]);
+  aiTitleStyle.value = preferences.styleExamples || '';
+  aiKeyStatus.className = status.configured ? 'ready' : '';
+  aiKeyStatus.textContent = status.configured ? `ready · ${status.model}` : 'no key saved';
+  aiKeyRemove.hidden = !status.credentialStored;
+  return status;
+}
+
+async function openAiSettings() {
+  aiKeyInput.value = '';
+  aiKeyStatus.className = '';
+  aiSettingsOverlay.classList.add('open');
+  await refreshAiSettingsStatus();
+  aiKeyInput.focus();
+}
+
+function closeAiSettings() {
+  aiKeyInput.value = '';
+  aiSettingsOverlay.classList.remove('open');
+  focusEditor();
+}
+
+document.getElementById('ai-key-save').addEventListener('click', async () => {
+  const apiKey = aiKeyInput.value.trim();
+  const preferenceResult = await window.api.aiSaveTitlePreferences({ styleExamples: aiTitleStyle.value });
+  const result = apiKey ? await window.api.aiSaveKey(apiKey) : { ok: true, status: await window.api.aiStatus() };
+  aiKeyInput.value = '';
+  if (!result.ok || !preferenceResult.ok) {
+    aiKeyStatus.className = 'error';
+    aiKeyStatus.textContent = result.error || preferenceResult.error;
+    return;
+  }
+  aiKeyStatus.className = 'ready';
+  aiKeyStatus.textContent = result.status.configured ? `saved · ${result.status.model}` : 'title style saved · no API key';
+  aiKeyRemove.hidden = !result.status.credentialStored;
+  showToast('AI settings saved');
+});
+document.getElementById('ai-key-cancel').addEventListener('click', closeAiSettings);
+aiKeyRemove.addEventListener('click', async () => {
+  const result = await window.api.aiRemoveKey();
+  if (!result.ok) {
+    aiKeyStatus.className = 'error';
+    aiKeyStatus.textContent = result.error;
+    return;
+  }
+  await refreshAiSettingsStatus();
+  showToast('AI key removed');
+});
+aiKeyInput.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') closeAiSettings();
+  if (event.key === 'Enter') document.getElementById('ai-key-save').click();
+});
+aiSettingsOverlay.addEventListener('mousedown', (event) => {
+  if (event.target === aiSettingsOverlay) closeAiSettings();
+});
+window.api.onOpenAiSettings(openAiSettings);
+
+function relativeTime(iso) {
+  if (!iso) return null;
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
+}
+
+// Paints every backup UI surface (settings panel + status-bar indicator)
+// from a status object — kept separate from refreshBackupStatus() below so
+// the periodic background poll can repaint without ever touching the
+// credential input fields (those are only ever cleared when the panel opens
+// or closes, never mid-poll, or a poll landing while the user is mid-paste
+// would wipe unsaved input).
+function updateBackupUI(status) {
+  backupKeyStatus.className = status.lastError ? 'error' : (status.connected ? 'ready' : '');
+  backupKeyStatus.textContent = status.lastError
+    ? status.lastError
+    : status.connected
+      ? `connected as ${status.accountEmail}` + (status.lastBackupAt ? ` · last backup ${relativeTime(status.lastBackupAt)}` : '')
+      : (status.hasClientCredentials ? 'not connected' : 'no client credentials saved');
+  backupConnectBtn.hidden = status.connected;
+  backupNowBtn.hidden = !status.connected;
+  backupDisconnectBtn.hidden = !status.connected;
+  backupStatusIndicator.className = status.lastError ? 'error' : (status.connected ? 'connected' : '');
+  backupStatusIndicator.title = status.connected
+    ? `Google Drive backup: ${status.accountEmail}` + (status.lastBackupAt ? ` · last backup ${relativeTime(status.lastBackupAt)}` : '')
+    : 'Google Drive backup — not connected';
+
+  document.getElementById('backup-folder-row').hidden = !status.connected;
+  backupFolderName.textContent = status.destinationFolder
+    ? `folder: ${status.destinationFolder.name}`
+    : 'folder: Baretext Backups (default)';
+  backupChooseFolderBtn.hidden = !status.hasPickerApiKey;
+  backupUseDefaultBtn.hidden = !status.destinationFolder;
+}
+
+async function refreshBackupStatus() {
+  const status = await window.api.backupStatus();
+  updateBackupUI(status);
+  return status;
+}
+
+async function openBackupSettings() {
+  backupClientId.value = '';
+  backupClientSecret.value = '';
+  backupPickerKey.value = '';
+  backupKeyStatus.className = '';
+  backupSettingsOverlay.classList.add('open');
+  await refreshBackupStatus();
+  backupClientId.focus();
+}
+
+function closeBackupSettings() {
+  backupClientId.value = '';
+  backupClientSecret.value = '';
+  backupPickerKey.value = '';
+  backupSettingsOverlay.classList.remove('open');
+  focusEditor();
+}
+
+// Saves whichever of Client ID/Secret and Picker API key are non-blank —
+// no network call, safe to run without also starting the browser sign-in
+// flow. Separate from the Connect button below so credentials can be saved
+// now and connected later, and so a later "just add the picker key" visit
+// doesn't require re-pasting the OAuth fields (never re-shown once saved).
+async function saveTypedCredentials() {
+  const clientId = backupClientId.value.trim();
+  const clientSecret = backupClientSecret.value.trim();
+  const pickerKey = backupPickerKey.value.trim();
+  let status = null;
+
+  if (clientId || clientSecret) {
+    const result = await window.api.backupSaveClientCredentials({ clientId, clientSecret });
+    if (!result.ok) return { ok: false, error: result.error };
+    status = result.status;
+  }
+  if (pickerKey) {
+    const result = await window.api.backupSavePickerKey({ apiKey: pickerKey });
+    if (!result.ok) return { ok: false, error: result.error };
+    status = result.status;
+  }
+  backupClientId.value = '';
+  backupClientSecret.value = '';
+  backupPickerKey.value = '';
+  return { ok: true, status };
+}
+
+backupSaveBtn.addEventListener('click', async () => {
+  const result = await saveTypedCredentials();
+  if (!result.ok) {
+    backupKeyStatus.className = 'error';
+    backupKeyStatus.textContent = result.error;
+    return;
+  }
+  if (!result.status) {
+    backupKeyStatus.className = 'error';
+    backupKeyStatus.textContent = 'Enter a Client ID + Secret and/or a Picker API key to save';
+    return;
+  }
+  updateBackupUI(result.status);
+  showToast('Google Drive credentials saved');
+});
+backupConnectBtn.addEventListener('click', async () => {
+  const saveResult = await saveTypedCredentials();
+  if (!saveResult.ok) {
+    backupKeyStatus.className = 'error';
+    backupKeyStatus.textContent = saveResult.error;
+    return;
+  }
+  backupKeyStatus.className = '';
+  backupKeyStatus.textContent = 'opening Google sign-in…';
+  const result = await window.api.backupConnect();
+  if (!result.ok) {
+    backupKeyStatus.className = 'error';
+    backupKeyStatus.textContent = result.error;
+    return;
+  }
+  updateBackupUI(result.status);
+  showToast('Google Drive connected');
+});
+backupChooseFolderBtn.addEventListener('click', async () => {
+  backupChooseFolderBtn.disabled = true;
+  backupKeyStatus.className = '';
+  backupKeyStatus.textContent = 'opening the folder picker…';
+  try {
+    const result = await window.api.backupChooseFolder();
+    if (result.status) updateBackupUI(result.status);
+    if (result.ok) {
+      backupKeyStatus.className = '';
+      backupKeyStatus.textContent = '';
+      showToast(`backup folder set to "${result.folder.name}"`);
+    } else if (!result.canceled) {
+      backupKeyStatus.className = 'error';
+      backupKeyStatus.textContent = result.error;
+    } else {
+      backupKeyStatus.className = '';
+      backupKeyStatus.textContent = '';
+    }
+  } finally {
+    backupChooseFolderBtn.disabled = false;
+  }
+});
+backupUseDefaultBtn.addEventListener('click', async () => {
+  const result = await window.api.backupClearFolder();
+  updateBackupUI(result.status);
+  showToast('backup folder reset to default');
+});
+backupNowBtn.addEventListener('click', async () => {
+  backupKeyStatus.className = '';
+  backupKeyStatus.textContent = 'backing up…';
+  const result = await window.api.backupNow();
+  updateBackupUI(result.status);
+  if (result.ok) showToast('backup complete');
+  else if (!result.skipped) showToast('backup failed', { icon: 'ti-alert-triangle', tone: 'error' });
+});
+document.getElementById('backup-settings-cancel').addEventListener('click', closeBackupSettings);
+[backupClientId, backupClientSecret].forEach((input) => {
+  input.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeBackupSettings();
+    if (event.key === 'Enter' && !backupConnectBtn.hidden) backupConnectBtn.click();
+  });
+});
+backupPickerKey.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') closeBackupSettings();
+  if (event.key === 'Enter') backupSaveBtn.click();
+});
+backupSettingsOverlay.addEventListener('mousedown', (event) => {
+  if (event.target === backupSettingsOverlay) closeBackupSettings();
+});
+backupStatusIndicator.addEventListener('click', openBackupSettings);
+window.api.onOpenBackupSettings(openBackupSettings);
+refreshBackupStatus();
+// Backups happen on their own timer in the main process (autosave-driven,
+// not user-driven), so the status-bar indicator polls rather than waiting
+// for a push — cheap, since status() is just an in-memory read.
+setInterval(refreshBackupStatus, 60000);
 
 // Persist cursor position, debounced
 let cursorSaveTimer = null;
@@ -176,9 +431,21 @@ function showToast(msg, opts) {
     toastEl.appendChild(i);
   }
   toastEl.appendChild(document.createTextNode(msg));
+  if (opts && opts.actionLabel && typeof opts.onAction === 'function') {
+    const action = document.createElement('button');
+    action.type = 'button';
+    action.className = 'toast-action';
+    action.textContent = opts.actionLabel;
+    action.addEventListener('click', () => {
+      clearTimeout(toastTimer);
+      toastEl.classList.remove('show');
+      opts.onAction();
+    });
+    toastEl.appendChild(action);
+  }
   toastEl.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 1600);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), opts && opts.actionLabel ? 6000 : 1600);
 }
 
 // ── File commands (shared primitives — used by core.js's command manifest) ──
@@ -217,6 +484,15 @@ async function cmdExport() {
     showToast('exported');
   } else {
     showToast('export failed: ' + r.error, { icon: 'ti-alert-triangle', tone: 'error' });
+  }
+  focusEditor();
+}
+
+async function cmdPrint() {
+  closePalette(false);
+  const r = await window.api.printDocument();
+  if (r && !r.ok && !r.canceled) {
+    showToast('print failed: ' + r.error, { icon: 'ti-alert-triangle', tone: 'error' });
   }
   focusEditor();
 }
@@ -653,11 +929,13 @@ const ctx = {
   showToast,
   getDoc, setDoc, focusEditor,
   openOutline,
-  cmdSave, cmdOpen, cmdNew, cmdExport, cmdSaveDir,
+  cmdSave, cmdOpen, cmdNew, cmdExport, cmdPrint, cmdSaveDir,
   setTheme, setFont, toggleFontPicker,
   setTypewriter, toggleTypewriter, toggleFocus, toggleRenderedMode, insertSceneBreak,
   setRailCollapsed, toggleRailCollapsed,
   openThemePicker: () => themePicker.show(),
+  openAiSettings,
+  openBackupSettings,
 };
 
 // Mode-agnostic (themes apply in both Sprinter and Editor), so this mounts
@@ -738,7 +1016,6 @@ function activateMode(modeId) {
   window.api.setMode(modeDef.id);
   document.documentElement.setAttribute('data-mode', modeDef.id);
   window.BaretextEditor.setEditorMode(view, modeDef.id === 'editor');
-  applyNativeSpellcheck(modeDef.id);
   updateModeSwitch();
 
   activeFeatures.forEach(f => { if (f.init) f.init(ctx); });
