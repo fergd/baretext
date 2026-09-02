@@ -3345,6 +3345,57 @@ describe('Baretext E2E: catastrophic autosaves cannot erase a manuscript', () =>
   });
 });
 
+describe('Baretext E2E: Cold Storage rename cannot undo through file load', () => {
+  let app;
+  const manuscript = [
+    '# Part 1', '', 'Main manuscript prose that must never disappear.', '',
+    '<!-- COLD STORAGE -->', '', '<!-- Parked scene -->', '', 'Parked scene prose.', '',
+  ].join('\n');
+
+  before(async () => {
+    app = await launchApp({ fixtureContent: manuscript, mode: 'editor' });
+  });
+
+  after(async () => {
+    if (app) await app.close();
+  });
+
+  test('undoing a parked-scene rename stops at the loaded manuscript instead of reaching empty', async () => {
+    await app.client.evaluate(`
+      const deadline = Date.now() + 2000;
+      let edit;
+      while (!(edit = document.querySelector('.rail-cold-storage-section .rail-scene-row .rail-edit-btn')) && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      edit.click();
+      const input = document.querySelector('.rail-cold-storage-section .inline-rename-input');
+      input.value = 'Parked idea';
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      return true;
+    `);
+    await new Promise((resolve) => setTimeout(resolve, 650));
+
+    const result = await app.client.evaluate(`
+      const content = document.querySelector('.cm-content');
+      content.focus();
+      const undo = () => content.dispatchEvent(new KeyboardEvent('keydown', {
+        key: 'z', metaKey: true, bubbles: true, cancelable: true,
+      }));
+      undo();
+      undo();
+      return {
+        visibleText: content.innerText,
+        wordCount: document.getElementById('word-count').textContent,
+      };
+    `);
+
+    assert.ok(result.visibleText.includes('Main manuscript prose'));
+    assert.notEqual(result.wordCount, '0 words');
+    await new Promise((resolve) => setTimeout(resolve, 650));
+    assert.ok(fs.readFileSync(app.fixturePath, 'utf8').includes('Main manuscript prose'));
+  });
+});
+
 // Regression coverage for a design-system rail redesign that was attempted
 // once before, shipped as a full implementation, and then fully reverted
 // after real visual review found four concrete bugs (see PROGRESS.md and

@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mapPosAcrossReplace } from '../../src/editor/cursor-map.js';
 import { makeView } from './helpers/make-view.js';
+import { history, undo } from '@codemirror/commands';
+import { Transaction } from '@codemirror/state';
 
 // setDoc (api.js) is exercised end-to-end via its exported cursor-mapping
 // logic here rather than by importing api.js itself -- api.js pulls in the
@@ -10,12 +12,13 @@ import { makeView } from './helpers/make-view.js';
 // setDoc's actual dispatch shape against a real EditorState (via makeView),
 // so these tests still exercise the real CodeMirror selection-mapping
 // pipeline, just without api.js's own module graph.
-function dispatchSetDoc(view, text) {
+function dispatchSetDoc(view, text, { addToHistory = true } = {}) {
   const oldText = view.state.doc.toString();
   const newPos = mapPosAcrossReplace(oldText, text, view.state.selection.main.head);
   view.dispatch({
     changes: { from: 0, to: view.state.doc.length, insert: text },
     selection: { anchor: newPos },
+    annotations: addToHistory ? undefined : Transaction.addToHistory.of(false),
   });
 }
 
@@ -60,4 +63,19 @@ test('setDoc clamps the cursor to just before a span that was itself rewritten',
   dispatchSetDoc(view, newDoc);
 
   assert.equal(view.state.selection.main.head, newDoc.length);
+});
+
+test('a loaded manuscript is never an undo step back to the initial empty editor', () => {
+  const view = makeView('', [history()]);
+  const manuscript = '# Part 1\n\nThe manuscript.\n';
+  dispatchSetDoc(view, manuscript, { addToHistory: false });
+
+  // A later real edit remains undoable.
+  view.dispatch({ changes: { from: manuscript.length, insert: 'A new line.\n' } });
+  assert.equal(undo(view), true);
+  assert.equal(view.state.doc.toString(), manuscript);
+
+  // There is no second undo into the pre-load empty buffer.
+  assert.equal(undo(view), false);
+  assert.equal(view.state.doc.toString(), manuscript);
 });

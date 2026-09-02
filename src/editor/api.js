@@ -1,5 +1,5 @@
 import { EditorView, keymap, placeholder, drawSelection } from '@codemirror/view';
-import { EditorState } from '@codemirror/state';
+import { EditorState, Transaction } from '@codemirror/state';
 import { theme, injectSelectionFix, injectHeadingColors } from './theme.js';
 import { markdownExtensions } from './markdown-language.js';
 import { livePreviewPlugin, renderedModeField } from './live-preview.js';
@@ -120,7 +120,7 @@ export function getDoc(view) {
 // cursor-map.js) and re-anchor the cursor there explicitly. File load
 // overrides this with its own saved cursorPos immediately after (see
 // app.js), so it's unaffected either way.
-export function setDoc(view, text) {
+export function setDoc(view, text, { addToHistory = true } = {}) {
   const newText = text || '';
   const oldText = view.state.doc.toString();
   const newPos = mapPosAcrossReplace(oldText, newText, view.state.selection.main.head);
@@ -128,6 +128,7 @@ export function setDoc(view, text) {
   view.dispatch({
     changes: { from: 0, to: view.state.doc.length, insert: newText },
     selection: { anchor: newPos },
+    annotations: addToHistory ? undefined : Transaction.addToHistory.of(false),
   });
   view._setSuppressed(false);
 }

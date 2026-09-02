@@ -98,13 +98,23 @@ function getDoc()      { return window.BaretextEditor.getDoc(view); }
 // was added here: the status bar word count would just go stale (frozen at
 // its last real value) the moment you dragged a scene into or out of Cold
 // Storage, silently defeating the "excluded from the word count" promise.
-function setDoc(text)  { window.BaretextEditor.setDoc(view, text); updateCounts(text); }
+function setDoc(text, { persist = true, addToHistory = true } = {}) {
+  window.BaretextEditor.setDoc(view, text, { addToHistory });
+  updateCounts(text);
+  // Structural scene-nav operations rebuild the document programmatically,
+  // so CodeMirror's normal onChange callback is deliberately suppressed.
+  // They are still real edits and must enter the same 500 ms autosave path
+  // as typing. File loads opt out below: loading is neither an edit nor an
+  // undo step, and recording the initial empty -> manuscript replacement in
+  // history was the cause of the September 2026 whole-document disappearance.
+  if (persist) window.api.contentChanged(text);
+}
 function focusEditor() { window.BaretextEditor.focus(view); }
 
 // ── IPC from main ──
 window.api.onThemeChanged(() => {});
 window.api.onFileLoaded(({ content, filePath, cursorPos, typewriter }) => {
-  if (content !== null && content !== undefined) setDoc(content);
+  if (content !== null && content !== undefined) setDoc(content, { persist: false, addToHistory: false });
   state.filePath = filePath;
   setFileName(filePath);
   updateCounts(getDoc());
@@ -460,7 +470,7 @@ async function cmdOpen() {
   closePalette(false);
   const r = await window.api.openFile();
   if (r) {
-    setDoc(r.content);
+    setDoc(r.content, { persist: false, addToHistory: false });
     state.filePath = r.filePath;
     setFileName(r.filePath);
     updateCounts(r.content);
@@ -472,7 +482,7 @@ async function cmdNew() {
   closePalette(false);
   const r = await window.api.newFile();
   if (r) {
-    setDoc('');
+    setDoc('', { persist: false, addToHistory: false });
     state.filePath = r.filePath;
     setFileName(r.filePath);
     updateCounts('');
