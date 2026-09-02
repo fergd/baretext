@@ -7,6 +7,7 @@ const backup = require('./backup');
 const ai = require('./ai');
 const googleDrive = require('./google-drive');
 const { createCredentialStore } = require('./credential-store');
+const { createSafeWriter } = require('./safe-save');
 
 // Set the app name BEFORE anything else — this controls the menu bar label
 // (next to the Apple logo) and the name shown in Activity Monitor / Force Quit.
@@ -25,6 +26,7 @@ let mainWindow;
 let currentFilePath = null;
 let saveTimeout = null;
 let credentialStore = null;
+let safeWriter = null;
 
 // Default save location: ~/Documents/Barebones/
 const settingsPath = path.join(app.getPath('userData'), 'settings.json');
@@ -266,6 +268,9 @@ function openDrivePickerWindow({ accessToken, apiKey }) {
 }
 
 app.whenReady().then(() => {
+  safeWriter = createSafeWriter({
+    recoveryRoot: path.join(app.getPath('userData'), 'manuscript-recovery'),
+  });
   credentialStore = createCredentialStore({
     safeStorage,
     filePath: path.join(app.getPath('userData'), 'openai-key.encrypted'),
@@ -581,7 +586,13 @@ ipcMain.on('show-in-finder', (event, filePath) => {
 function saveToFile(content) {
   if (!currentFilePath) currentFilePath = getDefaultFilePath();
   try {
-    fs.writeFileSync(currentFilePath, content, 'utf8');
+    const result = safeWriter.write(currentFilePath, content);
+    if (!result.ok) {
+      const error = new Error(result.reason || 'save blocked');
+      error.blocked = !!result.blocked;
+      error.snapshotPath = result.snapshotPath;
+      throw error;
+    }
     // Remember this file so next launch reopens it
     settings.lastFilePath = currentFilePath;
     saveSettings(settings);
@@ -597,7 +608,12 @@ function saveToFile(content) {
     // (a status-bar indicator, cleared on every successful save) but nothing
     // ever set it — this is the missing other half.
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('save-error', { message: e.message, filePath: currentFilePath });
+      mainWindow.webContents.send('save-error', {
+        message: e.message,
+        filePath: currentFilePath,
+        blocked: !!e.blocked,
+        snapshotPath: e.snapshotPath || null,
+      });
     }
     return false;
   }

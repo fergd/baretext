@@ -131,7 +131,12 @@ window.api.onSaveError((data) => {
   const alreadyShowing = elSaveErr.classList.contains('visible');
   elSaveErr.classList.add('visible');
   elSaveErr.title = 'save failed: ' + ((data && data.message) || 'unknown error');
-  if (!alreadyShowing) showToast('save failed — your changes are not being saved', { icon: 'ti-alert-triangle', tone: 'error' });
+  if (!alreadyShowing) {
+    const message = data && data.blocked
+      ? 'destructive save blocked — your manuscript is safe on disk'
+      : 'save failed — your changes are not being saved';
+    showToast(message, { icon: 'ti-alert-triangle', tone: 'error' });
+  }
 });
 
 async function refreshAiSettingsStatus() {
@@ -1060,7 +1065,7 @@ document.addEventListener('keydown', (e) => {
 // ── Save immediately before any reload/close so ⌘R never loses content ──
 window.addEventListener('beforeunload', () => {
   const content = getDoc();
-  if (content) window.api.saveNow(content);
+  window.api.saveNow(content);
 });
 
 // ── Init ──

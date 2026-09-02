@@ -610,6 +610,11 @@ function buildColdStorageSection(chapters, coldStorageIndex, active) {
 
 export function render() {
   if (!railEl) return;
+  // Active-scene changes rebuild the rail so its highlight and metadata stay
+  // current. Preserve the independent list viewport across that replacement;
+  // otherwise clicking any scene below the fold snaps the rail back upward.
+  const previousList = railEl.querySelector('.rail-list');
+  const previousScrollTop = previousList ? previousList.scrollTop : 0;
   const chapters = getManuscript(ctx.view);
   // Cold Storage is always the last entry (see model.js) — its index also
   // doubles as the count of real chapters before it.
@@ -787,6 +792,7 @@ export function render() {
   list.appendChild(el('div', 'rail-spacer'));
   list.appendChild(buildColdStorageSection(chapters, coldStorageIndex, active));
   railEl.appendChild(list);
+  list.scrollTop = previousScrollTop;
 
   const footer = btn('rail-footer');
   footer.append(icon('ti-plus'), document.createTextNode(' New Chapter'));

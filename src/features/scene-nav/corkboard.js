@@ -139,6 +139,15 @@ function injectStyle() {
 .ai-title-suggestion:hover, .ai-title-suggestion:focus-visible {
   color: var(--text); border-color: var(--syntax-2, var(--accent));
 }
+.ai-title-dismiss {
+  all: unset; box-sizing: border-box; cursor: pointer; align-self: center;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; margin-left: 2px; border-radius: var(--radius-sm, 6px);
+  color: var(--text-dimmer); font-size: 13px;
+}
+.ai-title-dismiss:hover, .ai-title-dismiss:focus-visible {
+  color: var(--text); background: var(--icon-btn-hover);
+}
 .ai-title-state { color: var(--text-dimmer); padding: 4px 0; }
 `);
 }
@@ -250,6 +259,19 @@ function titleSuggestions(key, target) {
     });
     row.appendChild(choice);
   });
+  if (!namingState.loading) {
+    const dismiss = btn('ai-title-dismiss');
+    dismiss.appendChild(icon('ti-x'));
+    dismiss.title = 'dismiss suggestions';
+    dismiss.setAttribute('aria-label', 'Dismiss suggestions');
+    dismiss.addEventListener('mousedown', (e) => e.stopPropagation());
+    dismiss.addEventListener('click', (e) => {
+      e.stopPropagation();
+      namingState = null;
+      render();
+    });
+    row.appendChild(dismiss);
+  }
   return row;
 }
 
@@ -268,6 +290,12 @@ function jumpTo(scene) {
 
 export function render() {
   if (!boardEl) return;
+  // Most corkboard actions re-render the whole surface so cards, summaries,
+  // suggestions, and undo state stay in sync. Preserve the old scrolling
+  // element's exact position before replacing it; otherwise any interaction
+  // below the fold jumps the writer back to the first chapter.
+  const previousBody = boardEl.querySelector('.corkboard-body');
+  const previousScrollTop = previousBody ? previousBody.scrollTop : 0;
   const chapters = getManuscript(ctx.view);
   const cursorPos = ctx.editor.getCursorPos(ctx.view);
   const active = findActiveScene(chapters, cursorPos);
@@ -515,6 +543,7 @@ export function render() {
     body.appendChild(section);
   });
   boardEl.appendChild(body);
+  body.scrollTop = previousScrollTop;
 }
 
 export function isOpen() { return open; }

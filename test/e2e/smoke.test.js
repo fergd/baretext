@@ -129,6 +129,32 @@ describe('Baretext E2E smoke test', () => {
     assert.match(activeText || '', /A Turning Point/);
   });
 
+  test('clicking a below-the-fold rail scene preserves the exact rail scroll position', async () => {
+    const result = await app.client.evaluate(`
+      const deadline = Date.now() + 2000;
+      while (!document.querySelector('#scene-rail .rail-scene-row') && Date.now() < deadline) {
+        await new Promise(r => setTimeout(r, 50));
+      }
+      const style = document.createElement('style');
+      style.id = 'rail-scroll-regression-fixture';
+      style.textContent = '#scene-rail .rail-list { height: 180px; flex: none; }';
+      document.head.appendChild(style);
+
+      let list = document.querySelector('#scene-rail .rail-list');
+      list.scrollTop = Math.min(120, list.scrollHeight - list.clientHeight);
+      const before = list.scrollTop;
+      const rows = [...document.querySelectorAll('#scene-rail .rail-scene-row')]
+        .filter(row => !row.closest('.rail-cold-storage-section'));
+      rows.at(-1).click();
+      list = document.querySelector('#scene-rail .rail-list');
+      const after = list.scrollTop;
+      style.remove();
+      return { before, after };
+    `);
+    assert.ok(result.before > 0, 'fixture must scroll far enough to exercise a below-the-fold row');
+    assert.equal(result.after, result.before);
+  });
+
   test('renaming a chapter via the rail rewrites the heading in the document', async () => {
     await app.client.evaluate(`
       const editBtn = document.querySelector('.rail-chapter-row .rail-edit-btn');
@@ -214,6 +240,34 @@ describe('Baretext E2E smoke test', () => {
     assert.ok(result.chapterNamingButtons > 0);
     assert.equal(result.aiButtonsUseAiIcon, true);
     assert.deepEqual(result.apiMethods, ['function', 'function', 'function', 'function', 'function', 'function']);
+  });
+
+  test('a below-the-fold card action preserves the exact corkboard scroll position', async () => {
+    const result = await app.client.evaluate(`
+      if (getComputedStyle(document.getElementById('corkboard')).display === 'none') {
+        document.querySelector('.rail-corkboard-btn').click();
+        await new Promise(r => setTimeout(r, 150));
+      }
+      let body = document.querySelector('#corkboard .corkboard-body');
+      // The compact smoke fixture can fit in the test window. Constrain the
+      // body so this test exercises the same below-the-fold state as a real
+      // manuscript with many chapters.
+      const style = document.createElement('style');
+      style.textContent = '#corkboard .corkboard-body { height: 180px; flex: none; }';
+      document.head.appendChild(style);
+      // Stay away from the absolute bottom, where an unrelated card-height
+      // change could legitimately clamp scrollTop to a new smaller maximum.
+      body.scrollTop = Math.min(150, body.scrollHeight - body.clientHeight);
+      const before = body.scrollTop;
+      const card = [...document.querySelectorAll('#corkboard .scene-card')].at(-1);
+      card.querySelector('button[title="rename scene"]').click();
+      const input = document.querySelector('#corkboard .scene-card .inline-rename-input');
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      body = document.querySelector('#corkboard .corkboard-body');
+      return { before, after: body.scrollTop };
+    `);
+    assert.ok(result.before > 0, 'fixture must scroll far enough to exercise a below-the-fold card');
+    assert.equal(result.after, result.before);
   });
 
   test('personal AI key settings are reachable without exposing a saved credential', async () => {
@@ -3251,6 +3305,43 @@ describe('Baretext E2E: a failed save surfaces to the user instead of failing si
     } finally {
       fixSavePath();
     }
+  });
+});
+
+// Regression for the September 2026 data-loss incident: one Cmd-Z replaced
+// an 82 KB editor buffer with an empty string, and the 500 ms autosave wrote
+// that empty string over the manuscript. Exercise the real renderer -> IPC ->
+// main-process writer path and inspect actual disk bytes afterward.
+describe('Baretext E2E: catastrophic autosaves cannot erase a manuscript', () => {
+  let app;
+  const manuscript = '# Chapter 1\n\n' + 'The manuscript must remain recoverable. '.repeat(500);
+
+  before(async () => {
+    app = await launchApp({ fixtureContent: manuscript, mode: 'editor' });
+  });
+
+  after(async () => {
+    if (app) await app.close();
+  });
+
+  test('an empty autosave is blocked, the disk file survives, and a recovery snapshot exists', async () => {
+    await app.client.evaluate(`window.api.contentChanged(''); return true;`);
+    await new Promise((resolve) => setTimeout(resolve, 800));
+
+    assert.equal(fs.readFileSync(app.fixturePath, 'utf8'), manuscript);
+    const recoveryRoot = path.join(app.userDataDir, 'manuscript-recovery');
+    const snapshots = fs.readdirSync(recoveryRoot).flatMap((dir) =>
+      fs.readdirSync(path.join(recoveryRoot, dir)).filter((name) => name.endsWith('.snapshot'))
+    );
+    assert.ok(snapshots.length >= 1, 'the pre-save manuscript must also exist in recovery history');
+
+    const ui = await app.client.evaluate(`return {
+      errorVisible: document.getElementById('save-error').classList.contains('visible'),
+      toastText: document.getElementById('toast').textContent,
+    };`);
+    assert.equal(ui.errorVisible, true);
+    assert.ok(ui.toastText.includes('destructive save blocked'));
+    assert.ok(ui.toastText.includes('manuscript is safe'));
   });
 });
 
