@@ -1,4 +1,5 @@
-import { Decoration, ViewPlugin } from '@codemirror/view';
+import { Decoration, EditorView, ViewPlugin } from '@codemirror/view';
+import { StateField } from '@codemirror/state';
 import { injectStyle as injectStyleTag } from '../dom.js';
 
 export const BOOK_TITLE_RE = /^<!--\s*BOOK TITLE:\s*(.*?)\s*-->$/;
@@ -35,12 +36,13 @@ function build(view) {
   const titleEnd = titleStart + match[1].length;
   const ranges = [Decoration.line({ class: 'cm-book-title' }).range(first.from)];
 
-  // Reveal the record syntax only while the writer is editing this line,
-  // matching Baretext's existing live-preview behavior for Markdown marks.
-  if (view.state.doc.lineAt(view.state.selection.main.head).number !== 1) {
-    ranges.push(Decoration.replace({}).range(first.from, first.from + titleStart));
-    ranges.push(Decoration.replace({}).range(first.from + titleEnd, first.to));
-  }
+  // This is application metadata, not author-facing Markdown. Keep its
+  // comment delimiters hidden even when the caret happens to land on line
+  // one (for example after restoring a saved cursor position). Revealing
+  // them made the record look like manuscript text and invited accidental
+  // edits that could make the outline treat it as real prose.
+  ranges.push(Decoration.replace({}).range(first.from, first.from + titleStart));
+  ranges.push(Decoration.replace({}).range(first.from + titleEnd, first.to));
   return Decoration.set(ranges, true);
 }
 
@@ -52,6 +54,44 @@ export const bookTitlePlugin = ViewPlugin.fromClass(class {
     }
   }
 }, { decorations: (value) => value.decorations });
+
+function buildAtomicRange(state) {
+  const first = state.doc.line(1);
+  if (!BOOK_TITLE_RE.test(first.text)) return Decoration.none;
+  return Decoration.set([
+    Decoration.mark({}).range(first.from, Math.min(first.to + 1, state.doc.length)),
+  ]);
+}
+
+// The title record is private application metadata. Keeping its whole line
+// atomic prevents arrow-key movement from ever parking the caret inside the
+// hidden comment delimiters, where ordinary typing could corrupt the record.
+export const bookTitleAtomicRange = StateField.define({
+  create: (state) => buildAtomicRange(state),
+  update: (value, tr) => (tr.docChanged ? buildAtomicRange(tr.state) : value.map(tr.changes)),
+  provide: (field) => EditorView.atomicRanges.from(field, (ranges) => () => ranges),
+});
+
+export function positionAfterBookTitle(doc) {
+  const first = doc.line(1);
+  if (!BOOK_TITLE_RE.test(first.text)) return null;
+  return doc.lines >= 3 ? doc.line(3).from : Math.min(first.to + 1, doc.length);
+}
+
+// Mouse position resolution can still choose an atomic range's near edge.
+// Redirect clicks on the rendered title to the first manuscript line.
+export const bookTitleClickGuard = EditorView.domEventHandlers({
+  mousedown(event, view) {
+    const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+    if (pos === null || view.state.doc.lineAt(pos).number !== 1) return false;
+    const safe = positionAfterBookTitle(view.state.doc);
+    if (safe === null) return false;
+    event.preventDefault();
+    view.dispatch({ selection: { anchor: safe } });
+    view.focus();
+    return true;
+  },
+});
 
 export function injectBookTitleStyle() {
   injectStyleTag('bt-book-title', `

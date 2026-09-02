@@ -75,12 +75,17 @@ export function getManuscript(view) {
   const chapters = [];
   const titleMatch = doc.split('\n', 1)[0].match(BOOK_TITLE_RE);
   chapters.bookTitle = titleMatch ? titleMatch[1].trim() : '';
+  const titleRecordEnd = titleMatch ? doc.indexOf('\n') === -1 ? docLength : doc.indexOf('\n') + 1 : 0;
   const coldStorage = { title: 'Cold Storage', coldStorage: true, pos: null, scenes: [] };
   let currentChapter = null;
   let inColdStorage = false;
 
   for (let i = 0; i < outline.length; i++) {
     const item = outline[i];
+    // Defense in depth: the editor outline normally excludes the private
+    // first-line title record itself. Never let a stale bundle or malformed
+    // outline result turn that metadata into a synthetic Chapter 1.
+    if (titleRecordEnd && item.pos < titleRecordEnd) continue;
     const endPos = i + 1 < outline.length ? outline[i + 1].pos : docLength;
 
     if (item.type === 'cold-storage') {

@@ -12,7 +12,7 @@ import { chapterPlaceholderPlugin, injectChapterPlaceholderStyle } from './chapt
 import { manuscriptGutterPlugin, manuscriptGutterAlignPlugin, injectManuscriptGutterStyle } from './manuscript-gutter.js';
 import { editorModeField, setEditorMode as setEditorModeField } from './mode-state.js';
 import { coldStorageViewField, coldStorageHideField, setColdStorageViewEffect } from './cold-storage-view.js';
-import { bookTitlePlugin, injectBookTitleStyle } from './book-title.js';
+import { bookTitlePlugin, bookTitleAtomicRange, bookTitleClickGuard, positionAfterBookTitle, injectBookTitleStyle } from './book-title.js';
 import { mapPosAcrossReplace } from './cursor-map.js';
 import { sceneBoundaryGuardKeymap } from './scene-boundary-guard.js';
 
@@ -68,6 +68,8 @@ export function create(container, initialDoc, onChange, placeholderText) {
         editorModeField,
         livePreviewPlugin,
         bookTitlePlugin,
+        bookTitleAtomicRange,
+        bookTitleClickGuard,
         sceneBreakDecorator,
         sceneBreakAtomicRanges,
         sceneBreakClickGuard(),
@@ -157,7 +159,9 @@ export function getCursorPos(view) {
 
 export function setCursorPos(view, pos) {
   const max = view.state.doc.length;
-  const clamped = Math.max(0, Math.min(pos, max));
+  let clamped = Math.max(0, Math.min(pos, max));
+  const safeBookPos = positionAfterBookTitle(view.state.doc);
+  if (safeBookPos !== null && clamped <= view.state.doc.line(1).to) clamped = safeBookPos;
   view.dispatch({
     selection: { anchor: clamped, head: clamped },
     effects: EditorView.scrollIntoView(clamped, { y: 'center' }),

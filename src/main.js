@@ -13,6 +13,14 @@ const { createCredentialStore } = require('./credential-store');
 // In dev mode (electron .) this overrides the default "Electron" label.
 app.setName('Baretext');
 
+// Chromium's accelerated compositor can lose the BrowserWindow backing
+// surface on macOS while a wheel/trackpad gesture is in flight. When that
+// happens the whole window flashes black and then repaints in scattered
+// tiles (including the status bar, so this is not CodeMirror viewport
+// virtualization). Software compositing avoids that driver-level failure.
+// Electron requires this call before the app becomes ready.
+app.disableHardwareAcceleration();
+
 let mainWindow;
 let currentFilePath = null;
 let saveTimeout = null;

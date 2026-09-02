@@ -48,6 +48,16 @@ test('content before any heading becomes a synthesized chapter with a placeholde
   assert.equal(chapters[1].number, 2);
 });
 
+test('the private book-title record never becomes a synthetic chapter', () => {
+  const text = `<!-- BOOK TITLE: Testing the Spirits -->\n\n# Part 1\n\n${LONG_ENOUGH}`;
+  const chapters = getManuscript(makeView(text));
+
+  assert.equal(chapters.bookTitle, 'Testing the Spirits');
+  assert.equal(chapters.length, 2); // Part 1 plus Cold Storage
+  assert.equal(chapters[0].title, 'Part 1');
+  assert.equal(chapters[0].synthetic, undefined);
+});
+
 test('a real h1 heading with no title text yet gets a placeholder displayTitle', () => {
   const text = `# \n\n${LONG_ENOUGH}\n\n# Chapter Two\n\n${LONG_ENOUGH}`;
   const chapters = getManuscript(makeView(text));
