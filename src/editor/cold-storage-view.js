@@ -24,6 +24,12 @@ import { StateField, StateEffect } from '@codemirror/state';
 // here is a separate view or a copy that needs syncing back. Only what's
 // rendered/scrollable changes.
 const COLD_STORAGE_MARKER = '<!-- COLD STORAGE -->';
+// These ranges always start/end on line boundaries and may span thousands
+// of lines. They must be block replacements so CodeMirror removes their
+// vertical extent from its height map. Treating them as default inline
+// replacements left a large phantom scroll region where every rendered line
+// was concealed—the exact "manuscript disappears while scrolling" failure.
+const hideBlock = () => Decoration.replace({ block: true });
 
 export const setColdStorageViewEffect = StateEffect.define();
 
@@ -56,14 +62,14 @@ function buildDecorations(state) {
 
   if (view) {
     const decos = [];
-    if (view.from > 0) decos.push(Decoration.replace({}).range(0, view.from));
-    if (view.to < doc.length) decos.push(Decoration.replace({}).range(view.to, doc.length));
+    if (view.from > 0) decos.push(hideBlock().range(0, view.from));
+    if (view.to < doc.length) decos.push(hideBlock().range(view.to, doc.length));
     return Decoration.set(decos);
   }
 
   const markerPos = findColdStorageMarkerPos(doc);
   if (markerPos === -1) return Decoration.none;
-  return Decoration.set([Decoration.replace({}).range(markerPos, doc.length)]);
+  return Decoration.set([hideBlock().range(markerPos, doc.length)]);
 }
 
 export const coldStorageHideField = StateField.define({

@@ -67,7 +67,7 @@ export default {
       },
       { group: 'View',
         items: [
-          { label: 'Markdown: toggle symbols', icon: 'ti-markdown',     keys: ['⌘','⇧','M'],    fn: ctx.toggleRenderedMode },
+          { label: ctx.state.sourceMode ? 'Switch to Pretty view' : 'Switch to Markdown view', icon: 'ti-markdown', keys: ['⌘','⇧','M'], fn: ctx.toggleRenderedMode },
           { label: 'Typewriter mode',          icon: 'ti-align-center', keys: ['⌘','⇧','T'],    fn: ctx.toggleTypewriter },
           { label: 'Change font',              icon: 'ti-typography',   keys: ['⌘','⇧','F'],    fn: ctx.toggleFontPicker },
           { label: 'Focus mode',               icon: 'ti-eye-off',      keys: ['⌘','.'],         fn: ctx.toggleFocus },

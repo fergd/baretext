@@ -76,6 +76,9 @@ export async function connect(port) {
   async function mouseEvent(type, x, y, buttons = 0, button = 'left') {
     await send('Input.dispatchMouseEvent', { type, x, y, button, buttons, clickCount: type === 'mousePressed' ? 1 : 0 });
   }
+  async function mouseWheel(x, y, deltaY) {
+    await send('Input.dispatchMouseEvent', { type: 'mouseWheel', x, y, deltaX: 0, deltaY });
+  }
   async function realDrag(fromX, fromY, toX, toY, { steps = 12, stepDelayMs = 30 } = {}) {
     await mouseEvent('mouseMoved', fromX, fromY);
     await new Promise((r) => setTimeout(r, 50));
@@ -110,5 +113,5 @@ export async function connect(port) {
     await send('Emulation.setEmulatedMedia', { media });
   }
 
-  return { evaluate, getConsoleMessages, clearConsoleMessages, close, mouseEvent, realDrag, screenshot, emulateMedia };
+  return { evaluate, getConsoleMessages, clearConsoleMessages, close, mouseEvent, mouseWheel, realDrag, screenshot, emulateMedia };
 }

@@ -81,7 +81,7 @@ export function beginEdit(displayEl, currentValue, onCommit, render) {
   input.className = 'inline-rename-input';
   input.value = currentValue;
   displayEl.replaceWith(input);
-  input.focus();
+  input.focus({ preventScroll: true });
   input.select();
 
   let done = false;

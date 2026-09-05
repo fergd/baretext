@@ -88,6 +88,7 @@ let view = window.BaretextEditor.create(
 );
 const cmContent = host.querySelector('.cm-content');
 if (cmContent) cmContent.setAttribute('spellcheck', 'false');
+host.dataset.editorView = 'pretty';
 
 function getDoc()      { return window.BaretextEditor.getDoc(view); }
 // window.BaretextEditor.setDoc() deliberately suppresses the editor's own
@@ -398,15 +399,12 @@ function reportCursorPosition() {
 host.addEventListener('keyup', reportCursorPosition);
 host.addEventListener('mouseup', reportCursorPosition);
 
-// Typewriter mode: re-center on every caret move, not just doc changes.
-// centerCursor() is a no-op scroll when the line is already centered, so
-// this doesn't cause motion while typing within a line — only line changes
-// (Enter, arrow up/down, wraps, clicks) actually trigger a scroll.
-function maybeRecenterTypewriter() {
-  if (state.typewriter) window.BaretextEditor.centerCursor(view);
-}
-host.addEventListener('keyup', maybeRecenterTypewriter);
-host.addEventListener('mouseup', maybeRecenterTypewriter);
+// Typewriter mode recenters when text is actually edited (the create()
+// onChange callback above), when the mode is enabled, and on explicit
+// navigation commands. Ordinary caret movement, selection, wheel input,
+// and scrollbar dragging remain browser-controlled. Treating keyup or
+// mouseup as a recenter request made innocent navigation gestures capable
+// of launching the manuscript back to a distant caret/scene.
 
 // ── Status ──
 // Cold Storage (see scene-nav/model.js) is cut material parked outside the
@@ -603,6 +601,7 @@ function insertSceneBreak() {
 function toggleRenderedMode() {
   state.sourceMode = !state.sourceMode;
   window.BaretextEditor.setRenderedMode(view, state.sourceMode);
+  host.dataset.editorView = state.sourceMode ? 'markdown' : 'pretty';
   const scroller = host.querySelector('.cm-scroller');
   if (scroller) {
     scroller.style.transition = 'none';
@@ -613,7 +612,7 @@ function toggleRenderedMode() {
       setTimeout(() => { scroller.style.transition = ''; }, 220);
     });
   }
-  showToast(state.sourceMode ? 'markdown visible' : 'markdown hidden');
+  showToast(state.sourceMode ? 'markdown view' : 'pretty view');
 }
 function setTypewriter(on, opts = {}) {
   state.typewriter = on;

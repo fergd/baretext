@@ -17,6 +17,20 @@
 
 const HEADING_LEVELS = { h1: 1, h2: 2, h3: 3 };
 const NAME_COMMENT_RE = /^<!--.*-->$/;
+const COLD_STORAGE_MARKER = '<!-- COLD STORAGE -->';
+const BOOK_TITLE_RE = /^<!--\s*BOOK TITLE:/;
+
+// Scene waypoint names share HTML-comment syntax with Baretext's private
+// structural records. Never let an implicit first-scene rename consume one
+// of those records as though it were the scene's existing name. In
+// particular, the first Cold Storage scene sits immediately below the Cold
+// Storage marker, so the backward scan in that branch naturally reaches it.
+function isNameComment(text) {
+  const trimmed = text.trim();
+  return NAME_COMMENT_RE.test(trimmed)
+    && trimmed !== COLD_STORAGE_MARKER
+    && !BOOK_TITLE_RE.test(trimmed);
+}
 
 function commentFor(title) {
   return '<!-- ' + title + ' -->';
@@ -56,7 +70,7 @@ export function renameTitle(view, target, newTitle) {
 
   if (isMarkerLine) {
     const nextLine = line.number < doc.lines ? doc.line(line.number + 1) : null;
-    const hasComment = nextLine && NAME_COMMENT_RE.test(nextLine.text.trim());
+    const hasComment = nextLine && isNameComment(nextLine.text);
     if (!title) {
       if (hasComment) view.dispatch({ changes: { from: nextLine.from, to: Math.min(nextLine.to + 1, doc.length) } });
       return;
@@ -78,7 +92,7 @@ export function renameTitle(view, target, newTitle) {
   let checkNum = line.number - 1;
   while (checkNum >= 1 && doc.line(checkNum).text.trim() === '') checkNum--;
   const prevLine = checkNum >= 1 ? doc.line(checkNum) : null;
-  const hasComment = prevLine && NAME_COMMENT_RE.test(prevLine.text.trim());
+  const hasComment = prevLine && isNameComment(prevLine.text);
   if (!title) {
     if (hasComment) view.dispatch({ changes: { from: prevLine.from, to: line.from } });
     return;

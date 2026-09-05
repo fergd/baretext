@@ -1442,7 +1442,7 @@ describe('Baretext E2E: rail/corkboard navigation scrolls the jump target to the
       `## ${label}\n\n` +
       Array.from({ length: 40 }, (_, i) => `Paragraph ${i} of ${label}, with enough words to take up real vertical space in the editor viewport.`).join('\n\n');
     const fixtureContent = `# Chapter One\n\n${longScene('Alpha')}\n\n---\n\n${longScene('Beta')}\n\n---\n\n${longScene('Gamma')}`;
-    app = await launchApp({ fixtureContent, mode: 'editor' });
+    app = await launchApp({ fixtureContent, mode: 'editor', extraSettings: { typewriter: true } });
     await new Promise((r) => setTimeout(r, 300));
   });
 
@@ -1476,6 +1476,72 @@ describe('Baretext E2E: rail/corkboard navigation scrolls the jump target to the
 
     const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
     assert.deepEqual(bad, []);
+  });
+
+  test('scene click moves the caret into that scene and a later scrollbar drag stays put', async () => {
+    const result = await app.client.evaluate(`
+      const row = [...document.querySelectorAll('.rail-scene-row')].find(r => r.textContent.includes('Gamma'));
+      row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      row.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 100));
+
+      const selection = document.getSelection();
+      const caretLine = selection.anchorNode?.nodeType === Node.TEXT_NODE
+        ? selection.anchorNode.parentElement?.closest('.cm-line')
+        : selection.anchorNode?.closest?.('.cm-line');
+      const scroller = document.querySelector('.cm-scroller');
+      const beforeDrag = scroller.scrollTop;
+      scroller.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      scroller.scrollTop = Math.max(0, beforeDrag - 300);
+      const draggedTo = scroller.scrollTop;
+      scroller.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 150));
+      return { caretText: caretLine?.textContent || '', draggedTo, afterMouseup: scroller.scrollTop };
+    `);
+
+    assert.match(result.caretText, /Paragraph 0 of Gamma/);
+    assert.equal(result.afterMouseup, result.draggedTo, 'releasing the scrollbar must not recenter on the caret');
+  });
+
+  test('releasing a drag-selection does not recenter its endpoint or jump scenes', async () => {
+    const points = await app.client.evaluate(`
+      const scroller = document.querySelector('.cm-scroller');
+      // CodeMirror virtualizes off-screen lines, so position the real
+      // scroller first and let it render the text that the drag will cross.
+      scroller.scrollTop = (scroller.scrollHeight - scroller.clientHeight) * 0.85;
+      await new Promise(r => setTimeout(r, 100));
+      const rect = scroller.getBoundingClientRect();
+      return {
+        startX: rect.right - 180,
+        startY: rect.bottom - 90,
+        endX: rect.left + 260,
+        endY: rect.top + 90,
+      };
+    `);
+
+    await app.client.mouseEvent('mouseMoved', points.startX, points.startY);
+    await app.client.mouseEvent('mousePressed', points.startX, points.startY, 1);
+    for (let i = 1; i <= 10; i++) {
+      const x = points.startX + (points.endX - points.startX) * (i / 10);
+      const y = points.startY + (points.endY - points.startY) * (i / 10);
+      await app.client.mouseEvent('mouseMoved', x, y, 1);
+    }
+    const beforeRelease = await app.client.evaluate(`
+      return document.querySelector('.cm-scroller').scrollTop;
+    `);
+    await app.client.mouseEvent('mouseReleased', points.endX, points.endY, 0);
+    await new Promise(r => setTimeout(r, 150));
+    const after = await app.client.evaluate(`
+      return {
+        scrollTop: document.querySelector('.cm-scroller').scrollTop,
+        hasSelection: !document.getSelection().isCollapsed,
+        activeScene: document.querySelector('.rail-scene-row.active')?.textContent || '',
+      };
+    `);
+
+    assert.equal(after.hasSelection, true, 'fixture must create a real text selection');
+    assert.ok(Math.abs(after.scrollTop - beforeRelease) < 2, 'selection mouseup must leave the browser-controlled viewport in place');
+    assert.match(after.activeScene, /Gamma/);
   });
 
   test('double-clicking a card in the corkboard also scrolls its heading to the top, not centered', async () => {
@@ -1665,19 +1731,36 @@ describe('Baretext E2E: Mod-b / Mod-i wrap the real selection in bold/italic mar
     const after = await app.client.evaluate(`
       return { text: document.querySelector('.cm-content').innerText, selected: window.getSelection().toString() };
     `);
-    assert.ok(after.text.includes('*plain*'), 'expected the selected word wrapped in single asterisks');
+    assert.ok(after.text.includes('plain'), 'Pretty view should keep showing the formatted word');
+    assert.ok(!after.text.includes('*plain*'), 'Pretty view must not reveal delimiters after formatting');
     assert.equal(after.selected, 'plain', 'selection must stay on the wrapped word, not balloon out to the whole line');
+    await new Promise((r) => setTimeout(r, 350));
+    assert.ok(fs.readFileSync(app.fixturePath, 'utf8').includes('*plain*'), 'the Markdown source must contain the italic delimiters');
   });
 
   test('Mod-b wraps a real selection in double asterisks', async () => {
     await dragSelectWord('testing');
+    const selectedBefore = await app.client.evaluate('return window.getSelection().toString();');
+    assert.equal(selectedBefore, 'testing');
     await app.client.evaluate(`
       document.querySelector('.cm-content').dispatchEvent(new KeyboardEvent('keydown', { key: 'b', metaKey: true, bubbles: true, cancelable: true }));
       return true;
     `);
     await new Promise((r) => setTimeout(r, 200));
     const text = await app.client.evaluate('return document.querySelector(".cm-content").innerText;');
-    assert.ok(text.includes('**testing**'), 'expected the selected word wrapped in double asterisks');
+    assert.ok(text.includes('testing'), 'Pretty view should keep showing the formatted word');
+    assert.ok(!text.includes('**testing**'), 'Pretty view must not reveal delimiters after formatting');
+    const markdown = await app.client.evaluate(`
+      const content = document.querySelector('.cm-content');
+      content.dispatchEvent(new KeyboardEvent('keydown', { key: 'm', metaKey: true, shiftKey: true, bubbles: true, cancelable: true }));
+      await new Promise(r => requestAnimationFrame(r));
+      const raw = content.innerText;
+      content.dispatchEvent(new KeyboardEvent('keydown', { key: 'm', metaKey: true, shiftKey: true, bubbles: true, cancelable: true }));
+      return raw;
+    `);
+    assert.ok(markdown.includes('**testing**'), 'Markdown view must expose the bold delimiters');
+    await new Promise((r) => setTimeout(r, 350));
+    assert.ok(fs.readFileSync(app.fixturePath, 'utf8').includes('**testing**'), 'the Markdown source must contain the bold delimiters');
     const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
     assert.deepEqual(bad, []);
   });
@@ -2338,6 +2421,24 @@ describe('Baretext E2E: Cold Storage scenes open in an isolated scene view, not 
       };
     `);
   }
+
+  test('typing at the end of the last manuscript scene works when Cold Storage follows it', async () => {
+    const point = await app.client.evaluate(`
+      const line = [...document.querySelectorAll('.cm-line')]
+        .find(el => el.textContent.includes('Paragraph 19 of chapter one'));
+      const rect = line.getBoundingClientRect();
+      return { x: rect.right - 2, y: rect.top + rect.height / 2 };
+    `);
+    await app.client.mouseEvent('mousePressed', point.x, point.y, 1);
+    await app.client.mouseEvent('mouseReleased', point.x, point.y, 0);
+    await app.client.evaluate(`
+      document.execCommand('insertText', false, ' END-TYPING-WORKS');
+      await new Promise(r => setTimeout(r, 750));
+    `);
+    const saved = fs.readFileSync(app.fixturePath, 'utf8');
+    assert.ok(saved.includes('Paragraph 19 of chapter one') && saved.includes('END-TYPING-WORKS'));
+    assert.ok(saved.includes('<!-- COLD STORAGE -->'));
+  });
 
   test('scrolling the main manuscript to its bottom never reaches Cold Storage', async () => {
     const text = await app.client.evaluate(`
@@ -3396,6 +3497,79 @@ describe('Baretext E2E: Cold Storage rename cannot undo through file load', () =
   });
 });
 
+describe('Baretext E2E: naming the first unnamed Cold Storage scene preserves its section', () => {
+  let app;
+  const manuscript = [
+    '# Part 1', '', 'Main manuscript prose that must stay in the manuscript.', '',
+    '<!-- COLD STORAGE -->', '', 'Unnamed parked prose.', '',
+  ].join('\n');
+
+  before(async () => {
+    app = await launchApp({ fixtureContent: manuscript, mode: 'editor' });
+  });
+
+  after(async () => {
+    if (app) await app.close();
+  });
+
+  test('rename keeps the parked scene in Cold Storage and leaves the manuscript intact', async () => {
+    const result = await app.client.evaluate(`
+      const deadline = Date.now() + 2000;
+      let edit;
+      while (!(edit = document.querySelector('.rail-cold-storage-section .rail-scene-row .rail-edit-btn')) && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      edit.click();
+      const input = document.querySelector('.rail-cold-storage-section .inline-rename-input');
+      input.value = 'Cut opening';
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      return {
+        chapterScenes: [...document.querySelectorAll('.rail-scene-row')]
+          .filter((row) => !row.closest('.rail-cold-storage-section'))
+          .map((row) => row.getAttribute('aria-label')),
+        coldScenes: [...document.querySelectorAll('.rail-cold-storage-section .rail-scene-row')]
+          .map((row) => row.getAttribute('aria-label')),
+        chapterCount: document.querySelector('.rail-header .rail-dim').textContent,
+      };
+    `);
+
+    assert.deepEqual(result.coldScenes, ['Cut opening']);
+    assert.ok(!result.chapterScenes.includes('Cut opening'));
+    assert.match(result.chapterCount, /^1ch\//);
+    await new Promise((resolve) => setTimeout(resolve, 650));
+    const saved = fs.readFileSync(app.fixturePath, 'utf8');
+    assert.ok(saved.includes('Main manuscript prose'));
+    assert.ok(saved.includes('<!-- COLD STORAGE -->'));
+    assert.ok(saved.includes('<!-- Cut opening -->'));
+  });
+
+  test('pressing Enter to confirm the Cold Storage rename preserves the rail viewport', async () => {
+    const result = await app.client.evaluate(`
+      const style = document.createElement('style');
+      style.textContent = '#scene-rail .rail-scene-list:not(.rail-cold-storage-section *) { min-height: 1100px; }';
+      document.head.appendChild(style);
+
+      let list = document.querySelector('#scene-rail .rail-list');
+      list.scrollTop = list.scrollHeight;
+      const before = list.scrollTop;
+      document.querySelector('.rail-cold-storage-section .rail-edit-btn').click();
+      const input = document.querySelector('.rail-cold-storage-section .inline-rename-input');
+      input.value = 'Cut opening renamed';
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      await new Promise((resolve) => setTimeout(resolve, 250));
+
+      list = document.querySelector('#scene-rail .rail-list');
+      const after = list.scrollTop;
+      style.remove();
+      return { before, after };
+    `);
+
+    assert.ok(result.before > 0, 'fixture must put Cold Storage below the fold');
+    assert.equal(result.after, result.before);
+  });
+});
+
 // Regression coverage for a design-system rail redesign that was attempted
 // once before, shipped as a full implementation, and then fully reverted
 // after real visual review found four concrete bugs (see PROGRESS.md and
@@ -4135,6 +4309,59 @@ describe('Baretext E2E: inline rename input (chapter/scene titles)', () => {
   test('no console errors in this suite', () => {
     const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
     assert.deepEqual(bad, []);
+  });
+});
+
+describe('Baretext E2E: manuscript lists use live-preview markers and hanging indentation', () => {
+  let app;
+  const fixture = [
+    '# Plan', '',
+    '- First bullet wraps into a readable continuation line when it is long enough.',
+    '- [ ] Unfinished task',
+    '- [x] Finished task',
+    '1. First numbered item',
+    '2. Second numbered item', '',
+    'Cursor rests in this trailing paragraph.',
+  ].join('\n');
+
+  before(async () => {
+    app = await launchApp({ fixtureContent: fixture, mode: 'editor' });
+  });
+
+  after(async () => {
+    if (app) await app.close();
+  });
+
+  test('renders bullets, task boxes, and ordered markers without coloring all list prose', async () => {
+    const result = await app.client.evaluate(`
+      const deadline = Date.now() + 2000;
+      while (document.querySelectorAll('.cm-list-marker').length < 5 && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      const markers = [...document.querySelectorAll('.cm-list-marker')];
+      const listLine = document.querySelector('.cm-list-line');
+      const prose = [...document.querySelectorAll('.cm-line')].find((line) => line.textContent.includes('First bullet'));
+      const markerColor = getComputedStyle(markers[0]).color;
+      const proseColor = getComputedStyle(prose).color;
+      return {
+        bullet: markers[0].textContent,
+        taskCount: document.querySelectorAll('.cm-list-marker-task').length,
+        checkedCount: document.querySelectorAll('.cm-list-marker-task.checked').length,
+        ordered: markers.filter((marker) => marker.classList.contains('cm-list-marker-ordered')).map((marker) => marker.textContent),
+        paddingLeft: getComputedStyle(listLine).paddingLeft,
+        textIndent: getComputedStyle(listLine).textIndent,
+        markerColor,
+        proseColor,
+      };
+    `);
+
+    assert.equal(result.bullet, '•');
+    assert.equal(result.taskCount, 2);
+    assert.equal(result.checkedCount, 1);
+    assert.deepEqual(result.ordered, ['1.', '2.']);
+    assert.notEqual(result.paddingLeft, '0px');
+    assert.ok(result.textIndent.startsWith('-'));
+    assert.notEqual(result.markerColor, result.proseColor);
   });
 });
 

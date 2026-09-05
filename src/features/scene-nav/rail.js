@@ -305,17 +305,19 @@ function jumpTo(scene) {
   // outside the isolated scene is hidden while it's on. No-ops if scene
   // view isn't active.
   ctx.exitColdStorageScene();
+  // Restore editor focus before changing its selection. Focusing afterward
+  // can make Chromium reveal the old DOM selection and override this jump.
+  ctx.focusEditor();
   ctx.editor.setCursorPos(ctx.view, scene.contentPos);
   ctx.editor.scrollToTop(ctx.view, scene.pos);
-  ctx.focusEditor();
   ctx.refreshNav();
 }
 
 function jumpToChapter(chapter) {
   ctx.exitColdStorageScene();
+  ctx.focusEditor();
   ctx.editor.setCursorPos(ctx.view, chapter.pos);
   ctx.editor.scrollToTop(ctx.view, chapter.pos);
-  ctx.focusEditor();
   ctx.refreshNav();
 }
 
@@ -792,7 +794,6 @@ export function render() {
   list.appendChild(el('div', 'rail-spacer'));
   list.appendChild(buildColdStorageSection(chapters, coldStorageIndex, active));
   railEl.appendChild(list);
-  list.scrollTop = previousScrollTop;
 
   const footer = btn('rail-footer');
   footer.append(icon('ti-plus'), document.createTextNode(' New Chapter'));
@@ -800,6 +801,14 @@ export function render() {
   footer.setAttribute('aria-label', 'Add a new chapter');
   footer.addEventListener('click', () => ctx.addNewChapter(chapters));
   railEl.appendChild(footer);
+
+  // Restore only after the complete flex layout exists. Setting scrollTop
+  // while the footer was still absent temporarily made the list taller,
+  // so browsers clamped a near-bottom position to that smaller temporary
+  // maximum. Appending the footer afterward shrank the viewport again but
+  // left the clamped value in place, visibly jumping Cold Storage upward
+  // whenever Enter committed an inline rename.
+  list.scrollTop = previousScrollTop;
 }
 
 export function mount(localCtx) {

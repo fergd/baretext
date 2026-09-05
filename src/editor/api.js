@@ -2,7 +2,7 @@ import { EditorView, keymap, placeholder, drawSelection } from '@codemirror/view
 import { EditorState, Transaction } from '@codemirror/state';
 import { theme, injectSelectionFix, injectHeadingColors } from './theme.js';
 import { markdownExtensions } from './markdown-language.js';
-import { livePreviewPlugin, renderedModeField } from './live-preview.js';
+import { livePreviewPlugin, renderedModeField, injectLivePreviewStyle } from './live-preview.js';
 import { sceneBreakDecorator, sceneBreakAtomicRanges, sceneBreakClickGuard, injectSceneBreakStyle } from './scene-breaks.js';
 import { blockSpacingPlugin, injectBlockSpacingStyle } from './block-spacing.js';
 import { historyAndKeymaps, boldItalicKeymap } from './history-commands.js';
@@ -38,6 +38,7 @@ export function create(container, initialDoc, onChange, placeholderText) {
 
   injectSelectionFix();
   injectHeadingColors();
+  injectLivePreviewStyle();
   injectSceneBreakStyle();
   injectBlockSpacingStyle();
   injectSearchMatchStyle();
@@ -156,6 +157,10 @@ export function scrollToTop(view, targetPos) {
 
 export function getCursorPos(view) {
   return view.state.selection.main.head;
+}
+
+export function hasSelection(view) {
+  return !view.state.selection.main.empty;
 }
 
 export function setCursorPos(view, pos) {

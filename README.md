@@ -66,11 +66,13 @@ works without this step — only run `build:editor` after changing anything
 under `src/editor/`. The rest of the app (`src/app.js`, `src/features/`)
 reads `src/editor-bundle.js` directly and doesn't need rebuilding.
 
-## Markdown styling
-Type markdown and it styles live — `# Heading` becomes a large heading, `**bold**`
-shows bold, `*italic*` italic, `` `code` `` is tinted, etc. Press ⌘⇧M to toggle
-between seeing the raw markdown symbols and a cleaner "rendered" view that hides
-them. Files always save as plain markdown regardless of view mode.
+## Pretty and Markdown views
+Pretty view is the primary editing surface: headings, emphasis, links, code, and
+lists stay visually formatted while their Markdown delimiters stay concealed.
+Moving the caret or selecting text never changes that rendering. Press ⌘⇧M to
+switch to Markdown view for direct source editing, then press it again to return
+to Pretty view. Both views edit the same document, and files always save as
+plain Markdown.
 
 ## Chapters and scenes (Editor mode)
 Chapters are `# Heading` lines; scenes within a chapter are `---` breaks (or

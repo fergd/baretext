@@ -95,7 +95,9 @@ function build(view) {
 export const sceneBreakDecorator = ViewPlugin.fromClass(class {
   constructor(view) { this.decorations = build(view); }
   update(update) {
-    if (update.docChanged || update.viewportChanged) this.decorations = build(update.view);
+    // build() scans the whole document. Its result cannot change merely
+    // because a different part of that document entered the viewport.
+    if (update.docChanged) this.decorations = build(update.view);
   }
 }, { decorations: v => v.decorations });
 

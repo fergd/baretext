@@ -31,7 +31,9 @@ export const highlightStyle = HighlightStyle.define([
   { tag: tags.link, color: 'var(--accent)', textDecoration: 'underline' },
   { tag: tags.url, color: 'var(--accent)' },
   { tag: tags.quote, color: 'var(--text-dim)', fontStyle: 'italic' },
-  { tag: tags.list, color: 'var(--accent)' },
+  // List markers get their accent treatment from live-preview.js. Coloring
+  // tags.list here colors the entire list subtree (including the author's
+  // prose), which made lists read like raw Markdown instead of manuscript.
   { tag: tags.processingInstruction, color: 'var(--text-dimmer)' },
   { tag: tags.contentSeparator, color: 'var(--text-dimmer)' },
 ]);

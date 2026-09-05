@@ -64,6 +64,16 @@ test('re-naming an already-named implicit first scene replaces the comment in pl
   );
 });
 
+test('naming the first Cold Storage scene preserves the structural Cold Storage marker', () => {
+  const text = '# Chapter\n\nMain manuscript prose.\n\n<!-- COLD STORAGE -->\n\nParked prose.';
+  const view = makeView(text);
+  renameTitle(view, { pos: text.indexOf('Parked prose'), type: 'scene' }, 'Cut opening');
+  assert.equal(
+    view.state.doc.toString(),
+    '# Chapter\n\nMain manuscript prose.\n\n<!-- COLD STORAGE -->\n\n<!-- Cut opening -->\n\nParked prose.'
+  );
+});
+
 test('clearing a named marker-line scene to blank removes the comment entirely, not just empties it', () => {
   const text = '# Chapter\n\nFirst.\n\n---\n<!-- Confrontation -->\n\nSecond.';
   const view = makeView(text);

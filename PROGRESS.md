@@ -10,7 +10,28 @@ Also see: `README.md` (how to run/build/test, feature overview),
 `docs/theme-spec.md` (design tokens), `TYPEWRITER_MODE.md` (typewriter
 focus-mode spec).
 
-## Current snapshot — 2026-08-31
+## Release update — 2026-09-05
+
+This update supersedes the Git/install snapshot below. The pending editor
+work is being shipped together: stable Pretty/Markdown editing surfaces,
+measured paragraph spacing across virtualized content, manual-scroll and
+selection stability, preserved rail positions, and safe first-scene Cold
+Storage renaming. Corkboard inline rename now focuses without scrolling.
+
+Regression coverage includes Pretty-view source preservation, long-document
+scrolling, Cold Storage rename/undo, and rail/corkboard viewport retention.
+E2E files run sequentially because the harness uses a shared debugging-port
+range; the Pretty-view save assertion waits for asynchronous autosave.
+The design-instructions directory is included as project documentation.
+The local `.agents/` skill directory remains uncommitted, as previously noted.
+
+Validation: 208 unit tests passed. The sequential E2E run passed 184/185;
+its sole failure was corkboard rename focus scrolling, fixed afterward and
+verified by rerunning all 35 smoke tests successfully. The packaged app was
+installed to `/Applications/Baretext.app`; its `app.asar` checksum matches
+the build output.
+
+## Previous snapshot — 2026-08-31
 
 This is the point-in-time handoff for the current production state. Baretext
 is a macOS Electron writing tool with Editor and Sprinter modes, a chapter /
@@ -91,19 +112,24 @@ workflow and configuration.
 
 ### Git / next handoff
 
-`HEAD` and `origin/main` remain at `8a5334a` (CRT theme with block cursor).
-Printing, AI, title-quality, spellcheck-removal, and Google Drive backup
-changes are intentionally uncommitted in the working tree. `.agents/` is an
-untracked local skills directory and should remain uncommitted unless
-explicitly requested.
+`HEAD` and `origin/main` are both at `6a4f666` ("Add native printing,
+personal AI helpers, Google Drive backup; remove unreliable spellcheck") —
+printing, AI, title-quality, spellcheck-removal, and Google Drive backup all
+landed in that one commit and are pushed. Rebuilt (`npm run build:editor` +
+`npm run build`) and installed to `/Applications/Baretext.app` the same
+session — working tree, `main`, and the installed app all agree as of
+2026-08-31. `.agents/` is an untracked local skills directory and should
+remain uncommitted unless explicitly requested; it's the only uncommitted
+thing in the tree.
 
-Next: Google Drive backup (default folder and the folder-picker) is now
-fully live-verified end to end — nothing further pending there. Separately:
+Next: nothing pending on Google Drive backup — default folder, the
+folder-picker, connect/disconnect, and a real "back up now" are all
+live-verified against the user's actual account. Open items are unrelated:
 manually try title suggestions on representative scenes, add a few strong
-style examples in AI Settings, and tune prompts based on the results. Then
-review this batch and commit/push only when ready. If Baretext becomes a
-shared product later, move provider calls behind a hosted service or adopt
-per-user credentials rather than shipping one personal key in the app.
+style examples in AI Settings, and tune prompts based on the results. If
+Baretext becomes a shared product later, move provider calls behind a
+hosted service or adopt per-user credentials rather than shipping one
+personal key in the app.
 
 ## Where things stand (as of 2026-08-29)
 

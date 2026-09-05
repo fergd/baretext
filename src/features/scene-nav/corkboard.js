@@ -282,6 +282,7 @@ function jumpTo(scene) {
   // Storage itself never appears in the corkboard, so this only matters if
   // scene view was left active from the rail before opening the corkboard.)
   ctx.exitColdStorageScene();
+  ctx.focusEditor();
   ctx.editor.setCursorPos(ctx.view, scene.contentPos);
   ctx.editor.scrollToTop(ctx.view, scene.pos);
   close();

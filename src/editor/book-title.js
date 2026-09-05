@@ -49,7 +49,9 @@ function build(view) {
 export const bookTitlePlugin = ViewPlugin.fromClass(class {
   constructor(view) { this.decorations = build(view); }
   update(update) {
-    if (update.docChanged || update.selectionSet || update.viewportChanged) {
+    // The title record is derived solely from line one. Cursor movement and
+    // scrolling must never rebuild layout-affecting decorations.
+    if (update.docChanged) {
       this.decorations = build(update.view);
     }
   }

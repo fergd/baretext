@@ -20,6 +20,7 @@ window.BaretextEditor = {
   syncColdStorageView: api.syncColdStorageView,
   setEditorMode: api.setEditorMode,
   getCursorPos: api.getCursorPos,
+  hasSelection: api.hasSelection,
   setCursorPos: api.setCursorPos,
   cursorToEnd: api.cursorToEnd,
   insertSceneBreak,
