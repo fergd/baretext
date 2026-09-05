@@ -10,10 +10,12 @@ Also see: `README.md` (how to run/build/test, feature overview),
 `docs/theme-spec.md` (design tokens), `TYPEWRITER_MODE.md` (typewriter
 focus-mode spec).
 
-## Release update — 2026-09-05
+## Point-in-time update — 2026-09-05
 
-This update supersedes the Git/install snapshot below. The pending editor
-work is being shipped together: stable Pretty/Markdown editing surfaces,
+This is the current handoff and supersedes the Git/install snapshots below.
+App commit `175af6b` ("Stabilize Pretty view, manuscript scrolling, and scene
+renaming") is committed and pushed to `origin/main`. The editor work shipped
+together: stable Pretty/Markdown editing surfaces,
 measured paragraph spacing across virtualized content, manual-scroll and
 selection stability, preserved rail positions, and safe first-scene Cold
 Storage renaming. Corkboard inline rename now focuses without scrolling.
@@ -30,6 +32,33 @@ its sole failure was corkboard rename focus scrolling, fixed afterward and
 verified by rerunning all 35 smoke tests successfully. The packaged app was
 installed to `/Applications/Baretext.app`; its `app.asar` checksum matches
 the build output.
+
+### Installed app and repository
+
+- `/Applications/Baretext.app` contains the rebuilt app from `175af6b`.
+  Both its archive and `dist/mac-arm64/Baretext.app/Contents/Resources/app.asar`
+  have SHA-256 `a3e7b466742d12a1f23fcee937b199e6f36622fd63f876fba30e21590d78e6d4`.
+- The editor bundle was regenerated before packaging. The macOS arm64 build
+  succeeded; Developer ID signing was skipped because no signing identity
+  was available.
+- Before this documentation update, tracked files were clean and `main`
+  matched `origin/main`. Only the local `.agents/` directory was untracked.
+- This handoff is documentation only and does not require another app build.
+
+### Verification limits and next work
+
+- The full 185-test E2E suite was not rerun after the final focus fix; the
+  affected 35-test smoke suite was rerun and passed. No known test failure
+  remains unresolved from this release session.
+- The installed archive was verified against the build, but this session
+  did not launch the installed app for a separate manual writing check.
+- No implementation or deployment work remains pending from the release.
+  The design notes are reference documentation, not a claim that every
+  proposed refinement has been implemented.
+- Previously recorded follow-up remains: try AI title suggestions on
+  representative scenes, add preferred title examples in AI Settings, and
+  tune prompts based on actual results. Google Drive's live verification
+  belongs to the earlier session below; it was not repeated for this release.
 
 ## Previous snapshot — 2026-08-31
 
