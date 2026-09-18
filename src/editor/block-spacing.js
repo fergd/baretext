@@ -1,5 +1,7 @@
 import { Decoration, EditorView, WidgetType } from '@codemirror/view';
 import { StateField } from '@codemirror/state';
+import { editorModeField } from './mode-state.js';
+import { renderedModeField } from './live-preview.js';
 import { injectStyle as injectStyleTag } from '../dom.js';
 
 // Vertical rhythm must be represented in CodeMirror's block model. Applying
@@ -23,13 +25,35 @@ class BlockSpacerWidget extends WidgetType {
   ignoreEvent() { return true; }
 }
 
+// Asymmetric rhythm around headings (typography-rhythm.md #2): a heading
+// sits close to what it introduces and far from what precedes it, at every
+// level — a chapter title before its first scene heading gets the same
+// tight treatment as a scene heading before its own first paragraph, since
+// both are "the heading's own content," not a new section starting. So the
+// gap AFTER any heading line is always tight, regardless of what follows it
+// (nested heading or prose); the gap BEFORE a heading — i.e. the trailing
+// spacer on whatever paragraph precedes it — is bumped to the large,
+// section-break gap instead of the ordinary paragraph-to-paragraph one.
+// (Scene-break markers, ---/***/___, aren't part of this: their own fixed-
+// height ornament, see scene-breaks.js, already governs the space around
+// them independently of this rhythm system.)
 const SPACERS = {
   paragraph: new BlockSpacerWidget('paragraph', 15),
-  heading1: new BlockSpacerWidget('heading-1', 10.5),
-  heading2: new BlockSpacerWidget('heading-2', 8.25),
-  heading3: new BlockSpacerWidget('heading-3', 6),
-  heading4: new BlockSpacerWidget('heading-4', 4.5),
+  paragraphBeforeHeading: new BlockSpacerWidget('paragraph-before-heading', 57),
+  headingTight: new BlockSpacerWidget('heading-tight', 12),
 };
+
+const NAMED_SCENE_RE = /^(?!<!--\s*(?:BOOK TITLE:|COLD STORAGE|SCENE LINK|SCENE GROUP:))<!--\s*(.+?)\s*-->$/;
+const isHeading = text => HEADING_LINE_RE.test(text) || NAMED_SCENE_RE.test(text.trim());
+const HEADING_LINE_RE = /^\s{0,3}(#{1,4})(?:\s+|$)/;
+
+function nextNonBlankLineText(doc, afterLineNumber) {
+  for (let n = afterLineNumber + 1; n <= doc.lines; n++) {
+    const text = doc.line(n).text;
+    if (text.trim() !== '') return text;
+  }
+  return null;
+}
 
 function build(state) {
   const doc = state.doc;
@@ -39,28 +63,43 @@ function build(state) {
   // file its background parser may only cover the beginning of the document,
   // which previously left later paragraphs with no spacing at all. This
   // lightweight block scan is complete and deterministic in one pass.
+  const prettyManuscript = state.field(editorModeField, false) && !state.field(renderedModeField, false);
+  // Blank lines are editable document content. Never replace them with
+  // zero-height widgets: Enter must leave a visible, stable caret target.
+  let afterHeading = false;
   for (let number = 1; number <= doc.lines; number++) {
     const line = doc.line(number);
     const trimmed = line.text.trim();
-    const heading = line.text.match(/^\s{0,3}(#{1,4})(?:\s+|$)/);
+    const heading = line.text.match(HEADING_LINE_RE) || (prettyManuscript && NAMED_SCENE_RE.test(trimmed) ? ['', '##'] : null);
     const structural = /^(-{3,}|\*{3,}|_{3,})$/.test(trimmed)
       || /^<!--.*-->$/.test(trimmed);
 
     if (!trimmed) {
       continue;
     } else if (heading) {
+      afterHeading = true;
       const level = String(heading[1].length);
       out.push(Decoration.line({ class: 'cm-heading cm-heading-' + level }).range(line.from));
-      out.push(Decoration.widget({ widget: SPACERS['heading' + level], block: true, side: 1 }).range(line.to));
+      out.push(Decoration.widget({ widget: SPACERS.headingTight, block: true, side: 1 }).range(line.to));
     } else if (structural) {
       continue;
     } else {
-      out.push(Decoration.line({ class: 'cm-paragraph-line' }).range(line.from));
+      const epigraph = afterHeading && /^\s{0,3}>/.test(line.text);
+      if (!epigraph) afterHeading = false;
+      out.push(Decoration.line({ class: epigraph ? 'cm-paragraph-line cm-epigraph' : 'cm-paragraph-line' }).range(line.from));
       // Baretext's manuscript convention treats every nonblank prose source
       // line as a paragraph, including single-newline-separated prose. The
       // spacer sits after the logical source line, so browser-wrapped visual
-      // lines remain continuous inside that paragraph.
-      out.push(Decoration.widget({ widget: SPACERS.paragraph, block: true, side: 1 }).range(line.to));
+      // lines remain continuous inside that paragraph. A paragraph that's
+      // the last thing before a heading gets the large section-break gap
+      // instead of the ordinary one — the heading is starting a new section,
+      // not continuing this one.
+      const next = nextNonBlankLineText(doc, number);
+      const nextIsHeading = next !== null && isHeading(next);
+      out.push(Decoration.widget({
+        widget: nextIsHeading ? SPACERS.paragraphBeforeHeading : SPACERS.paragraph,
+        block: true, side: 1,
+      }).range(line.to));
     }
   }
 
@@ -71,7 +110,7 @@ function build(state) {
 // height-aware set until the document actually changes.
 export const blockSpacingPlugin = StateField.define({
   create: (state) => build(state),
-  update: (value, tr) => (tr.docChanged ? build(tr.state) : value.map(tr.changes)),
+  update: (value, tr) => (tr.docChanged || tr.state.field(editorModeField, false) !== tr.startState.field(editorModeField, false) || tr.state.field(renderedModeField, false) !== tr.startState.field(renderedModeField, false) ? build(tr.state) : value.map(tr.changes)),
   provide: (field) => EditorView.decorations.from(field),
 });
 
@@ -79,9 +118,15 @@ export function injectBlockSpacingStyle() {
   injectStyleTag('bt-block-spacing', `
 .cm-block-spacer { display: block; width: 1px; pointer-events: none; }
 .cm-block-spacer-paragraph { height: 1em; }
-.cm-block-spacer-heading-1 { height: 0.7em; }
-.cm-block-spacer-heading-2 { height: 0.55em; }
-.cm-block-spacer-heading-3 { height: 0.4em; }
-.cm-block-spacer-heading-4 { height: 0.3em; }
+html[data-mode="editor"] .cm-heading-1 { text-wrap: pretty; letter-spacing: -.01em; }
+html[data-mode="editor"] .cm-epigraph { font-size: 14px; line-height: 1.7; font-style: italic; }
+html[data-mode="editor"] .cm-kicker { font: 400 10px/1.4 var(--font-mono); text-transform: uppercase; letter-spacing: .14em; }
+/* Tight below any heading (~12px, well under one baseline unit) and large
+   above one (~57px, roughly 2 baseline units at the 15px/1.9 body rhythm)
+   -- see typography-rhythm.md #2. Fixed px, not em, so the gap stays
+   consistent regardless of which heading level (or the much larger book/
+   chapter title) is involved. */
+.cm-block-spacer-heading-tight { height: 12px; }
+.cm-block-spacer-paragraph-before-heading { height: 57px; }
 `);
 }

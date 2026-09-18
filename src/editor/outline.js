@@ -1,3 +1,4 @@
+import { isLinkMetadata } from '../features/scene-nav/links.js';
 // A bare scene's waypoint name, when it has one, lives as an HTML comment
 // immediately after its ---/***/___ marker line (no blank line between them
 // -- that adjacency is what distinguishes a named scene from an unnamed
@@ -5,7 +6,7 @@
 // manuscript content: invisible in any rendered/exported markdown, and
 // hidden in the editor the same way the raw dashes already are (see
 // scene-breaks.js) in favor of showing just the name itself.
-const NAME_COMMENT_RE = /^<!--\s*(.*?)\s*-->$/;
+const NAME_COMMENT_RE = /^(?!<!-- SCENE (?:LINK|GROUP: [a-zA-Z0-9-]+) -->$)<!--\s*(.*?)\s*-->$/;
 
 // Marks the start of the Cold Storage section (see scene-nav/model.js) — a
 // place to drop scenes you don't want in the manuscript but aren't ready to
@@ -40,6 +41,7 @@ export function getOutline(view) {
     const line = doc.line(lineNum);
     const text = line.text;
     const trimmed = text.trim();
+    if (isLinkMetadata(trimmed)) continue;
     if (lineNum === 1 && BOOK_TITLE_RE.test(trimmed)) continue;
     // CommonMark allows an ATX heading with no title at all ("#", or "#"
     // plus trailing whitespace) — the title group is wrapped in an optional

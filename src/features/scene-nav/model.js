@@ -2,6 +2,8 @@
 // — pure derived data, no editor-bundle changes needed. Both rail.js and
 // corkboard.js render from this same shape.
 
+import { hasSceneLink, readSceneGroup } from './links.js';
+
 const DRAFT_WORD_THRESHOLD = 20;
 const SYNOPSIS_MAX_CHARS = 100;
 
@@ -128,6 +130,8 @@ export function getManuscript(view) {
       endPos,
       contentPos: firstProsePos(doc, item, endPos),
       rawText,
+      linkedNext: hasSceneLink(rawText),
+      groupId: readSceneGroup(rawText),
       wordCount,
       synopsis: synopsisFrom(rawText),
       isDraft: wordCount < DRAFT_WORD_THRESHOLD,
@@ -135,6 +139,16 @@ export function getManuscript(view) {
   }
 
   chapters.push(coldStorage);
+  // A dangling marker at a chapter's end cannot link into another chapter.
+  for (const chapter of chapters) {
+    if (chapter.scenes.length) chapter.scenes.at(-1).linkedNext = false;
+  }
+  const groupCounts = new Map();
+  for (const scene of chapters.flatMap(c => c.scenes)) if (scene.groupId) groupCounts.set(scene.groupId, (groupCounts.get(scene.groupId) || 0) + 1);
+  for (const scene of chapters.flatMap(c => c.scenes)) {
+    scene.groupSize = groupCounts.get(scene.groupId) || 0;
+    if (scene.groupSize < 2) scene.groupId = null;
+  }
   return chapters;
 }
 

@@ -1,3 +1,4 @@
+import { isLinkMetadata } from '../features/scene-nav/links.js';
 import { Decoration, EditorView, ViewPlugin, WidgetType } from '@codemirror/view';
 import { StateField } from '@codemirror/state';
 import { injectStyle as injectStyleTag } from '../dom.js';
@@ -40,7 +41,7 @@ function nameWidget(name) {
   return Decoration.widget({ widget: new SceneNameWidget(name), side: -1 });
 }
 
-const NAME_COMMENT_RE = /^<!--\s*(.*?)\s*-->$/;
+const NAME_COMMENT_RE = /^(?!<!-- SCENE (?:LINK|GROUP: [a-zA-Z0-9-]+) -->$)<!--\s*(.*?)\s*-->$/;
 const BOOK_TITLE_RE = /^<!--\s*BOOK TITLE:\s*.*?\s*-->$/;
 const MARKER_RE = /^(-{3,}|\*{3,}|_{3,})$/;
 
@@ -62,6 +63,7 @@ function build(view) {
   for (let i = 1; i <= doc.lines; i++) {
     const line = doc.line(i);
     const trimmed = line.text.trim();
+    if (isLinkMetadata(trimmed)) continue;
     if (i === 1 && BOOK_TITLE_RE.test(trimmed)) continue;
     const headingMatch = line.text.match(/^(#{1,3})(?:[ \t]+.*)?$/);
 
@@ -130,6 +132,7 @@ function buildAtomicRanges(state) {
   for (let i = 1; i <= doc.lines; i++) {
     const line = doc.line(i);
     const trimmed = line.text.trim();
+    if (isLinkMetadata(trimmed)) continue;
     if (i === 1 && BOOK_TITLE_RE.test(trimmed)) continue;
     const headingMatch = line.text.match(/^(#{1,3})(?:[ \t]+.*)?$/);
 
@@ -195,7 +198,7 @@ export function safeCaretLine(doc, clickedLineNum) {
   for (let i = n; i <= doc.lines; i++) {
     const text = doc.line(i).text;
     const trimmed = text.trim();
-    if (trimmed === '') continue;
+    if (trimmed === '' || isLinkMetadata(trimmed)) continue;
     if (/^#{1,3}(?:[ \t]|$)/.test(text) || MARKER_RE.test(trimmed) || trimmed === '<!-- COLD STORAGE -->') break;
     return i; // real content found
   }
@@ -215,6 +218,7 @@ export function sceneBreakClickGuard() {
       const targetLine = doc.line(safeCaretLine(doc, doc.lineAt(pos).number));
       event.preventDefault();
       view.dispatch({ selection: { anchor: targetLine.from } });
+      view.focus();
       return true;
     },
   });
@@ -257,12 +261,20 @@ export function injectSceneBreakStyle() {
 
 /* Manuscript surface — Editor mode only (MANUSCRIPT_SURFACE.md "named vs
    unnamed" scenes). Sprinter mode keeps the rules above unchanged: every
-   marker shows the accent ornament, every name is a small italic caption. */
+   marker shows the accent line-and-circle ornament, every name is a small
+   italic caption.
+   A within-scene break (unnamed marker) instead reads as a centered, widely
+   tracked "· · ·" in --text-dimmer, not a rule or an icon (typography-
+   rhythm.md #4) -- ::before is repurposed to render the dots as generated
+   content (resetting every geometry property the shared rule above set for
+   the line ornament) and ::after's circle is dropped entirely. */
 html[data-mode="editor"] .cm-scene-break:not(.cm-scene-break-named)::before {
-  background: var(--scene);
+  content: '· · ·'; width: auto; height: auto; background: none;
+  color: var(--text-dimmer); font-family: var(--font-mono); font-size: 15px;
+  letter-spacing: .6em;
 }
 html[data-mode="editor"] .cm-scene-break:not(.cm-scene-break-named)::after {
-  border-color: var(--scene);
+  display: none;
 }
 /* Named scenes render as a heading below (via .cm-scene-name-label) — no
    ornament on the marker line itself, just enough space to read as a break. */

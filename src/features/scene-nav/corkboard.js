@@ -1,12 +1,23 @@
+import { linkedMembers } from './links.js';
+import { connectCards } from './connectors.js';
+let disconnectConnectors;
 import { getManuscript, findActiveScene } from './model.js';
-import { reorderScenes } from './reorder.js';
+import { reorderScenes, linkScenes, unlinkScene } from './reorder.js';
 import { el, btn, icon, injectStyle as injectStyleTag } from '../../dom.js';
-import { makeDeleteButton, beginEdit } from './ui-helpers.js';
+import { makeCopyButton, makeDeleteButton, beginEdit, markSceneGroup } from './ui-helpers.js';
 
 let ctx = null;
 let boardEl = null;
 let open = false;
 let dragSource = null; // { chapterIndex, sceneIndex } while a card drag is in progress
+let linkSource = null;
+
+export function cancelLinkSelection() {
+  if (!linkSource) return false;
+  linkSource = null;
+  render();
+  return true;
+}
 const aiSummaries = new Map(); // scene rawText -> generated summary
 const summaryLoading = new Set(); // scene rawText currently in flight
 const summaryErrors = new Map(); // scene rawText -> most recent summary error
@@ -22,7 +33,7 @@ function injectStyle() {
   display: flex; align-items: center; justify-content: space-between; padding: 0 20px;
 }
 .corkboard-toolbar-left { display: flex; align-items: center; gap: 10px; }
-.corkboard-toolbar-left .ti-layout-grid { font-size: 15px; color: var(--syntax-2, var(--accent)); }
+.corkboard-toolbar-left .ti-cards { font-size: 15px; color: var(--syntax-2, var(--accent)); }
 .corkboard-label { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--syntax-2, var(--accent)); font-weight: 600; }
 .corkboard-meta { font-size: 12px; color: var(--text-dimmer); }
 .corkboard-ai-status { all: unset; cursor: pointer; font-size: 10px; color: var(--text-dimmer); white-space: nowrap; }
@@ -43,21 +54,30 @@ function injectStyle() {
 .corkboard-tool-btn:hover { color: var(--syntax-2, var(--accent)); }
 .corkboard-tool-btn.loading, .corkboard-ai-btn.loading { color: var(--syntax-2, var(--accent)); opacity: .72; }
 .corkboard-ai-btn { color: var(--syntax-2, var(--accent)); }
-.corkboard-ai-text-btn {
+.corkboard-ai-text-btn, .corkboard-link-btn {
   all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;
   color: var(--text-dim); font-family: var(--font-mono); font-size: 10px; line-height: 1;
 }
 .corkboard-ai-text-btn:hover, .corkboard-ai-text-btn:focus-visible { color: var(--syntax-2, var(--accent)); }
+.corkboard-link-btn:hover, .corkboard-link-btn:focus-visible, .corkboard-link-btn[aria-pressed="true"] { color: var(--accent); }
 .corkboard-ai-text-btn.loading { color: var(--syntax-2, var(--accent)); opacity: .72; }
 .corkboard-ai-text-btn:disabled { cursor: default; }
 .corkboard-body { flex: 1; overflow: auto; padding: 22px 26px; }
-.corkboard-chapter { margin-bottom: 24px; }
+/* Section-to-section gap reads clearly larger than the card-to-card gap
+   within a section (roughly 2:1 against the grid's own 14px gap) so
+   chapters stay visually distinct while scrolling (writing-rail-
+   refinements.md #1). */
+.corkboard-chapter { margin-bottom: 28px; }
 .corkboard-chapter-header { display: flex; align-items: center; gap: 11px; margin-bottom: 13px; }
 .corkboard-chapter-header .ti-chevron-down { font-size: 15px; color: var(--text-dim); cursor: pointer; }
 .corkboard-chapter-title-group { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-.corkboard-chapter-num { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--syntax-2, var(--accent)); font-weight: 700; white-space: nowrap; }
-.corkboard-chapter-title-text { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-dim); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.corkboard-chapter-title-text.placeholder { font-style: italic; opacity: .55; font-weight: 600; }
+/* "CHAPTER {n} · {title}" reads as one quiet, unified label -- number and
+   title both dimmer/10px/uppercase rather than the number picking up its
+   own accent color, matching the trailing scene/word count at the same
+   size (writing-rail-refinements.md #1). */
+.corkboard-chapter-num { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-dimmer); font-weight: 600; white-space: nowrap; }
+.corkboard-chapter-title-text { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-dimmer); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.corkboard-chapter-title-text.placeholder { font-style: italic; opacity: .7; font-weight: 500; }
 .corkboard-edit-btn {
   all: unset; box-sizing: border-box; position: relative;
   font-size: 12px; color: var(--text-dimmer); opacity: .5; cursor: pointer; flex-shrink: 0;
@@ -87,7 +107,7 @@ function injectStyle() {
   background: color-mix(in srgb, #e05c5c 15%, transparent);
 }
 .corkboard-chapter-rule { flex: 1; height: 1px; background: var(--border); }
-.corkboard-chapter-meta { font-size: 11px; color: var(--text-dimmer); letter-spacing: .04em; white-space: nowrap; }
+.corkboard-chapter-meta { font-size: 10px; color: var(--text-dimmer); letter-spacing: .04em; white-space: nowrap; }
 .corkboard-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; padding-left: 26px; }
 .scene-card {
   background: var(--bg-alt); border: 1px solid var(--border); border-radius: var(--radius-card, 10px);
@@ -284,8 +304,9 @@ function jumpTo(scene) {
   ctx.exitColdStorageScene();
   ctx.focusEditor();
   ctx.editor.setCursorPos(ctx.view, scene.contentPos);
-  ctx.editor.scrollToTop(ctx.view, scene.pos);
   close();
+  if (ctx.state.typewriter) ctx.editor.centerCursor(ctx.view);
+  else ctx.editor.scrollToTop(ctx.view, scene.pos);
   ctx.refreshNav();
 }
 
@@ -298,6 +319,8 @@ export function render() {
   const previousBody = boardEl.querySelector('.corkboard-body');
   const previousScrollTop = previousBody ? previousBody.scrollTop : 0;
   const chapters = getManuscript(ctx.view);
+  if (linkSource && linkSource.doc !== ctx.editor.getDoc(ctx.view)) linkSource = null;
+  boardEl.classList.toggle('link-selecting', !!linkSource);
   const cursorPos = ctx.editor.getCursorPos(ctx.view);
   const active = findActiveScene(chapters, cursorPos);
   // Cold Storage (see model.js) isn't a chapter — the corkboard doesn't
@@ -307,11 +330,15 @@ export function render() {
   // rail regardless.
   const totalScenes = chapters.reduce((sum, c) => (c.coldStorage ? sum : sum + c.scenes.length), 0);
 
+  disconnectConnectors?.();
   boardEl.innerHTML = '';
 
   const toolbar = el('div', 'corkboard-toolbar');
   const left = el('div', 'corkboard-toolbar-left');
-  left.append(icon('ti-layout-grid'), el('span', 'corkboard-label', 'corkboard'), el('span', 'corkboard-meta', totalScenes + ' scenes'));
+  // Use the overlapping-cards mark from the writing-rail toolbar. The old
+  // four-square grid suggested a generic layout control rather than the
+  // manuscript corkboard.
+  left.append(icon('ti-cards'), el('span', 'corkboard-label', 'corkboard'), el('span', 'corkboard-meta', totalScenes + ' scenes'));
   if (aiStatus) {
     const statusText = aiStatus.configured ? 'ai · ready' : 'ai · key not detected';
     const status = btn('corkboard-ai-status' + (aiStatus.configured ? ' ready' : ''), statusText);
@@ -353,6 +380,8 @@ export function render() {
   boardEl.appendChild(toolbar);
 
   const body = el('div', 'corkboard-body');
+  const canvas = el('div', 'corkboard-canvas');
+  body.append(canvas);
   chapters.forEach((chapter, ci) => {
     if (chapter.coldStorage) return;
     const section = el('div', 'corkboard-chapter');
@@ -387,7 +416,7 @@ export function render() {
     });
     const chDeleteBtn = makeDeleteButton('corkboard-delete-btn', chLabel, () => ctx.deleteChapter(ci, chapters));
     const chTitleGroup = el('div', 'corkboard-chapter-title-group');
-    chTitleGroup.append(el('span', 'corkboard-chapter-num', 'Chapter ' + chapter.number), chTitleText, chAiBtn, chEditBtn, chDeleteBtn);
+    chTitleGroup.append(el('span', 'corkboard-chapter-num', 'Chapter ' + chapter.number + ' ·'), chTitleText, chAiBtn, makeCopyButton('corkboard-edit-btn', 'chapter', ctx, ci), chEditBtn, chDeleteBtn);
 
     header.append(
       icon('ti-chevron-down'),
@@ -442,9 +471,29 @@ export function render() {
       openBtn.addEventListener('click', (e) => { e.stopPropagation(); jumpTo(scene); });
       const deleteBtn = makeDeleteButton('corkboard-delete-btn', scene.title, () => ctx.deleteScene(ci, si, chapters));
       const titleRow = el('div', 'scene-card-title');
-      titleRow.append(el('span', undefined, (si + 1) + ' · '), titleTextSpan, editBtn, openBtn, deleteBtn);
+      titleRow.append(el('span', undefined, (si + 1) + ' · '), titleTextSpan, makeCopyButton('corkboard-edit-btn', 'scene', ctx, ci, si), editBtn, openBtn, deleteBtn);
       const aiActions = el('div', 'scene-card-ai-actions');
-      aiActions.append(nameBtn, summaryBtn);
+      const link = btn('corkboard-link-btn scene-link-btn');
+      link.append(icon('ti-link'), document.createTextNode('link'));
+      link.setAttribute('aria-label', 'Link ' + scene.title + ' with another scene');
+      link.addEventListener('click', e => {
+        e.stopPropagation();
+        linkSource = { chapterIndex: ci, sceneIndex: si, doc: ctx.editor.getDoc(ctx.view) };
+        render();
+        boardEl.querySelector('.link-candidate')?.focus({ preventScroll: true });
+      });
+      aiActions.append(nameBtn, summaryBtn, link);
+      let unlink;
+      if (linkedMembers(chapters, ci, si).length > 1) {
+        unlink = btn('corkboard-link-btn scene-unlink-btn');
+        unlink.append(icon('ti-unlink'), document.createTextNode('unlink'));
+        unlink.setAttribute('aria-label', 'Unlink ' + scene.title + ' from its group');
+        unlink.addEventListener('click', e => {
+          e.stopPropagation();
+          const doc = unlinkScene(getManuscript(ctx.view), { chapterIndex: ci, sceneIndex: si });
+          if (doc !== null) { ctx.setDoc(doc); ctx.refreshNav(); }
+        });
+      }
 
       const generatedSummary = aiSummaries.get(scene.rawText);
       const summaryError = summaryErrors.get(scene.rawText);
@@ -461,17 +510,51 @@ export function render() {
       const sceneSuggestions = titleSuggestions(sceneAiKey, scene);
       if (sceneSuggestions) card.appendChild(sceneSuggestions);
       card.title = 'double-click to jump to this scene · drag to reorder';
-      card.addEventListener('dblclick', (e) => { e.preventDefault(); jumpTo(scene); });
+      card.dataset.ci = ci;
+      card.dataset.si = si;
+      markSceneGroup(card, chapter.scenes, si);
+      if (card.classList.contains('scene-linked')) {
+        card.dataset.connectorGroup = scene.groupId || `legacy-${ci}-${card.dataset.groupStart}`;
+        const badge = el('div', 'scene-link-label', `linked · ${linkedMembers(chapters, ci, si).length} scenes`);
+        badge.prepend(icon('ti-link'));
+        if (unlink) badge.append(unlink);
+        card.append(badge);
+      }
+      card.addEventListener('dblclick', (e) => { e.preventDefault(); if (!linkSource) jumpTo(scene); });
 
-      card.draggable = true;
+      card.draggable = !linkSource;
+      if (linkSource) {
+        const sourceMembers = linkedMembers(chapters, linkSource.chapterIndex, linkSource.sceneIndex);
+        const eligible = !sourceMembers.some(m => m.scene === scene);
+        card.classList.add(eligible ? 'link-candidate' : 'link-origin');
+        card.setAttribute('role', 'button');
+        card.setAttribute('aria-disabled', String(!eligible));
+        card.setAttribute('aria-label', eligible ? 'Link with ' + scene.title : scene.title + ' · source group');
+        card.title = eligible ? 'click anywhere to link this scene' : 'choose another scene';
+        card.tabIndex = eligible ? 0 : -1;
+        card.querySelectorAll('button').forEach(b => { b.tabIndex = -1; });
+        const select = e => {
+          e.preventDefault(); e.stopImmediatePropagation();
+          if (!eligible || !linkSource) return;
+          const source = linkSource;
+          linkSource = null;
+          const current = getManuscript(ctx.view);
+          if (source.doc !== ctx.editor.getDoc(ctx.view)) { render(); return; }
+          const doc = linkScenes(current, source, { chapterIndex: ci, sceneIndex: si });
+          if (doc !== null) { ctx.setDoc(doc); ctx.refreshNav(); } else render();
+        };
+        card.addEventListener('click', select, true);
+        card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') select(e); }, true);
+      }
       card.addEventListener('dragstart', (e) => {
         dragSource = { chapterIndex: ci, sceneIndex: si };
-        card.classList.add('dragging');
+        const members = scene.groupId ? boardEl.querySelectorAll(`.scene-card[data-group-id="${scene.groupId}"]`) : grid.querySelectorAll(`[data-group-start="${card.dataset.groupStart}"]`);
+        members.forEach(c => c.classList.add('dragging'));
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', scene.id);
       });
       card.addEventListener('dragend', () => {
-        card.classList.remove('dragging');
+        boardEl.querySelectorAll('.dragging').forEach(c => c.classList.remove('dragging'));
         dragSource = null;
       });
       card.addEventListener('dragover', (e) => {
@@ -541,10 +624,21 @@ export function render() {
     });
 
     section.appendChild(grid);
-    body.appendChild(section);
+    canvas.appendChild(section);
   });
+  if (linkSource) {
+    const prompt = el('div', 'scene-link-prompt');
+    const label = el('span', '', 'Choose a card to link with “' + chapters[linkSource.chapterIndex].scenes[linkSource.sceneIndex].title + '”');
+    label.setAttribute('role', 'status');
+    const cancel = btn('corkboard-link-btn');
+    cancel.textContent = 'cancel (esc)';
+    cancel.addEventListener('click', cancelLinkSelection);
+    prompt.append(icon('ti-link'), label, cancel);
+    boardEl.append(prompt);
+  }
   boardEl.appendChild(body);
   body.scrollTop = previousScrollTop;
+  disconnectConnectors = connectCards(canvas);
 }
 
 export function isOpen() { return open; }
@@ -557,6 +651,11 @@ export function show() {
   open = true;
   document.getElementById('content-row').style.display = 'none';
   boardEl.style.display = 'flex';
+  // Typewriter has no active line to center on a grid of cards, so its
+  // status-bar indicator is hidden while the corkboard is open -- but the
+  // underlying on/off state is untouched, and centering resumes immediately
+  // on return to the manuscript (writing-rail-refinements.md #3).
+  ctx.dom.app.classList.add('corkboard-open');
   render();
   ctx.api.aiStatus().then((status) => {
     aiStatus = status;
@@ -570,9 +669,12 @@ export function show() {
 }
 
 export function close() {
+  disconnectConnectors?.();
+  linkSource = null;
   open = false;
   boardEl.style.display = 'none';
   document.getElementById('content-row').style.display = 'flex';
+  ctx.dom.app.classList.remove('corkboard-open');
   ctx.focusEditor();
 }
 
@@ -584,6 +686,7 @@ export function mount(localCtx) {
 }
 
 export function unmount() {
+  disconnectConnectors?.();
   if (open) close();
   boardEl = null;
   ctx = null;

@@ -85,10 +85,11 @@ const accentTheme = VALID_ACCENT_THEMES.includes(settings.accentTheme) ? setting
 
 // Mode (Sprinter / Editor) — same validate-then-persist pattern as accent theme.
 const VALID_MODES = ['sprinter', 'editor'];
-const mode = VALID_MODES.includes(settings.mode) ? settings.mode : 'sprinter';
+// Sprints are temporary sessions; a fresh launch always opens the manuscript.
+const mode = 'editor';
 
 // Rail collapsed (Editor mode) — persisted the same way.
-const railCollapsed = !!settings.railCollapsed;
+const railCollapsed = settings.railCollapsed !== false;
 
 function getDefaultFilePath() {
   const now = new Date();

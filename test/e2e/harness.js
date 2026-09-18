@@ -128,7 +128,7 @@ export async function launchApp({ fixtureContent = '', mode = 'editor', accentTh
   fs.writeFileSync(fixturePath, fixtureContent, 'utf8');
 
   const settingsPath = path.join(userDataDir, 'settings.json');
-  const settings = { saveDir, mode, accentTheme, lastFilePath: fixturePath, typewriter: false, ...extraSettings };
+  const settings = { saveDir, mode, accentTheme, lastFilePath: fixturePath, typewriter: false, railCollapsed: false, ...extraSettings };
   fs.writeFileSync(settingsPath, JSON.stringify(settings), 'utf8');
 
   // `current` holds the live child/client for whichever launch is active —

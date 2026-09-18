@@ -2,29 +2,13 @@ import { Decoration, EditorView, ViewPlugin, WidgetType } from '@codemirror/view
 import { StateField, StateEffect } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
 
-// Two explicit editing surfaces share the exact same Markdown document:
-// false (default) = Pretty view, true = Markdown view. Pretty view's
-// decorations depend only on document content, never on caret position.
+// One formatted editing surface. Keep the legacy field/effect exports for
+// extensions that read them, but never enter a raw-source editing mode.
 export const setRenderedModeEffect = StateEffect.define();
-
 export const renderedModeField = StateField.define({
   create: () => false,
-  update(value, tr) {
-    for (const effect of tr.effects) {
-      if (effect.is(setRenderedModeEffect)) return effect.value;
-    }
-    return value;
-  },
+  update: () => false,
 });
-
-class HiddenWidget extends WidgetType {
-  toDOM() {
-    const span = document.createElement('span');
-    span.style.display = 'none';
-    return span;
-  }
-  ignoreEvent() { return false; }
-}
 
 class ListMarkerWidget extends WidgetType {
   constructor(kind, label = '', checked = false) {
@@ -50,8 +34,7 @@ const emptyBuild = () => ({ decorations: Decoration.none, atomicRanges: Decorati
 
 // Pretty view consistently conceals Markdown syntax marks. Concealed ranges
 // are atomic so ordinary pointer/arrow movement cannot leave the caret inside
-// an invisible delimiter. Authors edit the visible text here and switch to
-// Markdown view when they want direct control of the source syntax.
+// an invisible delimiter. Authors always edit the visible formatted text.
 function build(view) {
   const state = view.state;
   if (state.field(renderedModeField)) return emptyBuild();
@@ -59,9 +42,19 @@ function build(view) {
   const doc = state.doc;
   const out = [];
   const atomic = [];
+  // No widget: an empty replace decoration leaves zero DOM footprint (no
+  // element at all), and CodeMirror inserts its own widget-buffer markers
+  // around it as needed for cursor navigation -- book-title.js's own
+  // long-stable comment-hiding decoration uses the exact same shape. A
+  // `display:none` widget span (the previous approach here) still occupies
+  // a DOM node the browser's native contenteditable caret logic can get
+  // stuck on: typing right at the boundary of a JUST-recognized heading
+  // (e.g. finishing "### " and continuing to type the title) could land
+  // the native caret on the wrong side of that node, silently inserting
+  // new characters before the hidden marks instead of after them.
   const hide = (from, to) => {
     if (from < to) {
-      out.push(Decoration.replace({ widget: new HiddenWidget() }).range(from, to));
+      out.push(Decoration.replace({}).range(from, to));
       atomic.push(Decoration.mark({}).range(from, to));
     }
   };

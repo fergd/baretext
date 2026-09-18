@@ -25,7 +25,6 @@ export default {
       'Mod-Shift-E':      () => ctx.cmdExport(),
       'Mod-Shift-T':      () => ctx.toggleTypewriter(),
       'Mod-Shift-F':      () => ctx.toggleFontPicker(),
-      'Mod-Shift-M':      () => ctx.toggleRenderedMode(),
       'Mod-Shift-O':      () => ctx.openOutline(),
       'Mod-Shift-Minus':  () => ctx.insertSceneBreak(),
       'Mod-Enter':        () => ctx.insertSceneBreak(),
@@ -67,7 +66,6 @@ export default {
       },
       { group: 'View',
         items: [
-          { label: ctx.state.sourceMode ? 'Switch to Pretty view' : 'Switch to Markdown view', icon: 'ti-markdown', keys: ['⌘','⇧','M'], fn: ctx.toggleRenderedMode },
           { label: 'Typewriter mode',          icon: 'ti-align-center', keys: ['⌘','⇧','T'],    fn: ctx.toggleTypewriter },
           { label: 'Change font',              icon: 'ti-typography',   keys: ['⌘','⇧','F'],    fn: ctx.toggleFontPicker },
           { label: 'Focus mode',               icon: 'ti-eye-off',      keys: ['⌘','.'],         fn: ctx.toggleFocus },

@@ -98,9 +98,17 @@ export const bookTitleClickGuard = EditorView.domEventHandlers({
 export function injectBookTitleStyle() {
   injectStyleTag('bt-book-title', `
 html[data-mode="editor"] .cm-line.cm-book-title {
-  color: var(--text-strong); font-size: var(--ms-h1-size, 36px);
-  font-weight: var(--ms-h1-weight, 400); line-height: var(--ms-h1-lh, 1.1);
-  padding-bottom: 1em;
+  color: var(--h1, var(--accent)); letter-spacing: -.01em; font-size: var(--ms-book-title-size, 84px);
+  font-weight: var(--ms-h1-weight, 400); line-height: var(--ms-book-title-lh, .98);
+  /* Tight, not the large section-break gap -- the first chapter heading
+     right after the book title IS the title's own content, the same
+     relationship as "chapter title -> its first scene heading" in
+     typography-rhythm.md #2 (explicitly called out there as tight, not
+     equidistant), just one level up. Fixed px, not em -- at this display
+     size 1em would dwarf the rhythm system's tight-gap unit. */
+  padding-bottom: 12px;
+  /* Avoids a ragged/orphaned last word at display size (typography-rhythm.md #4). */
+  text-wrap: pretty;
 }
 `);
 }

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline'">
   <script>
     // Apply the saved accent theme synchronously, before the <style> block
     // below is parsed, so there's no flash of the default theme on launch.
@@ -109,7 +109,7 @@
       --text-body: 15px;
       --lh-body: 1.9;
       --editor-measure: 75ch; /* line measure — tune this one value to adjust editor line width */
-      --rail-w: 336px; /* deliberately narrower than the 377px Figma specimen */
+      --rail-w: 320px; /* deliberately narrower than the 377px Figma specimen */
 
       /* Manuscript surface (Editor mode only — see design_handoff_baretext/
          MANUSCRIPT_SURFACE.md). Defaults here match the editor's existing
@@ -614,6 +614,7 @@
       --ms-h1-weight: 400;
       --ms-h2-weight: 400;
       --ms-h3-weight: 400;
+      --ms-minor-heading-weight: 400;
     }
 
     /* Manuscript surface — Editor mode only (design_handoff_baretext/
@@ -627,13 +628,15 @@
          equally valid scene-level markers, so a scene's heading style can't
          depend on which one the writer happened to use. */
       --ms-h2-size:   28px;
-      --ms-h2-weight: 400;
       --ms-h2-lh:     1.1;
       --h2:           var(--text-dim);
       --ms-h3-size:   28px;
-      --ms-h3-weight: 400;
       --ms-h3-lh:     1.1;
       --h3:           var(--text-dim);
+      /* Book/cover title — top of the modular scale above chapter H1 (56px)
+         and body (15px); see typography-rhythm.md #1. */
+      --ms-book-title-size: 84px;
+      --ms-book-title-lh:   .98;
     }
     /* Top/bottom padding only — line width stays exactly --editor-measure,
        the same one Sprinter uses. The gutter hangs in the surrounding
@@ -654,27 +657,17 @@
     #app.typewriter .cm-content { padding-top: 50vh !important; padding-bottom: 50vh !important; }
     #app.typewriter #editor-host .cm-line { line-height: 2.1; }
 
-    /* Typewriter chrome: center guide, edge fade — hidden unless active */
-    #tw-fade, #tw-guide { display: none; pointer-events: none; }
+    /* Typewriter chrome: center guide, marker, edge fade — hidden unless active */
+    #tw-fade, #tw-guide, #tw-marker { display: none; pointer-events: none; }
     #app.typewriter #tw-fade, #app.typewriter #tw-guide { display: block; }
 
-    /* Continuous fade centered on the typewriter line (50%) — no flat clear
-       zone, starts fading immediately above/below the line itself. All text
-       stays the default color; this overlay is what creates the fade, not
-       any per-line/per-sentence styling. */
+    /* Continuous fade centered on the writing line. Keep the editor's text
+       color stable; the overlay creates the focus without repainting rows. */
     #tw-fade {
       position: absolute; inset: 0; z-index: 2;
       background: linear-gradient(var(--bg) 0%, transparent 50%, var(--bg) 100%);
     }
-    /* Sprinter only — Editor mode's typewriter fade stays exactly the
-       gentle, no-flat-zone curve above (per the user, unchanged on
-       purpose). Sprinter's is deliberately much more aggressive: a narrow
-       flat clear band right at the line itself (48%-52%), then a short,
-       steep ramp to fully opaque --bg by 38%/62% instead of a slow taper
-       all the way out to 0%/100% — everything past roughly 3-4 lines away
-       from the caret goes essentially invisible instead of just dim, so
-       focus really is on the one line being written, not the whole
-       paragraph around it. */
+    /* Sprinter keeps a tighter spotlight around the active writing line. */
     html[data-mode="sprinter"] #tw-fade {
       background: linear-gradient(
         var(--bg) 0%, var(--bg) 38%,
@@ -683,8 +676,19 @@
       );
     }
     #tw-guide {
-      position: absolute; left: 0; right: 0; top: 50%; height: 1px; z-index: 1;
-      background: color-mix(in srgb, var(--syntax-2, var(--accent)) 14%, transparent);
+      position: absolute; left: 0; right: 0; top: 50%; height: 1px; z-index: 3;
+      background: linear-gradient(
+        to right,
+        color-mix(in srgb, var(--syntax-2, var(--accent)) 12%, transparent) 0%,
+        transparent 28%, transparent 72%,
+        color-mix(in srgb, var(--syntax-2, var(--accent)) 12%, transparent) 100%
+      );
+    }
+    #tw-marker {
+      position: absolute; left: 14px; top: calc(50% - 17px); z-index: 3;
+      font: 400 10px/1 var(--font-mono); letter-spacing: .14em;
+      text-transform: uppercase;
+      color: color-mix(in srgb, var(--syntax-2, var(--accent)) 40%, transparent);
     }
 
     /* Cold Storage "scene view" banner (Editor mode only — see
@@ -742,6 +746,12 @@
     #tw-status-indicator:hover .ti { color: var(--text-dim); }
     #tw-status-indicator.tw-on { color: var(--text); }
     #tw-status-indicator.tw-on .ti { color: var(--syntax-2, var(--accent)); }
+    /* Typewriter has no active line to center on the corkboard's grid of
+       cards -- hide just the indicator while it's open (the underlying
+       state is untouched; see corkboard.js's show()/close()) rather than
+       gating the ⌘⇧T shortcut or command-palette entry, which stay live
+       regardless (writing-rail-refinements.md #3). */
+    #app.corkboard-open #tw-status-indicator { display: none; }
 
     #statusbar {
       height: 30px;
@@ -1206,6 +1216,7 @@
       }
     }
   </style>
+  <link rel="stylesheet" href="writing-rail.css">
 </head>
 <body>
 
@@ -1219,6 +1230,7 @@
     <div id="editor-host">
       <div id="tw-fade"></div>
       <div id="tw-guide"></div>
+      <div id="tw-marker">typewriter</div>
       <div id="cold-storage-banner">
         <i class="ti ti-snowflake"></i>
         <span id="cold-storage-banner-label"></span>

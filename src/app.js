@@ -63,7 +63,6 @@ const state = {
   typewriter: false,
   focusMode: false,
   filePath: null,
-  sourceMode: false,
   mode: document.documentElement.getAttribute('data-mode') || DEFAULT_MODE,
   railCollapsed: document.documentElement.getAttribute('data-rail-collapsed') === '1',
   wordCount: 0,
@@ -232,8 +231,9 @@ function updateBackupUI(status) {
       ? `connected as ${status.accountEmail}` + (status.lastBackupAt ? ` · last backup ${relativeTime(status.lastBackupAt)}` : '')
       : (status.hasClientCredentials ? 'not connected' : 'no client credentials saved');
   backupConnectBtn.hidden = status.connected;
+  backupConnectBtn.textContent = status.needsReconnect ? 'reconnect Google Drive' : 'connect Google Drive';
   backupNowBtn.hidden = !status.connected;
-  backupDisconnectBtn.hidden = !status.connected;
+  backupDisconnectBtn.hidden = !status.connected && !status.needsReconnect;
   backupStatusIndicator.className = status.lastError ? 'error' : (status.connected ? 'connected' : '');
   backupStatusIndicator.title = status.connected
     ? `Google Drive backup: ${status.accountEmail}` + (status.lastBackupAt ? ` · last backup ${relativeTime(status.lastBackupAt)}` : '')
@@ -398,6 +398,12 @@ function reportCursorPosition() {
 }
 host.addEventListener('keyup', reportCursorPosition);
 host.addEventListener('mouseup', reportCursorPosition);
+host.addEventListener('keyup', () => {
+  if (state.typewriter) window.BaretextEditor.centerCursor(view);
+});
+host.addEventListener('mouseup', () => {
+  if (state.typewriter) window.BaretextEditor.centerCursor(view);
+});
 
 // Typewriter mode recenters when text is actually edited (the create()
 // onChange callback above), when the mode is enabled, and on explicit
@@ -420,7 +426,7 @@ function stripBookTitle(text) {
   return String(text || '').replace(/^<!--\s*BOOK TITLE:\s*.*?\s*-->\s*/, '');
 }
 function updateCounts(doc) {
-  const t = stripBookTitle(stripColdStorage(doc || ''));
+  const t = stripBookTitle(stripColdStorage(doc || '')).replace(/^<!-- SCENE (?:LINK|GROUP: [a-zA-Z0-9-]+) -->\s*$/gm, '');
   const w = t.trim() === '' ? 0 : t.trim().split(/\s+/).length;
   state.wordCount = w;
   elWord.textContent = w + (w === 1 ? ' word' : ' words');
@@ -592,27 +598,16 @@ document.addEventListener('mousedown', (e) => {
 });
 twIndicator.addEventListener('mousedown', (e) => e.preventDefault());
 twIndicator.addEventListener('click', () => toggleTypewriter());
+elWord.tabIndex = 0;
+elWord.setAttribute('role', 'button');
+elWord.setAttribute('aria-label', 'Toggle typewriter mode');
+elWord.addEventListener('click', toggleTypewriter);
+elWord.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleTypewriter(); } });
 
 // ── Mode-agnostic editor helpers ──
 function insertSceneBreak() {
   window.BaretextEditor.insertSceneBreak(view);
   showToast('scene break inserted');
-}
-function toggleRenderedMode() {
-  state.sourceMode = !state.sourceMode;
-  window.BaretextEditor.setRenderedMode(view, state.sourceMode);
-  host.dataset.editorView = state.sourceMode ? 'markdown' : 'pretty';
-  const scroller = host.querySelector('.cm-scroller');
-  if (scroller) {
-    scroller.style.transition = 'none';
-    scroller.style.opacity = '0.4';
-    requestAnimationFrame(() => {
-      scroller.style.transition = 'opacity 0.2s ease';
-      scroller.style.opacity = '1';
-      setTimeout(() => { scroller.style.transition = ''; }, 220);
-    });
-  }
-  showToast(state.sourceMode ? 'markdown view' : 'pretty view');
 }
 function setTypewriter(on, opts = {}) {
   state.typewriter = on;
@@ -860,7 +855,10 @@ function renderOutline(q) {
 
 function jumpToOutlineItem(item) {
   window.BaretextEditor.setCursorPos(view, item.pos);
-  setTimeout(() => focusEditor(), 0);
+  setTimeout(() => {
+    focusEditor();
+    if (state.typewriter) window.BaretextEditor.centerCursor(view);
+  }, 0);
 }
 
 function openOutline() {
@@ -941,11 +939,13 @@ const ctx = {
   state,
   dom: { app, host, statusbar, statusLeft, overlay, fontPicker },
   showToast,
+  finishSprint: () => { activateMode('editor'); focusEditor(); window.BaretextEditor.centerCursor(view); },
   getDoc, setDoc, focusEditor,
   openOutline,
+  openFind: () => findReplace.keybindings()['Mod-f'](),
   cmdSave, cmdOpen, cmdNew, cmdExport, cmdPrint, cmdSaveDir,
   setTheme, setFont, toggleFontPicker,
-  setTypewriter, toggleTypewriter, toggleFocus, toggleRenderedMode, insertSceneBreak,
+  setTypewriter, toggleTypewriter, toggleFocus, insertSceneBreak,
   setRailCollapsed, toggleRailCollapsed,
   openThemePicker: () => themePicker.show(),
   openAiSettings,
@@ -1036,7 +1036,7 @@ function activateMode(modeId) {
 
   currentKeybindings = {
     'Mod-k': () => openPalette(),
-    'Mod-Shift-D': () => activateMode(state.mode === 'sprinter' ? 'editor' : 'sprinter'),
+    'Mod-Shift-D': () => switchMode(state.mode === 'sprinter' ? 'editor' : 'sprinter'),
   };
   activeFeatures.forEach(f => {
     if (f.keybindings) Object.assign(currentKeybindings, f.keybindings(ctx));
@@ -1079,6 +1079,6 @@ window.addEventListener('beforeunload', () => {
 
 // ── Init ──
 setFont('mono');
-activateMode(state.mode);
+activateMode('editor');
 focusEditor();
 updateCounts('');

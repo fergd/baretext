@@ -24,6 +24,7 @@ let accessToken = null;
 let accessTokenExpiresAt = 0;
 let lastBackupAt = null;
 let lastError = null;
+const RECONNECT_MESSAGE = 'Google Drive authorization expired or was revoked. Reconnect to resume backups.';
 
 function loadCredentials() {
   if (!credentialStore) return {};
@@ -97,11 +98,12 @@ function status() {
   return {
     hasClientCredentials: !!(creds.clientId && creds.clientSecret),
     hasPickerApiKey: !!creds.pickerApiKey,
-    connected: !!creds.refreshToken,
+    connected: !!creds.refreshToken && !creds.needsReconnect,
+    needsReconnect: !!creds.needsReconnect,
     accountEmail: creds.accountEmail || null,
     destinationFolder: sync.destinationFolder,
     lastBackupAt,
-    lastError,
+    lastError: creds.needsReconnect ? RECONNECT_MESSAGE : lastError,
   };
 }
 
@@ -109,13 +111,23 @@ async function ensureAccessToken() {
   const creds = loadCredentials();
   if (!creds.clientId || !creds.clientSecret) throw new Error('Enter a Google Client ID and Secret first');
   if (!creds.refreshToken) throw new Error('Connect Google Drive first');
+  if (creds.needsReconnect) throw new Error(RECONNECT_MESSAGE);
   if (accessToken && Date.now() < accessTokenExpiresAt - ACCESS_TOKEN_SAFETY_MARGIN_MS) return accessToken;
 
-  const result = await auth.refreshAccessToken({
+  let result;
+  try { result = await auth.refreshAccessToken({
     clientId: creds.clientId,
     clientSecret: creds.clientSecret,
     refreshToken: creds.refreshToken,
-  });
+  }); } catch (error) {
+    if (error.code === 'invalid_grant') {
+      saveCredentials({ needsReconnect: true });
+      accessToken = null;
+      accessTokenExpiresAt = 0;
+      throw new Error(RECONNECT_MESSAGE);
+    }
+    throw error;
+  }
   accessToken = result.access_token;
   accessTokenExpiresAt = Date.now() + (Number(result.expires_in) || 3600) * 1000;
   return accessToken;
@@ -170,7 +182,7 @@ async function connect() {
     accessToken = tokens.access_token;
     accessTokenExpiresAt = Date.now() + (Number(tokens.expires_in) || 3600) * 1000;
     const email = await auth.fetchAccountEmail({ accessToken });
-    saveCredentials({ refreshToken: tokens.refresh_token, accountEmail: email });
+    saveCredentials({ refreshToken: tokens.refresh_token, accountEmail: email, needsReconnect: false });
     lastError = null;
     return { email };
   } finally {
@@ -183,7 +195,7 @@ async function connect() {
 async function disconnect() {
   const creds = loadCredentials();
   if (creds.refreshToken) await auth.revokeToken({ token: creds.refreshToken });
-  saveCredentials({ refreshToken: null, accountEmail: null });
+  saveCredentials({ refreshToken: null, accountEmail: null, needsReconnect: false });
   accessToken = null;
   accessTokenExpiresAt = 0;
   lastBackupAt = null;
@@ -251,6 +263,7 @@ async function resolveDestinationFolderId(token) {
 async function backupDirectory(dir) {
   const creds = loadCredentials();
   if (!creds.refreshToken) return { ok: false, skipped: true };
+  if (creds.needsReconnect) return { ok: false, skipped: true, error: RECONNECT_MESSAGE };
 
   try {
     const token = await ensureAccessToken();

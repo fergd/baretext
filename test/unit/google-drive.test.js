@@ -122,7 +122,7 @@ test('status() before any client credentials are saved', () => {
   try {
     googleDrive.init({ credentialFilePath, syncFilePath, safeStorage: fakeSafeStorage, shell: { openExternal: async () => {} } });
     assert.deepEqual(googleDrive.status(), {
-      hasClientCredentials: false, hasPickerApiKey: false, connected: false, accountEmail: null,
+      hasClientCredentials: false, hasPickerApiKey: false, connected: false, needsReconnect: false, accountEmail: null,
       destinationFolder: null, lastBackupAt: null, lastError: null,
     });
   } finally {
@@ -357,4 +357,53 @@ test('backupDirectory() is a harmless no-op before Drive is connected', async ()
     fs.rmSync(dir, { recursive: true, force: true });
     fs.rmSync(saveDir, { recursive: true, force: true });
   }
+});
+
+test('revoked authorization persists a reconnect state and recovers without reentering credentials', async () => {
+  const { dir, credentialFilePath, syncFilePath } = setup();
+  const google = createFakeGoogle();
+  global.fetch = google.fetchImpl;
+  try {
+    const options = {credentialFilePath,syncFilePath,safeStorage:fakeSafeStorage,shell:{openExternal:google.fakeOpenExternal}};
+    googleDrive.init(options);
+    googleDrive.configure({clientId:'client-1',clientSecret:'secret-1'});
+    await googleDrive.connect();
+    googleDrive.setDestinationFolder({id:'chosen',name:'My backups'});
+    googleDrive.init(options); // expire the in-memory access token
+    const normalFetch = global.fetch;
+    global.fetch = async () => jsonResponse({error:'invalid_grant',error_description:'Token has been expired or revoked.'},400);
+    const result = await googleDrive.backupDirectory(dir);
+    assert.equal(result.ok,false);
+    assert.match(result.error,/Reconnect/);
+    assert.equal(googleDrive.status().connected,false);
+    assert.equal(googleDrive.status().needsReconnect,true);
+    googleDrive.init(options);
+    assert.equal(googleDrive.status().needsReconnect,true);
+    assert.equal(googleDrive.status().hasClientCredentials,true);
+    assert.equal(googleDrive.status().destinationFolder.id,'chosen');
+    global.fetch = async () => { throw new Error('must not retry a rejected token'); };
+    assert.equal((await googleDrive.backupDirectory(dir)).skipped,true);
+    global.fetch = normalFetch;
+    await googleDrive.connect();
+    assert.equal(googleDrive.status().connected,true);
+    assert.equal(googleDrive.status().needsReconnect,false);
+    assert.equal(googleDrive.status().lastError,null);
+  } finally { google.restore(); fs.rmSync(dir,{recursive:true,force:true}); }
+});
+
+test('a transient token-service failure does not require reconnecting', async () => {
+  const { dir, credentialFilePath, syncFilePath } = setup();
+  const google = createFakeGoogle();
+  global.fetch = google.fetchImpl;
+  try {
+    const options={credentialFilePath,syncFilePath,safeStorage:fakeSafeStorage,shell:{openExternal:google.fakeOpenExternal}};
+    googleDrive.init(options);
+    googleDrive.configure({clientId:'client-1',clientSecret:'secret-1'});
+    await googleDrive.connect();
+    googleDrive.init(options);
+    global.fetch=async()=>jsonResponse({error:'temporarily_unavailable'},503);
+    assert.equal((await googleDrive.backupDirectory(dir)).ok,false);
+    assert.equal(googleDrive.status().connected,true);
+    assert.equal(googleDrive.status().needsReconnect,false);
+  } finally { google.restore(); fs.rmSync(dir,{recursive:true,force:true}); }
 });

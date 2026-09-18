@@ -7,6 +7,8 @@
 // whatever whitespace happened to exist around the affected block's old
 // position.
 
+import { SCENE_LINK_MARKER, stripSceneLink, sceneGroup, linkedMembers } from './links.js';
+
 const NAME_COMMENT_RE = /^<!--.*-->$/;
 const COLD_STORAGE_MARKER = '<!-- COLD STORAGE -->';
 const BOOK_TITLE_PREFIX = '<!-- BOOK TITLE: ';
@@ -43,7 +45,7 @@ function stripLeadingSceneBreak(text) {
 }
 
 function cleanScene(scene) {
-  return stripLeadingSceneBreak(scene.rawText).trim();
+  return stripLeadingSceneBreak(stripSceneLink(scene.rawText)).trim();
 }
 
 // Heading-titled scenes (h2/h3) are self-delimiting — their own heading line
@@ -69,14 +71,15 @@ function cleanScene(scene) {
 // entirely, with no undo-worthy trace it had ever existed.
 function joinScenes(scenes) {
   return scenes.reduce((doc, scene, i) => {
-    const body = cleanScene(scene);
+    const prose = cleanScene(scene);
+    const body = prose + (scene.groupId ? '\n<!-- SCENE GROUP: ' + scene.groupId + ' -->' : scene.linkedNext && i < scenes.length - 1 ? '\n' + SCENE_LINK_MARKER : '');
     const nameComment = scene.named ? '<!-- ' + scene.title + ' -->\n\n' : '';
     if (scene.type !== 'scene') {
       return i === 0 ? body : doc + '\n\n' + body;
     }
     let prefix;
     if (i === 0) {
-      prefix = body === '' ? '---\n' + (nameComment || '\n') : nameComment;
+      prefix = prose === '' ? '---\n' + (nameComment || '\n') : nameComment;
     } else {
       prefix = '\n\n---\n' + (nameComment || '\n');
     }
@@ -105,6 +108,9 @@ function joinScenes(scenes) {
 // touches the document on disk, and dragging its last scene back out
 // cleanly erases the section again on the next rebuild.
 function buildDocument(chapters) {
+  const counts = new Map();
+  for (const scene of chapters.flatMap(c => c.scenes)) if (scene.groupId) counts.set(scene.groupId, (counts.get(scene.groupId) || 0) + 1);
+  chapters = carryBookTitle(chapters, chapters.map(c => ({ ...c, scenes: c.scenes.map(s => s.groupId && counts.get(s.groupId) < 2 ? { ...s, groupId: null } : s) })));
   const coldStorage = chapters.find((c) => c.coldStorage);
   const realChapters = chapters.filter((c) => !c.coldStorage);
 
@@ -133,17 +139,34 @@ function buildDocument(chapters) {
 export function reorderScenes(chapters, moveSpec) {
   const { fromChapterIndex, fromSceneIndex, toChapterIndex, toSceneIndex } = moveSpec;
 
+  const source = chapters[fromChapterIndex]?.scenes;
+  const target = chapters[toChapterIndex]?.scenes;
+  if (!source?.[fromSceneIndex] || !target) return null;
+  if (source[fromSceneIndex].groupId) {
+    const members = linkedMembers(chapters, fromChapterIndex, fromSceneIndex);
+    const selected = new Set(members.map(m => m.scene));
+    let at = Math.max(0, Math.min(toSceneIndex, target.length));
+    if (target[at] && selected.has(target[at])) return buildDocument(chapters);
+    if (at < target.length) at = sceneGroup(target, at).start;
+    const before = target.slice(0, at).filter(s => !selected.has(s)).length;
+    const next = carryBookTitle(chapters, chapters.map(c => ({ ...c, scenes: c.scenes.filter(s => !selected.has(s)) })));
+    next[toChapterIndex].scenes.splice(before, 0, ...members.map(m => m.scene));
+    return buildDocument(next);
+  }
+  const { start, end } = sceneGroup(source, fromSceneIndex);
+  let insertAt = Math.max(0, Math.min(toSceneIndex, target.length));
+  if (fromChapterIndex === toChapterIndex && insertAt >= start && insertAt <= end) return buildDocument(chapters);
+  // Dropping onto any member inserts before the entire destination group.
+  if (insertAt < target.length) insertAt = sceneGroup(target, insertAt).start;
+
   const next = carryBookTitle(chapters, chapters.map((c) => ({ title: c.title, synthetic: c.synthetic, coldStorage: c.coldStorage, scenes: c.scenes.slice() })));
 
-  const [moved] = next[fromChapterIndex].scenes.splice(fromSceneIndex, 1);
-  if (!moved) return null;
-
-  let insertAt = toSceneIndex;
-  if (fromChapterIndex === toChapterIndex && fromSceneIndex < toSceneIndex) {
-    insertAt -= 1;
+  const moved = next[fromChapterIndex].scenes.splice(start, end - start);
+  if (fromChapterIndex === toChapterIndex && start < insertAt) {
+    insertAt -= moved.length;
   }
   insertAt = Math.max(0, Math.min(insertAt, next[toChapterIndex].scenes.length));
-  next[toChapterIndex].scenes.splice(insertAt, 0, moved);
+  next[toChapterIndex].scenes.splice(insertAt, 0, ...moved);
 
   return buildDocument(next);
 }
@@ -172,6 +195,45 @@ export function deleteScene(chapters, { chapterIndex, sceneIndex }) {
   if (!chapter) return null;
   const [removed] = chapter.scenes.splice(sceneIndex, 1);
   if (!removed) return null;
+  if (sceneIndex > 0 && !removed.linkedNext) {
+    chapter.scenes[sceneIndex - 1] = { ...chapter.scenes[sceneIndex - 1], linkedNext: false };
+  }
+  return buildDocument(next);
+}
+
+export function toggleSceneLink(chapters, { chapterIndex, sceneIndex }) {
+  const scenes = chapters[chapterIndex]?.scenes;
+  if (!scenes?.[sceneIndex] || !scenes[sceneIndex + 1]) return null;
+  const next = carryBookTitle(chapters, chapters.map(c => ({ ...c, scenes: c.scenes.slice() })));
+  next[chapterIndex].scenes[sceneIndex] = { ...scenes[sceneIndex], linkedNext: !scenes[sceneIndex].linkedNext };
+  return buildDocument(next);
+}
+
+// Selecting cards changes membership only; manuscript order changes on drag.
+export function linkScenes(chapters, source, target) {
+  const a = linkedMembers(chapters, source.chapterIndex, source.sceneIndex);
+  const b = linkedMembers(chapters, target.chapterIndex, target.sceneIndex);
+  if (!a.length || !b.length || a.some(m => b.some(n => m.scene === n.scene))) return null;
+  const members = new Set([...a, ...b].map(m => m.scene));
+  const used = new Set(chapters.flatMap(c => c.scenes.map(s => s.groupId)));
+  let id = 1;
+  while (used.has('group-' + id)) id++;
+  const groupId = a[0].scene.groupId || b[0].scene.groupId || 'group-' + id;
+  const next = carryBookTitle(chapters, chapters.map(c => ({ ...c, scenes: c.scenes.map(s => members.has(s) ? { ...s, groupId, linkedNext: false } : s) })));
+  return buildDocument(next);
+}
+
+export function unlinkScene(chapters, { chapterIndex, sceneIndex }) {
+  const members = linkedMembers(chapters, chapterIndex, sceneIndex);
+  if (members.length < 2) return null;
+  const selected = chapters[chapterIndex].scenes[sceneIndex];
+  const remaining = members.filter(m => m.scene !== selected);
+  const used = new Set(chapters.flatMap(c => c.scenes.map(s => s.groupId)));
+  let id = 1;
+  while (used.has('group-' + id)) id++;
+  const groupId = selected.groupId || 'group-' + id;
+  const memberSet = new Set(members.map(m => m.scene));
+  const next = carryBookTitle(chapters, chapters.map(c => ({ ...c, scenes: c.scenes.map(s => memberSet.has(s) ? { ...s, linkedNext: false, groupId: s === selected || remaining.length < 2 ? null : groupId } : s) })));
   return buildDocument(next);
 }
 

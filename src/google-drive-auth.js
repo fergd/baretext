@@ -99,7 +99,9 @@ async function tokenRequest(params, fetchImpl) {
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error((data && (data.error_description || data.error)) || `Google token request failed (${response.status})`);
+    const error = new Error((data && (data.error_description || data.error)) || `Google token request failed (${response.status})`);
+    error.code = data.error;
+    throw error;
   }
   return data;
 }

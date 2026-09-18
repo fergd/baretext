@@ -66,15 +66,18 @@ works without this step — only run `build:editor` after changing anything
 under `src/editor/`. The rest of the app (`src/app.js`, `src/features/`)
 reads `src/editor-bundle.js` directly and doesn't need rebuilding.
 
-## Pretty and Markdown views
-Pretty view is the primary editing surface: headings, emphasis, links, code, and
-lists stay visually formatted while their Markdown delimiters stay concealed.
-Moving the caret or selecting text never changes that rendering. Press ⌘⇧M to
-switch to Markdown view for direct source editing, then press it again to return
-to Pretty view. Both views edit the same document, and files always save as
-plain Markdown.
+## Writing surface
+Headings, emphasis, links, code, and lists stay formatted while editing.
+Moving the caret or selecting text never exposes Markdown syntax, and there
+is no source-view toggle. Blank lines remain visible and writable, including
+beside chapter and scene headings. Files still save as plain Markdown.
 
 ## Chapters and scenes (Editor mode)
+Use the copy icon beside rename on a rail row or corkboard card/header to copy
+a scene or an entire chapter. The clipboard includes titles and Markdown
+formatting, but excludes private book-title, cold-storage, and scene-link records.
+Copying a linked scene copies that scene alone.
+
 Chapters are `# Heading` lines; scenes within a chapter are `---` breaks (or
 `##`/`###` sub-headings, which use their own heading text as the scene
 title). Two views onto the same manuscript model:
@@ -94,6 +97,13 @@ title). Two views onto the same manuscript model:
   (creating, editing, dragging, deleting) never navigates away — the
   corkboard stays open until you dismiss it (Esc) or click a card's
   "open in manuscript" button to jump to that scene deliberately.
+
+To link scenes, click **link** on a corkboard card, then click anywhere on
+another card. Eligible cards have a dashed outline; **cancel** or Escape
+exits selection. Cards can be in different chapters and stay in place until
+you drag a member, which moves the group together in manuscript order.
+Use **unlink** on a card to remove it from its group. Links support undo and
+survive reopening. Deleting a scene still deletes only that scene.
 
 A chapter with no title yet shows a non-persisted "Untitled" placeholder
 (in both the rail and the editor) instead of rendering blank. Named chapters
@@ -200,7 +210,6 @@ action; undoing a summary removes its cache entry too. The provider boundary liv
 - ⌘N — new file
 - ⌘O — open file
 - ⌘⇧E — export markdown
-- ⌘⇧M — toggle markdown symbols visible/hidden
 - ⌘⇧O — jump to chapter or scene
 - ⌘↵ — insert scene break
 - ⌘⇧T — typewriter mode
@@ -297,3 +306,8 @@ directory — they never touch your real settings or `~/Documents/Barebones/`.
 The window also never shows or steals focus (`BARETEXT_HIDDEN=1`, read in
 `src/main.js`) — CDP drives the renderer directly and doesn't need it
 visible.
+
+Sprinter is a temporary writing session: choose the Sprinter tab to set up a sprint.
+Canceling setup, ending the sprint, or reaching the timer limit returns to Editor
+at the cursor. Fresh launches open Editor. Re-select Sprinter to reveal a hidden
+or minimized timer; there is no duplicate sprint control in the footer.

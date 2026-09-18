@@ -1,3 +1,4 @@
+import { isLinkMetadata } from '../features/scene-nav/links.js';
 import { Decoration, EditorView, WidgetType, ViewPlugin } from '@codemirror/view';
 import { StateField } from '@codemirror/state';
 import { injectStyle as injectStyleTag } from '../dom.js';
@@ -55,28 +56,40 @@ import { injectStyle as injectStyleTag } from '../dom.js';
 // measured-center approach (never reported broken, and centering only
 // needs matching midpoints, not glyph baselines, so the earlier method's
 // failure mode doesn't apply to it).
+// sceneIndex (scene-kind widgets only) is this widget's position in
+// document order among ALL scene numerals — stamped as a data attribute so
+// the active-scene highlighter below (see manuscriptGutterActivePlugin) can
+// find and mark the right rendered node without assuming every scene's
+// widget is currently in the DOM. CodeMirror only renders decorations
+// inside (plus a small margin around) the current viewport, so an index
+// match against a live querySelectorAll would silently misalign against a
+// virtualized-out widget; matching by an embedded id sidesteps that
+// entirely, the same way alignOrnamentNumbers below matches ornaments to
+// their own next sibling rather than by array position.
 class InlineGutterNumberWidget extends WidgetType {
-  constructor(text, kind) { super(); this.text = text; this.kind = kind; }
-  eq(other) { return other.text === this.text && other.kind === this.kind; }
+  constructor(text, kind, sceneIndex) { super(); this.text = text; this.kind = kind; this.sceneIndex = sceneIndex; }
+  eq(other) { return other.text === this.text && other.kind === this.kind && other.sceneIndex === this.sceneIndex; }
   toDOM() {
     const span = document.createElement('span');
     span.className = 'cm-gutter-num-inline cm-gutter-num-' + this.kind;
     span.setAttribute('aria-hidden', 'true');
     span.setAttribute('data-gutter-num', this.text);
+    if (this.kind === 'scene') span.dataset.sceneIndex = String(this.sceneIndex);
     return span;
   }
   ignoreEvent() { return true; }
 }
 
 class OrnamentGutterNumberWidget extends WidgetType {
-  constructor(text) { super(); this.text = text; }
-  eq(other) { return other.text === this.text; }
+  constructor(text, sceneIndex) { super(); this.text = text; this.sceneIndex = sceneIndex; }
+  eq(other) { return other.text === this.text && other.sceneIndex === this.sceneIndex; }
   toDOM() {
     const wrap = document.createElement('div');
     wrap.className = 'cm-gutter-num-wrap';
     const span = document.createElement('span');
     span.className = 'cm-gutter-num cm-gutter-num-ornament';
     span.setAttribute('aria-hidden', 'true');
+    span.dataset.sceneIndex = String(this.sceneIndex);
     span.textContent = this.text;
     wrap.appendChild(span);
     return wrap;
@@ -89,14 +102,14 @@ class OrnamentGutterNumberWidget extends WidgetType {
 // orders same-position widgets by side ascending, so this guarantees the
 // number renders first regardless of which plugin's decorations happen to
 // merge first.
-function inlineGutterWidget(text, kind) {
-  return Decoration.widget({ widget: new InlineGutterNumberWidget(text, kind), side: -2 });
+function inlineGutterWidget(text, kind, sceneIndex) {
+  return Decoration.widget({ widget: new InlineGutterNumberWidget(text, kind, sceneIndex), side: -2 });
 }
-function ornamentGutterWidget(text) {
-  return Decoration.widget({ widget: new OrnamentGutterNumberWidget(text), side: -1, block: true });
+function ornamentGutterWidget(text, sceneIndex) {
+  return Decoration.widget({ widget: new OrnamentGutterNumberWidget(text, sceneIndex), side: -1, block: true });
 }
 
-const NAME_COMMENT_RE = /^<!--\s*(.*?)\s*-->$/;
+const NAME_COMMENT_RE = /^(?!<!-- SCENE (?:LINK|GROUP: [a-zA-Z0-9-]+) -->$)<!--\s*(.*?)\s*-->$/;
 const HEADING_RE = /^(#{1,3})(?:[ \t]+.*)?$/;
 const MARKER_RE = /^(-{3,}|\*{3,}|_{3,})$/;
 const COLD_STORAGE_MARKER = '<!-- COLD STORAGE -->';
@@ -106,20 +119,37 @@ const COLD_STORAGE_MARKER = '<!-- COLD STORAGE -->';
 // scene counts as 1) so the gutter always agrees with the rail/corkboard.
 // Kept as its own local scan for the same reason scene-breaks.js is: this
 // only needs line numbers to hang a widget from, not the full outline model.
+//
+// Alongside the decorations, this also collects every chapter/scene
+// boundary's own position in document order (`boundaries`) so scene ranges
+// (start of one scene numeral to the start of the next boundary of any
+// kind) can be derived afterward — used only by manuscriptGutterActivePlugin
+// below to tint the current scene's numeral at full strength (typography-
+// rhythm.md #3). Boundaries the scan already tracks internally are enough;
+// this doesn't need outline.js's fuller model.
 function build(state) {
   const doc = state.doc;
   const decos = [];
+  const boundaries = []; // { from, scene: boolean } in document order
   let chapterNum = 0;
   let sceneNum = 0;
   let awaitingFirstContent = false;
   let pendingNameLine = null;
+  let sceneCounter = 0;
 
-  const addInline = (line, text, kind) => decos.push(inlineGutterWidget(text, kind).range(line.from));
-  const addOrnament = (line, text) => decos.push(ornamentGutterWidget(text).range(line.from));
+  const addInline = (line, text, kind, sceneIndex) => {
+    decos.push(inlineGutterWidget(text, kind, sceneIndex).range(line.from));
+    boundaries.push({ from: line.from, scene: kind === 'scene' });
+  };
+  const addOrnament = (line, text, sceneIndex) => {
+    decos.push(ornamentGutterWidget(text, sceneIndex).range(line.from));
+    boundaries.push({ from: line.from, scene: true });
+  };
 
   for (let i = 1; i <= doc.lines; i++) {
     const line = doc.line(i);
     const trimmed = line.text.trim();
+    if (isLinkMetadata(trimmed)) continue;
 
     // Cold Storage (scene-nav/model.js) isn't part of the manuscript's own
     // chapter/scene numbering — word count and the rail's "N ch" count
@@ -139,7 +169,7 @@ function build(state) {
         addInline(line, String(chapterNum), 'chapter');
       } else {
         sceneNum++; awaitingFirstContent = false;
-        addInline(line, chapterNum + '.' + sceneNum, 'scene');
+        addInline(line, chapterNum + '.' + sceneNum, 'scene', sceneCounter++);
       }
       continue;
     }
@@ -148,8 +178,8 @@ function build(state) {
       awaitingFirstContent = false;
       const next = i + 1 <= doc.lines ? doc.line(i + 1) : null;
       const m = next && next.text.trim().match(NAME_COMMENT_RE);
-      if (m) addInline(next, chapterNum + '.' + sceneNum, 'scene');
-      else addOrnament(line, chapterNum + '.' + sceneNum);
+      if (m) addInline(next, chapterNum + '.' + sceneNum, 'scene', sceneCounter++);
+      else addOrnament(line, chapterNum + '.' + sceneNum, sceneCounter++);
       continue;
     }
     if (awaitingFirstContent) {
@@ -157,13 +187,21 @@ function build(state) {
       if (m) { pendingNameLine = line; continue; }
       if (trimmed !== '') {
         sceneNum = 1;
-        if (pendingNameLine) addInline(pendingNameLine, chapterNum + '.' + sceneNum, 'scene');
+        if (pendingNameLine) addInline(pendingNameLine, chapterNum + '.' + sceneNum, 'scene', sceneCounter++);
         awaitingFirstContent = false;
         pendingNameLine = null;
       }
     }
   }
-  return Decoration.set(decos, true);
+
+  const sceneRanges = [];
+  for (let i = 0; i < boundaries.length; i++) {
+    if (!boundaries[i].scene) continue;
+    const to = i + 1 < boundaries.length ? boundaries[i + 1].from : doc.length;
+    sceneRanges.push({ from: boundaries[i].from, to });
+  }
+
+  return { decos: Decoration.set(decos, true), sceneRanges };
 }
 
 // A StateField, not a ViewPlugin, because the ornament widget's block
@@ -172,11 +210,44 @@ function build(state) {
 // chapter/scene widgets don't strictly need this, but both kinds are
 // produced by the same scan, so both come from the same field). build()
 // scans the whole document unconditionally (never viewport-limited), so a
-// doc-change is the only thing that can ever change the result.
+// doc-change is the only thing that can ever change the result — when it
+// hasn't, tr.changes is an empty/identity changeset, so mapping through it
+// is free and sceneRanges (plain from/to numbers, not a RangeSet) needs no
+// separate handling.
 export const manuscriptGutterPlugin = StateField.define({
   create: (state) => build(state),
-  update: (value, tr) => (tr.docChanged ? build(tr.state) : value.map(tr.changes)),
-  provide: (f) => EditorView.decorations.from(f),
+  update: (value, tr) => (tr.docChanged ? build(tr.state) : { decos: value.decos.map(tr.changes), sceneRanges: value.sceneRanges }),
+  provide: (f) => EditorView.decorations.from(f, (v) => v.decos),
+});
+
+// Tints the scene numeral containing the cursor at full strength, the rest
+// at the idle tint set in CSS (typography-rhythm.md #3) — a post-render DOM
+// tweak in the same style as alignOrnamentNumbers below, not a decoration,
+// since it only ever toggles one class and doesn't affect layout. Matches
+// nodes by their own embedded data-scene-index (see the widget classes
+// above) rather than array position against sceneRanges, since CodeMirror
+// only renders decorations near the current viewport — an index match
+// against whatever's currently in the DOM would silently misalign once any
+// scene numeral scrolls out of range.
+function updateActiveSceneNumber(view) {
+  const { sceneRanges } = view.state.field(manuscriptGutterPlugin);
+  const pos = view.state.selection.main.head;
+  let activeIndex = -1;
+  for (let i = 0; i < sceneRanges.length; i++) {
+    if (pos >= sceneRanges[i].from && (pos < sceneRanges[i].to || pos === view.state.doc.length && sceneRanges[i].to === pos)) { activeIndex = i; break; }
+  }
+  view.dom.querySelectorAll('[data-scene-index]').forEach((node) => {
+    node.classList.toggle('cm-gutter-num-active', Number(node.dataset.sceneIndex) === activeIndex);
+  });
+}
+
+export const manuscriptGutterActivePlugin = ViewPlugin.fromClass(class {
+  constructor(view) { updateActiveSceneNumber(view); }
+  update(update) {
+    if (update.docChanged || update.selectionSet || update.viewportChanged) {
+      updateActiveSceneNumber(update.view);
+    }
+  }
 });
 
 // Only the ornament case still needs runtime positioning — it's centered
@@ -228,12 +299,21 @@ html[data-mode="editor"] .cm-gutter-num-inline {
      DOM child of .cm-scene-name-comment, and scene-breaks.js hides that
      line's own (real, invisible) text with a ".cm-scene-name-comment *
      { color: transparent !important }" wildcard that catches this too. */
-  text-align: right; color: var(--text-dimmer) !important; font-variant-numeric: lining-nums;
+  text-align: right; font-variant-numeric: lining-nums;
   pointer-events: none; user-select: none;
 }
 html[data-mode="editor"] .cm-gutter-num-inline::before { content: attr(data-gutter-num); }
 html[data-mode="editor"] .cm-gutter-num-inline.cm-gutter-num-chapter { font-size: 56px; font-weight: 400; line-height: 1.05; }
 html[data-mode="editor"] .cm-gutter-num-inline.cm-gutter-num-scene   { font-size: 28px; font-weight: 400; line-height: 1.1; }
+/* Numerals are a translucent tint of their section's color, not a flat
+   --text-dimmer gray (typography-rhythm.md #3) -- the current scene's own
+   numeral (manuscriptGutterActivePlugin above) comes up to full strength.
+   !important for the same reason the base color rule above needed it: a
+   named scene's numeral is a real child of scene-breaks.js's
+   .cm-scene-name-comment line, whose own wildcard would otherwise win. */
+html[data-mode="editor"] .cm-gutter-num-inline.cm-gutter-num-chapter { color: color-mix(in srgb, var(--accent) 55%, transparent) !important; }
+html[data-mode="editor"] .cm-gutter-num-inline.cm-gutter-num-scene   { color: color-mix(in srgb, var(--scene) 55%, transparent) !important; }
+html[data-mode="editor"] .cm-gutter-num-inline.cm-gutter-num-scene.cm-gutter-num-active { color: var(--scene) !important; }
 
 /* Unnamed-scene ornament number: a block widget, centered at runtime by
    manuscriptGutterAlignPlugin (see above) against the ornament's own
@@ -246,6 +326,10 @@ html[data-mode="editor"] .cm-gutter-num-inline.cm-gutter-num-scene   { font-size
 }
 html[data-mode="editor"] .cm-gutter-num { display: block; }
 html[data-mode="editor"] .cm-gutter-num-ornament { font-size: 28px; font-weight: 400; line-height: 1.1; }
+/* Ornament numbers are always scene numerals -- same tint rule as the
+   inline scene numeral above. */
+html[data-mode="editor"] .cm-gutter-num-ornament { color: color-mix(in srgb, var(--scene) 55%, transparent); }
+html[data-mode="editor"] .cm-gutter-num-ornament.cm-gutter-num-active { color: var(--scene); }
 
 /* Not enough left margin to hang the numbers below this width — must be
    the last rules in this stylesheet (same specificity as the display:block/

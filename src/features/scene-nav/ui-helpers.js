@@ -4,6 +4,29 @@
 // copies of these two pieces. Extracted here once an architecture review
 // flagged the duplication.
 import { btn, icon } from '../../dom.js';
+import { getManuscript } from './model.js';
+import { textToCopy } from './copy.js';
+import { sceneGroup } from './links.js';
+
+export function markSceneGroup(element, scenes, si) {
+  const { start, end } = sceneGroup(scenes, si);
+  element.dataset.groupId = scenes[si].groupId || '';
+  element.dataset.groupStart = start;
+  element.dataset.groupEnd = end;
+  if (end - start < 2 && !scenes[si].groupId) return;
+  element.classList.add('scene-linked');
+  element.classList.toggle('scene-linked-next', si < end - 1);
+  element.classList.toggle('scene-linked-prev', si > start);
+  const name = element.querySelector('.rail-scene-name, .peek-scene-name');
+  if (name) {
+    const glyph = icon('ti-link');
+    glyph.classList.add('scene-link-mark');
+    name.prepend(glyph);
+  }
+  const label = scenes[si].groupId ? `linked group · ${scenes[si].groupSize} scenes · drag to move together` : `linked scenes ${start + 1}–${end} · drag to move together`;
+  element.title = label;
+  element.setAttribute('aria-description', label);
+}
 
 // Two-click confirm: first click arms it (icon turns danger-colored, shows
 // "delete?"), a second click on the SAME button within 3s actually deletes.
@@ -38,6 +61,11 @@ export function makeDeleteButton(deleteBtnClass, label, onConfirm) {
       button.setAttribute('aria-label', 'Delete ' + label);
     }
     button.classList.toggle('confirm', armed);
+    // Bubbles up to the row so a trailing-slot hover/focus swap (rail.js)
+    // can re-evaluate visibility right when arm state changes -- most
+    // importantly the 3s auto-disarm timeout, which fires with no
+    // mouse/focus event of its own to trigger that re-check otherwise.
+    button.dispatchEvent(new Event('btconfirmchange', { bubbles: true }));
   }
 
   function disarm() {
@@ -109,4 +137,25 @@ export function beginEdit(displayEl, currentValue, onCommit, render) {
     else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
     e.stopPropagation();
   });
+}
+
+// Buttons stop row activation, preserving the writer's caret and selection.
+export function makeCopyButton(className, kind, ctx, ci, si) {
+  const button = btn(className + ' copy-' + kind + '-btn');
+  button.append(icon('ti-copy'));
+  button.title = 'copy ' + kind + ' to clipboard';
+  button.setAttribute('aria-label', 'Copy ' + kind + ' to clipboard');
+  button.addEventListener('mousedown', e => e.stopPropagation());
+  button.addEventListener('click', async e => {
+    e.stopPropagation();
+    try {
+      const chapters = getManuscript(ctx.view);
+      const text = textToCopy(window.BaretextEditor.getDoc(ctx.view), chapters, ci, si);
+      await navigator.clipboard.writeText(text);
+      ctx.showToast(kind + ' copied');
+    } catch {
+      ctx.showToast('could not copy ' + kind + ' — try again');
+    }
+  });
+  return button;
 }

@@ -12,7 +12,6 @@ let ctx = null;
 let panelEl = null;
 let edgeEl = null;
 let edgeFillEl = null;
-let chipEl = null;
 let timeEl = null;
 let fillEl = null;
 let wordsEl = null;
@@ -134,20 +133,6 @@ function injectStyle() {
    status bar alone wasn't enough. */
 #app.focus-mode .sprint-edge { opacity: 0; pointer-events: none; }
 
-.sprint-chip-status {
-  /* all:unset would also wipe out the shared .status-item rule (font-size/
-     color/letter-spacing from index.html) since this JS-injected stylesheet
-     lands after it in cascade order -- re-declare them here explicitly. */
-  all: unset; box-sizing: border-box;
-  font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); letter-spacing: 0.03em;
-  display: flex; align-items: center; gap: 6px; padding: 4px 6px; margin: -4px -6px;
-  cursor: pointer; transition: color .15s ease;
-}
-.sprint-chip-status .ti-run { color: var(--text-dimmer); font-size: 13px; transition: color .15s ease; }
-.sprint-chip-status:hover { color: var(--text); }
-.sprint-chip-status:hover .ti-run { color: var(--text-dim); }
-.sprint-chip-status.running { color: var(--text); font-variant-numeric: tabular-nums; }
-.sprint-chip-status.running .ti-run { color: var(--accent); }
 `);
 }
 
@@ -162,31 +147,6 @@ function updateVisibility() {
   panelEl.style.display = (evokeOpen || (sprint && sprint.view === 'active')) ? 'block' : 'none';
   edgeEl.style.display = (sprint && sprint.view === 'edge') ? 'block' : 'none';
   edgeEl.classList.toggle('paused', !!(sprint && sprint.paused));
-  updateChipContent();
-}
-
-// Chip is a permanent footer fixture (idle "sprint" label / running countdown),
-// not just a minimized-state affordance — always reflects current sprint state.
-// While 'hidden' specifically, it shows no countdown at all — a ticking
-// number is exactly the distraction "hide timer" exists to remove, so the
-// chip only says "sprinting" until it's restored to active/edge view.
-function updateChipContent() {
-  if (!chipEl) return;
-  chipEl.innerHTML = '';
-  chipEl.appendChild(icon('ti-run'));
-  if (sprint) {
-    chipEl.classList.add('running');
-    const label = sprint.view === 'hidden' ? ' sprinting' : sprint.paused ? ' paused' : ' ' + mmss(sprint.remaining);
-    chipEl.appendChild(document.createTextNode(label));
-    chipEl.title = sprint.paused ? 'sprint paused — click to show' : sprint.view === 'active' ? 'sprint in progress' : 'click to show sprint';
-  } else {
-    chipEl.classList.remove('running');
-    chipEl.appendChild(document.createTextNode(' sprint'));
-    chipEl.title = 'click to start a sprint';
-  }
-  // title isn't a reliable accessible name (not consistently exposed, invisible
-  // to touch) -- mirror it into aria-label, and announce changes politely.
-  chipEl.setAttribute('aria-label', chipEl.title);
 }
 
 function buildEvoke() {
@@ -346,6 +306,7 @@ function cancelEvoke() {
   evokeOpen = false;
   detachEvokeKeys();
   updateVisibility();
+  ctx.finishSprint();
 }
 
 function confirmEvoke() {
@@ -380,7 +341,6 @@ function tick() {
   if (sprint.remaining <= 0) { complete(); return; }
   if (sprint.view === 'active') updateActiveVisuals();
   else if (sprint.view === 'edge') updateEdgeVisuals();
-  updateChipContent();
 }
 
 function complete() {
@@ -391,6 +351,7 @@ function complete() {
   sprint = null;
   updateVisibility();
   ctx.showToast(`sprint complete · +${gained} words · ${totalStr}`, { icon: 'ti-run' });
+  ctx.finishSprint();
 }
 
 function togglePause() {
@@ -408,6 +369,7 @@ function endSprint() {
   sprint = null;
   updateVisibility();
   ctx.showToast('sprint ended');
+  ctx.finishSprint();
 }
 
 function setView(view) {
@@ -441,11 +403,6 @@ export default {
     edgeEl.appendChild(edgeFillEl);
     ctx.dom.app.appendChild(edgeEl);
 
-    chipEl = btn('status-item sprint-chip-status');
-    chipEl.setAttribute('aria-live', 'polite');
-    chipEl.addEventListener('click', () => handleStartCommand());
-    ctx.dom.statusLeft.appendChild(chipEl);
-
     sprint = null;
     evokeOpen = false;
     updateVisibility();
@@ -457,8 +414,8 @@ export default {
     detachEvokeKeys();
     sprint = null;
     evokeOpen = false;
-    [panelEl, edgeEl, chipEl].forEach(node => node && node.remove());
-    panelEl = edgeEl = edgeFillEl = chipEl = timeEl = fillEl = wordsEl = goalInputEl = null;
+    [panelEl, edgeEl].forEach(node => node && node.remove());
+    panelEl = edgeEl = edgeFillEl = timeEl = fillEl = wordsEl = goalInputEl = null;
     ctx = null;
   },
 

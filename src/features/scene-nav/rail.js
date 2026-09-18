@@ -1,7 +1,9 @@
+import { mountShell, renderShell, unmountShell } from './writing-shell.js';
 import { getManuscript, findActiveScene } from './model.js';
 import { reorderScenes, reorderChapters } from './reorder.js';
+import { sceneGroup } from './links.js';
 import { el, btn, icon, injectStyle as injectStyleTag } from '../../dom.js';
-import { makeDeleteButton, beginEdit } from './ui-helpers.js';
+import { makeCopyButton, makeDeleteButton, beginEdit, markSceneGroup } from './ui-helpers.js';
 
 let ctx = null;
 let railEl = null;
@@ -160,40 +162,31 @@ function injectStyle() {
 .rail-chapter-title { font: var(--type-title); color: var(--text-title); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rail-chapter-title.placeholder { color: var(--text-faint); font-weight: 500; font-style: italic; }
 
-/* Trailing slot: word/scene count at rest, cross-fades into rename/delete
-   controls on hover OR :focus-within (so tabbing into a row reveals them
-   too, not just mouse hover -- rename/delete/drag are core actions, must
-   stay reachable without a mouse). */
-.rail-trailing { position: relative; height: var(--space-6); display: flex; align-items: center; justify-content: flex-end; }
-.rail-trailing-meta {
-  position: absolute; right: 0; transition: var(--motion-swap);
-}
-.rail-trailing-controls {
-  display: flex; gap: var(--space-3);
-  opacity: 0; transform: translateX(6px); pointer-events: none;
-  transition: var(--motion-swap);
-}
-.rail-chapter-row:hover .rail-trailing-meta, .rail-scene-row:hover .rail-trailing-meta,
-.rail-chapter-row:focus-within .rail-trailing-meta, .rail-scene-row:focus-within .rail-trailing-meta {
-  opacity: 0; transform: translateX(6px); pointer-events: none;
-}
-.rail-chapter-row:hover .rail-trailing-controls, .rail-scene-row:hover .rail-trailing-controls,
-.rail-chapter-row:focus-within .rail-trailing-controls, .rail-scene-row:focus-within .rail-trailing-controls {
-  opacity: 1; transform: translateX(0); pointer-events: auto;
-}
-/* An armed (two-click confirm) delete button stays visible/interactive
-   regardless of hover state -- disarming happens on a timeout or a second
-   click, not on mouseleave. */
-.rail-trailing-controls:has(.rail-delete-btn.confirm) { opacity: 1 !important; transform: translateX(0) !important; pointer-events: auto !important; }
+/* The trailing slot mounts either metadata or actions; hover and keyboard
+   focus share the same state-driven swap. */
+.rail-trailing { height: var(--space-6); display: flex; align-items: center; justify-content: flex-end; }
+.rail-trailing-controls { display: flex; gap: var(--space-3); }
 
 .rail-scene-list { display: flex; flex-direction: column; gap: var(--space-1); }
 
 .rail-scene-row {
-  display: grid; grid-template-columns: minmax(0, 1fr) 48px; gap: var(--space-1);
+  display: grid; grid-template-columns: var(--rail-node) minmax(0, 1fr) 48px; gap: var(--space-2);
   margin-left: var(--scene-inset);
 }
-.rail-scene-row .rail-scene-name { grid-column: 1; }
-.rail-scene-row .rail-trailing { grid-column: 2; }
+.rail-scene-num {
+  grid-column: 1; grid-row: 1;
+  width: var(--rail-node); height: var(--rail-node);
+  display: inline-flex; align-items: center; justify-content: center;
+  font: 400 11px/normal var(--font-mono); font-variant-numeric: tabular-nums;
+  /* Idle: a translucent tint of the scene color, not flat --text-dimmer;
+     full strength once this is the active/current scene -- same rule as
+     the manuscript's own gutter numerals (typography-rhythm.md #3), so a
+     scene's numeral reads identically in the rail and on the page. */
+  color: color-mix(in srgb, var(--scene) 55%, transparent);
+}
+.rail-scene-row.active .rail-scene-num { color: var(--scene); }
+.rail-scene-row .rail-scene-name { grid-column: 2; }
+.rail-scene-row .rail-trailing { grid-column: 3; }
 .rail-scene-row.active { background: var(--selected-surface); }
 .rail-scene-row .rail-scene-name { font: var(--type-body); color: var(--text-title); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rail-scene-row.active .rail-scene-name { color: var(--selected-text); }
@@ -276,6 +269,29 @@ function onActivate(element, handler) {
   element.addEventListener('click', handler);
 }
 
+// Keep detached controls alive so listeners and delete confirmation survive
+// the swap. Armed delete buttons stay mounted until confirmed or disarmed.
+function wireTrailingHover(row, metaSpan, controls) {
+  const slot = metaSpan.parentNode;
+  let hovered = false;
+  let focused = false;
+  function apply() {
+    const show = hovered || focused || !!controls.querySelector('.rail-delete-btn.confirm');
+    const child = show ? controls : metaSpan;
+    if (slot.firstChild !== child || slot.childNodes.length !== 1) slot.replaceChildren(child);
+  }
+  row.addEventListener('mouseenter', () => { hovered = true; apply(); });
+  row.addEventListener('mouseleave', () => { hovered = false; apply(); });
+  row.addEventListener('focusin', () => { focused = true; apply(); });
+  row.addEventListener('focusout', (e) => {
+    if (row.contains(e.relatedTarget)) return;
+    focused = false; apply();
+  });
+  row.showActions = () => { focused = true; apply(); };
+  row.addEventListener('btconfirmchange', apply);
+  apply();
+}
+
 // Chapter/scene rows are draggable directly -- no separate grip-icon handle
 // -- same whole-row-draggable approach the corkboard already uses for its
 // cards. `row.draggable` is set once and stays true; a plain press+release
@@ -309,7 +325,8 @@ function jumpTo(scene) {
   // can make Chromium reveal the old DOM selection and override this jump.
   ctx.focusEditor();
   ctx.editor.setCursorPos(ctx.view, scene.contentPos);
-  ctx.editor.scrollToTop(ctx.view, scene.pos);
+  if (ctx.state.typewriter) ctx.editor.centerCursor(ctx.view);
+  else ctx.editor.scrollToTop(ctx.view, scene.pos);
   ctx.refreshNav();
 }
 
@@ -317,7 +334,8 @@ function jumpToChapter(chapter) {
   ctx.exitColdStorageScene();
   ctx.focusEditor();
   ctx.editor.setCursorPos(ctx.view, chapter.pos);
-  ctx.editor.scrollToTop(ctx.view, chapter.pos);
+  if (ctx.state.typewriter) ctx.editor.centerCursor(ctx.view);
+  else ctx.editor.scrollToTop(ctx.view, chapter.pos);
   ctx.refreshNav();
 }
 
@@ -368,9 +386,13 @@ function moveChapter(ci, dir) {
 function moveScene(ci, si, dir) {
   const chapters = getManuscript(ctx.view);
   const chapter = chapters[ci];
-  const targetSi = si + dir;
-  if (!chapter || targetSi < 0 || targetSi >= chapter.scenes.length) return;
-  const toSceneIndex = dir < 0 ? si - 1 : si + 2;
+  if (!chapter) return;
+  const group = sceneGroup(chapter.scenes, si);
+  const neighborIndex = dir < 0 ? group.start - 1 : group.end;
+  if (neighborIndex < 0 || neighborIndex >= chapter.scenes.length) return;
+  const neighbor = sceneGroup(chapter.scenes, neighborIndex);
+  const toSceneIndex = dir < 0 ? neighbor.start : neighbor.end;
+  const targetSi = si + dir * (neighbor.end - neighbor.start);
   const moved = reorderScenes(chapters, {
     fromChapterIndex: ci, fromSceneIndex: si, toChapterIndex: ci, toSceneIndex,
   });
@@ -427,12 +449,14 @@ function onTreeKeydown(e) {
     return;
   }
   if (e.key === 'F2') {
+    row.showActions?.();
     e.preventDefault();
     const editBtn = row.querySelector('.rail-edit-btn');
     if (editBtn) editBtn.click();
     return;
   }
   if (e.key === 'Delete' || e.key === 'Backspace') {
+    row.showActions?.();
     e.preventDefault();
     const deleteBtn = row.querySelector('.rail-delete-btn');
     if (deleteBtn) deleteBtn.click();
@@ -470,13 +494,31 @@ function buildSceneRow(chapters, ci, si, active) {
     beginEdit(nameSpan, scene.title, (newTitle) => ctx.renameTitle(scene, newTitle), render);
   });
   const deleteBtn = makeDeleteButton('rail-icon-btn rail-delete-btn', scene.title, () => ctx.deleteScene(ci, si, chapters));
-  const metaSpan = el('span', 'rail-trailing-meta rail-dim', scene.isDraft ? 'draft' : String(scene.wordCount));
+  const metaSpan = el('span', 'rail-trailing-meta rail-dim', String(scene.wordCount));
   const controls = el('span', 'rail-trailing-controls');
-  controls.append(editBtn, deleteBtn);
+  const archive = btn('rail-icon-btn rail-archive-btn');
+  archive.append(icon(chapter.coldStorage ? 'ti-corner-up-left' : 'ti-archive'));
+  archive.title = chapter.coldStorage ? 'restore to manuscript' : 'send to cold storage';
+  archive.setAttribute('aria-label', archive.title);
+  archive.addEventListener('mousedown', e => e.stopPropagation());
+  archive.addEventListener('click', e => {
+    e.stopPropagation();
+    const target = chapter.coldStorage ? 0 : chapters.length - 1;
+    const moved = reorderScenes(chapters, { fromChapterIndex: ci, fromSceneIndex: si, toChapterIndex: target, toSceneIndex: chapters[target].scenes.length });
+    if (moved !== null) { ctx.setDoc(moved); ctx.refreshNav(); }
+  });
+  controls.append(makeCopyButton('rail-icon-btn', 'scene', ctx, ci, si), archive, editBtn, deleteBtn);
   const trailing = el('span', 'rail-trailing');
   trailing.append(metaSpan, controls);
-  row.append(nameSpan, trailing);
+  // Index within this scene's own bucket (a real chapter or Cold Storage) --
+  // same left-numeral treatment everywhere a scene row renders, so Cold
+  // Storage reads as the same row type, not a different one (writing-rail-
+  // refinements.md #4).
+  const numSpan = el('span', 'rail-scene-num', String(si + 1).padStart(2, '0'));
+  row.append(numSpan, nameSpan, trailing);
+  wireTrailingHover(row, metaSpan, controls);
   row.title = 'drag to reorder, or focus the row and use ⌥↑/⌥↓';
+  markSceneGroup(row, chapter.scenes, si);
   // Cold Storage scenes aren't reachable by scrolling the main manuscript
   // at all (see cold-storage-view.js) -- clicking one has to open the
   // isolated scene view instead of the normal jump-and-scroll.
@@ -488,12 +530,13 @@ function buildSceneRow(chapters, ci, si, active) {
   row.draggable = true;
   row.addEventListener('dragstart', (e) => {
     dragSource = { type: 'scene', chapterIndex: ci, sceneIndex: si };
-    row.classList.add('dragging');
+    const members = scene.groupId ? railEl.querySelectorAll(`.rail-scene-row[data-group-id="${scene.groupId}"]`) : railEl.querySelectorAll(`.rail-scene-row[data-ci="${ci}"][data-group-start="${row.dataset.groupStart}"]`);
+    members.forEach(r => r.classList.add('dragging'));
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', scene.id);
   });
   row.addEventListener('dragend', () => {
-    row.classList.remove('dragging');
+    railEl.querySelectorAll('.dragging').forEach(r => r.classList.remove('dragging'));
     dragSource = null;
     clearDropIndicators();
   });
@@ -509,20 +552,23 @@ function buildSceneRow(chapters, ci, si, active) {
     e.dataTransfer.dropEffect = 'move';
     const rect = row.getBoundingClientRect();
     const before = e.clientY - rect.top < rect.height / 2;
-    row.classList.toggle('drop-before', before);
-    row.classList.toggle('drop-after', !before);
+    clearDropIndicators();
+    const group = sceneGroup(chapter.scenes, si);
+    const edge = railEl.querySelector(rowSelector('scene', ci, before ? group.start : group.end - 1));
+    edge?.classList.add(before ? 'drop-before' : 'drop-after');
   });
-  row.addEventListener('dragleave', () => row.classList.remove('drop-before', 'drop-after'));
+  row.addEventListener('dragleave', clearDropIndicators);
   row.addEventListener('drop', (e) => {
     e.preventDefault();
-    const droppedBefore = row.classList.contains('drop-before');
-    row.classList.remove('drop-before', 'drop-after');
+    const rect = row.getBoundingClientRect();
+    const droppedBefore = e.clientY - rect.top < rect.height / 2;
+    clearDropIndicators();
     if (!dragSource || dragSource.type !== 'scene') return;
     const moved = reorderScenes(chapters, {
       fromChapterIndex: dragSource.chapterIndex,
       fromSceneIndex: dragSource.sceneIndex,
       toChapterIndex: ci,
-      toSceneIndex: droppedBefore ? si : si + 1,
+      toSceneIndex: droppedBefore ? sceneGroup(chapter.scenes, si).start : sceneGroup(chapter.scenes, si).end,
     });
     dragSource = null;
     if (moved !== null) { ctx.setDoc(moved); ctx.refreshNav(); }
@@ -621,20 +667,11 @@ export function render() {
   // Cold Storage is always the last entry (see model.js) — its index also
   // doubles as the count of real chapters before it.
   const coldStorageIndex = chapters.length - 1;
-  const realChapterCount = coldStorageIndex;
   const cursorPos = ctx.editor.getCursorPos(ctx.view);
   const active = findActiveScene(chapters, cursorPos);
 
   railEl.innerHTML = '';
 
-  const totalScenes = chapters.reduce((sum, c, i) => (i === coldStorageIndex ? sum : sum + c.scenes.length), 0);
-  const header = el('div', 'rail-header');
-  const headerLeft = el('div', 'rail-header-left');
-  const corkBtn = btn('rail-icon-btn rail-corkboard-btn');
-  corkBtn.title = 'open corkboard (⌘⇧C)';
-  corkBtn.setAttribute('aria-label', 'Open corkboard');
-  corkBtn.appendChild(railAssetIcon('cards'));
-  corkBtn.addEventListener('click', () => ctx.openCorkboard());
   const fallbackTitle = novelTitle(ctx.state.filePath);
   const title = chapters.bookTitle
     ? { text: chapters.bookTitle, placeholder: false }
@@ -654,16 +691,7 @@ export function render() {
       editBookTitle();
     }
   });
-  headerLeft.append(corkBtn, titleEl);
-  const headerRight = el('div', 'rail-header-right');
-  const collapseBtn = btn('rail-icon-btn rail-panel-collapse-btn');
-  collapseBtn.title = 'Collapse rail';
-  collapseBtn.setAttribute('aria-label', 'Collapse rail');
-  collapseBtn.appendChild(railAssetIcon('panel-collapse'));
-  collapseBtn.addEventListener('click', () => ctx.toggleRailCollapsed());
-  headerRight.append(el('span', 'rail-dim', realChapterCount + 'ch/' + totalScenes), collapseBtn);
-  header.append(headerLeft, headerRight);
-  railEl.appendChild(header);
+  renderShell(chapters, active, titleEl);
 
   const list = el('div', 'rail-list');
   list.setAttribute('role', 'tree');
@@ -705,10 +733,11 @@ export function render() {
     const chDeleteBtn = makeDeleteButton('rail-icon-btn rail-delete-btn', chLabel, () => ctx.deleteChapter(ci, chapters));
     const chMetaSpan = el('span', 'rail-trailing-meta rail-dim', chapterMeta(chapter));
     const chControls = el('span', 'rail-trailing-controls');
-    chControls.append(chEditBtn, chDeleteBtn);
+    chControls.append(makeCopyButton('rail-icon-btn', 'chapter', ctx, ci), chEditBtn, chDeleteBtn);
     const chTrailing = el('span', 'rail-trailing');
     chTrailing.append(chMetaSpan, chControls);
-    chRow.append(chevron, el('span', 'rail-chapter-num', String(chapter.number)), chTitle, chTrailing);
+    chRow.append(chevron, el('span', 'rail-chapter-num', String(chapter.number).padStart(2, '0')), chTitle, chTrailing);
+    wireTrailingHover(chRow, chMetaSpan, chControls);
     chRow.title = 'drag to reorder, or focus the row and use ⌥↑/⌥↓';
     onActivateDraggable(chRow, () => jumpToChapter(chapter));
 
@@ -774,12 +803,16 @@ export function render() {
         sceneList.appendChild(buildSceneRow(chapters, ci, si, active));
       });
 
-      const addRow = btn('rail-scene-add');
-      addRow.append(icon('ti-plus'), document.createTextNode(' add scene'));
-      addRow.title = 'add a scene to ' + chLabel;
-      addRow.setAttribute('aria-label', 'Add a scene to ' + chLabel);
-      addRow.addEventListener('click', () => ctx.addNewScene(ci, chapters));
-      sceneList.appendChild(addRow);
+      sceneList.addEventListener('dragover', e => {
+        if (dragSource?.type === 'scene') { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }
+      });
+      sceneList.addEventListener('drop', e => {
+        if (dragSource?.type !== 'scene') return;
+        e.preventDefault();
+        const moved = reorderScenes(chapters, { fromChapterIndex: dragSource.chapterIndex, fromSceneIndex: dragSource.sceneIndex, toChapterIndex: ci, toSceneIndex: chapter.scenes.length });
+        dragSource = null;
+        if (moved !== null) { ctx.setDoc(moved); ctx.refreshNav(); }
+      });
 
       list.appendChild(sceneList);
     }
@@ -791,15 +824,21 @@ export function render() {
   // the panel, so Cold Storage's own margin-top (not this spacer) is what
   // keeps a minimum gap above it in that case -- scrolling is never cut
   // short by this.
-  list.appendChild(el('div', 'rail-spacer'));
-  list.appendChild(buildColdStorageSection(chapters, coldStorageIndex, active));
   railEl.appendChild(list);
+  railEl.appendChild(buildColdStorageSection(chapters, coldStorageIndex, active));
 
-  const footer = btn('rail-footer');
-  footer.append(icon('ti-plus'), document.createTextNode(' New Chapter'));
-  footer.title = 'add a new chapter';
-  footer.setAttribute('aria-label', 'Add a new chapter');
-  footer.addEventListener('click', () => ctx.addNewChapter(chapters));
+  const footer = el('div', 'rail-footer');
+  const addChapter = btn('', '+ chapter');
+  addChapter.setAttribute('aria-label', 'Add a new chapter');
+  addChapter.addEventListener('click', () => ctx.addNewChapter(chapters));
+  const addScene = btn('', '+ scene');
+  addScene.setAttribute('aria-label', 'Add a new scene');
+  addScene.addEventListener('click', () => {
+    const currentChapter = chapters.findLastIndex(ch => !ch.coldStorage && ch.pos <= ctx.editor.getCursorPos(ctx.view));
+    const ci = Math.max(0, currentChapter);
+    ctx.addNewScene(ci, chapters);
+  });
+  footer.append(addChapter, addScene, el('span', 'rail-footer-hint', '⌘\\ collapses'));
   railEl.appendChild(footer);
 
   // Restore only after the complete flex layout exists. Setting scrollTop
@@ -817,6 +856,7 @@ export function mount(localCtx) {
   railEl = document.getElementById('scene-rail');
   railEl.style.display = 'flex';
   collapsed = new Set();
+  mountShell({ ...ctx, jumpToScene: jumpTo, jumpToChapter });
   railEl.addEventListener('keydown', onTreeKeydown);
   // --editor-measure is a max-width in ch, not a fixed width — it already
   // shrinks to fit whatever room the rail leaves on narrower windows, so no
@@ -825,6 +865,7 @@ export function mount(localCtx) {
 }
 
 export function unmount() {
+  unmountShell();
   if (railEl) {
     railEl.style.display = 'none';
     railEl.innerHTML = '';

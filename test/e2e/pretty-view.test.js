@@ -17,7 +17,7 @@ This has **bold words**, *italic words*, \`code words\`, and a [visible link](ht
 The editable ending is where a writer naturally keeps typing.
 `;
 
-describe('Pretty and Markdown editing surfaces', () => {
+describe('Formatted editing surface', () => {
   let app;
 
   before(async () => {
@@ -92,18 +92,12 @@ describe('Pretty and Markdown editing surfaces', () => {
     assert.ok(!after.text.includes('https://example.com/path'));
   });
 
-  test('Markdown view exposes source and returning to Pretty conceals it again', async () => {
-    assert.equal(await toggleView(), 'markdown');
-    const markdown = await app.client.evaluate(`return document.querySelector('.cm-content').innerText;`);
-    assert.ok(markdown.includes('# Pretty Title'));
-    assert.ok(markdown.includes('**bold words**'));
-    assert.ok(markdown.includes('[visible link](https://example.com/path)'));
-
+  test('the former source-view shortcut leaves the formatted document unchanged', async () => {
+    const before = await app.client.evaluate(`return document.querySelector('.cm-content').innerText;`);
     assert.equal(await toggleView(), 'pretty');
-    const pretty = await app.client.evaluate(`return document.querySelector('.cm-content').innerText;`);
-    assert.ok(pretty.includes('Pretty Title'));
-    assert.ok(!pretty.includes('# Pretty Title'));
-    assert.ok(!pretty.includes('**'));
+    const after = await app.client.evaluate(`return document.querySelector('.cm-content').innerText;`);
+    assert.equal(after, before);
+    assert.ok(!after.includes('**'));
   });
 
   test('typing in Pretty edits the source without stripping its Markdown', async () => {
@@ -140,10 +134,8 @@ describe('Pretty and Markdown editing surfaces', () => {
     assert.ok(saved.includes('**bold words**'));
     assert.ok(saved.includes('[visible link](https://example.com/path)'));
 
-    assert.equal(await toggleView(), 'markdown');
-    const markdown = await app.client.evaluate(`return document.querySelector('.cm-content').innerText;`);
-    assert.ok(markdown.includes('**bold words**'));
-    assert.ok(markdown.includes(' More writing.'));
-    assert.equal(await toggleView(), 'pretty');
+    const formatted = await app.client.evaluate(`return document.querySelector('.cm-content').innerText;`);
+    assert.ok(!formatted.includes('**bold words**'));
+    assert.ok(formatted.includes(' More writing.'));
   });
 });

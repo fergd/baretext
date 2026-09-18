@@ -13,6 +13,7 @@ import * as corkboard from './corkboard.js';
 import { renameTitle as applyRename } from './rename.js';
 import { deleteScene as applyDeleteScene, deleteChapter as applyDeleteChapter, addChapter as applyAddChapter } from './reorder.js';
 import { getManuscript } from './model.js';
+import { toggleSceneLink as applyToggleSceneLink } from './reorder.js';
 
 let ctx = null;
 let renderTimer = null;
@@ -136,6 +137,13 @@ function renameTitle(target, newTitle) {
   refreshNow();
 }
 
+function toggleSceneLink(chapterIndex, sceneIndex) {
+  const doc = applyToggleSceneLink(getManuscript(ctx.view), { chapterIndex, sceneIndex });
+  if (doc === null) return;
+  ctx.setDoc(doc);
+  refreshNow();
+}
+
 // Same "never navigate away" rule as addNewScene — deleting from the
 // corkboard just re-renders the grid in place, deleting from the rail just
 // re-renders the list. Undo (⌘Z in the editor, or ⌘Z/the toolbar button
@@ -181,8 +189,8 @@ export default {
     // listeners below never fire for those, so each surface calls this
     // directly right after a jump instead of waiting on the debounce.
     const sceneNavCtx = {
-      ...ctx, addNewScene, addNewChapter, refreshNav: refreshNow, openCorkboard: () => corkboard.show(), renameTitle,
-      deleteScene, deleteChapter, enterColdStorageScene, exitColdStorageScene,
+      ...ctx, addNewScene, addNewChapter, refreshNav: refreshNow, openCorkboard: () => corkboard.show(), toggleCorkboard: () => corkboard.toggle(), renameTitle,
+      deleteScene, deleteChapter, enterColdStorageScene, exitColdStorageScene, toggleSceneLink,
     };
 
     rail.mount(sceneNavCtx);
@@ -212,7 +220,7 @@ export default {
 
       if (!corkboard.isOpen()) return;
 
-      if (e.key === 'Escape') { e.preventDefault(); corkboard.close(); return; }
+      if (e.key === 'Escape') { e.preventDefault(); if (!corkboard.cancelLinkSelection()) corkboard.close(); return; }
 
       const mod = e.metaKey || e.ctrlKey;
       if (mod && (e.key === 'z' || e.key === 'Z')) {

@@ -113,5 +113,11 @@ export async function connect(port) {
     await send('Emulation.setEmulatedMedia', { media });
   }
 
-  return { evaluate, getConsoleMessages, clearConsoleMessages, close, mouseEvent, mouseWheel, realDrag, screenshot, emulateMedia };
+  async function pressEnter() {
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+  }
+  async function insertText(text) { await send('Input.insertText', { text }); }
+
+  return { pressEnter, insertText, evaluate, getConsoleMessages, clearConsoleMessages, close, mouseEvent, mouseWheel, realDrag, screenshot, emulateMedia };
 }

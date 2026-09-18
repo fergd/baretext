@@ -9,12 +9,14 @@ import { historyAndKeymaps, boldItalicKeymap } from './history-commands.js';
 import { searchExtension, injectSearchMatchStyle } from './search.js';
 import { emDashInputHandler } from './em-dash.js';
 import { chapterPlaceholderPlugin, injectChapterPlaceholderStyle } from './chapter-placeholder.js';
-import { manuscriptGutterPlugin, manuscriptGutterAlignPlugin, injectManuscriptGutterStyle } from './manuscript-gutter.js';
+import { manuscriptGutterPlugin, manuscriptGutterAlignPlugin, manuscriptGutterActivePlugin, injectManuscriptGutterStyle } from './manuscript-gutter.js';
 import { editorModeField, setEditorMode as setEditorModeField } from './mode-state.js';
 import { coldStorageViewField, coldStorageHideField, setColdStorageViewEffect } from './cold-storage-view.js';
 import { bookTitlePlugin, bookTitleAtomicRange, bookTitleClickGuard, positionAfterBookTitle, injectBookTitleStyle } from './book-title.js';
+import { openingCapsDecorator, injectOpeningCapsStyle } from './opening-caps.js';
 import { mapPosAcrossReplace } from './cursor-map.js';
 import { sceneBoundaryGuardKeymap } from './scene-boundary-guard.js';
+import { sceneLinkMetadata, preserveSceneLinks } from './scene-links.js';
 
 let registeredKeys = {};
 
@@ -45,6 +47,7 @@ export function create(container, initialDoc, onChange, placeholderText) {
   injectChapterPlaceholderStyle();
   injectManuscriptGutterStyle();
   injectBookTitleStyle();
+  injectOpeningCapsStyle();
 
   const view = new EditorView({
     parent: container,
@@ -69,15 +72,19 @@ export function create(container, initialDoc, onChange, placeholderText) {
         editorModeField,
         livePreviewPlugin,
         bookTitlePlugin,
+        sceneLinkMetadata,
+        preserveSceneLinks,
         bookTitleAtomicRange,
         bookTitleClickGuard,
         sceneBreakDecorator,
         sceneBreakAtomicRanges,
         sceneBreakClickGuard(),
+        openingCapsDecorator,
         blockSpacingPlugin,
         chapterPlaceholderPlugin,
         manuscriptGutterPlugin,
         manuscriptGutterAlignPlugin,
+        manuscriptGutterActivePlugin,
         coldStorageViewField,
         coldStorageHideField,
         searchExtension,
