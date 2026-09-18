@@ -249,7 +249,7 @@ describe('Baretext E2E smoke test', () => {
         sceneSummaryButtons: cork.querySelectorAll('button[aria-label^="Summarize "]').length,
         sceneNamingButtons: cork.querySelectorAll('.scene-card button[title="suggest scene names"]').length,
         chapterNamingButtons: cork.querySelectorAll('.corkboard-chapter-header button[aria-label^="Suggest names for "]').length,
-        aiButtonsUseAiIcon: [...cork.querySelectorAll('.corkboard-ai-text-btn')].every(b => b.querySelector('.ti-sparkles')),
+        aiButtonsUseAiIcon: [...cork.querySelectorAll('.corkboard-ai-text-btn')].every(b => b.querySelector('.lucide-sparkles')),
         apiMethods: ['aiCachedSummaries', 'aiRemoveCachedSummaries', 'aiSummarizeScenes', 'aiSuggestTitles', 'aiTitlePreferences', 'aiSaveTitlePreferences'].map(k => typeof window.api[k]),
       };
     `);
@@ -3776,7 +3776,7 @@ describe('Baretext E2E: rail redesign — regression coverage for four previousl
   test('Cold Storage uses the same columns and its snowflake stays blue', async () => {
     const result = await app.client.evaluate(browserHelpers + `
       const chapterNode = document.querySelector('.rail-chapter-num').getBoundingClientRect();
-      const frost = document.querySelector('.rail-cold-storage-row .ti-snowflake');
+      const frost = document.querySelector('.rail-cold-storage-row .lucide-snowflake');
       const frostRect = frost.getBoundingClientRect();
       const style = getComputedStyle(frost);
       return {

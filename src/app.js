@@ -145,7 +145,7 @@ window.api.onSaveError((data) => {
     const message = data && data.blocked
       ? 'destructive save blocked — your manuscript is safe on disk'
       : 'save failed — your changes are not being saved';
-    showToast(message, { icon: 'ti-alert-triangle', tone: 'error' });
+    showToast(message, { icon: 'lucide-triangle-alert', tone: 'error' });
   }
 });
 
@@ -364,7 +364,7 @@ backupNowBtn.addEventListener('click', async () => {
   const result = await window.api.backupNow();
   updateBackupUI(result.status);
   if (result.ok) showToast('backup complete');
-  else if (!result.skipped) showToast('backup failed', { icon: 'ti-alert-triangle', tone: 'error' });
+  else if (!result.skipped) showToast('backup failed', { icon: 'lucide-triangle-alert', tone: 'error' });
 });
 document.getElementById('backup-settings-cancel').addEventListener('click', closeBackupSettings);
 [backupClientId, backupClientSecret].forEach((input) => {
@@ -445,7 +445,7 @@ function showToast(msg, opts) {
   toastEl.innerHTML = '';
   if (icon) {
     const i = document.createElement('i');
-    i.className = `ti ${icon}`;
+    i.className = `lucide ${icon}`;
     i.style.cssText = `font-size:13px;color:${iconColor};margin-right:8px;`;
     toastEl.appendChild(i);
   }
@@ -502,7 +502,7 @@ async function cmdExport() {
   } else if (r.ok) {
     showToast('exported');
   } else {
-    showToast('export failed: ' + r.error, { icon: 'ti-alert-triangle', tone: 'error' });
+    showToast('export failed: ' + r.error, { icon: 'lucide-triangle-alert', tone: 'error' });
   }
   focusEditor();
 }
@@ -511,7 +511,7 @@ async function cmdPrint() {
   closePalette(false);
   const r = await window.api.printDocument();
   if (r && !r.ok && !r.canceled) {
-    showToast('print failed: ' + r.error, { icon: 'ti-alert-triangle', tone: 'error' });
+    showToast('print failed: ' + r.error, { icon: 'lucide-triangle-alert', tone: 'error' });
   }
   focusEditor();
 }
@@ -733,7 +733,7 @@ function render(q) {
       left.className = 'pitem-left';
 
       const icon = document.createElement('i');
-      icon.className = `ti ${item.icon} pitem-icon`;
+      icon.className = `lucide ${item.icon} pitem-icon`;
       if (isActiveTheme) icon.style.color = themeAccentColors[item.themeKey];
 
       const label = document.createElement('span');
@@ -776,10 +776,10 @@ function render(q) {
 }
 
 const outlineTypeMeta = {
-  h1:    { icon: 'ti-h-1',   dim: false },
-  h2:    { icon: 'ti-h-2',   dim: false },
-  h3:    { icon: 'ti-h-3',   dim: true  },
-  scene: { icon: 'ti-minus', dim: true  },
+  h1:    { icon: 'lucide-heading-1',   dim: false },
+  h2:    { icon: 'lucide-heading-2',   dim: false },
+  h3:    { icon: 'lucide-heading-3',   dim: true  },
+  scene: { icon: 'lucide-minus', dim: true  },
 };
 
 function renderOutline(q) {
@@ -821,7 +821,7 @@ function renderOutline(q) {
     left.className = 'pitem-left';
 
     const icon = document.createElement('i');
-    icon.className = `ti ${meta.icon} pitem-icon`;
+    icon.className = `lucide ${meta.icon} pitem-icon`;
 
     const label = document.createElement('span');
     label.className = 'pitem-label';
@@ -980,7 +980,7 @@ function modeGroup() {
     group: 'Mode',
     items: Object.values(MODES).map(m => ({
       label: 'Switch to ' + m.label,
-      icon: m.id === 'sprinter' ? 'ti-run' : 'ti-layout-columns',
+      icon: m.id === 'sprinter' ? 'lucide-footprints' : 'lucide-columns-2',
       keys: ['⌘','⇧','D'],
       checked: state.mode === m.id,
       fn: () => switchMode(m.id),

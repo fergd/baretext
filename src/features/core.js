@@ -10,7 +10,7 @@ import { THEMES } from '../themes.js';
 // least THOSE stay in sync automatically; only dark/light get a suffix
 // since "Ember"/"Parchment" don't otherwise signal which they are, unlike
 // Amstrad/Grove/Dracula.
-const THEME_ICONS = { dark: 'ti-moon', light: 'ti-sun', amstrad: 'ti-terminal-2', grove: 'ti-trees', dracula: 'ti-ghost', crt: 'ti-device-tv-old' };
+const THEME_ICONS = { dark: 'lucide-moon', light: 'lucide-sun', amstrad: 'lucide-terminal', grove: 'lucide-trees', dracula: 'lucide-ghost', crt: 'lucide-tv' };
 const THEME_LABEL_SUFFIX = { dark: ' (dark)', light: ' (light)' };
 
 export default {
@@ -36,44 +36,44 @@ export default {
     return [
       { group: 'File',
         items: [
-          { label: 'New file',           icon: 'ti-file-plus',       keys: ['⌘','N'],         fn: ctx.cmdNew },
-          { label: 'Open file',          icon: 'ti-folder-open',     keys: ['⌘','O'],         fn: ctx.cmdOpen },
-          { label: 'Save',               icon: 'ti-device-floppy',   keys: ['⌘','S'],         fn: ctx.cmdSave },
-          { label: 'Print',              icon: 'ti-printer',         keys: ['⌘','P'],         fn: ctx.cmdPrint },
-          { label: 'Export as Markdown', icon: 'ti-file-export',     keys: ['⌘','⇧','E'],    fn: ctx.cmdExport },
-          { label: 'Set save location',  icon: 'ti-folder-pin',      keys: [],                fn: ctx.cmdSaveDir },
+          { label: 'New file',           icon: 'lucide-file-plus',       keys: ['⌘','N'],         fn: ctx.cmdNew },
+          { label: 'Open file',          icon: 'lucide-folder-open',     keys: ['⌘','O'],         fn: ctx.cmdOpen },
+          { label: 'Save',               icon: 'lucide-save',   keys: ['⌘','S'],         fn: ctx.cmdSave },
+          { label: 'Print',              icon: 'lucide-printer',         keys: ['⌘','P'],         fn: ctx.cmdPrint },
+          { label: 'Export as Markdown', icon: 'lucide-file-output',     keys: ['⌘','⇧','E'],    fn: ctx.cmdExport },
+          { label: 'Set save location',  icon: 'lucide-folder-heart',      keys: [],                fn: ctx.cmdSaveDir },
         ]
       },
       { group: 'Navigate',
         items: [
-          { label: 'Jump to chapter or scene', icon: 'ti-list-search', keys: ['⌘','⇧','O'],   fn: ctx.openOutline, keepOpen: true },
+          { label: 'Jump to chapter or scene', icon: 'lucide-list-filter', keys: ['⌘','⇧','O'],   fn: ctx.openOutline, keepOpen: true },
         ]
       },
       { group: 'AI',
         items: [
-          { label: 'AI settings…', icon: 'ti-sparkles', keys: [], fn: ctx.openAiSettings },
+          { label: 'AI settings…', icon: 'lucide-sparkles', keys: [], fn: ctx.openAiSettings },
         ]
       },
       { group: 'Backup',
         items: [
-          { label: 'Backup settings…', icon: 'ti-cloud', keys: [], fn: ctx.openBackupSettings },
+          { label: 'Backup settings…', icon: 'lucide-cloud', keys: [], fn: ctx.openBackupSettings },
         ]
       },
       { group: 'Insert',
         items: [
-          { label: 'Scene break',        icon: 'ti-minus',           keys: ['⌘','↵'],         fn: ctx.insertSceneBreak },
+          { label: 'Scene break',        icon: 'lucide-minus',           keys: ['⌘','↵'],         fn: ctx.insertSceneBreak },
         ]
       },
       { group: 'View',
         items: [
-          { label: 'Typewriter mode',          icon: 'ti-align-center', keys: ['⌘','⇧','T'],    fn: ctx.toggleTypewriter },
-          { label: 'Change font',              icon: 'ti-typography',   keys: ['⌘','⇧','F'],    fn: ctx.toggleFontPicker },
-          { label: 'Focus mode',               icon: 'ti-eye-off',      keys: ['⌘','.'],         fn: ctx.toggleFocus },
+          { label: 'Typewriter mode',          icon: 'lucide-align-center', keys: ['⌘','⇧','T'],    fn: ctx.toggleTypewriter },
+          { label: 'Change font',              icon: 'lucide-type',   keys: ['⌘','⇧','F'],    fn: ctx.toggleFontPicker },
+          { label: 'Focus mode',               icon: 'lucide-eye-off',      keys: ['⌘','.'],         fn: ctx.toggleFocus },
         ]
       },
       { group: 'Theme',
         items: [
-          { label: 'Change theme…', icon: 'ti-palette', keys: [], fn: ctx.openThemePicker },
+          { label: 'Change theme…', icon: 'lucide-palette', keys: [], fn: ctx.openThemePicker },
           ...THEMES.map((t) => ({
             label: t.name + (THEME_LABEL_SUFFIX[t.id] || ''),
             icon: THEME_ICONS[t.id],

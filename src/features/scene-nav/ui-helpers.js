@@ -19,7 +19,7 @@ export function markSceneGroup(element, scenes, si) {
   element.classList.toggle('scene-linked-prev', si > start);
   const name = element.querySelector('.rail-scene-name, .peek-scene-name');
   if (name) {
-    const glyph = icon('ti-link');
+    const glyph = icon('lucide-link');
     glyph.classList.add('scene-link-mark');
     name.prepend(glyph);
   }
@@ -51,7 +51,7 @@ export function makeDeleteButton(deleteBtnClass, label, onConfirm) {
 
   function paint() {
     button.innerHTML = '';
-    button.appendChild(icon('ti-trash'));
+    button.appendChild(icon('lucide-trash'));
     if (armed) {
       button.appendChild(document.createTextNode(' delete?'));
       button.title = 'click again to delete ' + label;
@@ -142,7 +142,7 @@ export function beginEdit(displayEl, currentValue, onCommit, render) {
 // Buttons stop row activation, preserving the writer's caret and selection.
 export function makeCopyButton(className, kind, ctx, ci, si) {
   const button = btn(className + ' copy-' + kind + '-btn');
-  button.append(icon('ti-copy'));
+  button.append(icon('lucide-copy'));
   button.title = 'copy ' + kind + ' to clipboard';
   button.setAttribute('aria-label', 'Copy ' + kind + ' to clipboard');
   button.addEventListener('mousedown', e => e.stopPropagation());

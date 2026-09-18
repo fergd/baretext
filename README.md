@@ -311,3 +311,9 @@ Sprinter is a temporary writing session: choose the Sprinter tab to set up a spr
 Canceling setup, ending the sprint, or reaching the timer limit returns to Editor
 at the cursor. Fresh launches open Editor. Re-select Sprinter to reveal a hidden
 or minimized timer; there is no duplicate sprint control in the footer.
+
+## Icons
+The interface uses locally bundled Lucide SVGs in `src/icons/lucide/`, including
+the rail controls. `src/icons/lucide.css` renders them as CSS masks that inherit
+the control color and font size. No icon font or icon CDN is required. The
+vendor version and license are recorded beside the assets.

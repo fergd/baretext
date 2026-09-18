@@ -32,7 +32,7 @@ function injectStyle() {
   border: 1px solid var(--glass-border); border-radius: 6px; padding: 6px 9px;
   min-width: 0;
 }
-.find-field .ti { font-size: 13px; color: var(--text-dim); flex-shrink: 0; }
+.find-field .lucide { font-size: 13px; color: var(--text-dim); flex-shrink: 0; }
 .find-input {
   flex: 1; min-width: 0; background: transparent; border: none; outline: none;
   color: var(--text); caret-color: var(--cursor);
@@ -106,7 +106,7 @@ export default {
 
     const searchRow = el('div', 'find-row');
     const searchField = el('div', 'find-field');
-    searchField.appendChild(icon('ti-search'));
+    searchField.appendChild(icon('lucide-search'));
     searchInput = document.createElement('input');
     searchInput.type = 'text';
     searchInput.className = 'find-input';
@@ -124,16 +124,16 @@ export default {
 
     const nav = el('div', 'find-nav');
     const upBtn = el('span', 'find-nav-btn');
-    upBtn.appendChild(icon('ti-chevron-up'));
+    upBtn.appendChild(icon('lucide-chevron-up'));
     upBtn.addEventListener('mousedown', (e) => { e.preventDefault(); prev(); });
     const downBtn = el('span', 'find-nav-btn');
-    downBtn.appendChild(icon('ti-chevron-down'));
+    downBtn.appendChild(icon('lucide-chevron-down'));
     downBtn.addEventListener('mousedown', (e) => { e.preventDefault(); next(); });
     nav.append(upBtn, downBtn);
     searchRow.appendChild(nav);
 
     const closeBtn = el('span', 'find-close');
-    closeBtn.appendChild(icon('ti-x'));
+    closeBtn.appendChild(icon('lucide-x'));
     closeBtn.addEventListener('mousedown', (e) => { e.preventDefault(); closePanel(); });
     searchRow.appendChild(closeBtn);
 
@@ -141,7 +141,7 @@ export default {
 
     const replaceRow = el('div', 'find-row');
     const replaceField = el('div', 'find-field');
-    replaceField.appendChild(icon('ti-replace'));
+    replaceField.appendChild(icon('lucide-replace'));
     replaceInput = document.createElement('input');
     replaceInput.type = 'text';
     replaceInput.className = 'find-input';
@@ -185,7 +185,7 @@ export default {
     return [
       { group: 'Find',
         items: [
-          { label: 'Find & replace', icon: 'ti-search', keys: ['⌘','F'], fn: togglePanel },
+          { label: 'Find & replace', icon: 'lucide-search', keys: ['⌘','F'], fn: togglePanel },
         ]
       },
     ];

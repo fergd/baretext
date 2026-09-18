@@ -27,7 +27,8 @@ export function btn(className, text) {
 
 export function icon(cls) {
   const i = document.createElement('i');
-  i.className = 'ti ' + cls;
+  i.className = 'lucide ' + cls;
+  i.setAttribute('aria-hidden', 'true');
   return i;
 }
 

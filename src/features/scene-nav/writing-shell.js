@@ -90,7 +90,7 @@ function buildPeekSceneRow(chapters, ci, si, active) {
 
   const nameSpan = el('span', 'peek-scene-name', scene.title);
   const editBtn = btn('rail-icon-btn rail-edit-btn');
-  editBtn.append(icon('ti-pencil'));
+  editBtn.append(icon('lucide-pencil'));
   editBtn.title = 'rename scene';
   editBtn.setAttribute('aria-label', 'Rename ' + scene.title);
   editBtn.addEventListener('mousedown', (e) => e.stopPropagation());
@@ -102,7 +102,7 @@ function buildPeekSceneRow(chapters, ci, si, active) {
   const metaSpan = el('span', 'peek-dim', String(scene.wordCount));
   const controls = el('span', 'rail-trailing-controls');
   const archive = btn('rail-icon-btn rail-archive-btn');
-  archive.append(icon(chapter.coldStorage ? 'ti-corner-up-left' : 'ti-archive'));
+  archive.append(icon(chapter.coldStorage ? 'lucide-corner-up-left' : 'lucide-archive'));
   archive.title = chapter.coldStorage ? 'restore to manuscript' : 'send to cold storage';
   archive.setAttribute('aria-label', archive.title);
   archive.addEventListener('mousedown', (e) => e.stopPropagation());
@@ -133,7 +133,7 @@ function buildPeekChapterRow(chapters, ci) {
 
   const titleSpan = el('span', 'peek-chapter-title', label);
   const editBtn = btn('rail-icon-btn rail-edit-btn');
-  editBtn.append(icon('ti-pencil'));
+  editBtn.append(icon('lucide-pencil'));
   editBtn.title = 'rename chapter';
   editBtn.setAttribute('aria-label', 'Rename chapter ' + chapter.number);
   editBtn.addEventListener('mousedown', (e) => e.stopPropagation());
@@ -148,7 +148,7 @@ function buildPeekChapterRow(chapters, ci) {
   const trailing = el('span', 'rail-trailing');
   trailing.append(metaSpan, controls);
 
-  row.append(icon('ti-chevron-down'), el('span', 'peek-chapter-num', String(chapter.number).padStart(2, '0')), titleSpan, trailing);
+  row.append(icon('lucide-chevron-down'), el('span', 'peek-chapter-num', String(chapter.number).padStart(2, '0')), titleSpan, trailing);
   wireTrailingHover(row, metaSpan, controls);
   onActivateRow(row, () => navigate(chapter, true));
   return row;
@@ -181,13 +181,13 @@ function updateToggle() {
   const pin = toolbar?.querySelector('.writing-pin');
   if (!pin) return;
   const collapsed = localCtx.state.railCollapsed;
-  pin.replaceChildren(icon(collapsed ? 'ti-layout-sidebar-left-expand' : 'ti-layout-sidebar-left-collapse'));
+  pin.replaceChildren(icon(collapsed ? 'lucide-panel-left-open' : 'lucide-panel-left-close'));
   pin.title = collapsed ? 'Pin outline (⌘\\)' : 'Collapse outline (⌘\\)';
   pin.setAttribute('aria-label', pin.title);
   pin.setAttribute('aria-expanded', String(!collapsed));
   const cb = toolbar.querySelector('.rail-corkboard-btn');
   const open = localCtx.dom.app.classList.contains('corkboard-open');
-  cb.replaceChildren(icon(open ? 'ti-file-text' : 'ti-cards'));
+  cb.replaceChildren(icon(open ? 'lucide-file-text' : 'lucide-panels-top-left'));
   cb.title = open ? 'Back to manuscript' : 'Open corkboard';
   cb.setAttribute('aria-label', cb.title);
 }
@@ -197,10 +197,10 @@ export function renderShell(chapters, active, titleEl) {
   const ctx = localCtx;
   const current = chapters[active?.chapterIndex ?? 0];
   const scene = current?.scenes[active?.sceneIndex ?? 0];
-  const pin = action('Pin outline', 'ti-layout-sidebar-left-expand', () => ctx.toggleRailCollapsed(), 'writing-pin rail-panel-collapse-btn');
-  const cork = action('Open corkboard', 'ti-cards', () => ctx.toggleCorkboard(), 'rail-corkboard-btn');
+  const pin = action('Pin outline', 'lucide-panel-left-open', () => ctx.toggleRailCollapsed(), 'writing-pin rail-panel-collapse-btn');
+  const cork = action('Open corkboard', 'lucide-panels-top-left', () => ctx.toggleCorkboard(), 'rail-corkboard-btn');
   const crumb = el('span', 'writing-breadcrumb', current && !current.coldStorage ? 'chapter ' + current.number + (scene ? ' · ' + scene.title : '') : 'cold storage');
-  const search = action('Find & replace (⌘F)', 'ti-search', () => ctx.openFind(), 'writing-search');
+  const search = action('Find & replace (⌘F)', 'lucide-search', () => ctx.openFind(), 'writing-search');
   toolbar.replaceChildren(pin, cork, titleEl, crumb, search);
   updateToggle();
   spine.replaceChildren();
@@ -217,7 +217,7 @@ export function renderShell(chapters, active, titleEl) {
     spine.append(group);
   });
   const head = el('div', 'writing-peek-header');
-  head.append(el('span', '', 'OUTLINE'), action('Pin outline', 'ti-layout-sidebar-left-expand', () => ctx.toggleRailCollapsed()));
+  head.append(el('span', '', 'OUTLINE'), action('Pin outline', 'lucide-panel-left-open', () => ctx.toggleRailCollapsed()));
   const body = el('div', 'writing-peek-body');
   chapters.forEach((ch, ci) => {
     if (ch.coldStorage) return;
