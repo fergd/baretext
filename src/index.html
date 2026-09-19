@@ -24,7 +24,7 @@
       }
     })();
   </script>
-  <link rel="stylesheet" href="icons/lucide.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
   <title>Baretext</title>
   <style>
     /* ── JetBrains Mono (local, no network) — the app's chrome + default
@@ -706,7 +706,7 @@
       font-family: var(--font-mono); font-size: 12px; color: var(--text-dim);
     }
     #cold-storage-banner.visible { display: flex; }
-    #cold-storage-banner .lucide-snowflake { color: var(--syntax-2, var(--accent)); font-size: 14px; flex-shrink: 0; }
+    #cold-storage-banner .ti-snowflake { color: var(--syntax-2, var(--accent)); font-size: 14px; flex-shrink: 0; }
     #cold-storage-banner-label {
       flex: 1; min-width: 0; font-weight: 600; color: var(--text);
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -721,7 +721,7 @@
     #cold-storage-back-btn:hover, #cold-storage-back-btn:focus-visible {
       background: var(--wash-accent); color: var(--text);
     }
-    #cold-storage-back-btn .lucide-arrow-left { font-size: 12px; }
+    #cold-storage-back-btn .ti-arrow-left { font-size: 12px; }
     /* Push the scrollable content below the banner instead of under it —
        only while the banner is actually showing, and only in Editor mode
        (Cold Storage/the rail don't exist in Sprinter). 72px is Editor
@@ -741,11 +741,11 @@
       display: flex; align-items: center; gap: 6px; padding: 4px 6px; margin: -4px -6px;
       transition: color 0.15s ease;
     }
-    #tw-status-indicator .lucide { color: var(--text-dimmer); font-size: 13px; transition: color 0.15s ease; }
+    #tw-status-indicator .ti { color: var(--text-dimmer); font-size: 13px; transition: color 0.15s ease; }
     #tw-status-indicator:hover { color: var(--text); }
-    #tw-status-indicator:hover .lucide { color: var(--text-dim); }
+    #tw-status-indicator:hover .ti { color: var(--text-dim); }
     #tw-status-indicator.tw-on { color: var(--text); }
-    #tw-status-indicator.tw-on .lucide { color: var(--syntax-2, var(--accent)); }
+    #tw-status-indicator.tw-on .ti { color: var(--syntax-2, var(--accent)); }
     /* Typewriter has no active line to center on the corkboard's grid of
        cards -- hide just the indicator while it's open (the underlying
        state is untouched; see corkboard.js's show()/close()) rather than
@@ -1027,10 +1027,10 @@
       display: flex; align-items: center; gap: 6px; padding: 4px 6px; margin: -4px -6px;
       transition: color 0.15s ease;
     }
-    #backup-status-indicator .lucide { font-size: 13px; transition: color 0.15s ease; }
+    #backup-status-indicator .ti { font-size: 13px; transition: color 0.15s ease; }
     #backup-status-indicator:hover { color: var(--text-dim); }
-    #backup-status-indicator.connected .lucide { color: var(--syntax-2, var(--accent)); }
-    #backup-status-indicator.error .lucide { color: #e05c5c; }
+    #backup-status-indicator.connected .ti { color: var(--syntax-2, var(--accent)); }
+    #backup-status-indicator.error .ti { color: #e05c5c; }
 
     .pitem:hover {
       background: color-mix(in srgb, var(--accent) 8%, transparent);
@@ -1232,10 +1232,10 @@
       <div id="tw-guide"></div>
       <div id="tw-marker">typewriter</div>
       <div id="cold-storage-banner">
-        <i class="lucide lucide-snowflake"></i>
+        <i class="ti ti-snowflake"></i>
         <span id="cold-storage-banner-label"></span>
         <button type="button" id="cold-storage-back-btn">
-          <i class="lucide lucide-arrow-left"></i> Back to manuscript
+          <i class="ti ti-arrow-left"></i> Back to manuscript
         </button>
       </div>
     </div>
@@ -1245,15 +1245,15 @@
   <div id="statusbar" role="region" aria-label="Status">
     <div class="status-group">
       <span class="status-item" id="word-count">0 words</span>
-      <button type="button" class="status-item" id="tw-status-indicator" aria-pressed="false" aria-label="Toggle typewriter mode"><i class="lucide lucide-align-left" aria-hidden="true"></i>typewriter</button>
+      <button type="button" class="status-item" id="tw-status-indicator" aria-pressed="false" aria-label="Toggle typewriter mode"><i class="ti ti-align-left" aria-hidden="true"></i>typewriter</button>
     </div>
     <div id="mode-switch" role="tablist" aria-label="Mode">
-      <button type="button" class="mode-tab" role="tab" data-mode="sprinter" aria-selected="true" tabindex="0"><i class="lucide lucide-footprints" aria-hidden="true"></i>Sprinter</button>
-      <button type="button" class="mode-tab" role="tab" data-mode="editor" aria-selected="false" tabindex="-1"><i class="lucide lucide-square-pen" aria-hidden="true"></i>Editor</button>
+      <button type="button" class="mode-tab" role="tab" data-mode="sprinter" aria-selected="true" tabindex="0"><i class="ti ti-run" aria-hidden="true"></i>Sprinter</button>
+      <button type="button" class="mode-tab" role="tab" data-mode="editor" aria-selected="false" tabindex="-1"><i class="ti ti-edit" aria-hidden="true"></i>Editor</button>
     </div>
     <div class="status-group">
       <div id="save-error" title="save failed"></div>
-      <button type="button" id="backup-status-indicator" aria-label="Backup settings"><i class="lucide lucide-cloud" aria-hidden="true"></i></button>
+      <button type="button" id="backup-status-indicator" aria-label="Backup settings"><i class="ti ti-cloud" aria-hidden="true"></i></button>
       <button type="button" class="status-item dimmer" id="file-name" title="Show in Finder" aria-label="Show in Finder">untitled</button>
     </div>
   </div>
@@ -1262,7 +1262,7 @@
 <div id="overlay">
   <div id="palette" role="dialog" aria-modal="true" aria-label="Command palette">
     <div id="palette-search-row">
-      <i class="lucide lucide-search" id="palette-search-icon" aria-hidden="true"></i>
+      <i class="ti ti-search" id="palette-search-icon" aria-hidden="true"></i>
       <input id="palette-input" type="text" placeholder="type a command..." autocomplete="off" spellcheck="false"
              role="combobox" aria-expanded="true" aria-controls="palette-list" aria-autocomplete="list" aria-activedescendant="">
     </div>

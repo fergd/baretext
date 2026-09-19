@@ -260,7 +260,7 @@ export default {
     return [
       { group: 'Editor',
         items: [
-          { label: 'Toggle corkboard', icon: 'lucide-layout-grid', keys: ['⌘','⇧','C'], checked: corkboard.isOpen(), fn: () => corkboard.toggle() },
+          { label: 'Toggle corkboard', icon: 'ti-layout-grid', keys: ['⌘','⇧','C'], checked: corkboard.isOpen(), fn: () => corkboard.toggle() },
         ]
       },
     ];

@@ -4,7 +4,7 @@ html[data-mode="editor"] #titlebar { background: var(--bg-alt); border-bottom: 1
 .writing-toolbar { height: 100%; display: flex; align-items: center; gap: 14px; padding: 0 14px 0 104px; font-family: var(--font-mono); }
 .writing-tool { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; flex: none; color: var(--text-dim); cursor: pointer; -webkit-app-region: no-drag; }
 .writing-tool:hover { color: var(--text); background: var(--wash-accent); border-radius: 6px; }
-.writing-tool .lucide { font-size: 16px; }
+.writing-tool .ti { font-size: 16px; }
 .writing-toolbar .rail-label { font: 400 11px/1.4 var(--font-mono); color: var(--text-dim); text-transform: uppercase; letter-spacing: .1em; opacity: 1; -webkit-app-region: no-drag; flex: 0 1 auto; }
 .writing-breadcrumb { font-size: 10px; color: var(--text-dimmer); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .writing-search { margin-left: auto; }
@@ -27,14 +27,14 @@ html[data-mode="editor"][data-rail-collapsed="1"] #scene-rail { width: 0; border
 .writing-peek .peek-chapter-row:hover, .writing-peek .peek-scene-row:not(.active):hover { background: var(--wash-accent); }
 #scene-rail .rail-trailing-controls, .writing-peek .rail-trailing-controls { gap: 0; }
 #scene-rail .rail-icon-btn, .writing-peek .rail-icon-btn { width: 20px; height: 20px; border-radius: 6px; color: var(--text-dimmer); }
-#scene-rail .rail-icon-btn .lucide, .writing-peek .rail-icon-btn .lucide { font-size: 13px; }
+#scene-rail .rail-icon-btn .ti, .writing-peek .rail-icon-btn .ti { font-size: 13px; }
 #scene-rail .rail-icon-btn::before, #scene-rail .rail-chevron-btn::before,
 .writing-peek .rail-icon-btn::before { inset: 0; }
 #scene-rail .rail-delete-btn.confirm, .writing-peek .rail-delete-btn.confirm { width: auto; padding: 0 4px; font-size: 10px; }
 .writing-peek .rail-trailing { height: 20px; }
 #scene-rail .rail-cold-storage-section { flex: none; max-height: 35%; overflow: auto; padding: 0; margin: 0; border-top: 1px solid var(--border); border-radius: 0; background: var(--bg-alt); gap: 0; }
 #scene-rail .rail-cold-storage-title { font: 400 12px/1.4 var(--font-mono); color: var(--text-dim); text-transform: lowercase; }
-#scene-rail .rail-cold-storage-row .lucide-snowflake { color: var(--scene); font-size: 13px; }
+#scene-rail .rail-cold-storage-row .ti-snowflake { color: var(--scene); font-size: 13px; }
 #scene-rail .rail-footer { all: unset; box-sizing: border-box; width: 319px; display: flex; align-items: center; gap: 10px; height: 34px; flex: none; padding: 0 10px; border-top: 1px solid var(--border); font: 400 11px/1.4 var(--font-mono); color: var(--text-dim); }
 .rail-footer button { all: unset; cursor: pointer; }
 .rail-footer button:hover { color: var(--text); }
@@ -70,7 +70,7 @@ html[data-mode="editor"] #editor-host .cm-scene-name-label { color: var(--scene)
 @media (prefers-reduced-motion: reduce) { .writing-peek { animation: none; } html[data-mode="editor"] #scene-rail { transition: none; } }
 .writing-toolbar .inline-rename-input { -webkit-app-region: no-drag; }
 #mode-switch .mode-tab { text-transform: lowercase; }
-#mode-switch .mode-tab .lucide { display: none; }
+#mode-switch .mode-tab .ti { display: none; }
 @media print { .writing-spine, .writing-peek { display: none !important; } }
 
 .writing-peek .peek-scene-name, .writing-peek .peek-chapter-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }

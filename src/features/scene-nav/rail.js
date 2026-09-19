@@ -117,10 +117,10 @@ function injectStyle() {
   transition: var(--motion-hover), color var(--dur-1) var(--ease-standard);
 }
 .rail-icon-btn::before { content: ''; position: absolute; inset: -6px; } /* 28px hit target around a 16px glyph */
-.rail-icon-btn .lucide { font-size: var(--space-4); }
+.rail-icon-btn .ti { font-size: var(--space-4); }
 .rail-icon-btn:hover, .rail-icon-btn:focus-visible { background: var(--icon-btn-hover); color: var(--text-strong); }
 .rail-corkboard-btn.rail-icon-btn { width: var(--space-4); height: var(--space-4); }
-.rail-corkboard-btn .lucide { font-size: var(--space-4); }
+.rail-corkboard-btn .ti { font-size: var(--space-4); }
 .rail-delete-btn.confirm {
   width: auto; padding: 0 var(--space-2); gap: 4px;
   color: #e05c5c; font-weight: 600;
@@ -216,7 +216,7 @@ function injectStyle() {
   transition: var(--motion-hover), opacity var(--dur-1) var(--ease-standard), color var(--dur-1) var(--ease-standard);
 }
 .rail-scene-add:hover, .rail-scene-add:focus-visible { opacity: 1; color: var(--accent); background: var(--icon-btn-hover); }
-.rail-scene-add .lucide-plus { width: var(--space-4); font-size: var(--space-4); text-align: center; }
+.rail-scene-add .ti-plus { width: var(--space-4); font-size: var(--space-4); text-align: center; }
 
 .rail-chapter-row.dragging, .rail-scene-row.dragging { opacity: .35; }
 /* Dropping a scene directly ON a chapter header always appends it to that
@@ -249,7 +249,7 @@ function injectStyle() {
   display: flex; flex-direction: column; gap: var(--space-1);
   padding: var(--space-1) 0; margin-top: var(--space-1);
 }
-.rail-cold-storage-row .lucide-snowflake { font-size: var(--space-4); color: var(--cold-storage-accent); display: flex; justify-content: center; }
+.rail-cold-storage-row .ti-snowflake { font-size: var(--space-4); color: var(--cold-storage-accent); display: flex; justify-content: center; }
 .rail-cold-storage-title {
   font: var(--type-title); font-style: italic; color: var(--text-title);
   min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -485,7 +485,7 @@ function buildSceneRow(chapters, ci, si, active) {
 
   const nameSpan = el('span', 'rail-scene-name', scene.title);
   const editBtn = btn('rail-icon-btn rail-edit-btn');
-  editBtn.appendChild(icon('lucide-pencil'));
+  editBtn.appendChild(icon('ti-pencil'));
   editBtn.title = 'rename scene';
   editBtn.setAttribute('aria-label', 'Rename ' + scene.title);
   editBtn.addEventListener('mousedown', (e) => e.stopPropagation());
@@ -497,7 +497,7 @@ function buildSceneRow(chapters, ci, si, active) {
   const metaSpan = el('span', 'rail-trailing-meta rail-dim', String(scene.wordCount));
   const controls = el('span', 'rail-trailing-controls');
   const archive = btn('rail-icon-btn rail-archive-btn');
-  archive.append(icon(chapter.coldStorage ? 'lucide-corner-up-left' : 'lucide-archive'));
+  archive.append(icon(chapter.coldStorage ? 'ti-corner-up-left' : 'ti-archive'));
   archive.title = chapter.coldStorage ? 'restore to manuscript' : 'send to cold storage';
   archive.setAttribute('aria-label', archive.title);
   archive.addEventListener('mousedown', e => e.stopPropagation());
@@ -611,7 +611,7 @@ function buildColdStorageSection(chapters, coldStorageIndex, active) {
   });
   row.append(
     chevron,
-    icon('lucide-snowflake'),
+    icon('ti-snowflake'),
     el('span', 'rail-cold-storage-title', 'Cold Storage'),
     el('span', 'rail-dim', chapterMeta(coldStorage))
   );
@@ -722,7 +722,7 @@ export function render() {
     });
     const chTitle = el('span', 'rail-chapter-title' + (chHasTitle ? '' : ' placeholder'), chLabel);
     const chEditBtn = btn('rail-icon-btn rail-edit-btn');
-    chEditBtn.appendChild(icon('lucide-pencil'));
+    chEditBtn.appendChild(icon('ti-pencil'));
     chEditBtn.title = 'rename chapter';
     chEditBtn.setAttribute('aria-label', 'Rename ' + chLabel);
     chEditBtn.addEventListener('mousedown', (e) => e.stopPropagation());

@@ -201,11 +201,11 @@ function buildEvoke() {
   const stepper = el('div', 'sprint-goal-stepper');
   const up = btn('sprint-goal-step');
   up.setAttribute('aria-label', 'Increase word goal');
-  up.appendChild(icon('lucide-chevron-up'));
+  up.appendChild(icon('ti-chevron-up'));
   up.addEventListener('click', () => bumpGoal(GOAL_STEP));
   const down = btn('sprint-goal-step');
   down.setAttribute('aria-label', 'Decrease word goal');
-  down.appendChild(icon('lucide-chevron-down'));
+  down.appendChild(icon('ti-chevron-down'));
   down.addEventListener('click', () => bumpGoal(-GOAL_STEP));
   stepper.append(up, down);
   goalControl.appendChild(stepper);
@@ -350,7 +350,7 @@ function complete() {
   tickTimer = null;
   sprint = null;
   updateVisibility();
-  ctx.showToast(`sprint complete · +${gained} words · ${totalStr}`, { icon: 'lucide-footprints' });
+  ctx.showToast(`sprint complete · +${gained} words · ${totalStr}`, { icon: 'ti-run' });
   ctx.finishSprint();
 }
 
@@ -430,10 +430,10 @@ export default {
     return [
       { group: 'Sprint',
         items: [
-          { label: 'Start sprint',      icon: 'lucide-footprints',     keys: ['⌘','⇧','S'], fn: handleStartCommand },
+          { label: 'Start sprint',      icon: 'ti-run',     keys: ['⌘','⇧','S'], fn: handleStartCommand },
           { label: sprint && sprint.paused ? 'Resume sprint' : 'Pause sprint',
-            icon: sprint && sprint.paused ? 'lucide-play' : 'lucide-pause', keys: [], fn: togglePause },
-          { label: 'Hide sprint timer', icon: 'lucide-eye-off', keys: ['⌘','⇧','H'], fn: handleHideCommand },
+            icon: sprint && sprint.paused ? 'ti-player-play' : 'ti-player-pause', keys: [], fn: togglePause },
+          { label: 'Hide sprint timer', icon: 'ti-eye-off', keys: ['⌘','⇧','H'], fn: handleHideCommand },
         ]
       },
     ];

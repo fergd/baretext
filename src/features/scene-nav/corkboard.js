@@ -33,7 +33,7 @@ function injectStyle() {
   display: flex; align-items: center; justify-content: space-between; padding: 0 20px;
 }
 .corkboard-toolbar-left { display: flex; align-items: center; gap: 10px; }
-.corkboard-toolbar-left .lucide-panels-top-left { font-size: 15px; color: var(--syntax-2, var(--accent)); }
+.corkboard-toolbar-left .ti-cards { font-size: 15px; color: var(--syntax-2, var(--accent)); }
 .corkboard-label { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--syntax-2, var(--accent)); font-weight: 600; }
 .corkboard-meta { font-size: 12px; color: var(--text-dimmer); }
 .corkboard-ai-status { all: unset; cursor: pointer; font-size: 10px; color: var(--text-dimmer); white-space: nowrap; }
@@ -69,7 +69,7 @@ function injectStyle() {
    refinements.md #1). */
 .corkboard-chapter { margin-bottom: 28px; }
 .corkboard-chapter-header { display: flex; align-items: center; gap: 11px; margin-bottom: 13px; }
-.corkboard-chapter-header .lucide-chevron-down { font-size: 15px; color: var(--text-dim); cursor: pointer; }
+.corkboard-chapter-header .ti-chevron-down { font-size: 15px; color: var(--text-dim); cursor: pointer; }
 .corkboard-chapter-title-group { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
 /* "CHAPTER {n} · {title}" reads as one quiet, unified label -- number and
    title both dimmer/10px/uppercase rather than the number picking up its
@@ -142,7 +142,7 @@ function injectStyle() {
   gap: 8px; min-height: 120px; color: var(--text-dim);
 }
 .scene-card-new:hover { color: var(--text); border-color: var(--text-dim); }
-.scene-card-new .lucide-plus { font-size: 18px; }
+.scene-card-new .ti-plus { font-size: 18px; }
 .scene-card-new span { font-size: 11px; }
 .ai-title-suggestions {
   display: flex; flex-wrap: wrap; gap: 6px; margin: 1px 0 10px 26px;
@@ -201,14 +201,14 @@ async function summarizeScenes(scenes) {
   eligible.forEach((scene) => summaryLoading.delete(scene.rawText));
   if (!result.ok) {
     eligible.forEach((scene) => summaryErrors.set(scene.rawText, result.error));
-    ctx.showToast(result.error, { icon: 'lucide-triangle-alert', tone: 'error' });
+    ctx.showToast(result.error, { icon: 'ti-alert-triangle', tone: 'error' });
   }
   else {
     storeSummaryResult(result, eligible);
     const changed = eligible.filter((scene) => previous.get(scene.rawText) !== aiSummaries.get(scene.rawText));
     if (changed.length) {
       ctx.showToast(changed.length === 1 ? 'AI summary added' : `${changed.length} AI summaries added`, {
-        icon: 'lucide-sparkles',
+        icon: 'ti-sparkles',
         actionLabel: 'undo',
         onAction: async () => {
           await ctx.api.aiRemoveCachedSummaries(scenePayload(changed));
@@ -253,7 +253,7 @@ async function suggestTitles(key, target, kind, text, context) {
   const result = await ctx.api.aiSuggestTitles({ kind, currentTitle: target.title, text, context, styleExamples: titleStyleExamples });
   if (!result.ok) {
     namingState = { key, loading: false, titles: [], error: result.error };
-    ctx.showToast(result.error, { icon: 'lucide-triangle-alert', tone: 'error' });
+    ctx.showToast(result.error, { icon: 'ti-alert-triangle', tone: 'error' });
   } else {
     namingState = { key, loading: false, titles: result.titles || [], error: null };
   }
@@ -272,7 +272,7 @@ function titleSuggestions(key, target) {
       namingState = null;
       ctx.renameTitle(target, title);
       ctx.showToast('AI name applied', {
-        icon: 'lucide-sparkles',
+        icon: 'ti-sparkles',
         actionLabel: 'undo',
         onAction: () => { ctx.editor.undo(ctx.view); ctx.refreshNav(); },
       });
@@ -281,7 +281,7 @@ function titleSuggestions(key, target) {
   });
   if (!namingState.loading) {
     const dismiss = btn('ai-title-dismiss');
-    dismiss.appendChild(icon('lucide-x'));
+    dismiss.appendChild(icon('ti-x'));
     dismiss.title = 'dismiss suggestions';
     dismiss.setAttribute('aria-label', 'Dismiss suggestions');
     dismiss.addEventListener('mousedown', (e) => e.stopPropagation());
@@ -338,7 +338,7 @@ export function render() {
   // Use the overlapping-cards mark from the writing-rail toolbar. The old
   // four-square grid suggested a generic layout control rather than the
   // manuscript corkboard.
-  left.append(icon('lucide-panels-top-left'), el('span', 'corkboard-label', 'corkboard'), el('span', 'corkboard-meta', totalScenes + ' scenes'));
+  left.append(icon('ti-cards'), el('span', 'corkboard-label', 'corkboard'), el('span', 'corkboard-meta', totalScenes + ' scenes'));
   if (aiStatus) {
     const statusText = aiStatus.configured ? 'ai · ready' : 'ai · key not detected';
     const status = btn('corkboard-ai-status' + (aiStatus.configured ? ' ready' : ''), statusText);
@@ -349,19 +349,19 @@ export function render() {
 
   const right = el('div', 'corkboard-toolbar-right');
   const undoBtn = btn('corkboard-tool-btn');
-  undoBtn.appendChild(icon('lucide-undo-2'));
+  undoBtn.appendChild(icon('ti-arrow-back-up'));
   undoBtn.appendChild(document.createTextNode(' undo'));
   undoBtn.title = 'undo (⌘Z)';
   undoBtn.addEventListener('click', () => { ctx.editor.undo(ctx.view); ctx.refreshNav(); });
   const redoBtn = btn('corkboard-tool-btn');
-  redoBtn.appendChild(icon('lucide-redo-2'));
+  redoBtn.appendChild(icon('ti-arrow-forward-up'));
   redoBtn.appendChild(document.createTextNode(' redo'));
   redoBtn.title = 'redo (⌘⇧Z)';
   redoBtn.addEventListener('click', () => { ctx.editor.redo(ctx.view); ctx.refreshNav(); });
 
   const allScenes = chapters.flatMap((chapter) => chapter.coldStorage ? [] : chapter.scenes);
   const summarizeAllBtn = btn('corkboard-tool-btn' + (summaryLoading.size ? ' loading' : ''));
-  summarizeAllBtn.appendChild(icon('lucide-sparkles'));
+  summarizeAllBtn.appendChild(icon('ti-sparkles'));
   summarizeAllBtn.appendChild(document.createTextNode(summaryLoading.size ? ' summarizing…' : ' summarize all'));
   summarizeAllBtn.title = 'generate summaries for all scene cards';
   summarizeAllBtn.disabled = summaryLoading.size > 0;
@@ -395,7 +395,7 @@ export function render() {
     const chLabel = chHasTitle ? chapter.title : 'Chapter ' + chapter.number;
     const chTitleText = el('span', 'corkboard-chapter-title-text' + (chHasTitle ? '' : ' placeholder'), chHasTitle ? chapter.title : 'untitled');
     const chEditBtn = btn('corkboard-edit-btn');
-    chEditBtn.appendChild(icon('lucide-pencil'));
+    chEditBtn.appendChild(icon('ti-pencil'));
     chEditBtn.title = 'rename chapter';
     chEditBtn.setAttribute('aria-label', 'Rename ' + chLabel);
     chEditBtn.addEventListener('mousedown', (e) => e.stopPropagation());
@@ -405,7 +405,7 @@ export function render() {
     });
     const chAiKey = 'chapter:' + chapter.pos;
     const chAiBtn = btn('corkboard-ai-text-btn' + (namingState && namingState.key === chAiKey && namingState.loading ? ' loading' : ''));
-    chAiBtn.append(icon('lucide-sparkles'), document.createTextNode('suggest name'));
+    chAiBtn.append(icon('ti-sparkles'), document.createTextNode('suggest name'));
     chAiBtn.title = 'suggest chapter names';
     chAiBtn.setAttribute('aria-label', 'Suggest names for ' + chLabel);
     chAiBtn.addEventListener('mousedown', (e) => e.stopPropagation());
@@ -419,7 +419,7 @@ export function render() {
     chTitleGroup.append(el('span', 'corkboard-chapter-num', 'Chapter ' + chapter.number + ' ·'), chTitleText, chAiBtn, makeCopyButton('corkboard-edit-btn', 'chapter', ctx, ci), chEditBtn, chDeleteBtn);
 
     header.append(
-      icon('lucide-chevron-down'),
+      icon('ti-chevron-down'),
       chTitleGroup,
       el('span', 'corkboard-chapter-rule'),
       el('span', 'corkboard-chapter-meta', chapter.scenes.length + ' scenes · ' + chapterWords + ' words')
@@ -435,7 +435,7 @@ export function render() {
 
       const titleTextSpan = el('span', 'scene-card-title-text', scene.title);
       const editBtn = btn('corkboard-edit-btn');
-      editBtn.appendChild(icon('lucide-pencil'));
+      editBtn.appendChild(icon('ti-pencil'));
       editBtn.title = 'rename scene';
       editBtn.setAttribute('aria-label', 'Rename ' + scene.title);
       editBtn.addEventListener('mousedown', (e) => e.stopPropagation());
@@ -445,7 +445,7 @@ export function render() {
       });
       const sceneAiKey = 'scene:' + scene.rawText;
       const nameBtn = btn('corkboard-ai-text-btn' + (namingState && namingState.key === sceneAiKey && namingState.loading ? ' loading' : ''));
-      nameBtn.append(icon('lucide-sparkles'), document.createTextNode('suggest name'));
+      nameBtn.append(icon('ti-sparkles'), document.createTextNode('suggest name'));
       nameBtn.title = 'suggest scene names';
       nameBtn.setAttribute('aria-label', 'Suggest names for ' + scene.title);
       nameBtn.addEventListener('mousedown', (e) => e.stopPropagation());
@@ -454,7 +454,7 @@ export function render() {
         suggestTitles(sceneAiKey, scene, 'scene', scene.rawText, titleContext(chapters, ci, si));
       });
       const summaryBtn = btn('corkboard-ai-text-btn' + (summaryLoading.has(scene.rawText) ? ' loading' : ''));
-      summaryBtn.append(icon('lucide-sparkles'), document.createTextNode(summaryLoading.has(scene.rawText) ? 'summarizing…' : 'summary'));
+      summaryBtn.append(icon('ti-sparkles'), document.createTextNode(summaryLoading.has(scene.rawText) ? 'summarizing…' : 'summary'));
       summaryBtn.title = 'summarize scene';
       summaryBtn.setAttribute('aria-label', 'Summarize ' + scene.title);
       summaryBtn.disabled = summaryLoading.has(scene.rawText);
@@ -464,7 +464,7 @@ export function render() {
       // but this is the discoverable version so no interaction with a card
       // (editing, dragging, adding) ever navigates away by surprise.
       const openBtn = btn('corkboard-edit-btn');
-      openBtn.appendChild(icon('lucide-arrow-up-right'));
+      openBtn.appendChild(icon('ti-arrow-up-right'));
       openBtn.title = 'open in manuscript';
       openBtn.setAttribute('aria-label', 'Open ' + scene.title + ' in manuscript');
       openBtn.addEventListener('mousedown', (e) => e.stopPropagation());
@@ -474,7 +474,7 @@ export function render() {
       titleRow.append(el('span', undefined, (si + 1) + ' · '), titleTextSpan, makeCopyButton('corkboard-edit-btn', 'scene', ctx, ci, si), editBtn, openBtn, deleteBtn);
       const aiActions = el('div', 'scene-card-ai-actions');
       const link = btn('corkboard-link-btn scene-link-btn');
-      link.append(icon('lucide-link'), document.createTextNode('link'));
+      link.append(icon('ti-link'), document.createTextNode('link'));
       link.setAttribute('aria-label', 'Link ' + scene.title + ' with another scene');
       link.addEventListener('click', e => {
         e.stopPropagation();
@@ -486,7 +486,7 @@ export function render() {
       let unlink;
       if (linkedMembers(chapters, ci, si).length > 1) {
         unlink = btn('corkboard-link-btn scene-unlink-btn');
-        unlink.append(icon('lucide-unlink'), document.createTextNode('unlink'));
+        unlink.append(icon('ti-unlink'), document.createTextNode('unlink'));
         unlink.setAttribute('aria-label', 'Unlink ' + scene.title + ' from its group');
         unlink.addEventListener('click', e => {
           e.stopPropagation();
@@ -516,7 +516,7 @@ export function render() {
       if (card.classList.contains('scene-linked')) {
         card.dataset.connectorGroup = scene.groupId || `legacy-${ci}-${card.dataset.groupStart}`;
         const badge = el('div', 'scene-link-label', `linked · ${linkedMembers(chapters, ci, si).length} scenes`);
-        badge.prepend(icon('lucide-link'));
+        badge.prepend(icon('ti-link'));
         if (unlink) badge.append(unlink);
         card.append(badge);
       }
@@ -582,7 +582,7 @@ export function render() {
     });
 
     const newTile = btn('scene-card-new');
-    newTile.append(icon('lucide-plus'), el('span', undefined, 'new scene'));
+    newTile.append(icon('ti-plus'), el('span', undefined, 'new scene'));
     newTile.setAttribute('aria-label', 'Add a scene to ' + chLabel);
     newTile.addEventListener('click', () => ctx.addNewScene(ci, chapters));
     grid.appendChild(newTile);
@@ -633,7 +633,7 @@ export function render() {
     const cancel = btn('corkboard-link-btn');
     cancel.textContent = 'cancel (esc)';
     cancel.addEventListener('click', cancelLinkSelection);
-    prompt.append(icon('lucide-link'), label, cancel);
+    prompt.append(icon('ti-link'), label, cancel);
     boardEl.append(prompt);
   }
   boardEl.appendChild(body);
