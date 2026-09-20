@@ -211,14 +211,14 @@ html[data-mode="editor"] .cm-gutter-num-inline::before { content: attr(data-gutt
 html[data-mode="editor"] .cm-gutter-num-inline.cm-gutter-num-chapter { font-size: 56px; font-weight: 400; line-height: 1.05; }
 html[data-mode="editor"] .cm-gutter-num-inline.cm-gutter-num-scene   { font-size: 28px; font-weight: 400; line-height: 1.1; }
 /* Numerals are a translucent tint of their section's color, not a flat
-   --text-dimmer gray (typography-rhythm.md #3) -- the current scene's own
-   numeral (manuscriptGutterActivePlugin above) comes up to full strength.
+   --text-dimmer gray (typography-rhythm.md #3). Keep the chapter and scene
+   markers quiet at 25% so they support the writing without competing with it.
    !important for the same reason the base color rule above needed it: a
    named scene's numeral is a real child of scene-breaks.js's
    .cm-scene-name-comment line, whose own wildcard would otherwise win. */
-html[data-mode="editor"] .cm-gutter-num-inline.cm-gutter-num-chapter { color: color-mix(in srgb, var(--accent) 55%, transparent) !important; }
-html[data-mode="editor"] .cm-gutter-num-inline.cm-gutter-num-scene   { color: color-mix(in srgb, var(--scene) 55%, transparent) !important; }
-html[data-mode="editor"] .cm-gutter-num-inline.cm-gutter-num-scene.cm-gutter-num-active { color: var(--scene) !important; }
+html[data-mode="editor"] .cm-gutter-num-inline.cm-gutter-num-chapter { color: color-mix(in srgb, var(--accent) 25%, transparent) !important; }
+html[data-mode="editor"] .cm-gutter-num-inline.cm-gutter-num-scene   { color: color-mix(in srgb, var(--scene) 25%, transparent) !important; }
+html[data-mode="editor"] .cm-gutter-num-inline.cm-gutter-num-scene.cm-gutter-num-active { color: color-mix(in srgb, var(--scene) 25%, transparent) !important; }
 
 /* Unnamed-scene ornament number: a block widget, centered at runtime by
    manuscriptGutterAlignPlugin (see above) against the ornament's own
@@ -233,8 +233,8 @@ html[data-mode="editor"] .cm-gutter-num { display: block; }
 html[data-mode="editor"] .cm-gutter-num-ornament { font-size: 28px; font-weight: 400; line-height: 1.1; }
 /* Ornament numbers are always scene numerals -- same tint rule as the
    inline scene numeral above. */
-html[data-mode="editor"] .cm-gutter-num-ornament { color: color-mix(in srgb, var(--scene) 55%, transparent); }
-html[data-mode="editor"] .cm-gutter-num-ornament.cm-gutter-num-active { color: var(--scene); }
+html[data-mode="editor"] .cm-gutter-num-ornament { color: color-mix(in srgb, var(--scene) 25%, transparent); }
+html[data-mode="editor"] .cm-gutter-num-ornament.cm-gutter-num-active { color: color-mix(in srgb, var(--scene) 25%, transparent); }
 
 /* Not enough left margin to hang the numbers below this width \u2014 must be
    the last rules in this stylesheet (same specificity as the display:block/
