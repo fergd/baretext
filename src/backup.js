@@ -15,6 +15,7 @@
 // this file or in main.js needs to change.
 
 const localGit = require('./backup-providers/local-git');
+const localSnapshots = require('./backup-providers/local-snapshots');
 const googleDrive = require('./backup-providers/google-drive');
 
 function createBackupRegistry(providers) {
@@ -51,4 +52,4 @@ function createBackupRegistry(providers) {
   return { init, onSave, flush };
 }
 
-module.exports = Object.assign(createBackupRegistry([localGit, googleDrive]), { createBackupRegistry });
+module.exports = Object.assign(createBackupRegistry([localSnapshots, localGit, googleDrive]), { createBackupRegistry });

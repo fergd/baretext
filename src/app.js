@@ -41,6 +41,10 @@ const backupFolderName = document.getElementById('backup-folder-name');
 const backupChooseFolderBtn = document.getElementById('backup-choose-folder-btn');
 const backupUseDefaultBtn = document.getElementById('backup-use-default-btn');
 const backupStatusIndicator = document.getElementById('backup-status-indicator');
+const localBackupDays = document.getElementById('local-backup-days');
+const localBackupStatus = document.getElementById('local-backup-status');
+const localBackupSaveBtn = document.getElementById('local-backup-save-btn');
+const localBackupCleanupBtn = document.getElementById('local-backup-cleanup-btn');
 // Built once here (not static markup) so it gets the shared two-click
 // arm/confirm behavior from makeDeleteButton() — same helper rail.js and
 // corkboard.js use for scene/chapter deletion, this app's only "destructive
@@ -255,6 +259,14 @@ function updateBackupUI(status) {
 async function refreshBackupStatus() {
   const status = await window.api.backupStatus();
   updateBackupUI(status);
+  await refreshLocalBackupStatus();
+  return status;
+}
+
+async function refreshLocalBackupStatus() {
+  const status = await window.api.localBackupStatus();
+  localBackupDays.value = status.retentionDays;
+  localBackupStatus.textContent = `${status.snapshotCount} snapshot${status.snapshotCount === 1 ? '' : 's'} stored on this Mac`;
   return status;
 }
 
@@ -267,6 +279,20 @@ async function openBackupSettings() {
   await refreshBackupStatus();
   backupClientId.focus();
 }
+
+localBackupSaveBtn.addEventListener('click', async () => {
+  const result = await window.api.localBackupConfigure({ days: localBackupDays.value });
+  localBackupDays.value = result.retentionDays;
+  localBackupStatus.textContent = `${result.snapshotCount} snapshot${result.snapshotCount === 1 ? '' : 's'} stored on this Mac`;
+  showToast('local backup settings saved');
+});
+
+localBackupCleanupBtn.addEventListener('click', async () => {
+  const result = await window.api.localBackupCleanup();
+  localBackupDays.value = result.retentionDays;
+  localBackupStatus.textContent = `${result.snapshotCount} snapshot${result.snapshotCount === 1 ? '' : 's'} stored on this Mac`;
+  showToast(result.removed ? `cleaned up ${result.removed} local backup${result.removed === 1 ? '' : 's'}` : 'local backups are up to date');
+});
 
 function closeBackupSettings() {
   backupClientId.value = '';

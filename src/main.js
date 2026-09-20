@@ -4,6 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const http = require('http');
 const backup = require('./backup');
+const localSnapshots = require('./backup-providers/local-snapshots');
 const ai = require('./ai');
 const googleDrive = require('./google-drive');
 const { createCredentialStore } = require('./credential-store');
@@ -49,6 +50,10 @@ let defaultDir = settings.saveDir || path.join(os.homedir(), 'Documents', 'Bareb
 if (!fs.existsSync(defaultDir)) {
   fs.mkdirSync(defaultDir, { recursive: true });
 }
+localSnapshots.configure({
+  root: path.join(app.getPath('userData'), 'local-backups'),
+  days: settings.localBackupRetentionDays,
+});
 backup.init(defaultDir);
 
 // Mirrors each theme's --bg token (src/index.html) — used as the native
@@ -325,6 +330,7 @@ app.whenReady().then(() => {
     }
 
     currentFilePath = filePath;
+    if (fs.existsSync(filePath)) localSnapshots.onSave(defaultDir, filePath);
     // Restore cursor position too — only meaningful if it's the SAME file as last session
     const cursorPos = (lastPath && filePath === lastPath) ? (settings.lastCursorPos || null) : null;
     mainWindow.webContents.send('file-loaded', {
@@ -393,6 +399,7 @@ ipcMain.handle('open-file', async () => {
     const filePath = result.filePaths[0];
     const content = fs.readFileSync(filePath, 'utf8');
     currentFilePath = filePath;
+    localSnapshots.onSave(defaultDir, filePath);
     settings.lastFilePath = filePath;
     saveSettings(settings);
     return { content, filePath };
@@ -529,6 +536,18 @@ ipcMain.handle('backup-clear-folder', () => {
   googleDrive.clearDestinationFolder();
   return { ok: true, status: googleDrive.status() };
 });
+
+// Local daily snapshots are independent of Google Drive and never use its
+// credentials, network, or destination folder.
+ipcMain.handle('local-backup-status', () => localSnapshots.status());
+ipcMain.handle('local-backup-configure', (event, payload) => {
+  const status = localSnapshots.configure({ days: payload && payload.days });
+  settings.localBackupRetentionDays = status.retentionDays;
+  saveSettings(settings);
+  const cleanup = localSnapshots.cleanup();
+  return { ok: true, ...status, ...cleanup };
+});
+ipcMain.handle('local-backup-cleanup', () => ({ ok: true, ...localSnapshots.cleanup(), ...localSnapshots.status() }));
 
 // New file
 ipcMain.handle('new-file', async () => {

@@ -996,6 +996,14 @@
     }
     #backup-settings-title { color: var(--text); font-size: 14px; font-weight: 700; margin-bottom: 8px; }
     #backup-settings-copy { color: var(--text-dim); font-size: 11px; line-height: 1.6; margin-bottom: 16px; }
+    #local-backup-section { margin: 0 0 18px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); }
+    #local-backup-title { color: var(--text); font-size: 12px; font-weight: 700; margin-bottom: 5px; }
+    #local-backup-copy { color: var(--text-dim); font-size: 10px; line-height: 1.5; margin-bottom: 10px; }
+    #local-backup-controls { display: flex; align-items: center; gap: 8px; }
+    #local-backup-days { width: 72px; height: 32px; padding: 0 8px; color: var(--text); background: var(--bg-alt); border: 1px solid var(--border); border-radius: var(--radius-sm); outline: none; font: 11px var(--font-mono); }
+    #local-backup-days:focus { border-color: var(--accent); }
+    #local-backup-label { color: var(--text-dim); font-size: 10px; margin-right: auto; }
+    #local-backup-status { min-height: 14px; margin-top: 8px; color: var(--text-dimmer); font-size: 10px; }
     #backup-client-id, #backup-client-secret, #backup-picker-key {
       width: 100%; height: 40px; padding: 0 12px; color: var(--text);
       background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
@@ -1294,7 +1302,19 @@
 <div id="backup-settings-overlay" role="presentation">
   <div id="backup-settings-panel" role="dialog" aria-modal="true" aria-labelledby="backup-settings-title">
     <div id="backup-settings-title">Backup settings</div>
-    <div id="backup-settings-copy">Baretext can back up every manuscript in your save folder to Google Drive — a "Baretext Backups" folder by default, or one you choose yourself. Register an OAuth client in Google Cloud Console (Desktop app type), then paste its Client ID and Secret below. All fields are encrypted with macOS Keychain and remain on this Mac.</div>
+    <div id="backup-settings-copy">Configure local snapshots and Google Drive backup separately.</div>
+    <div id="local-backup-section">
+      <div id="local-backup-title">Local backups</div>
+      <div id="local-backup-copy">Baretext keeps one snapshot per manuscript each day on this Mac. These snapshots never use Google Drive.</div>
+      <div id="local-backup-controls">
+        <input id="local-backup-days" type="number" min="1" max="3650" step="1" aria-label="Days to keep local backups">
+        <span id="local-backup-label">days to keep</span>
+        <button type="button" id="local-backup-cleanup-btn" class="ai-settings-btn">clean up</button>
+        <button type="button" id="local-backup-save-btn" class="ai-settings-btn primary">save</button>
+      </div>
+      <div id="local-backup-status" role="status"></div>
+    </div>
+    <div id="backup-settings-copy">Google Drive backup requires an OAuth client registered in Google Cloud Console (Desktop app type). Credentials remain encrypted on this Mac.</div>
     <input id="backup-client-id" type="text" placeholder="Client ID" autocomplete="off" spellcheck="false" aria-label="Google OAuth Client ID">
     <input id="backup-client-secret" type="password" placeholder="Client Secret" autocomplete="off" spellcheck="false" aria-label="Google OAuth Client Secret">
     <input id="backup-picker-key" type="password" placeholder="Picker API key (optional — lets you choose the folder)" autocomplete="off" spellcheck="false" aria-label="Google Picker API key">

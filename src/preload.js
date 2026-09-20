@@ -40,6 +40,11 @@ contextBridge.exposeInMainWorld('api', {
   backupClearFolder: () => ipcRenderer.invoke('backup-clear-folder'),
   onOpenBackupSettings: (cb) => ipcRenderer.on('open-backup-settings', cb),
 
+  // Local daily snapshots. This is deliberately separate from Google Drive.
+  localBackupStatus: () => ipcRenderer.invoke('local-backup-status'),
+  localBackupConfigure: (payload) => ipcRenderer.invoke('local-backup-configure', payload),
+  localBackupCleanup: () => ipcRenderer.invoke('local-backup-cleanup'),
+
   // Theme
   setTheme: (theme) => ipcRenderer.send('set-theme', theme),
   onThemeChanged: (cb) => ipcRenderer.on('theme-changed', (_, t) => cb(t)),
