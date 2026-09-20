@@ -175,8 +175,21 @@ export function focus(view) {
   view.focus();
 }
 
-export function centerCursor(view) {
+export function centerCursor(view, { smooth = false } = {}) {
   const pos = view.state.selection.main.head;
+  if (smooth && view.coordsAtPos) {
+    const coords = view.coordsAtPos(pos);
+    const scroller = view.scrollDOM;
+    if (coords && scroller) {
+      const rect = scroller.getBoundingClientRect();
+      const caretCenter = (coords.top + coords.bottom) / 2;
+      const viewportCenter = (rect.top + rect.bottom) / 2;
+      const max = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+      const target = Math.max(0, Math.min(max, scroller.scrollTop + caretCenter - viewportCenter));
+      scroller.scrollTo({ top: target, behavior: 'smooth' });
+      return;
+    }
+  }
   view.dispatch({ effects: EditorView.scrollIntoView(pos, { y: 'center' }) });
 }
 

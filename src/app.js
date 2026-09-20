@@ -88,7 +88,9 @@ let view = window.BaretextEditor.create(
     if (state.typewriter && view.state.selection.main.empty) {
       const expected = view.state;
       queueMicrotask(() => {
-        if (view.state === expected && host.offsetParent !== null) window.BaretextEditor.centerCursor(view);
+        if (view.state === expected && host.offsetParent !== null) {
+          window.BaretextEditor.centerCursor(view, { smooth: state.mode === 'editor' });
+        }
       });
     }
   },
