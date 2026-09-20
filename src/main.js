@@ -7,6 +7,7 @@ const backup = require('./backup');
 const localSnapshots = require('./backup-providers/local-snapshots');
 const ai = require('./ai');
 const googleDrive = require('./google-drive');
+const googleDriveConfig = require('./google-drive-config');
 const { createCredentialStore } = require('./credential-store');
 const { createSafeWriter } = require('./safe-save');
 
@@ -198,7 +199,7 @@ function createWindow() {
 // event.sender identity guards against cross-talk if this is ever somehow
 // called again before a previous picker window finished (each invocation's
 // listeners only react to its own window).
-function openDrivePickerWindow({ accessToken, apiKey }) {
+function openDrivePickerWindow({ folders }) {
   return new Promise((resolve) => {
     // Google's Picker backend rejects a file:// embedding origin outright
     // (visible as a 403 fetching docs.google.com/pick..., independent of
@@ -259,8 +260,9 @@ function openDrivePickerWindow({ accessToken, apiKey }) {
     win.webContents.setUserAgent(
       `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`
     );
-    win.webContents.once('did-finish-load', () => {
-      win.webContents.send('picker-init', { accessToken, apiKey });
+    win.webContents.once('did-finish-load', () => win.webContents.send('picker-init', { folders }));
+    win.webContents.once('did-fail-load', (_event, errorCode, errorDescription) => {
+      finish({ ok: false, error: `Could not open folder chooser (${errorDescription || errorCode})` });
     });
     win.on('closed', () => { server.close(); finish({ ok: false, canceled: true }); });
 
@@ -291,6 +293,7 @@ app.whenReady().then(() => {
     syncFilePath: path.join(app.getPath('userData'), 'google-drive-sync.json'),
     safeStorage,
     shell,
+    ...googleDriveConfig,
   });
 
   session.defaultSession.setSpellCheckerEnabled(false);
@@ -528,8 +531,8 @@ ipcMain.handle('backup-save-picker-key', (event, payload) => {
 });
 ipcMain.handle('backup-choose-folder', async () => {
   try {
-    const { accessToken, apiKey } = await googleDrive.getPickerCredentials();
-    const result = await openDrivePickerWindow({ accessToken, apiKey });
+    const folders = await googleDrive.listFolders();
+    const result = await openDrivePickerWindow({ folders });
     if (result.ok && result.folder) googleDrive.setDestinationFolder(result.folder);
     return { ...result, status: googleDrive.status() };
   } catch (e) {

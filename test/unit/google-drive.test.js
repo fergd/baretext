@@ -123,6 +123,7 @@ test('status() before any client credentials are saved', () => {
     googleDrive.init({ credentialFilePath, syncFilePath, safeStorage: fakeSafeStorage, shell: { openExternal: async () => {} } });
     assert.deepEqual(googleDrive.status(), {
       hasClientCredentials: false, hasPickerApiKey: false, connected: false, needsReconnect: false, accountEmail: null,
+      hasBuiltInCredentials: false, hasBuiltInPickerApiKey: false,
       destinationFolder: null, lastBackupAt: null, lastError: null,
     });
   } finally {

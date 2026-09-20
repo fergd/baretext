@@ -19,6 +19,7 @@ const ACCESS_TOKEN_SAFETY_MARGIN_MS = 60 * 1000;
 let credentialStore = null;
 let syncFilePath = null;
 let openExternal = null;
+let appCredentials = { clientId: '', clientSecret: '', pickerApiKey: '' };
 let sync = { folderId: null, files: {}, destinationFolder: null };
 let accessToken = null;
 let accessTokenExpiresAt = 0;
@@ -28,12 +29,23 @@ const RECONNECT_MESSAGE = 'Google Drive authorization expired or was revoked. Re
 
 function loadCredentials() {
   if (!credentialStore) return {};
+  let stored = {};
   try {
     const raw = credentialStore.get();
-    return raw ? JSON.parse(raw) : {};
+    stored = raw ? JSON.parse(raw) : {};
   } catch {
-    return {};
+    stored = {};
   }
+  // Release credentials are supplied by the build and never need to be
+  // pasted into the app. Keep old per-user credentials as a migration and
+  // development fallback, but prefer the release configuration whenever it
+  // is present.
+  return {
+    ...stored,
+    ...(appCredentials.clientId ? { clientId: appCredentials.clientId } : {}),
+    ...(appCredentials.clientSecret ? { clientSecret: appCredentials.clientSecret } : {}),
+    ...(appCredentials.pickerApiKey ? { pickerApiKey: appCredentials.pickerApiKey } : {}),
+  };
 }
 
 function saveCredentials(patch) {
@@ -66,10 +78,15 @@ function saveSyncState() {
 // sync-state files in userData, same split as ai.js's own openai-key /
 // ai-cache.json pair. `shell` is Electron's shell module (or a fake with an
 // `openExternal` for tests).
-function init({ credentialFilePath, syncFilePath: syncPath, safeStorage, shell }) {
+function init({ credentialFilePath, syncFilePath: syncPath, safeStorage, shell, clientId = '', clientSecret = '', pickerApiKey = '' }) {
   credentialStore = createCredentialStore({ safeStorage, filePath: credentialFilePath });
   syncFilePath = syncPath;
   openExternal = shell ? shell.openExternal.bind(shell) : null;
+  appCredentials = {
+    clientId: String(clientId || '').trim(),
+    clientSecret: String(clientSecret || '').trim(),
+    pickerApiKey: String(pickerApiKey || '').trim(),
+  };
   sync = loadSyncState();
   accessToken = null;
   accessTokenExpiresAt = 0;
@@ -97,7 +114,9 @@ function status() {
   const creds = loadCredentials();
   return {
     hasClientCredentials: !!(creds.clientId && creds.clientSecret),
+    hasBuiltInCredentials: !!(appCredentials.clientId && appCredentials.clientSecret),
     hasPickerApiKey: !!creds.pickerApiKey,
+    hasBuiltInPickerApiKey: !!appCredentials.pickerApiKey,
     connected: !!creds.refreshToken && !creds.needsReconnect,
     needsReconnect: !!creds.needsReconnect,
     accountEmail: creds.accountEmail || null,
@@ -141,6 +160,11 @@ async function getPickerCredentials() {
   if (!creds.pickerApiKey) throw new Error('Enter a Picker API key first');
   const token = await ensureAccessToken();
   return { accessToken: token, apiKey: creds.pickerApiKey };
+}
+
+async function listFolders() {
+  const token = await ensureAccessToken();
+  return drive.listFolders({ accessToken: token });
 }
 
 // Runs the full loopback OAuth flow: opens the system browser to Google's
@@ -260,7 +284,7 @@ async function resolveDestinationFolderId(token) {
 // or another file in the directory changed. Best-effort: never throws,
 // always resolves with {ok:true} or {ok:false, error}, and records the
 // error for status().
-async function backupDirectory(dir) {
+async function backupDirectory(dir, retryAfterUnauthorized = true) {
   const creds = loadCredentials();
   if (!creds.refreshToken) return { ok: false, skipped: true };
   if (creds.needsReconnect) return { ok: false, skipped: true, error: RECONNECT_MESSAGE };
@@ -294,6 +318,14 @@ async function backupDirectory(dir) {
     lastError = null;
     return { ok: true };
   } catch (e) {
+    // A cached access token can be rejected before its local expiry (for
+    // example after a Google-side session reset). Refresh once and retry the
+    // complete sync so a transient 401 does not look like a disconnected app.
+    if (retryAfterUnauthorized && e.status === 401) {
+      accessToken = null;
+      accessTokenExpiresAt = 0;
+      return backupDirectory(dir, false);
+    }
     lastError = e.message;
     console.error('google-drive: backup failed:', e.message);
     return { ok: false, error: e.message };
@@ -303,4 +335,5 @@ async function backupDirectory(dir) {
 module.exports = {
   init, configure, configurePicker, status, connect, disconnect, backupDirectory,
   getPickerCredentials, setDestinationFolder, clearDestinationFolder,
+  listFolders,
 };

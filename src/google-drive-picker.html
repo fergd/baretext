@@ -1,88 +1,52 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
-<!--
-  This page is deliberately separate from index.html (whose CSP is a strict
-  default-src 'self') because Google's Picker widget is a hosted, iframed
-  web component: it needs to load Google's JS loader, talk to Google's
-  APIs, and render its own UI in a frame from a Google-owned origin. Scoped
-  to exactly the hosts Google's Picker integration guide requires, so
-  index.html's CSP itself never has to loosen.
--->
-<meta http-equiv="Content-Security-Policy" content="
-  default-src 'none';
-  script-src 'self' 'unsafe-inline' https://apis.google.com https://content.googleapis.com;
-  frame-src https://*.google.com https://accounts.google.com;
-  connect-src https://*.googleapis.com https://content.googleapis.com;
-  style-src 'self' 'unsafe-inline' https://*.gstatic.com https://*.google.com;
-  img-src 'self' data: https://*.gstatic.com https://*.googleusercontent.com https://*.google.com;
-  font-src https://*.gstatic.com;
-">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';">
 <style>
-  html, body { margin: 0; height: 100%; background: #1a1a1a; }
-  #status { font: 13px -apple-system, sans-serif; color: #999; padding: 24px; }
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: #242424; color: #d8d3c7; font: 13px -apple-system, sans-serif; }
+  main { display: flex; flex-direction: column; height: 100%; padding: 24px; box-sizing: border-box; }
+  h1 { margin: 0 0 8px; font-size: 17px; font-weight: 600; }
+  p { margin: 0 0 18px; color: #aaa69b; line-height: 1.45; }
+  #folders { display: flex; flex: 1; flex-direction: column; gap: 7px; overflow: auto; }
+  button { border: 1px solid #55534e; border-radius: 6px; padding: 10px 12px; background: #2d2d2a; color: #d8d3c7; text-align: left; font: inherit; cursor: pointer; }
+  button:hover, button:focus-visible { border-color: #b8d878; background: #363832; outline: none; }
+  #footer { display: flex; justify-content: flex-end; margin-top: 18px; }
+  #cancel { text-align: center; color: #aaa69b; }
+  #empty { color: #aaa69b; padding: 12px 0; }
 </style>
 </head>
 <body>
-<div id="status">Loading Google Drive…</div>
+<main>
+  <h1>Choose a backup folder</h1>
+  <p>Select a folder Baretext can access in Google Drive.</p>
+  <div id="folders"><div id="empty">Loading folders…</div></div>
+  <div id="footer"><button id="cancel" type="button">cancel</button></div>
+</main>
 <script>
-  // Defined BEFORE the external <script src> below, deliberately: its
-  // onload/onerror attributes can fire before the parser would otherwise
-  // reach a later inline block, so onApiLoad must already exist in global
-  // scope by the time api.js finishes loading — not after.
-  let pickerApiLoaded = false;
-  let config = null;
-
-  function setStatus(text) {
-    const el = document.getElementById('status');
-    if (el) el.textContent = text;
-  }
-
-  function onLoadError() {
-    setStatus("Couldn't reach Google — check your internet connection and try again.");
-  }
-
-  function onApiLoad() {
-    gapi.load('picker', () => { pickerApiLoaded = true; maybeCreatePicker(); });
-  }
-
-  window.pickerBridge.getConfig().then((c) => { config = c; maybeCreatePicker(); });
-
-  function maybeCreatePicker() {
-    if (!pickerApiLoaded || !config) return;
-    setStatus('');
-    createPicker(config.accessToken, config.apiKey);
-  }
-
-  function createPicker(accessToken, apiKey) {
-    try {
-      const view = new google.picker.DocsView(google.picker.ViewId.FOLDERS)
-        .setIncludeFolders(true)
-        .setSelectFolderEnabled(true);
-      const picker = new google.picker.PickerBuilder()
-        .addView(view)
-        .setOAuthToken(accessToken)
-        .setDeveloperKey(apiKey)
-        .setTitle('Choose a Baretext backup folder')
-        .setCallback(pickerCallback)
-        .build();
-      picker.setVisible(true);
-    } catch (e) {
-      setStatus('Could not open the folder picker: ' + e.message);
+  const folderList = document.getElementById('folders');
+  function render(config) {
+    folderList.textContent = '';
+    const folders = (config && config.folders) || [];
+    if (!folders.length) {
+      const empty = document.createElement('div');
+      empty.id = 'empty';
+      empty.textContent = 'No Drive folders are available to Baretext yet. Use the default Baretext Backups folder.';
+      folderList.appendChild(empty);
+      return;
     }
+    folders.forEach(folder => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = folder.name;
+      button.addEventListener('click', () => window.pickerBridge.folderChosen(folder));
+      folderList.appendChild(button);
+    });
   }
-
-  function pickerCallback(data) {
-    if (data.action === google.picker.Action.PICKED) {
-      const doc = data.docs && data.docs[0];
-      if (doc) window.pickerBridge.folderChosen({ id: doc.id, name: doc.name });
-      else window.pickerBridge.cancelled();
-    } else if (data.action === google.picker.Action.CANCEL) {
-      window.pickerBridge.cancelled();
-    }
-  }
+  document.getElementById('cancel').addEventListener('click', () => window.pickerBridge.cancelled());
+  window.addEventListener('keydown', event => { if (event.key === 'Escape') window.pickerBridge.cancelled(); });
+  window.pickerBridge.getConfig().then(render);
 </script>
-<script src="https://apis.google.com/js/api.js" onload="onApiLoad()" onerror="onLoadError()"></script>
 </body>
 </html>

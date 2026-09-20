@@ -8,7 +8,9 @@ const fs = require('fs');
 const { createOpenAIProvider } = require('./ai-providers/openai');
 
 const CACHE_VERSION = 1;
-const SUMMARY_PROMPT_VERSION = 1;
+// Bump this whenever the summary instructions change so stale summaries are
+// regenerated instead of being silently reused from the content-addressed cache.
+const SUMMARY_PROMPT_VERSION = 2;
 const MAX_SCENES_PER_BATCH = 100;
 const MAX_SCENE_CHARS = 24000;
 const MAX_NAMING_CHARS = 32000;

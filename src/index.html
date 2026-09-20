@@ -1314,14 +1314,14 @@
       </div>
       <div id="local-backup-status" role="status"></div>
     </div>
-    <div id="backup-google-copy">Google Drive credentials remain encrypted on this Mac.</div>
-    <input id="backup-client-id" type="text" placeholder="Client ID" autocomplete="off" spellcheck="false" aria-label="Google OAuth Client ID">
-    <input id="backup-client-secret" type="password" placeholder="Client Secret" autocomplete="off" spellcheck="false" aria-label="Google OAuth Client Secret">
-    <input id="backup-picker-key" type="password" placeholder="Picker API key (optional — lets you choose the folder)" autocomplete="off" spellcheck="false" aria-label="Google Picker API key">
+    <div id="backup-google-copy">Google Drive is ready to connect. Sign in once and Baretext will keep the connection refreshed.</div>
+    <input id="backup-client-id" type="text" placeholder="Client ID" autocomplete="off" spellcheck="false" aria-label="Google OAuth Client ID" hidden>
+    <input id="backup-client-secret" type="password" placeholder="Client Secret" autocomplete="off" spellcheck="false" aria-label="Google OAuth Client Secret" hidden>
+    <input id="backup-picker-key" type="password" placeholder="Picker API key (optional — lets you choose the folder)" autocomplete="off" spellcheck="false" aria-label="Google Picker API key" hidden>
     <div id="backup-key-status" role="status"></div>
     <div id="backup-folder-row">
       <span id="backup-folder-name"></span>
-      <button type="button" id="backup-choose-folder-btn" class="ai-settings-btn">choose folder…</button>
+      <button type="button" id="backup-choose-folder-btn" class="ai-settings-btn" hidden>choose folder…</button>
       <button type="button" id="backup-use-default-btn" class="ai-settings-btn">use default</button>
     </div>
     <div id="backup-settings-actions">

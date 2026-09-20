@@ -28,7 +28,9 @@ async function driveRequest(url, { accessToken, fetchImpl = global.fetch, ...opt
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     const message = data && data.error && data.error.message;
-    throw new Error(message || `Google Drive request failed (${response.status})`);
+    const error = new Error(message || `Google Drive request failed (${response.status})`);
+    error.status = response.status;
+    throw error;
   }
   return data;
 }
@@ -40,6 +42,14 @@ async function findFolder({ accessToken, fetchImpl }) {
   });
   const match = (data.files || [])[0];
   return match ? match.id : null;
+}
+
+async function listFolders({ accessToken, fetchImpl = global.fetch }) {
+  const q = `mimeType='${FOLDER_MIME}' and trashed=false`;
+  const data = await driveRequest(`${FILES_ENDPOINT}?q=${encodeURIComponent(q)}&spaces=drive&orderBy=name&pageSize=100&fields=files(id,name)`, {
+    accessToken, fetchImpl, method: 'GET',
+  });
+  return (data.files || []).map(folder => ({ id: folder.id, name: folder.name || folder.id }));
 }
 
 async function createFolder({ accessToken, fetchImpl }) {
@@ -136,4 +146,4 @@ async function upsertFile({ accessToken, folderId, name, content, cachedFileId, 
   return createFile({ accessToken, folderId, name, content, fetchImpl });
 }
 
-module.exports = { FOLDER_NAME, MAX_SIMPLE_UPLOAD_BYTES, ensureFolder, upsertFile, verifyFolderExists };
+module.exports = { FOLDER_NAME, MAX_SIMPLE_UPLOAD_BYTES, ensureFolder, listFolders, upsertFile, verifyFolderExists };

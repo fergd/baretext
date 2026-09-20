@@ -32,6 +32,9 @@ test('OpenAI adapter keeps credentials server-side and requests strict structure
   assert.equal(request.body.store, false);
   assert.equal(request.body.text.format.type, 'json_schema');
   assert.equal(request.body.text.format.strict, true);
+  assert.match(request.body.instructions, /gist and spirit/i);
+  assert.match(request.body.instructions, /dramatic purpose and emotional movement/i);
+  assert.match(request.body.instructions, /central conflict, discovery, decision, or emotional turn/i);
 });
 
 test('scene summaries are cached by content and survive service reinitialization', async () => {

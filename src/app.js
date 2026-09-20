@@ -239,8 +239,12 @@ function updateBackupUI(status) {
   backupKeyStatus.textContent = status.lastError
     ? status.lastError
     : status.connected
-      ? `connected as ${status.accountEmail}` + (status.lastBackupAt ? ` · last backup ${relativeTime(status.lastBackupAt)}` : '')
-      : (status.hasClientCredentials ? 'not connected' : 'no client credentials saved');
+      ? `Google Drive connected${status.accountEmail ? ` · ${status.accountEmail}` : ''}` + (status.lastBackupAt ? ` · last backup ${relativeTime(status.lastBackupAt)}` : '')
+      : 'Google Drive not connected — connect to enable automatic backups';
+  const backupGoogleCopy = document.getElementById('backup-google-copy');
+  backupGoogleCopy.textContent = status.connected
+    ? 'Google Drive is connected. Baretext will refresh the connection automatically and back up your manuscripts in the selected folder.'
+    : 'Connect Google Drive once. Google will handle sign-in and Baretext will keep the connection refreshed.';
   backupConnectBtn.hidden = status.connected;
   backupConnectBtn.textContent = status.needsReconnect ? 'reconnect Google Drive' : 'connect Google Drive';
   backupNowBtn.hidden = !status.connected;
@@ -254,7 +258,11 @@ function updateBackupUI(status) {
   backupFolderName.textContent = status.destinationFolder
     ? `folder: ${status.destinationFolder.name}`
     : 'folder: Baretext Backups (default)';
-  backupChooseFolderBtn.hidden = !status.hasPickerApiKey;
+  // The consumer OAuth scope is intentionally limited to files Baretext
+  // creates. A Drive folder browser would require broader permissions and
+  // caused the old Picker flow to fail with "insufficient authentication
+  // scopes". Keep the destination deterministic and stable.
+  backupChooseFolderBtn.hidden = true;
   backupUseDefaultBtn.hidden = !status.destinationFolder;
 }
 
@@ -278,8 +286,14 @@ async function openBackupSettings() {
   backupPickerKey.value = '';
   backupKeyStatus.className = '';
   backupSettingsOverlay.classList.add('open');
-  await refreshBackupStatus();
-  backupClientId.focus();
+  const status = await refreshBackupStatus();
+  // OAuth configuration is an app concern, never a user-facing setting.
+  // Legacy inputs remain in the DOM only so older profiles can be migrated
+  // without a data-format change; they are never shown in the consumer UI.
+  backupClientId.hidden = true;
+  backupClientSecret.hidden = true;
+  backupPickerKey.hidden = true;
+  backupSaveBtn.hidden = true;
 }
 
 localBackupSaveBtn.addEventListener('click', async () => {

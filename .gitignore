@@ -19,3 +19,4 @@ yarn-error.log*
 
 # Local Claude Code settings
 .claude/settings.local.json
+src/google-drive-config.generated.js
