@@ -36,6 +36,7 @@
     "@codemirror/view": "^6.43.8",
     "@lezer/highlight": "^1.2.3",
     "@lezer/markdown": "^1.7.2",
+    "diff": "^9.0.0",
     "electron": "^28.3.3",
     "electron-builder": "24.13.3",
     "esbuild": "^0.28.1"

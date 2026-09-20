@@ -295,20 +295,7 @@ function titleSuggestions(key, target) {
   return row;
 }
 
-function jumpTo(scene) {
-  // Same reasoning as rail.js's jumpTo -- a chapter's own position isn't
-  // actually reachable while Cold Storage scene view is hiding everything
-  // outside the isolated scene. No-ops if scene view isn't active. (Cold
-  // Storage itself never appears in the corkboard, so this only matters if
-  // scene view was left active from the rail before opening the corkboard.)
-  ctx.exitColdStorageScene();
-  ctx.focusEditor();
-  ctx.editor.setCursorPos(ctx.view, scene.contentPos);
-  close();
-  if (ctx.state.typewriter) ctx.editor.centerCursor(ctx.view);
-  else ctx.editor.scrollToTop(ctx.view, scene.pos);
-  ctx.refreshNav();
-}
+function jumpTo(scene) { ctx.navigateTo(scene); }
 
 export function render() {
   if (!boardEl) return;
@@ -647,7 +634,9 @@ export function toggle() {
   if (open) close(); else show();
 }
 
+let savedViewport = null;
 export function show() {
+  savedViewport = ctx.view.scrollSnapshot();
   open = true;
   document.getElementById('content-row').style.display = 'none';
   boardEl.style.display = 'flex';
@@ -668,14 +657,18 @@ export function show() {
   loadCachedSummaries(chapters.flatMap((chapter) => chapter.coldStorage ? [] : chapter.scenes));
 }
 
-export function close() {
+export function close({ restore = true } = {}) {
   disconnectConnectors?.();
   linkSource = null;
   open = false;
   boardEl.style.display = 'none';
   document.getElementById('content-row').style.display = 'flex';
   ctx.dom.app.classList.remove('corkboard-open');
-  ctx.focusEditor();
+  if (restore) {
+    ctx.focusEditor();
+    if (savedViewport) ctx.view.dispatch({ effects: savedViewport });
+  }
+  savedViewport = null;
 }
 
 export function mount(localCtx) {
@@ -695,4 +688,8 @@ export function unmount() {
   summaryErrors.clear();
   aiStatus = null;
   titleStyleExamples = '';
+}
+
+export function mapViewport(changes) {
+  if (savedViewport) savedViewport = savedViewport.map(changes);
 }

@@ -1,14 +1,5 @@
 import { Decoration, EditorView, ViewPlugin, WidgetType } from '@codemirror/view';
-import { StateField, StateEffect } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
-
-// One formatted editing surface. Keep the legacy field/effect exports for
-// extensions that read them, but never enter a raw-source editing mode.
-export const setRenderedModeEffect = StateEffect.define();
-export const renderedModeField = StateField.define({
-  create: () => false,
-  update: () => false,
-});
 
 class ListMarkerWidget extends WidgetType {
   constructor(kind, label = '', checked = false) {
@@ -30,14 +21,11 @@ class ListMarkerWidget extends WidgetType {
   ignoreEvent() { return false; }
 }
 
-const emptyBuild = () => ({ decorations: Decoration.none, atomicRanges: Decoration.none });
-
 // Pretty view consistently conceals Markdown syntax marks. Concealed ranges
 // are atomic so ordinary pointer/arrow movement cannot leave the caret inside
 // an invisible delimiter. Authors always edit the visible formatted text.
 function build(view) {
   const state = view.state;
-  if (state.field(renderedModeField)) return emptyBuild();
 
   const doc = state.doc;
   const out = [];
@@ -127,8 +115,7 @@ export const livePreviewPlugin = ViewPlugin.fromClass(class {
     this.atomicRanges = built.atomicRanges;
   }
   update(update) {
-    const modeToggled = update.transactions.some(tr => tr.effects.some(e => e.is(setRenderedModeEffect)));
-    if (update.docChanged || modeToggled) {
+    if (update.docChanged) {
       const built = build(update.view);
       this.decorations = built.decorations;
       this.atomicRanges = built.atomicRanges;
@@ -140,13 +127,6 @@ export const livePreviewPlugin = ViewPlugin.fromClass(class {
     view.plugin(plugin)?.atomicRanges || Decoration.none
   )),
 });
-
-export function setRenderedMode(view, showRaw) {
-  // Switching views may change wrapping and block heights. Preserve the
-  // reader's viewport explicitly instead of allowing a geometry remeasure to
-  // choose a seemingly random new scroll position.
-  view.dispatch({ effects: [setRenderedModeEffect.of(showRaw), view.scrollSnapshot()] });
-}
 
 export function injectLivePreviewStyle() {
   if (document.getElementById('bt-live-preview-style')) return;

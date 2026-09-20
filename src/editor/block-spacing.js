@@ -1,7 +1,6 @@
 import { Decoration, EditorView, WidgetType } from '@codemirror/view';
 import { StateField } from '@codemirror/state';
 import { editorModeField } from './mode-state.js';
-import { renderedModeField } from './live-preview.js';
 import { injectStyle as injectStyleTag } from '../dom.js';
 
 // Vertical rhythm must be represented in CodeMirror's block model. Applying
@@ -63,7 +62,7 @@ function build(state) {
   // file its background parser may only cover the beginning of the document,
   // which previously left later paragraphs with no spacing at all. This
   // lightweight block scan is complete and deterministic in one pass.
-  const prettyManuscript = state.field(editorModeField, false) && !state.field(renderedModeField, false);
+  const prettyManuscript = state.field(editorModeField, false);
   // Blank lines are editable document content. Never replace them with
   // zero-height widgets: Enter must leave a visible, stable caret target.
   let afterHeading = false;
@@ -110,7 +109,7 @@ function build(state) {
 // height-aware set until the document actually changes.
 export const blockSpacingPlugin = StateField.define({
   create: (state) => build(state),
-  update: (value, tr) => (tr.docChanged || tr.state.field(editorModeField, false) !== tr.startState.field(editorModeField, false) || tr.state.field(renderedModeField, false) !== tr.startState.field(renderedModeField, false) ? build(tr.state) : value.map(tr.changes)),
+  update: (value, tr) => (tr.docChanged || tr.state.field(editorModeField, false) !== tr.startState.field(editorModeField, false) ? build(tr.state) : value.map(tr.changes)),
   provide: (field) => EditorView.decorations.from(field),
 });
 

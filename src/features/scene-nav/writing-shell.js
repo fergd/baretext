@@ -83,6 +83,7 @@ function buildPeekSceneRow(chapters, ci, si, active) {
   const scene = chapter.scenes[si];
   const isActive = active?.chapterIndex === ci && active?.sceneIndex === si;
   const row = el('div', 'peek-scene-row' + (isActive ? ' active' : ''));
+  row.dataset.ci = ci; row.dataset.si = si;
   row.setAttribute('role', 'treeitem');
   row.setAttribute('aria-label', scene.title);
   if (isActive) row.setAttribute('aria-current', 'true');
@@ -210,6 +211,7 @@ export function renderShell(chapters, active, titleEl) {
     ch.scenes.forEach((sc, si) => {
       const selected = active?.chapterIndex === ci && active?.sceneIndex === si;
       const tick = navigationButton('writing-tick' + (selected ? ' active' : ''), 'Chapter ' + ch.number + ' · ' + sc.title, sc);
+      tick.dataset.ci = ci; tick.dataset.si = si;
       if (selected) tick.setAttribute('aria-current', 'true');
       group.append(tick);
     });
@@ -229,4 +231,18 @@ export function renderShell(chapters, active, titleEl) {
 export function unmountShell() {
   hidePeek(); observer?.disconnect(); toolbar?.remove(); spine?.remove(); peek?.remove();
   toolbar = spine = peek = observer = localCtx = null;
+}
+
+export function updateShellSelection(chapters, active) {
+  if (!toolbar) return;
+  const chapter = chapters[active?.chapterIndex ?? 0];
+  const scene = chapter?.scenes[active?.sceneIndex ?? 0];
+  const crumb = toolbar.querySelector('.writing-breadcrumb');
+  if (crumb) crumb.textContent = chapter && !chapter.coldStorage
+    ? 'chapter ' + chapter.number + (scene ? ' · ' + scene.title : '') : 'cold storage';
+  for (const root of [spine, peek]) for (const row of root.querySelectorAll('[data-ci][data-si]')) {
+    const selected = Number(row.dataset.ci) === active?.chapterIndex && Number(row.dataset.si) === active?.sceneIndex;
+    row.classList.toggle('active', selected);
+    if (selected) row.setAttribute('aria-current', 'true'); else row.removeAttribute('aria-current');
+  }
 }

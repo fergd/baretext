@@ -311,3 +311,6 @@ Sprinter is a temporary writing session: choose the Sprinter tab to set up a spr
 Canceling setup, ending the sprint, or reaching the timer limit returns to Editor
 at the cursor. Fresh launches open Editor. Re-select Sprinter to reveal a hidden
 or minimized timer; there is no duplicate sprint control in the footer.
+
+Editor navigation and structural-edit behavior is documented in
+[the stability contract](docs/editor-stability.md).

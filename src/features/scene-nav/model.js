@@ -100,7 +100,7 @@ export function getManuscript(view) {
     if (item.type === 'h1') {
       inColdStorage = false;
       const number = chapters.length + 1;
-      currentChapter = { title: item.text, displayTitle: item.text || 'Chapter ' + number, pos: item.pos, type: 'h1', number, scenes: [] };
+      currentChapter = { title: item.text, displayTitle: item.text || 'Chapter ' + number, pos: item.pos, type: 'h1', stableId: item.stableId, number, scenes: [] };
       chapters.push(currentChapter);
       continue;
     }
@@ -124,6 +124,7 @@ export function getManuscript(view) {
     container.scenes.push({
       id: (inColdStorage ? 'cold' : chapters.length - 1) + ':' + container.scenes.length,
       title: item.text,
+      stableId: item.stableId,
       type: item.type,
       named: !!item.named,
       pos: item.pos,

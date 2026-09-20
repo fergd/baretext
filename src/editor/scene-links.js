@@ -1,6 +1,7 @@
 import { Decoration, EditorView } from '@codemirror/view';
 import { StateField, EditorState } from '@codemirror/state';
 import { isLinkMetadata, SCENE_GROUP_RE } from '../features/scene-nav/links.js';
+import { structuralEdit } from './transaction-types.js';
 import { getOutline } from './outline.js';
 
 // Inserting a boundary must not hand a trailing group record to the new
@@ -8,7 +9,7 @@ import { getOutline } from './outline.js';
 // A sequential transaction keeps the correction in the same undo step and
 // also covers manually typed/pasted boundaries, not just the scene command.
 export const preserveSceneLinks = EditorState.transactionFilter.of(tr => {
-  if (!tr.docChanged || tr.isUserEvent('undo') || tr.isUserEvent('redo')) return tr;
+  if (tr.annotation(structuralEdit) || !tr.docChanged || tr.isUserEvent('undo') || tr.isUserEvent('redo')) return tr;
   let replacesDocument = false;
   tr.changes.iterChangedRanges((from, to) => { if (from === 0 && to === tr.startState.doc.length) replacesDocument = true; });
   if (replacesDocument) return tr; // structural moves/file loads already own membership

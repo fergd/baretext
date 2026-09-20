@@ -1,4 +1,4 @@
-import { mountShell, renderShell, unmountShell } from './writing-shell.js';
+import { mountShell, renderShell, unmountShell, updateShellSelection } from './writing-shell.js';
 import { getManuscript, findActiveScene } from './model.js';
 import { reorderScenes, reorderChapters } from './reorder.js';
 import { sceneGroup } from './links.js';
@@ -315,32 +315,12 @@ function onActivateDraggable(element, handler) {
   element.addEventListener('click', handler);
 }
 
-function jumpTo(scene) {
-  // A real chapter scene's position is only actually visible/reachable
-  // once Cold Storage scene view (if active) is exited -- everything
-  // outside the isolated scene is hidden while it's on. No-ops if scene
-  // view isn't active.
-  ctx.exitColdStorageScene();
-  // Restore editor focus before changing its selection. Focusing afterward
-  // can make Chromium reveal the old DOM selection and override this jump.
-  ctx.focusEditor();
-  ctx.editor.setCursorPos(ctx.view, scene.contentPos);
-  if (ctx.state.typewriter) ctx.editor.centerCursor(ctx.view);
-  else ctx.editor.scrollToTop(ctx.view, scene.pos);
-  ctx.refreshNav();
-}
-
-function jumpToChapter(chapter) {
-  ctx.exitColdStorageScene();
-  ctx.focusEditor();
-  ctx.editor.setCursorPos(ctx.view, chapter.pos);
-  if (ctx.state.typewriter) ctx.editor.centerCursor(ctx.view);
-  else ctx.editor.scrollToTop(ctx.view, chapter.pos);
-  ctx.refreshNav();
-}
+function jumpTo(scene) { ctx.navigateTo(scene); }
+function jumpToChapter(chapter) { ctx.navigateTo(chapter); }
 
 function toggleChapter(ci) {
-  if (collapsed.has(ci)) collapsed.delete(ci); else collapsed.add(ci);
+  const key = getManuscript(ctx.view)[ci]?.stableId ?? ci;
+  if (collapsed.has(key)) collapsed.delete(key); else collapsed.add(key);
   render();
 }
 
@@ -431,7 +411,7 @@ function onTreeKeydown(e) {
     return;
   }
   if (type === 'chapter' && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
-    const isCollapsed = collapsed.has(ci);
+    const isCollapsed = collapsed.has(getManuscript(ctx.view)[ci]?.stableId ?? ci);
     if ((e.key === 'ArrowRight' && !isCollapsed) || (e.key === 'ArrowLeft' && isCollapsed)) return;
     e.preventDefault();
     toggleChapter(ci);
@@ -698,7 +678,7 @@ export function render() {
   list.setAttribute('aria-label', 'Manuscript');
   chapters.forEach((chapter, ci) => {
     if (chapter.coldStorage) return; // rendered separately below
-    const isCollapsed = collapsed.has(ci);
+    const isCollapsed = collapsed.has(chapter.stableId ?? ci);
     const chHasTitle = chapter.title.trim() !== '';
     const chLabel = chHasTitle ? chapter.title : 'Untitled';
 
@@ -873,4 +853,16 @@ export function unmount() {
   }
   railEl = null;
   ctx = null;
+}
+
+export function updateSelection() {
+  if (!ctx || !railEl) return;
+  const chapters = getManuscript(ctx.view);
+  const active = findActiveScene(chapters, ctx.editor.getCursorPos(ctx.view));
+  for (const row of railEl.querySelectorAll('.rail-scene-row')) {
+    const selected = Number(row.dataset.ci) === active?.chapterIndex && Number(row.dataset.si) === active?.sceneIndex;
+    row.classList.toggle('active', selected);
+    if (selected) row.setAttribute('aria-current', 'true'); else row.removeAttribute('aria-current');
+  }
+  updateShellSelection(chapters, active);
 }

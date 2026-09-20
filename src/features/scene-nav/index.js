@@ -17,8 +17,7 @@ import { toggleSceneLink as applyToggleSceneLink } from './reorder.js';
 
 let ctx = null;
 let renderTimer = null;
-let onHostActivity = null;
-let onFileLoaded = null;
+let unsubscribeEditor = null;
 let onKeydown = null;
 
 // Cold Storage "scene view" (see cold-storage-view.js): { sceneIndex,
@@ -33,6 +32,8 @@ let onKeydown = null;
 // manuscript.
 let coldStorageView = null;
 let banner = null, bannerLabel = null, backBtn = null;
+const keepEditorFocus = e => e.preventDefault();
+const returnToManuscript = () => exitColdStorageScene();
 
 function refreshNow() {
   rail.render();
@@ -50,7 +51,9 @@ function refreshNow() {
 function syncColdStorageView() {
   const chapters = getManuscript(ctx.view);
   const coldStorage = chapters[chapters.length - 1];
-  const scene = coldStorage.scenes[coldStorageView.sceneIndex];
+  const scene = coldStorageView.stableId
+    ? coldStorage.scenes.find(s => s.stableId === coldStorageView.stableId)
+    : coldStorage.scenes[coldStorageView.sceneIndex];
   if (!scene) { exitColdStorageScene(); return; }
   bannerLabel.textContent = scene.title;
   ctx.editor.syncColdStorageView(ctx.view, scene.pos, scene.endPos);
@@ -58,7 +61,7 @@ function syncColdStorageView() {
 
 function enterColdStorageScene(scene, sceneIndex) {
   const savedCursorPos = coldStorageView ? coldStorageView.savedCursorPos : ctx.editor.getCursorPos(ctx.view);
-  coldStorageView = { sceneIndex, savedCursorPos };
+  coldStorageView = { sceneIndex, stableId: scene.stableId, savedCursorPos };
   ctx.editor.enterColdStorageScene(ctx.view, scene.pos, scene.endPos);
   bannerLabel.textContent = scene.title;
   banner.classList.add('visible');
@@ -67,14 +70,28 @@ function enterColdStorageScene(scene, sceneIndex) {
   refreshNow();
 }
 
-function exitColdStorageScene() {
+function exitColdStorageScene({ restore = true } = {}) {
   if (!coldStorageView) return;
-  ctx.editor.exitColdStorageScene(ctx.view, coldStorageView.savedCursorPos);
+  ctx.editor.exitColdStorageScene(ctx.view, coldStorageView.savedCursorPos, { restore });
   coldStorageView = null;
   banner.classList.remove('visible');
   ctx.dom.host.classList.remove('cold-storage-view-active');
-  ctx.focusEditor();
+  if (restore) ctx.focusEditor();
   refreshNow();
+}
+
+function navigateTo(target) {
+  const chapters = getManuscript(ctx.view);
+  const current = target.stableId
+    ? [...chapters, ...chapters.flatMap(c => c.scenes)].find(item => item.stableId === target.stableId)
+    : target;
+  if (!current) return; // The requested scene was deleted; don't jump elsewhere.
+  exitColdStorageScene({ restore: false });
+  if (corkboard.isOpen()) corkboard.close({ restore: false });
+  ctx.editor.navigate(ctx.view, current.contentPos ?? current.pos, {
+    align: ctx.state.typewriter ? 'center' : 'start', scrollPos: current.pos,
+  });
+  rail.updateSelection();
 }
 
 function scheduleRender() {
@@ -184,12 +201,10 @@ export default {
 
   init(localCtx) {
     ctx = localCtx;
-    // refreshNav: jump actions (rail row click, corkboard card click) move
-    // the cursor programmatically, outside ctx.dom.host — the keyup/mouseup
-    // listeners below never fire for those, so each surface calls this
-    // directly right after a jump instead of waiting on the debounce.
+    // Structural commands refresh the model; editor transactions separately
+    // update active selection without rebuilding the navigation controls.
     const sceneNavCtx = {
-      ...ctx, addNewScene, addNewChapter, refreshNav: refreshNow, openCorkboard: () => corkboard.show(), toggleCorkboard: () => corkboard.toggle(), renameTitle,
+      ...ctx, navigateTo, addNewScene, addNewChapter, refreshNav: refreshNow, openCorkboard: () => corkboard.show(), toggleCorkboard: () => corkboard.toggle(), renameTitle,
       deleteScene, deleteChapter, enterColdStorageScene, exitColdStorageScene, toggleSceneLink,
     };
 
@@ -199,15 +214,17 @@ export default {
     banner = document.getElementById('cold-storage-banner');
     bannerLabel = document.getElementById('cold-storage-banner-label');
     backBtn = document.getElementById('cold-storage-back-btn');
-    backBtn.addEventListener('mousedown', (e) => e.preventDefault());
-    backBtn.addEventListener('click', () => exitColdStorageScene());
+    backBtn.addEventListener('mousedown', keepEditorFocus);
+    backBtn.addEventListener('click', returnToManuscript);
 
-    onHostActivity = () => scheduleRender();
-    ctx.dom.host.addEventListener('keyup', onHostActivity);
-    ctx.dom.host.addEventListener('mouseup', onHostActivity);
-
-    onFileLoaded = () => scheduleRender();
-    ctx.api.onFileLoaded(onFileLoaded);
+    unsubscribeEditor = ctx.editor.subscribe(ctx.view, update => {
+      if (update.docChanged) {
+        corkboard.mapViewport(update.changes);
+        if (coldStorageView) coldStorageView.savedCursorPos = update.changes.mapPos(coldStorageView.savedCursorPos, 1);
+      }
+      if (update.docChanged) scheduleRender();
+      else if (update.selectionSet) queueMicrotask(() => { if (ctx) rail.updateSelection(); });
+    });
 
     onKeydown = (e) => {
       // An inline title-rename input handles its own Escape (cancel) and
@@ -240,14 +257,14 @@ export default {
     // scene view at all, so it would otherwise silently render only that
     // scene's text as if it were the whole document.
     if (coldStorageView) exitColdStorageScene();
-    if (ctx) {
-      ctx.dom.host.removeEventListener('keyup', onHostActivity);
-      ctx.dom.host.removeEventListener('mouseup', onHostActivity);
-    }
+    unsubscribeEditor?.();
+    unsubscribeEditor = null;
     if (onKeydown) document.removeEventListener('keydown', onKeydown, true);
+    backBtn?.removeEventListener('mousedown', keepEditorFocus);
+    backBtn?.removeEventListener('click', returnToManuscript);
     rail.unmount();
     corkboard.unmount();
-    onHostActivity = onFileLoaded = onKeydown = null;
+    onKeydown = null;
     banner = bannerLabel = backBtn = null;
     ctx = null;
   },

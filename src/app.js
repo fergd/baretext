@@ -81,7 +81,12 @@ let view = window.BaretextEditor.create(
   (doc) => {
     updateCounts(doc);
     window.api.contentChanged(doc);
-    if (state.typewriter) window.BaretextEditor.centerCursor(view);
+    if (state.typewriter && view.state.selection.main.empty) {
+      const expected = view.state;
+      queueMicrotask(() => {
+        if (view.state === expected && host.offsetParent !== null) window.BaretextEditor.centerCursor(view);
+      });
+    }
   },
   'start writing...'
 );
@@ -396,13 +401,8 @@ function reportCursorPosition() {
     window.api.cursorChanged(window.BaretextEditor.getCursorPos(view));
   }, 400);
 }
-host.addEventListener('keyup', reportCursorPosition);
-host.addEventListener('mouseup', reportCursorPosition);
-host.addEventListener('keyup', () => {
-  if (state.typewriter) window.BaretextEditor.centerCursor(view);
-});
-host.addEventListener('mouseup', () => {
-  if (state.typewriter) window.BaretextEditor.centerCursor(view);
+window.BaretextEditor.subscribe(view, update => {
+  if (update.docChanged || update.selectionSet) reportCursorPosition();
 });
 
 // Typewriter mode recenters when text is actually edited (the create()
@@ -617,18 +617,7 @@ function setTypewriter(on, opts = {}) {
     twIndicator.setAttribute('aria-pressed', String(state.typewriter));
     if (state.typewriter) window.BaretextEditor.centerCursor(view);
   };
-  const scroller = host.querySelector('.cm-scroller');
-  if (scroller) {
-    scroller.style.transition = 'opacity 0.2s ease';
-    scroller.style.opacity = '0.4';
-    setTimeout(() => {
-      apply();
-      scroller.style.opacity = '1';
-      setTimeout(() => { scroller.style.transition = ''; }, 220);
-    }, 110);
-  } else {
-    apply();
-  }
+  apply();
   window.api.setTypewriter(state.typewriter);
   if (!opts.silent) {
     showToast(state.typewriter ? 'typewriter on' : 'typewriter off');
@@ -854,11 +843,8 @@ function renderOutline(q) {
 }
 
 function jumpToOutlineItem(item) {
-  window.BaretextEditor.setCursorPos(view, item.pos);
-  setTimeout(() => {
-    focusEditor();
-    if (state.typewriter) window.BaretextEditor.centerCursor(view);
-  }, 0);
+  closePalette(false);
+  window.BaretextEditor.navigate(view, item.pos, { align: state.typewriter ? 'center' : 'start' });
 }
 
 function openOutline() {
@@ -1021,6 +1007,7 @@ modeSwitch.addEventListener('keydown', (e) => {
 });
 
 function activateMode(modeId) {
+  const viewport = host.offsetParent !== null && !window.BaretextEditor.getColdStorageView(view) ? view.scrollSnapshot() : null;
   const modeDef = MODES[modeId] || MODES[DEFAULT_MODE];
 
   activeFeatures.forEach(f => { if (f.destroy) f.destroy(ctx); });
@@ -1046,6 +1033,7 @@ function activateMode(modeId) {
   commands = activeFeatures.flatMap(f => f.commandGroups ? f.commandGroups(ctx) : []);
   commands.push(modeGroup());
 
+  if (viewport) view.dispatch({ effects: viewport });
   if (overlay.classList.contains('open')) render(pInput.value);
 }
 ctx.activateMode = activateMode;

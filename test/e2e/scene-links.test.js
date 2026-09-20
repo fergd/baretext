@@ -72,7 +72,7 @@ test('corkboard links, moves, unlinks and undoes groups without leaving the boar
     assert.equal(await app.client.evaluate(`return document.querySelectorAll('.scene-connectors path').length;`), 0);
     await app.client.evaluate(`document.querySelector('.corkboard-tool-btn').click(); return true;`);
     await pause();
-    assert.equal(await app.client.evaluate(`return document.querySelectorAll('.scene-card.scene-linked').length;`), 2);
+    assert.equal(await app.client.evaluate(`return document.querySelectorAll('.scene-card.scene-linked').length;`), 2, await app.client.evaluate(`return window.BaretextEditor.getDoc(document.querySelector('.cm-content').cmTile.root.view);`));
     assert.equal(await app.client.evaluate(`return document.getElementById('app').classList.contains('corkboard-open');`), true);
     assert.deepEqual(app.client.getConsoleMessages().filter(m => m.type === 'error' || m.type === 'exception'), []);
   } finally { await app.close(); }

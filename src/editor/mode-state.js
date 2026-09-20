@@ -4,7 +4,7 @@ import { StateField, StateEffect } from '@codemirror/state';
 // source of truth via data-mode on <html>) as editor state, so decoration
 // plugins that render differently per mode (chapter-placeholder.js,
 // scene-breaks.js) can react to a mode switch even when it happens without
-// a document change. Mirrors live-preview.js's renderedModeField exactly.
+// a document change.
 export const setEditorModeEffect = StateEffect.define();
 
 export const editorModeField = StateField.define({

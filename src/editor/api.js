@@ -1,8 +1,9 @@
 import { EditorView, keymap, placeholder, drawSelection } from '@codemirror/view';
-import { EditorState, Transaction } from '@codemirror/state';
+import { isolateHistory } from '@codemirror/commands';
+import { EditorState, Transaction, EditorSelection, ChangeSet } from '@codemirror/state';
 import { theme, injectSelectionFix, injectHeadingColors } from './theme.js';
 import { markdownExtensions } from './markdown-language.js';
-import { livePreviewPlugin, renderedModeField, injectLivePreviewStyle } from './live-preview.js';
+import { livePreviewPlugin, injectLivePreviewStyle } from './live-preview.js';
 import { sceneBreakDecorator, sceneBreakAtomicRanges, sceneBreakClickGuard, injectSceneBreakStyle } from './scene-breaks.js';
 import { blockSpacingPlugin, injectBlockSpacingStyle } from './block-spacing.js';
 import { historyAndKeymaps, boldItalicKeymap } from './history-commands.js';
@@ -14,7 +15,9 @@ import { editorModeField, setEditorMode as setEditorModeField } from './mode-sta
 import { coldStorageViewField, coldStorageHideField, setColdStorageViewEffect } from './cold-storage-view.js';
 import { bookTitlePlugin, bookTitleAtomicRange, bookTitleClickGuard, positionAfterBookTitle, injectBookTitleStyle } from './book-title.js';
 import { openingCapsDecorator, injectOpeningCapsStyle } from './opening-caps.js';
-import { mapPosAcrossReplace } from './cursor-map.js';
+import { documentChanges } from './document-changes.js';
+import { outlineState, getStableOutline } from './outline-state.js';
+import { structuralEdit } from './transaction-types.js';
 import { sceneBoundaryGuardKeymap } from './scene-boundary-guard.js';
 import { sceneLinkMetadata, preserveSceneLinks } from './scene-links.js';
 
@@ -49,6 +52,7 @@ export function create(container, initialDoc, onChange, placeholderText) {
   injectBookTitleStyle();
   injectOpeningCapsStyle();
 
+  const listeners = new Set();
   const view = new EditorView({
     parent: container,
     state: EditorState.create({
@@ -68,8 +72,8 @@ export function create(container, initialDoc, onChange, placeholderText) {
         // native caret's thin-bar look closely enough that every other
         // theme should look unchanged now that it's real.
         drawSelection(),
-        renderedModeField,
         editorModeField,
+        outlineState,
         livePreviewPlugin,
         bookTitlePlugin,
         sceneLinkMetadata,
@@ -101,12 +105,14 @@ export function create(container, initialDoc, onChange, placeholderText) {
         placeholder(placeholderText || ''),
         EditorView.contentAttributes.of({ 'aria-label': 'editor' }),
         EditorView.updateListener.of((update) => {
+          for (const listener of listeners) listener(update);
           if (update.docChanged && !suppressed && onChange) onChange(view.state.doc.toString());
         }),
       ],
     }),
   });
 
+  view._listeners = listeners;
   view._setSuppressed = (value) => { suppressed = value; };
   return view;
 }
@@ -115,30 +121,54 @@ export function getDoc(view) {
   return view.state.doc.toString();
 }
 
-// setDoc replaces the ENTIRE buffer as one big change (from 0 to doc.length)
-// rather than a targeted edit, because every caller (file load, and every
-// scene-nav structural mutation -- add/delete/reorder chapters and scenes)
-// rebuilds the whole document text from scratch rather than tracking a
-// precise sub-range to splice. CodeMirror maps the old selection through
-// that change automatically, but a single change spanning the whole old
-// document gives it nothing to anchor to -- every prior cursor position
-// collapses to the very start of the new text. Structural rail edits are
-// meant to leave the reader's position alone (see e.g. addNewScene's "never
-// navigate away" contract), so we diff old/new text ourselves (see
-// cursor-map.js) and re-anchor the cursor there explicitly. File load
-// overrides this with its own saved cursorPos immediately after (see
-// app.js), so it's unaffected either way.
+// File loads replace the buffer; manuscript edits apply only changed ranges.
 export function setDoc(view, text, { addToHistory = true } = {}) {
   const newText = text || '';
   const oldText = view.state.doc.toString();
-  const newPos = mapPosAcrossReplace(oldText, newText, view.state.selection.main.head);
+  if (oldText === newText) return;
+  const changes = ChangeSet.of(addToHistory ? documentChanges(oldText, newText) : [{ from: 0, to: oldText.length, insert: newText }], oldText.length);
+  const newState = view.state.update({ changes, annotations: structuralEdit.of(true) }).state;
+  const beforeOutline = getStableOutline(view);
+  const afterOutline = getStableOutline({ state: newState });
+  const mapAnchor = pos => {
+    const owner = beforeOutline.findLast(item => item.pos <= pos);
+    const target = owner && afterOutline.find(item => item.stableId === owner.stableId);
+    if (target && owner.signature === target.signature) return Math.min(newText.length, target.pos + pos - owner.pos);
+    if (target && owner.identityKey === target.identityKey) {
+      const line = view.state.doc.lineAt(pos);
+      const targetEnd = afterOutline[afterOutline.indexOf(target) + 1]?.pos ?? newText.length;
+      const body = newText.slice(target.pos, targetEnd);
+      const offset = body.indexOf(line.text);
+      if (line.text && offset >= 0 && body.indexOf(line.text, offset + 1) < 0)
+        return target.pos + offset + pos - line.from;
+    }
+    return changes.mapPos(pos, 1);
+  };
+  const selection = EditorSelection.create(view.state.selection.ranges.map(range =>
+    EditorSelection.range(mapAnchor(range.anchor), mapAnchor(range.head))), view.state.selection.mainIndex);
   view._setSuppressed(true);
-  view.dispatch({
-    changes: { from: 0, to: view.state.doc.length, insert: newText },
-    selection: { anchor: newPos },
-    annotations: addToHistory ? undefined : Transaction.addToHistory.of(false),
-  });
-  view._setSuppressed(false);
+  try {
+    view.dispatch({ changes, selection, effects: view.scrollSnapshot().map(changes),
+      annotations: [structuralEdit.of(true), isolateHistory.of("full"), Transaction.addToHistory.of(addToHistory)],
+    });
+  } finally { view._setSuppressed(false); }
+}
+
+// Make the target visible before calling. One jump owns selection and scroll.
+export function navigate(view, pos, { align = 'center', scrollPos = pos, effects = [] } = {}) {
+  const max = view.state.doc.length;
+  let anchor = Math.max(0, Math.min(pos, max));
+  const safeBookPos = positionAfterBookTitle(view.state.doc);
+  if (safeBookPos !== null && anchor <= view.state.doc.line(1).to) anchor = safeBookPos;
+  view.focus();
+  view.dispatch({ selection: { anchor }, effects: [...effects,
+    EditorView.scrollIntoView(align === 'center' ? anchor : Math.max(0, Math.min(scrollPos, max)), { y: align, yMargin: 24 }),
+  ] });
+}
+
+export function subscribe(view, listener) {
+  view._listeners.add(listener);
+  return () => view._listeners.delete(listener);
 }
 
 export function focus(view) {
@@ -171,14 +201,7 @@ export function hasSelection(view) {
 }
 
 export function setCursorPos(view, pos) {
-  const max = view.state.doc.length;
-  let clamped = Math.max(0, Math.min(pos, max));
-  const safeBookPos = positionAfterBookTitle(view.state.doc);
-  if (safeBookPos !== null && clamped <= view.state.doc.line(1).to) clamped = safeBookPos;
-  view.dispatch({
-    selection: { anchor: clamped, head: clamped },
-    effects: EditorView.scrollIntoView(clamped, { y: 'center' }),
-  });
+  navigate(view, pos);
 }
 
 // Enters Cold Storage "scene view" — hides everything outside [from, to)
@@ -199,7 +222,8 @@ export function enterColdStorageScene(view, from, to) {
 // Leaves scene view and restores the cursor to wherever it was in the real
 // manuscript before scene view was entered — centered, not top-aligned,
 // since this is "you're back where you left off" rather than a fresh jump.
-export function exitColdStorageScene(view, restorePos) {
+export function exitColdStorageScene(view, restorePos, { restore = true } = {}) {
+  if (!restore) { view.dispatch({ effects: setColdStorageViewEffect.of(null) }); return; }
   const max = view.state.doc.length;
   const clamped = Math.max(0, Math.min(restorePos, max));
   view.dispatch({

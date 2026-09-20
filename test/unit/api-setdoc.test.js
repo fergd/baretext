@@ -1,25 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mapPosAcrossReplace } from '../../src/editor/cursor-map.js';
-import { makeView } from './helpers/make-view.js';
+import { setDoc as dispatchSetDoc } from '../../src/editor/api.js';
+import { outlineState } from '../../src/editor/outline-state.js';
+import { EditorView } from '@codemirror/view';
+import { makeView as baseView } from './helpers/make-view.js';
 import { history, undo } from '@codemirror/commands';
-import { Transaction } from '@codemirror/state';
 
-// setDoc (api.js) is exercised end-to-end via its exported cursor-mapping
-// logic here rather than by importing api.js itself -- api.js pulls in the
-// full editor bundle, which isn't
-// loadable under a plain Node test runner. dispatchSetDoc below reproduces
-// setDoc's actual dispatch shape against a real EditorState (via makeView),
-// so these tests still exercise the real CodeMirror selection-mapping
-// pipeline, just without api.js's own module graph.
-function dispatchSetDoc(view, text, { addToHistory = true } = {}) {
-  const oldText = view.state.doc.toString();
-  const newPos = mapPosAcrossReplace(oldText, text, view.state.selection.main.head);
-  view.dispatch({
-    changes: { from: 0, to: view.state.doc.length, insert: text },
-    selection: { anchor: newPos },
-    annotations: addToHistory ? undefined : Transaction.addToHistory.of(false),
-  });
+// Exercise the production API against an EditorState; only viewport effects
+// and the onChange suppression hook need substitutes without a browser.
+function makeView(doc, extensions = []) {
+  const view = baseView(doc, [outlineState, ...extensions]);
+  view._setSuppressed = () => {};
+  view.scrollSnapshot = () => EditorView.scrollIntoView(0);
+  return view;
 }
 
 function moveCursor(view, pos) {
