@@ -39,12 +39,13 @@ test('replaces a real selection range, not just inserting at a point', () => {
   assert.equal(view.state.doc.toString(), '# Chapter\n\nReplace \n\n---\n\n please.');
 });
 
-test('leaves the cursor immediately after the inserted break', () => {
+test('places the cursor on the first writable line after the inserted break', () => {
   const view = makeView('# Chapter\n\n\nProse.');
   moveCursor(view, 11);
   insertSceneBreak(view);
-  const expectedInsert = '---\n\n';
-  assert.equal(view.state.selection.main.head, 11 + expectedInsert.length);
+  const cursor = view.state.selection.main.head;
+  assert.equal(view.state.doc.lineAt(cursor).text, '');
+  assert.equal(view.state.doc.lineAt(cursor - 1).text, '---');
 });
 
 test('returns true', () => {

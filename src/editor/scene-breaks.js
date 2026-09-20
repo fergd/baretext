@@ -321,7 +321,10 @@ export function insertSceneBreak(view) {
 
   view.dispatch({
     changes: { from, to, insert },
-    selection: { anchor: from + insert.length },
+    // Keep the document's trailing blank line, but place the caret at its
+    // start.  That is the first writable line of the new scene; placing it
+    // after the final newline made Cmd+Enter appear to skip a line.
+    selection: { anchor: from + insert.length - 1 },
   });
   view.focus();
   return true;

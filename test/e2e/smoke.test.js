@@ -1617,16 +1617,25 @@ describe('Baretext E2E: ⌘↵ scene break and sprint pause', () => {
       await new Promise(r => setTimeout(r, 150));
       const afterCmdEnter = cm.innerText;
       const dashesAfterCmdEnter = (afterCmdEnter.match(/---/g) || []).length;
+      const view = cm.cmTile.root.view;
+      const cursorAfterCmdEnter = view.state.selection.main.head;
+      const cursorLine = view.state.doc.lineAt(cursorAfterCmdEnter);
+      let markerLine = null;
+      for (let n = 1; n <= view.state.doc.lines; n++) {
+        if (view.state.doc.line(n).text.trim() === '---' && view.state.doc.line(n).from <= cursorAfterCmdEnter) markerLine = n;
+      }
 
       cm.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
       const dashesAfterPlainEnter = (cm.innerText.match(/---/g) || []).length;
 
-      return { dashesBefore, dashesAfterCmdEnter, dashesAfterPlainEnter, changed: afterCmdEnter !== before };
+      return { dashesBefore, dashesAfterCmdEnter, dashesAfterPlainEnter, changed: afterCmdEnter !== before, cursorLine: cursorLine.text, cursorLineNumber: cursorLine.number, markerLine };
     `);
     assert.equal(result.changed, true);
     assert.equal(result.dashesAfterCmdEnter, result.dashesBefore + 1);
     assert.equal(result.dashesAfterPlainEnter, result.dashesAfterCmdEnter); // plain Enter is just a newline, not a second break
+    assert.equal(result.cursorLine, '', 'Cmd+Enter should place the cursor on the first writable line');
+    assert.equal(result.cursorLineNumber, result.markerLine + 1, 'the cursor should be one line below the new scene break');
     const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
     assert.deepEqual(bad, []);
   });
