@@ -85,6 +85,23 @@ test('an AI summary can be removed from the persistent cache for undo', async ()
   }
 });
 
+test('an outline summary edit is persisted in the same local cache', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'baretext-ai-outline-test-'));
+  const cachePath = path.join(dir, 'ai-cache.json');
+  const scene = { text: 'A quiet room at dawn.' };
+  try {
+    ai.init({ filePath: cachePath, apiKey: null });
+    ai.saveSummary({ ...scene, summary: 'The room is empty at sunrise.' });
+    assert.deepEqual(ai.getCachedSummaries([{ id: 'scene-1', text: scene.text }]), {
+      'scene-1': 'The room is empty at sunrise.',
+    });
+    ai.saveSummary({ ...scene, summary: '' });
+    assert.deepEqual(ai.getCachedSummaries([{ id: 'scene-1', text: scene.text }]), {});
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('title suggestions return exactly the provider titles without applying one', async () => {
   const originalFetch = global.fetch;
   let requestBody;

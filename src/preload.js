@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld('api', {
   onOpenAiSettings: (cb) => ipcRenderer.on('open-ai-settings', cb),
   aiCachedSummaries: (scenes) => ipcRenderer.invoke('ai-cached-summaries', scenes),
   aiRemoveCachedSummaries: (scenes) => ipcRenderer.invoke('ai-remove-cached-summaries', scenes),
+  aiSaveSummary: (scene) => ipcRenderer.invoke('ai-save-summary', scene),
   aiSummarizeScenes: (scenes) => ipcRenderer.invoke('ai-summarize-scenes', scenes),
   aiSuggestTitles: (payload) => ipcRenderer.invoke('ai-suggest-titles', payload),
 

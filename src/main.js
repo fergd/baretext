@@ -474,6 +474,10 @@ ipcMain.handle('ai-remove-cached-summaries', (event, scenes) => {
   ai.removeCachedSummaries(scenes);
   return { ok: true };
 });
+ipcMain.handle('ai-save-summary', (event, scene) => {
+  ai.saveSummary(scene);
+  return { ok: true };
+});
 ipcMain.handle('ai-summarize-scenes', async (event, scenes) => {
   try { return { ok: true, ...(await ai.summarizeScenes(scenes)) }; }
   catch (e) { return { ok: false, error: e.message }; }

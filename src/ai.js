@@ -65,6 +65,16 @@ function removeCachedSummaries(scenes) {
   saveCache();
 }
 
+function saveSummary(scene) {
+  const text = String(scene && scene.text || '');
+  if (!text.trim()) return;
+  const key = summaryKey(text);
+  const summary = String(scene && scene.summary || '').trim();
+  if (summary) cache.summaries[key] = { summary, updatedAt: new Date().toISOString() };
+  else delete cache.summaries[key];
+  saveCache();
+}
+
 async function summarizeScenes(scenes) {
   const cleaned = cleanScenes(scenes);
   const summaries = getCachedSummaries(cleaned);
@@ -102,4 +112,4 @@ function status() {
   return { configured: !!(provider && provider.configured), provider: provider && provider.id, model: provider && provider.model };
 }
 
-module.exports = { init, configure, status, getCachedSummaries, removeCachedSummaries, summarizeScenes, suggestTitles, summaryKey };
+module.exports = { init, configure, status, getCachedSummaries, removeCachedSummaries, saveSummary, summarizeScenes, suggestTitles, summaryKey };
