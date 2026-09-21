@@ -122,23 +122,31 @@ function injectStyle() {
 .scene-card.dragging { opacity: .35; cursor: grabbing; }
 .scene-card.drag-over { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); }
 .corkboard-grid.drag-over-grid { background: var(--wash-accent); border-radius: var(--radius-card, 10px); }
+.outline-canvas { max-width: 1480px; margin: 0 auto; padding: 18px 38px 80px; }
 .outline-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-.outline-table th { padding: 7px 10px; border-bottom: 1px solid var(--border); color: var(--text-dimmer); font-size: 9px; letter-spacing: .1em; text-align: left; text-transform: uppercase; }
-.outline-table td { padding: 8px 10px; border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent); color: var(--text-dim); font-size: 11px; vertical-align: top; }
-.outline-table tr:hover td { background: color-mix(in srgb, var(--wash) 55%, transparent); }
-.outline-table .outline-chapter-row td { padding-top: 18px; color: var(--text); font-weight: 700; }
-.outline-table .outline-number { width: 72px; color: var(--text-dimmer); white-space: nowrap; }
-.outline-table .outline-chapter { width: 20%; color: var(--text); }
-.outline-table .outline-scene { width: 23%; color: var(--text); }
-.outline-table .outline-summary { width: auto; }
-.outline-table .outline-words { width: 76px; color: var(--text-dimmer); white-space: nowrap; }
-.outline-title-cell { display: flex; align-items: flex-start; gap: 6px; }
-.outline-title { min-width: 0; line-height: 1.4; }
-.outline-edit { opacity: .45; flex: none; }
-.outline-edit:hover, .outline-edit:focus-visible { opacity: 1; }
-.outline-summary-input { width: 100%; min-height: 42px; resize: vertical; padding: 5px 7px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--text-dim); font: 11px/1.45 var(--font-mono); outline: none; }
-.outline-summary-input:hover, .outline-summary-input:focus { border-color: var(--border); background: var(--bg); color: var(--text); }
-.outline-empty { padding: 30px 10px; color: var(--text-dimmer); font-size: 11px; }
+.outline-table th { padding: 0 18px 11px; border-bottom: 1px solid var(--border); color: var(--text-dimmer); font-size: 10px; letter-spacing: .14em; text-align: left; text-transform: uppercase; }
+.outline-table th:first-child { width: 72px; }
+.outline-table th:nth-child(2) { width: 24%; }
+.outline-table th:last-child { width: 76px; text-align: right; }
+.outline-table td { padding: 19px 18px; border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent); color: var(--text-dim); font-size: 13px; line-height: 1.75; vertical-align: top; }
+.outline-table .outline-chapter-row td { padding: 18px; color: var(--text); }
+.outline-chapter-content { display: flex; align-items: center; gap: 12px; min-height: 28px; }
+.outline-chapter-chevron { color: var(--text-dim); font-size: 15px; }
+.outline-chapter-badge { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--bg); font-size: 13px; font-weight: 700; }
+.outline-chapter-title { color: var(--text); font-size: 15px; font-style: italic; font-weight: 400; }
+.outline-chapter-title.placeholder { color: var(--text-dim); }
+.outline-chapter-meta { color: var(--text-dim); font-size: 13px; font-weight: 400; }
+.outline-chapter-spacer { flex: 1; }
+.outline-chapter-edit { opacity: .55; }
+.outline-chapter-edit:hover, .outline-chapter-edit:focus-visible { opacity: 1; }
+.outline-table .outline-number { color: var(--text-dimmer); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.outline-table .outline-scene { color: var(--text); font-size: 14px; }
+.outline-table .outline-summary { color: var(--text-dim); }
+.outline-table .outline-words { color: var(--text-dimmer); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.outline-scene-row { cursor: default; }
+.outline-scene-row:hover td { background: var(--wash-accent); }
+.outline-scene-row.active td { background: var(--wash-accent-strong); box-shadow: inset 3px 0 0 var(--accent); }
+.outline-empty { padding: 60px 10px; color: var(--text-dimmer); font-size: 13px; text-align: center; }
 .scene-card .scene-card-title { font-size: 13px; color: var(--text); font-weight: 700; display: flex; align-items: baseline; gap: 4px; }
 .scene-card.draft .scene-card-title { color: var(--text-dim); }
 .scene-card-title-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -344,26 +352,28 @@ async function copyOutlineForSheets(chapters) {
 }
 
 function renderOutlineBody(body, chapters, active) {
-  const canvas = el('div', 'corkboard-canvas');
+  const canvas = el('div', 'outline-canvas');
   const table = document.createElement('table');
   table.className = 'outline-table';
-  table.innerHTML = '<thead><tr><th class="outline-number">#</th><th class="outline-chapter">Chapter</th><th class="outline-scene">Scene</th><th class="outline-summary">Summary</th><th class="outline-words">Words</th></tr></thead>';
+  table.innerHTML = '<thead><tr><th class="outline-number">#</th><th class="outline-scene">Scene</th><th class="outline-summary">Summary</th><th class="outline-words">Words</th></tr></thead>';
   const tbody = document.createElement('tbody');
   chapters.forEach((chapter, ci) => {
     if (chapter.coldStorage) return;
     const chapterRow = el('tr', 'outline-chapter-row');
     const chapterCell = document.createElement('td');
-    chapterCell.colSpan = 5;
-    const chapterWrap = el('div', 'outline-title-cell');
-    chapterWrap.append(el('span', 'outline-number', 'Chapter ' + chapter.number));
-    const chapterTitle = el('span', 'outline-title', chapter.title || 'untitled');
+    chapterCell.colSpan = 4;
+    const chapterWrap = el('div', 'outline-chapter-content');
+    chapterWrap.append(icon('ti-chevron-down'), el('span', 'outline-chapter-badge', String(chapter.number)));
+    const chapterTitle = el('span', 'outline-chapter-title', chapter.title || 'untitled');
     if (!chapter.title) chapterTitle.classList.add('placeholder');
-    const chapterEdit = btn('corkboard-edit-btn outline-edit');
+    const chapterWords = chapter.scenes.reduce((total, scene) => total + (Number(scene.wordCount) || 0), 0);
+    chapterWrap.append(chapterTitle, el('span', 'outline-chapter-meta', `${chapter.scenes.length} scenes · ${chapterWords.toLocaleString()} words`), el('span', 'outline-chapter-spacer'));
+    const chapterEdit = btn('corkboard-edit-btn outline-chapter-edit');
     chapterEdit.appendChild(icon('ti-pencil'));
     chapterEdit.title = 'rename chapter';
     chapterEdit.setAttribute('aria-label', 'Rename chapter ' + chapter.number);
     chapterEdit.addEventListener('click', () => beginEdit(chapterTitle, chapter.title, (value) => ctx.renameTitle(chapter, value), render));
-    chapterWrap.append(chapterTitle, chapterEdit);
+    chapterWrap.append(chapterEdit);
     chapterCell.appendChild(chapterWrap);
     chapterRow.appendChild(chapterCell);
     tbody.appendChild(chapterRow);
@@ -373,34 +383,13 @@ function renderOutlineBody(body, chapters, active) {
       row.addEventListener('dblclick', () => jumpTo(scene));
       row.title = 'double-click to open this scene';
       row.appendChild(el('td', 'outline-number', `${chapter.number}.${si + 1}`));
-      row.appendChild(el('td', 'outline-chapter', chapter.title || 'untitled'));
       const sceneCell = document.createElement('td');
       sceneCell.className = 'outline-scene';
-      const sceneWrap = el('div', 'outline-title-cell');
-      const sceneTitle = el('span', 'outline-title', scene.title || 'untitled scene');
-      const sceneEdit = btn('corkboard-edit-btn outline-edit');
-      sceneEdit.appendChild(icon('ti-pencil'));
-      sceneEdit.title = 'rename scene';
-      sceneEdit.setAttribute('aria-label', 'Rename ' + (scene.title || 'scene'));
-      sceneEdit.addEventListener('click', (event) => { event.stopPropagation(); beginEdit(sceneTitle, scene.title, (value) => ctx.renameTitle(scene, value), render); });
-      sceneWrap.append(sceneTitle, sceneEdit);
-      sceneCell.appendChild(sceneWrap);
+      sceneCell.textContent = scene.title || 'untitled scene';
       row.appendChild(sceneCell);
       const summaryCell = document.createElement('td');
       summaryCell.className = 'outline-summary';
-      const summaryInput = document.createElement('textarea');
-      summaryInput.className = 'outline-summary-input';
-      summaryInput.value = summaryFor(scene);
-      summaryInput.placeholder = 'Add a summary…';
-      summaryInput.setAttribute('aria-label', 'Summary for ' + (scene.title || 'scene'));
-      summaryInput.addEventListener('click', event => event.stopPropagation());
-      summaryInput.addEventListener('input', () => outlineDrafts.set(scene.stableId, summaryInput.value));
-      summaryInput.addEventListener('blur', () => {
-        const summary = summaryInput.value.trim();
-        outlineDrafts.set(scene.stableId, summary);
-        ctx.api.aiSaveSummary({ text: scene.rawText, summary });
-      });
-      summaryCell.appendChild(summaryInput);
+      summaryCell.textContent = summaryFor(scene);
       row.appendChild(summaryCell);
       row.appendChild(el('td', 'outline-words', String(scene.wordCount)));
       tbody.appendChild(row);
