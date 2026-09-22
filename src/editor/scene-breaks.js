@@ -315,16 +315,31 @@ export function insertSceneBreak(view) {
   const atLineStart = from === line.from;
   const lineIsEmpty = line.text.trim() === '';
 
+  let changeFrom = from;
+  let changeTo = to;
   let insert = '';
-  if (!lineIsEmpty || !atLineStart) insert += '\n\n';
-  insert += '---\n\n';
+  if (atLineStart) {
+    // The newline(s) before a line already provide the line break leading
+    // into it. Replacing that whole run avoids creating two blank paragraphs
+    // before a marker. Empty lines also own a trailing newline; consume the
+    // contiguous run so it cannot survive as extra space after the marker.
+    while (changeFrom > 0 && view.state.doc.sliceString(changeFrom - 1, changeFrom) === '\n') changeFrom--;
+    if (lineIsEmpty) {
+      changeTo = Math.max(changeTo, line.to);
+      if (changeTo < view.state.doc.length) changeTo++;
+      while (changeTo < view.state.doc.length && view.state.doc.sliceString(changeTo, changeTo + 1) === '\n') changeTo++;
+    }
+    insert = (changeFrom > 0 ? '\n\n' : '') + '---\n\n';
+  } else {
+    insert = '\n\n---\n\n';
+  }
 
   view.dispatch({
-    changes: { from, to, insert },
+    changes: { from: changeFrom, to: changeTo, insert },
     // Keep the document's trailing blank line, but place the caret at its
     // start.  That is the first writable line of the new scene; placing it
     // after the final newline made Cmd+Enter appear to skip a line.
-    selection: { anchor: from + insert.length - 1 },
+    selection: { anchor: changeFrom + insert.length - 1 },
   });
   view.focus();
   return true;

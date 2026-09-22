@@ -192,7 +192,7 @@ test('an empty scene survives a reorder — including landing at the very front 
   // New order after the move: [empty, First, Third] — the empty scene lands
   // at i===0, so it needs its own explicit marker (see comment above) rather
   // than being silently dropped or merged into nothing.
-  assert.equal(doc, '# One\n\n---\n\n\n\n---\n\nFirst.\n\n---\n\nThird.\n');
+  assert.equal(doc, '# One\n\n---\n\n---\n\nFirst.\n\n---\n\nThird.\n');
 });
 
 test('does not mutate the input chapters array or its scene objects', () => {
@@ -401,11 +401,11 @@ test('addChapter seeds the new chapter with one blank scene, not zero', () => {
   // The explicit "---" marker (rather than nothing) is what makes the blank
   // scene round-trip back out of getManuscript() as a real draft scene next
   // render, instead of vanishing back into an empty, scene-less chapter.
-  assert.equal(doc, '# One\n\nA1.\n\n# \n\n---\n\n\n');
+  assert.equal(doc, '# One\n\nA1.\n\n# \n\n---\n\n');
 });
 
 test('addChapter inserts the new chapter (with its blank scene) before Cold Storage, not after', () => {
   const chapters = [chapter('One', [scene('A1.')]), coldStorage([scene('Cut material.')])];
   const doc = addChapter(chapters);
-  assert.equal(doc, '# One\n\nA1.\n\n# \n\n---\n\n\n\n<!-- COLD STORAGE -->\n\nCut material.\n');
+  assert.equal(doc, '# One\n\nA1.\n\n# \n\n---\n\n<!-- COLD STORAGE -->\n\nCut material.\n');
 });

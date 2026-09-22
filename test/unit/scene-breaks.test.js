@@ -11,7 +11,7 @@ test('inserting on an empty line adds no extra leading blank line', () => {
   const view = makeView('# Chapter\n\n\nSome prose after.');
   moveCursor(view, 11); // the empty line between the heading and the prose
   insertSceneBreak(view);
-  assert.equal(view.state.doc.toString(), '# Chapter\n\n---\n\n\nSome prose after.');
+  assert.equal(view.state.doc.toString(), '# Chapter\n\n---\n\nSome prose after.');
 });
 
 test('inserting mid-paragraph pads with a leading blank line first', () => {
@@ -27,7 +27,7 @@ test('inserting at the very start of a line that has text still pads with a lead
   const pos = view.state.doc.toString().indexOf('Prose line.');
   moveCursor(view, pos); // at line start, but the line is NOT empty
   insertSceneBreak(view);
-  assert.equal(view.state.doc.toString(), '# Chapter\n\n\n\n---\n\nProse line.');
+  assert.equal(view.state.doc.toString(), '# Chapter\n\n---\n\nProse line.');
 });
 
 test('replaces a real selection range, not just inserting at a point', () => {

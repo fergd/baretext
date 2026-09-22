@@ -72,16 +72,24 @@ function cleanScene(scene) {
 function joinScenes(scenes) {
   return scenes.reduce((doc, scene, i) => {
     const prose = cleanScene(scene);
+    const previousEmpty = i > 0 && cleanScene(scenes[i - 1]) === '';
+    const separator = previousEmpty ? '\n' : '\n\n';
     const body = prose + (scene.groupId ? '\n<!-- SCENE GROUP: ' + scene.groupId + ' -->' : scene.linkedNext && i < scenes.length - 1 ? '\n' + SCENE_LINK_MARKER : '');
-    const nameComment = scene.named ? '<!-- ' + scene.title + ' -->\n\n' : '';
+    // A blank draft still needs one writable line after its metadata, but
+    // that line is supplied by buildDocument's final newline. Avoid adding
+    // another blank line here or a newly-created chapter/scene opens with
+    // multiple empty paragraphs before the writer's first keystroke.
+    const nameComment = scene.named
+      ? '<!-- ' + scene.title + ' -->' + (prose === '' ? '\n' : '\n\n')
+      : '';
     if (scene.type !== 'scene') {
-      return i === 0 ? body : doc + '\n\n' + body;
+      return i === 0 ? body : doc + separator + body;
     }
     let prefix;
     if (i === 0) {
-      prefix = prose === '' ? '---\n' + (nameComment || '\n') : nameComment;
+      prefix = prose === '' ? '---\n' + nameComment : nameComment;
     } else {
-      prefix = '\n\n---\n' + (nameComment || '\n');
+      prefix = separator + '---\n' + (nameComment || '\n');
     }
     return i === 0 ? prefix + body : doc + prefix + body;
   }, '');
@@ -120,7 +128,11 @@ function buildDocument(chapters) {
       if (chapter.synthetic) return body;
       return '# ' + chapter.title + (body ? '\n\n' + body : '');
     })
-    .filter((part) => part !== '');
+    .filter((part) => part !== '')
+    // A part can end in the newline that represents an empty draft scene.
+    // Strip it before joining sections so the section separator contributes
+    // exactly one blank line instead of stacking another blank line on top.
+    .map((part) => part.replace(/\n+$/, ''));
 
   if (chapters.bookTitle) parts.unshift(BOOK_TITLE_PREFIX + chapters.bookTitle + ' -->');
 
@@ -128,7 +140,11 @@ function buildDocument(chapters) {
     parts.push(COLD_STORAGE_MARKER + '\n\n' + joinScenes(coldStorage.scenes));
   }
 
-  return parts.length ? parts.join('\n\n') + '\n' : '';
+  if (!parts.length) return '';
+  const lastChapter = realChapters[realChapters.length - 1];
+  const lastCold = coldStorage?.scenes?.at(-1);
+  const endsWithDraft = Boolean((lastCold || lastChapter?.scenes?.at(-1)) && cleanScene(lastCold || lastChapter.scenes.at(-1)) === '');
+  return parts.join('\n\n') + (endsWithDraft ? '\n\n' : '\n');
 }
 
 // moveSpec: { fromChapterIndex, fromSceneIndex, toChapterIndex, toSceneIndex }
