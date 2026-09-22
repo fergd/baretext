@@ -447,7 +447,7 @@ export function render() {
     button.setAttribute('role', 'tab');
     button.setAttribute('aria-selected', String(viewMode === mode));
     button.tabIndex = viewMode === mode ? 0 : -1;
-    button.addEventListener('click', () => { viewMode = mode; render(); views.querySelector(`[aria-selected="true"]`).focus(); });
+    button.addEventListener('click', () => { viewMode = mode; render(); });
     views.append(button);
   }
 
