@@ -186,23 +186,18 @@ function updateToggle() {
   pin.title = collapsed ? 'Pin outline (⌘\\)' : 'Collapse outline (⌘\\)';
   pin.setAttribute('aria-label', pin.title);
   pin.setAttribute('aria-expanded', String(!collapsed));
-  const cb = toolbar.querySelector('.rail-corkboard-btn');
-  const open = localCtx.dom.app.classList.contains('corkboard-open');
-  cb.replaceChildren(icon(open ? 'ti-file-text' : 'ti-cards'));
-  cb.title = open ? 'Back to manuscript' : 'Open corkboard';
-  cb.setAttribute('aria-label', cb.title);
+
 }
 
 export function renderShell(chapters, active, titleEl) {
   if (!toolbar) return;
   const ctx = localCtx;
-  const current = chapters[active?.chapterIndex ?? 0];
-  const scene = current?.scenes[active?.sceneIndex ?? 0];
   const pin = action('Pin outline', 'ti-layout-sidebar-left-expand', () => ctx.toggleRailCollapsed(), 'writing-pin rail-panel-collapse-btn');
-  const cork = action('Open corkboard', 'ti-cards', () => ctx.toggleCorkboard(), 'rail-corkboard-btn');
-  const crumb = el('span', 'writing-breadcrumb', current && !current.coldStorage ? 'chapter ' + current.number + (scene ? ' · ' + scene.title : '') : 'cold storage');
+
   const search = action('Find & replace (⌘F)', 'ti-search', () => ctx.openFind(), 'writing-search');
-  toolbar.replaceChildren(pin, cork, titleEl, crumb, search);
+  toolbar.replaceChildren(pin, titleEl, search);
+  const count = chapters.reduce((sum, ch) => sum + (ch.coldStorage ? 0 : ch.scenes.length), 0);
+  document.getElementById('scene-count').textContent = count + (count === 1 ? ' scene' : ' scenes');
   updateToggle();
   spine.replaceChildren();
   chapters.forEach((ch, ci) => {
@@ -235,11 +230,6 @@ export function unmountShell() {
 
 export function updateShellSelection(chapters, active) {
   if (!toolbar) return;
-  const chapter = chapters[active?.chapterIndex ?? 0];
-  const scene = chapter?.scenes[active?.sceneIndex ?? 0];
-  const crumb = toolbar.querySelector('.writing-breadcrumb');
-  if (crumb) crumb.textContent = chapter && !chapter.coldStorage
-    ? 'chapter ' + chapter.number + (scene ? ' · ' + scene.title : '') : 'cold storage';
   for (const root of [spine, peek]) for (const row of root.querySelectorAll('[data-ci][data-si]')) {
     const selected = Number(row.dataset.ci) === active?.chapterIndex && Number(row.dataset.si) === active?.sceneIndex;
     row.classList.toggle('active', selected);

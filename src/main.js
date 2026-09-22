@@ -154,7 +154,21 @@ function installApplicationMenu() {
         { role: 'close' },
       ],
     },
-    { role: 'editMenu' },
+    { label: 'Edit', submenu: [
+      { label: 'Undo', accelerator: 'CmdOrCtrl+Z', click: () => {
+        const win = BrowserWindow.getFocusedWindow() || mainWindow;
+        if (win && win === mainWindow) win.webContents.send('edit-history', 'undo');
+        else win?.webContents.undo();
+      } },
+      { label: 'Redo', accelerator: 'CmdOrCtrl+Shift+Z', click: () => {
+        const win = BrowserWindow.getFocusedWindow() || mainWindow;
+        if (win && win === mainWindow) win.webContents.send('edit-history', 'redo');
+        else win?.webContents.redo();
+      } },
+      { type: 'separator' },
+      { role: 'cut' }, { role: 'copy' }, { role: 'paste' },
+      { role: 'pasteAndMatchStyle' }, { role: 'delete' }, { role: 'selectAll' },
+    ] },
     { role: 'viewMenu' },
     { role: 'windowMenu' },
     { role: 'help', submenu: [] },

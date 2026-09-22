@@ -71,7 +71,7 @@
         background: #fff !important;
         color: #111 !important;
       }
-      #titlebar, #scene-rail, #rail-expand-tab, #statusbar,
+      #titlebar, #workspace-bar, #reveal-ui, #scene-rail, #rail-expand-tab, #statusbar,
       #overlay, #font-picker, #toast, #corkboard, #theme-picker,
       .sprint-panel, .sprint-chip, .sprint-edge,
       .find-bar, #cold-storage-banner, .cm-gutters,
@@ -803,8 +803,7 @@
        paint -- same flash-prevention reasoning as the theme boot script
        above. Once app.js runs, aria-selected always agrees with data-mode
        (both driven by the same state.mode), so this never fights it. */
-    html[data-mode="editor"] .mode-tab[data-mode="editor"],
-    html[data-mode="sprinter"] .mode-tab[data-mode="sprinter"] {
+    .mode-tab[aria-selected="true"] {
       background: var(--bg); color: var(--text); font-weight: 600;
       box-shadow: 0 1px 2px rgba(0, 0, 0, .25);
     }
@@ -1225,11 +1224,20 @@
     }
   </style>
   <link rel="stylesheet" href="writing-rail.css">
+  <link rel="stylesheet" href="workspace.css">
 </head>
 <body>
 
 <div id="app">
   <div id="titlebar"></div>
+  <nav id="workspace-bar" aria-label="Writing workspaces">
+    <div id="mode-switch" role="tablist" aria-label="Workspace">
+      <button type="button" class="mode-tab" role="tab" data-mode="editor" aria-selected="true" tabindex="0"><i class="ti ti-file-text" aria-hidden="true"></i>Manuscript</button>
+      <button type="button" class="mode-tab" role="tab" data-mode="sprinter" aria-selected="false" tabindex="-1"><i class="ti ti-run" aria-hidden="true"></i>Sprinter</button>
+      <button type="button" class="mode-tab" role="tab" data-mode="corkboard" aria-selected="false" tabindex="-1"><i class="ti ti-cards" aria-hidden="true"></i>Corkboard</button>
+    </div>
+  </nav>
+  <button type="button" id="reveal-ui" aria-label="Show UI" title="Show UI (⌘.)"><i class="ti ti-chevron-down" aria-hidden="true"></i></button>
   <div id="content-row">
     <div id="scene-rail"></div>
     <button id="rail-expand-tab" title="Expand rail" aria-label="Expand rail">
@@ -1251,18 +1259,19 @@
   <div id="corkboard"></div>
   <div id="theme-picker"></div>
   <div id="statusbar" role="region" aria-label="Status">
-    <div class="status-group">
+    <div class="status-group" id="document-status">
       <span class="status-item" id="word-count">0 words</span>
-      <button type="button" class="status-item" id="tw-status-indicator" aria-pressed="false" aria-label="Toggle typewriter mode"><i class="ti ti-align-left" aria-hidden="true"></i>typewriter</button>
+      <span class="status-item document-meta" id="scene-count">0 scenes</span>
+      <span class="status-item document-meta" id="page-count" title="Estimated at 250 words per page">0 pages</span>
     </div>
-    <div id="mode-switch" role="tablist" aria-label="Mode">
-      <button type="button" class="mode-tab" role="tab" data-mode="sprinter" aria-selected="true" tabindex="0"><i class="ti ti-run" aria-hidden="true"></i>Sprinter</button>
-      <button type="button" class="mode-tab" role="tab" data-mode="editor" aria-selected="false" tabindex="-1"><i class="ti ti-edit" aria-hidden="true"></i>Editor</button>
-    </div>
-    <div class="status-group">
+    <div id="context-view-controls"></div>
+    <div class="status-group" id="status-actions">
+      <div id="context-actions"></div>
+      <button type="button" class="status-item footer-toggle" id="tw-status-indicator" aria-pressed="false" aria-label="Toggle typewriter mode"><span class="toggle-track" aria-hidden="true"></span>Typewriter mode</button>
+      <button type="button" class="status-item footer-toggle" id="hide-ui-toggle" aria-pressed="false" aria-label="Hide UI"><span class="toggle-track" aria-hidden="true"></span>Hide UI</button>
       <div id="save-error" title="save failed"></div>
       <button type="button" id="backup-status-indicator" aria-label="Backup settings"><i class="ti ti-cloud" aria-hidden="true"></i></button>
-      <button type="button" class="status-item dimmer" id="file-name" title="Show in Finder" aria-label="Show in Finder">untitled</button>
+      <button type="button" class="status-item dimmer" id="file-name" title="Show in Finder" aria-label="Show in Finder">Show in Finder</button>
     </div>
   </div>
 </div>

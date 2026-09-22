@@ -3,6 +3,7 @@ import core from './features/core.js';
 import sprintTimer from './features/sprint-timer.js';
 import findReplace from './features/find-replace.js';
 import sceneNav from './features/scene-nav/index.js';
+import * as corkboard from './features/scene-nav/corkboard.js';
 import * as themePicker from './theme-picker.js';
 import { makeDeleteButton } from './features/scene-nav/ui-helpers.js';
 
@@ -471,9 +472,15 @@ function updateCounts(doc) {
   const t = stripBookTitle(stripColdStorage(doc || '')).replace(/^<!-- SCENE (?:LINK|GROUP: [a-zA-Z0-9-]+) -->\s*$/gm, '');
   const w = t.trim() === '' ? 0 : t.trim().split(/\s+/).length;
   state.wordCount = w;
-  elWord.textContent = w + (w === 1 ? ' word' : ' words');
+  elWord.textContent = w.toLocaleString() + (w === 1 ? ' word' : ' words');
+  const pages = Math.ceil(w / 250);
+  document.getElementById('page-count').textContent = pages + (pages === 1 ? ' page' : ' pages');
 }
-function setFileName(fp) { elFile.textContent = fp ? fp.split('/').pop() : 'untitled'; }
+function setFileName(fp) {
+  elFile.textContent = 'Show in Finder';
+  elFile.disabled = !fp;
+  elFile.title = fp ? 'Show ' + fp.split('/').pop() + ' in Finder' : 'Save your document to show it in Finder';
+}
 elFile.addEventListener('mousedown', (e) => e.preventDefault());
 elFile.addEventListener('click', () => { if (state.filePath) window.api.showInFinder(state.filePath); });
 
@@ -640,11 +647,16 @@ document.addEventListener('mousedown', (e) => {
 });
 twIndicator.addEventListener('mousedown', (e) => e.preventDefault());
 twIndicator.addEventListener('click', () => toggleTypewriter());
-elWord.tabIndex = 0;
-elWord.setAttribute('role', 'button');
-elWord.setAttribute('aria-label', 'Toggle typewriter mode');
-elWord.addEventListener('click', toggleTypewriter);
-elWord.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleTypewriter(); } });
+document.getElementById('hide-ui-toggle').addEventListener('click', toggleFocus);
+document.getElementById('reveal-ui').addEventListener('click', toggleFocus);
+window.api.onEditHistory((direction) => {
+  const target = document.activeElement;
+  if (target?.matches('input, textarea') || (target?.isContentEditable && !target.closest('.cm-editor'))) {
+    document.execCommand(direction);
+    return;
+  }
+  window.BaretextEditor[direction](view);
+});
 
 // ── Mode-agnostic editor helpers ──
 function insertSceneBreak() {
@@ -685,6 +697,7 @@ railExpandTab.addEventListener('click', () => { setRailCollapsed(false); focusEd
 function toggleFocus() {
   state.focusMode = !state.focusMode;
   statusbar.classList.toggle('hidden', state.focusMode);
+  document.getElementById('hide-ui-toggle').setAttribute('aria-pressed', String(state.focusMode));
   // The sprint timer's minimized edge line lives outside #statusbar (an
   // absolutely-positioned sibling in sprint-timer.js), so hiding the
   // status bar alone leaves it on screen -- add a class features can key
@@ -988,8 +1001,17 @@ let activeFeatures = [];
 let currentKeybindings = {};
 
 // Single choke point for every mode-switch entry point (⌘K palette, ⌘⇧D,
-// and the status-bar tabs) so all three always agree and stay in sync.
+// and the workspace tabs) so all three always agree and stay in sync.
 function switchMode(modeId) {
+  if (themePicker.isOpen()) themePicker.close();
+  if (state.focusMode) toggleFocus();
+  if (modeId === 'corkboard') {
+    if (state.mode !== 'editor') activateMode('editor');
+    if (!corkboard.isOpen()) corkboard.show();
+    updateModeSwitch();
+    return;
+  }
+  if (corkboard.isOpen()) corkboard.close();
   // Only actually switch if we're not already there — activateMode()
   // unconditionally destroys/reinits every feature, which would kill
   // an in-progress sprint if the user re-selects the mode they're
@@ -1016,15 +1038,17 @@ function modeGroup() {
   };
 }
 
-// Keeps the status-bar tabs in sync with state.mode regardless of what
+// Keeps the workspace tabs in sync with state.mode regardless of what
 // triggered the change (the tabs themselves, ⌘⇧D, or the palette).
 function updateModeSwitch() {
   modeTabs.forEach(tab => {
-    const isActive = tab.dataset.mode === state.mode;
+    const isActive = tab.dataset.mode === (corkboard.isOpen() ? 'corkboard' : state.mode);
     tab.setAttribute('aria-selected', String(isActive));
     tab.tabIndex = isActive ? 0 : -1;
   });
 }
+
+new MutationObserver(updateModeSwitch).observe(app, { attributes: true, attributeFilter: ['class'] });
 
 modeTabs.forEach(tab => {
   tab.addEventListener('mousedown', (e) => e.preventDefault());

@@ -68,14 +68,14 @@ describe('Writing rail design handoff', () => {
     assert.equal(await app.client.evaluate(`return document.querySelectorAll('#scene-rail .rail-cold-storage-section .rail-scene-row').length;`),1);
   });
   test('corkboard includes empty chapters and preserves typewriter across its chrome swap', async () => {
-    await app.client.evaluate(`document.getElementById('word-count').click(); return true;`);
+    await app.client.evaluate(`document.getElementById('tw-status-indicator').click(); return true;`);
     await new Promise(r=>setTimeout(r,300));
-    await app.client.evaluate(`document.querySelector('.writing-toolbar .rail-corkboard-btn').click(); return true;`);
+    await app.client.evaluate(`document.querySelector('.mode-tab[data-mode="corkboard"]').click(); return true;`);
     await new Promise(r=>setTimeout(r,250));
     const result = await app.client.evaluate(`return {chapters:document.querySelectorAll('.corkboard-chapter').length,add:document.querySelectorAll('.scene-card-new').length,pin:getComputedStyle(document.querySelector('.writing-pin')).display,tabs:getComputedStyle(document.getElementById('mode-switch')).visibility,tw:getComputedStyle(document.getElementById('tw-status-indicator')).display};`);
-    assert.deepEqual(result,{chapters:3,add:3,pin:'none',tabs:'hidden',tw:'none'});
+    assert.deepEqual(result,{chapters:3,add:3,pin:'none',tabs:'visible',tw:'none'});
     fs.writeFileSync('/tmp/baretext-rail-corkboard.png', Buffer.from(await app.client.screenshot(),'base64'));
-    await app.client.evaluate(`document.querySelector('.writing-toolbar .rail-corkboard-btn').click(); return true;`);
+    await app.client.evaluate(`document.querySelector('.mode-tab[data-mode="editor"]').click(); return true;`);
     assert.equal(await app.client.evaluate(`return document.getElementById('tw-status-indicator').classList.contains('tw-on');`),true);
   });
   test('toolbar search opens the existing find interface', async () => {

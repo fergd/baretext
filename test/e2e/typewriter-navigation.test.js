@@ -20,7 +20,7 @@ test('typewriter centers chapter, scene, floating outline and corkboard navigati
     await centered(app);
     await app.client.evaluate(`document.querySelector('.writing-pin').click(); document.querySelector('.writing-spine').dispatchEvent(new MouseEvent('mouseenter')); [...document.querySelectorAll('.peek-scene-row')].find(r=>r.textContent.includes('Later')).click(); return true;`);
     await centered(app);
-    await app.client.evaluate(`document.querySelector('.rail-corkboard-btn').click(); document.querySelector('.scene-card .corkboard-edit-btn[aria-label^="Open "]').click(); return true;`);
+    await app.client.evaluate(`document.querySelector('.mode-tab[data-mode="corkboard"]').click(); document.querySelector('.scene-card .corkboard-edit-btn[aria-label^="Open "]').click(); return true;`);
     await centered(app);
     assert.deepEqual(app.client.getConsoleMessages().filter(m=>m.type==='error'||m.type==='exception'), []);
   } finally { await app.close(); }

@@ -6,7 +6,7 @@ import { launchApp } from './harness.js';
 const fixtureContent = '# One\n\n## A\n\nAlpha prose.\n\n---\n<!-- B -->\n\nBeta prose.\n\n## C\n\nGamma prose.\n\n# Two\n\n## D\n\nDelta prose.\n';
 const pause = () => new Promise(r => setTimeout(r, 300));
 async function linkFirst(app) {
-  await app.client.evaluate(`document.querySelector('.rail-corkboard-btn').click(); document.querySelector('.scene-card .scene-link-btn').click(); document.querySelector('.scene-card[data-ci="0"][data-si="1"]').click(); document.querySelector('.corkboard-back').click(); return true;`);
+  await app.client.evaluate(`document.querySelector('.mode-tab[data-mode="corkboard"]').click(); document.querySelector('.scene-card .scene-link-btn').click(); document.querySelector('.scene-card[data-ci="0"][data-si="1"]').click(); document.querySelector('.mode-tab[data-mode="editor"]').click(); return true;`);
   await pause();
 }
 async function railTitles(app) {
@@ -48,7 +48,7 @@ test('corkboard links, moves, unlinks and undoes groups without leaving the boar
   const app = await launchApp({ fixtureContent });
   try {
     await pause();
-    await app.client.evaluate(`window.resizeTo(1500, 950); document.querySelector('.rail-corkboard-btn').click(); return true;`);
+    await app.client.evaluate(`window.resizeTo(1500, 950); document.querySelector('.mode-tab[data-mode="corkboard"]').click(); return true;`);
     await pause();
     await app.client.evaluate(`document.querySelector('.scene-card .scene-link-btn').click(); document.querySelector('.scene-card[data-ci="0"][data-si="1"]').click(); return true;`);
     await pause();
@@ -70,7 +70,7 @@ test('corkboard links, moves, unlinks and undoes groups without leaving the boar
     await app.client.evaluate(`document.querySelector('.scene-card[data-ci="1"][data-si="0"] .scene-unlink-btn').click(); return true;`);
     assert.equal(await app.client.evaluate(`return document.querySelectorAll('.scene-card.scene-linked').length;`), 0);
     assert.equal(await app.client.evaluate(`return document.querySelectorAll('.scene-connectors path').length;`), 0);
-    await app.client.evaluate(`document.querySelector('.corkboard-tool-btn').click(); return true;`);
+    await app.client.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'z',metaKey:true,bubbles:true,cancelable:true})); return true;`);
     await pause();
     assert.equal(await app.client.evaluate(`return document.querySelectorAll('.scene-card.scene-linked').length;`), 2, await app.client.evaluate(`return window.BaretextEditor.getDoc(document.querySelector('.cm-content').cmTile.root.view);`));
     assert.equal(await app.client.evaluate(`return document.getElementById('app').classList.contains('corkboard-open');`), true);
@@ -95,10 +95,10 @@ test('Link enters whole-card selection, supports distant targets and cancels wit
   const app = await launchApp({ fixtureContent });
   try {
     await pause();
-    await app.client.evaluate(`window.resizeTo(1500,950); document.querySelector('.rail-corkboard-btn').click(); return true;`);
+    await app.client.evaluate(`window.resizeTo(1500,950); document.querySelector('.mode-tab[data-mode="corkboard"]').click(); return true;`);
     await pause();
     await app.client.evaluate(`document.querySelector('.scene-card[data-ci="1"] .scene-link-btn').click(); return true;`);
-    assert.deepEqual(await app.client.evaluate(`return {choices:document.querySelectorAll('.link-candidate').length, origins:document.querySelectorAll('.link-origin').length, breadcrumb:getComputedStyle(document.querySelector('.writing-breadcrumb')).display, draggable:document.querySelector('.link-candidate').draggable};`), {choices:3,origins:1,breadcrumb:'none',draggable:false});
+    assert.deepEqual(await app.client.evaluate(`return {choices:document.querySelectorAll('.link-candidate').length, origins:document.querySelectorAll('.link-origin').length, breadcrumb:!!document.querySelector('.writing-breadcrumb'), draggable:document.querySelector('.link-candidate').draggable};`), {choices:3,origins:1,breadcrumb:false,draggable:false});
     fs.writeFileSync('/tmp/baretext-link-selection.png', Buffer.from(await app.client.screenshot(), 'base64'));
     await app.client.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true})); return true;`);
     assert.equal(await app.client.evaluate(`return document.getElementById('app').classList.contains('corkboard-open') && !document.querySelector('.scene-link-prompt');`), true);
@@ -122,12 +122,12 @@ test('creating a scene after a linked scene keeps the original pair and exposes 
     const linkedTitles = () => app.client.evaluate(`return [...document.querySelectorAll('#scene-rail .scene-linked .rail-scene-name')].map(n=>n.textContent);`);
     assert.deepEqual(await linkedTitles(), ['A','C']);
     assert.equal((await railTitles(app)).length,5, JSON.stringify(app.client.getConsoleMessages()) + fs.readFileSync(app.fixturePath, 'utf8'));
-    await app.client.evaluate(`document.querySelector('.rail-corkboard-btn').click(); return true;`);
+    await app.client.evaluate(`document.querySelector('.mode-tab[data-mode="corkboard"]').click(); return true;`);
     await pause();
-    await app.client.evaluate(`document.querySelector('.corkboard-tool-btn').click(); return true;`);
+    await app.client.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'z',metaKey:true,bubbles:true,cancelable:true})); return true;`);
     assert.equal((await railTitles(app)).length,4);
     assert.deepEqual(await linkedTitles(), ['A','C']);
-    await app.client.evaluate(`document.querySelectorAll('.corkboard-tool-btn')[1].click(); return true;`);
+    await app.client.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Z',metaKey:true,shiftKey:true,bubbles:true,cancelable:true})); return true;`);
     assert.equal((await railTitles(app)).length,5);
     assert.deepEqual(await linkedTitles(), ['A','C']);
     const point = await app.client.evaluate(`const button = document.querySelector('.scene-link-label .scene-unlink-btn'); button.scrollIntoView({block:'center'}); const r = button.getBoundingClientRect(); return {x:r.left+r.width/2,y:r.top+r.height/2};`);

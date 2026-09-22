@@ -224,7 +224,7 @@ describe('Baretext E2E smoke test', () => {
 
   test('the rail\'s corkboard button opens the corkboard with numbered cards', async () => {
     const result = await app.client.evaluate(browserHelpers + `
-      const btn = document.querySelector('.rail-corkboard-btn');
+      const btn = document.querySelector('.mode-tab[data-mode="corkboard"]');
       btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
@@ -240,12 +240,12 @@ describe('Baretext E2E smoke test', () => {
     const result = await app.client.evaluate(browserHelpers + `
       await new Promise(r => setTimeout(r, 250));
       if (getComputedStyle(document.getElementById('corkboard')).display === 'none') {
-        document.querySelector('.rail-corkboard-btn').click();
+        document.querySelector('.mode-tab[data-mode="corkboard"]').click();
         await new Promise(r => setTimeout(r, 150));
       }
       const cork = document.getElementById('corkboard');
       return {
-        summarizeAll: [...cork.querySelectorAll('.corkboard-tool-btn')].some(b => b.textContent.includes('summarize all')),
+        summarizeAll: [...document.querySelectorAll('#context-actions .corkboard-tool-btn')].some(b => b.textContent.includes('Summarize All')),
         sceneSummaryButtons: cork.querySelectorAll('button[aria-label^="Summarize "]').length,
         sceneNamingButtons: cork.querySelectorAll('.scene-card button[title="suggest scene names"]').length,
         chapterNamingButtons: cork.querySelectorAll('.corkboard-chapter-header button[aria-label^="Suggest names for "]').length,
@@ -264,7 +264,7 @@ describe('Baretext E2E smoke test', () => {
   test('a below-the-fold card action preserves the exact corkboard scroll position', async () => {
     const result = await app.client.evaluate(browserHelpers + `
       if (getComputedStyle(document.getElementById('corkboard')).display === 'none') {
-        document.querySelector('.rail-corkboard-btn').click();
+        document.querySelector('.mode-tab[data-mode="corkboard"]').click();
         await new Promise(r => setTimeout(r, 150));
       }
       let body = document.querySelector('#corkboard .corkboard-body');
@@ -293,10 +293,14 @@ describe('Baretext E2E smoke test', () => {
     const result = await app.client.evaluate(browserHelpers + `
       await new Promise((resolve) => setTimeout(resolve, 250));
       if (getComputedStyle(document.getElementById('corkboard')).display === 'none') {
-        document.querySelector('.rail-corkboard-btn').click();
+        document.querySelector('.mode-tab[data-mode="corkboard"]').click();
         await new Promise((resolve) => setTimeout(resolve, 150));
       }
-      document.querySelector('#corkboard .corkboard-ai-status').click();
+      document.dispatchEvent(new KeyboardEvent('keydown', {key:'k',metaKey:true,bubbles:true,cancelable:true}));
+      const search = document.getElementById('palette-input');
+      search.value = 'AI settings';
+      search.dispatchEvent(new Event('input', {bubbles:true}));
+      search.dispatchEvent(new KeyboardEvent('keydown', {key:'Enter',bubbles:true,cancelable:true}));
       await new Promise((resolve) => setTimeout(resolve, 50));
       const overlay = document.getElementById('ai-settings-overlay');
       const input = document.getElementById('ai-key-input');
@@ -392,8 +396,8 @@ describe('Baretext E2E smoke test', () => {
 
   test('drag-reordering a scene within a chapter updates the document', async () => {
     const result = await app.client.evaluate(browserHelpers + `
-      document.querySelector('.rail-corkboard-btn').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-      document.querySelector('.rail-corkboard-btn').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      document.querySelector('.mode-tab[data-mode="corkboard"]').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      document.querySelector('.mode-tab[data-mode="corkboard"]').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
       const cork = document.getElementById('corkboard');
       const cards = [...cork.querySelectorAll('.scene-card')];
@@ -424,9 +428,7 @@ describe('Baretext E2E smoke test', () => {
   test('undo in the corkboard reverts the reorder', async () => {
     const result = await app.client.evaluate(browserHelpers + `
       const cork = document.getElementById('corkboard');
-      const undoBtn = document.querySelector('.corkboard-tool-btn');
-      undoBtn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-      undoBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      document.dispatchEvent(new KeyboardEvent('keydown', {key:'z',metaKey:true,bubbles:true,cancelable:true}));
       await new Promise(r => setTimeout(r, 150));
       return [...cork.querySelectorAll('.scene-card-title')].map(e => e.innerText);
     `);
@@ -519,8 +521,8 @@ describe('Baretext E2E smoke test', () => {
     const result = await app.client.evaluate(browserHelpers + `
       // Self-sufficient regardless of whether the previous test left the
       // corkboard open or closed.
-      document.querySelector('.rail-corkboard-btn').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-      document.querySelector('.rail-corkboard-btn').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      document.querySelector('.mode-tab[data-mode="corkboard"]').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      document.querySelector('.mode-tab[data-mode="corkboard"]').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
       const cork = document.getElementById('corkboard');
       const card = [...cork.querySelectorAll('.scene-card')][0];
@@ -539,8 +541,8 @@ describe('Baretext E2E smoke test', () => {
     const display = await app.client.evaluate(browserHelpers + `
       // Self-sufficient regardless of what state the previous test left
       // things in — reopen first so this genuinely exercises Escape-close.
-      document.querySelector('.rail-corkboard-btn').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-      document.querySelector('.rail-corkboard-btn').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      document.querySelector('.mode-tab[data-mode="corkboard"]').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      document.querySelector('.mode-tab[data-mode="corkboard"]').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
@@ -619,8 +621,8 @@ describe('Baretext E2E smoke test', () => {
 
   test('deleting a scene from the corkboard does not close it', async () => {
     const result = await app.client.evaluate(browserHelpers + `
-      document.querySelector('.rail-corkboard-btn').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-      document.querySelector('.rail-corkboard-btn').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      document.querySelector('.mode-tab[data-mode="corkboard"]').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      document.querySelector('.mode-tab[data-mode="corkboard"]').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
       const cork = document.getElementById('corkboard');
       const before = cork.querySelectorAll('.scene-card').length;
@@ -1573,7 +1575,7 @@ describe('Baretext E2E: rail/corkboard navigation without typewriter scrolls the
 
   test('double-clicking a card in the corkboard also scrolls its heading to the top, not centered', async () => {
     await app.client.evaluate(browserHelpers + `
-      document.querySelector('.rail-corkboard-btn').click();
+      document.querySelector('.mode-tab[data-mode="corkboard"]').click();
       return true;
     `);
     await new Promise((r) => setTimeout(r, 300));
@@ -2802,8 +2804,8 @@ describe('Baretext E2E: corkboard cross-chapter drag', () => {
   before(async () => {
     app = await launchApp({ fixtureContent: fixture, mode: 'editor' });
     await app.client.evaluate(browserHelpers + `
-      document.querySelector('.rail-corkboard-btn').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-      document.querySelector('.rail-corkboard-btn').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      document.querySelector('.mode-tab[data-mode="corkboard"]').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      document.querySelector('.mode-tab[data-mode="corkboard"]').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
       await new Promise(r => setTimeout(r, 150));
     `);
   });
@@ -3024,7 +3026,7 @@ describe('Baretext E2E: accessibility pass', () => {
   test('rail/corkboard/sprint controls are real, focusable <button>s, not span/div+mousedown', async () => {
     const result = await app.client.evaluate(browserHelpers + `
       const selectors = [
-        '.rail-corkboard-btn', '.rail-edit-btn', '.rail-delete-btn',
+        '.mode-tab[data-mode="corkboard"]', '.rail-edit-btn', '.rail-delete-btn',
         '.rail-footer button:last-of-type', '.rail-footer button', '#tw-status-indicator', '#file-name',
       ];
       return selectors.map(sel => {
@@ -3173,7 +3175,7 @@ describe('Baretext E2E: accessibility pass', () => {
         return { w: rect.width - inset * 2, h: rect.height - inset * 2 };
       }
       return {
-        corkboardBtn: effectiveSize('.rail-corkboard-btn'),
+        corkboardBtn: effectiveSize('.mode-tab[data-mode="corkboard"]'),
         editBtn: effectiveSize('.rail-edit-btn'),
         deleteBtn: effectiveSize('.rail-delete-btn'),
         footerHeight: document.querySelector('.rail-footer').getBoundingClientRect().height,
@@ -3739,7 +3741,7 @@ describe('Baretext E2E: rail redesign — regression coverage for four previousl
 
   test('the document title and navigation controls live in the toolbar', async () => {
     const result = await app.client.evaluate(browserHelpers + `return {title:document.querySelector('.writing-toolbar .rail-label').textContent, controls:document.querySelectorAll('.writing-toolbar button').length, height:document.getElementById('titlebar').offsetHeight};`);
-    assert.deepEqual(result,{title:'test',controls:3,height:38});
+    assert.deepEqual(result,{title:'test',controls:2,height:38});
   });
 
   test('the filename is only the default book title; a rail edit creates the shared manuscript title', async () => {
@@ -3756,7 +3758,7 @@ describe('Baretext E2E: rail redesign — regression coverage for four previousl
       };
     `);
     assert.deepEqual(fromRail, {
-      label: 'Warfare Winter', firstLine: 'Warfare Winter', fileName: 'test.md',
+      label: 'Warfare Winter', firstLine: 'Warfare Winter', fileName: 'Show in Finder',
     });
 
   });
@@ -4950,14 +4952,14 @@ describe('Baretext E2E: writing rail refinements (hover swap, Cold Storage numer
     assert.equal(beforeOpen.display, 'flex');
     assert.equal(beforeOpen.on, true);
 
-    await app.client.evaluate(browserHelpers + `document.querySelector('.rail-corkboard-btn').click(); return true;`);
+    await app.client.evaluate(browserHelpers + `document.querySelector('.mode-tab[data-mode="corkboard"]').click(); return true;`);
     await new Promise((r) => setTimeout(r, 200));
     const whileOpen = await app.client.evaluate(browserHelpers + `
       return getComputedStyle(document.getElementById('tw-status-indicator')).display;
     `);
     assert.equal(whileOpen, 'none');
 
-    await app.client.evaluate(browserHelpers + `document.querySelector('.corkboard-back').click(); return true;`);
+    await app.client.evaluate(browserHelpers + `document.querySelector('.mode-tab[data-mode="editor"]').click(); return true;`);
     await new Promise((r) => setTimeout(r, 200));
     const afterClose = await app.client.evaluate(browserHelpers + `
       const el = document.getElementById('tw-status-indicator');

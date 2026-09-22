@@ -13,9 +13,9 @@ for(const typewriter of [false,true]) test(`repeated rail/corkboard navigation a
       const result=await app.client.evaluate(`const v=document.querySelector('.cm-content').cmTile.root.view; const p=v.state.selection.main.head; const r=v.coordsAtPos(p), s=v.scrollDOM.getBoundingClientRect(); return {line:v.state.doc.lineAt(p).text,top:r.top,bottom:r.bottom,min:s.top,max:s.bottom,scroll:v.scrollDOM.scrollTop};`);
       assert.equal(result.line,'Paragraph for scene '+(ci+1)+'.');
       assert.ok(result.top>=result.min && result.bottom<=result.max);
-      await app.client.evaluate(`document.querySelector('.rail-corkboard-btn').click(); return true;`);
+      await app.client.evaluate(`document.querySelector('.mode-tab[data-mode="corkboard"]').click(); return true;`);
       await pause();
-      await app.client.evaluate(`document.querySelector('.rail-corkboard-btn').click(); return true;`);
+      await app.client.evaluate(`document.querySelector('.mode-tab[data-mode="editor"]').click(); return true;`);
       await pause();
       const after=await app.client.evaluate(`const v=document.querySelector('.cm-content').cmTile.root.view; return {scroll:v.scrollDOM.scrollTop,line:v.state.doc.lineAt(v.state.selection.main.head).text};`);
       assert.equal(after.line,result.line);

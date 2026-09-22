@@ -9,24 +9,24 @@ test('outline view lays out editable summaries and copies Google Sheets rows', a
   });
   try {
     const result = await app.client.evaluate(`
-      document.querySelector('.rail-corkboard-btn').click();
+      document.querySelector('.mode-tab[data-mode="corkboard"]').click();
       await new Promise(r => setTimeout(r, 120));
       const tools = [...document.querySelectorAll('.corkboard-tool-btn')];
-      tools.find(button => button.textContent.includes('outline')).click();
+      tools.find(button => button.textContent.includes('Outline')).click();
       await new Promise(r => setTimeout(r, 80));
       let copied = '';
       Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async text => { copied = text; } } });
-      [...document.querySelectorAll('.corkboard-tool-btn')].find(button => button.textContent.includes('copy for Sheets')).click();
+      [...document.querySelectorAll('.corkboard-tool-btn')].find(button => button.textContent.includes('Copy for Sheets')).click();
       await new Promise(r => setTimeout(r, 40));
       return {
-        label: document.querySelector('.corkboard-label')?.textContent,
+        label: document.querySelector('#context-view-controls [aria-pressed="true"]')?.textContent,
         chapterBadge: document.querySelector('.outline-chapter-badge')?.textContent,
         summary: document.querySelector('tbody .outline-summary')?.textContent,
         textareas: document.querySelectorAll('.outline-summary-input').length,
         copied,
       };
     `);
-    assert.equal(result.label, 'outline');
+    assert.equal(result.label, 'Outline');
     assert.equal(result.chapterBadge, '1');
     assert.match(result.summary, /first scene/i);
     assert.equal(result.textareas, 0);

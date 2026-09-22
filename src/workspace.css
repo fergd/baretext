@@ -1,0 +1,80 @@
+/* Workspace structure uses the app's existing theme and component tokens. */
+#workspace-bar {
+  display: flex; align-items: center; flex: none; min-height: 40px;
+  padding: 0 var(--space-2); background: var(--bg-alt);
+  border-bottom: 1px solid var(--border);
+}
+#mode-switch { background: transparent; gap: var(--space-2); }
+#mode-switch .mode-tab { text-transform: none; gap: 6px; padding: 0 8px; min-height: 30px; font-weight: 400; }
+#mode-switch .mode-tab .ti { display: inline-block; font-size: 14px; }
+#mode-switch .mode-tab[aria-selected="true"] { color: var(--accent); background: var(--wash-accent); box-shadow: none; }
+#app.corkboard-open #mode-switch { visibility: visible; pointer-events: auto; }
+.writing-toolbar { gap: var(--space-3); }
+.writing-toolbar .rail-label { text-transform: none; letter-spacing: .03em; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#statusbar { min-height: 32px; height: auto; padding: 0 var(--space-2); gap: var(--space-3); grid-template-columns: auto 1fr auto; }
+#statusbar .status-group { gap: var(--space-3); min-width: 0; }
+.status-item { white-space: nowrap; }
+#word-count { cursor: default; }
+.document-meta::before { content: '·'; margin-right: var(--space-3); color: var(--text-dimmer); }
+#context-view-controls { display: flex; justify-content: center; gap: var(--space-2); }
+#context-actions { display: flex; align-items: center; gap: var(--space-3); }
+#context-actions:empty { display: none; }
+#context-view-controls .corkboard-tool-btn, #context-actions .corkboard-tool-btn {
+  display: inline-flex; align-items: center; gap: var(--space-1); min-height: 28px;
+  font-size: 11px; white-space: nowrap;
+}
+#context-view-controls .context-view { padding: 0 8px; border-radius: var(--radius-control); }
+#context-view-controls .context-view[aria-pressed="true"] { color: var(--accent); background: var(--wash-accent); }
+#tw-status-indicator, #hide-ui-toggle {
+  all: unset; box-sizing: border-box; display: inline-flex; align-items: center;
+  gap: 6px; min-height: 32px; cursor: pointer; white-space: nowrap;
+  font: 11px var(--font-mono); letter-spacing: .03em; color: var(--text-dimmer);
+}
+#tw-status-indicator:hover, #hide-ui-toggle:hover { color: var(--text); }
+.toggle-track { width: 18px; height: 10px; border: 1px solid currentColor; border-radius: 8px; position: relative; flex: none; }
+.toggle-track::after { content: ''; position: absolute; width: 4px; height: 4px; left: 2px; top: 2px; border-radius: 50%; background: currentColor; transition: transform var(--dur-1) var(--ease-standard); }
+[aria-pressed="true"] > .toggle-track { color: var(--accent); }
+[aria-pressed="true"] > .toggle-track::after { transform: translateX(8px); }
+#app.corkboard-open #hide-ui-toggle, #app.corkboard-open #tw-status-indicator { display: none; }
+#file-name { min-height: 28px; white-space: nowrap; }
+#file-name:disabled { opacity: .45; cursor: default; }
+#reveal-ui, .sprint-reveal {
+  all: unset; box-sizing: border-box; display: none; align-items: center; justify-content: center;
+  position: absolute; top: 38px; left: 50%; transform: translateX(-50%); z-index: 6;
+  width: 52px; height: 24px; border-radius: 0 0 20px 20px;
+  background: var(--bg-alt); color: var(--text-dimmer); cursor: pointer;
+}
+#reveal-ui:hover, .sprint-reveal:hover { color: var(--text); background: var(--surface-panel); }
+.sprint-reveal { display: flex; }
+#app.sprint-paused .sprint-reveal { top: 79px; }
+.sprint-status { all: unset; display: inline-flex; align-items: center; gap: var(--space-2); min-height: 32px; font: 11px var(--font-mono); color: var(--text-dim); cursor: pointer; }
+.sprint-status:hover, #app.sprint-paused .sprint-status { color: var(--accent); }
+#app.sprint-running #workspace-bar { display: none; }
+#app.sprint-running #document-status > :not(.sprint-status),
+#app.sprint-paused #document-status > :not(.sprint-status),
+html[data-mode="sprinter"] #tw-status-indicator,
+html[data-mode="sprinter"] #hide-ui-toggle,
+html[data-mode="sprinter"] #file-name { display: none; }
+.sprint-edge { bottom: 32px !important; }
+#app.focus-mode #workspace-bar, #app.focus-mode #scene-rail,
+#app.focus-mode .writing-toolbar, #app.focus-mode .writing-spine,
+#app.focus-mode .writing-peek, #app.focus-mode .sprint-reveal { display: none; }
+#app.focus-mode #statusbar { display: none; }
+#app.focus-mode #reveal-ui { display: flex; }
+#mode-switch button:focus-visible, #statusbar button:focus-visible,
+#reveal-ui:focus-visible, .sprint-reveal:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: var(--radius-control); }
+@media (max-width: 1000px) { #page-count { display: none; } }
+@media (max-width: 760px) {
+  #scene-count { display: none; }
+  #statusbar { gap: 8px; }
+  #statusbar .status-group, #context-actions { gap: 8px; }
+  #app.corkboard-open #statusbar { grid-template-columns: auto 1fr; }
+  #app.corkboard-open #status-actions { grid-column: 1 / -1; justify-self: end; }
+}
+@media (max-width: 560px) {
+  #file-name { font-size: 0; }
+  #file-name::after { content: 'Finder'; font-size: 11px; }
+  #statusbar { column-gap: 4px; }
+  #tw-status-indicator, #hide-ui-toggle { font-size: 10px; gap: 4px; }
+}
+@media print { #workspace-bar, #reveal-ui, .sprint-reveal { display: none !important; } }

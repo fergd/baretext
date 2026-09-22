@@ -423,63 +423,33 @@ export function render() {
   disconnectConnectors?.();
   boardEl.innerHTML = '';
 
-  const toolbar = el('div', 'corkboard-toolbar');
-  const left = el('div', 'corkboard-toolbar-left');
-  // Use the overlapping-cards mark from the writing-rail toolbar. The old
-  // four-square grid suggested a generic layout control rather than the
-  // manuscript corkboard.
-  left.append(icon(viewMode === 'outline' ? 'ti-list' : 'ti-cards'), el('span', 'corkboard-label', viewMode === 'outline' ? 'outline' : 'corkboard'), el('span', 'corkboard-meta', totalScenes + ' scenes'));
-  if (aiStatus) {
-    const statusText = aiStatus.configured ? 'ai · ready' : 'ai · key not detected';
-    const status = btn('corkboard-ai-status' + (aiStatus.configured ? ' ready' : ''), statusText);
-    status.title = aiStatus.configured ? `${aiStatus.provider} · ${aiStatus.model} · open settings` : 'set up a personal API key';
-    status.addEventListener('click', ctx.openAiSettings);
-    left.appendChild(status);
+  const views = document.getElementById('context-view-controls');
+  const actions = document.getElementById('context-actions');
+  views.replaceChildren();
+  views.setAttribute('role', 'group');
+  views.setAttribute('aria-label', 'Corkboard view');
+  for (const [mode, label, glyph] of [['outline', 'Outline', 'ti-list'], ['cards', 'Cards', 'ti-cards']]) {
+    const button = btn('corkboard-tool-btn context-view');
+    button.append(icon(glyph), document.createTextNode(label));
+    button.setAttribute('aria-pressed', String(viewMode === mode));
+    button.addEventListener('click', () => { viewMode = mode; render(); views.querySelector(`[aria-pressed="true"]`).focus(); });
+    views.append(button);
   }
-
-  const right = el('div', 'corkboard-toolbar-right');
-  const viewToggle = btn('corkboard-tool-btn');
-  viewToggle.append(icon(viewMode === 'outline' ? 'ti-cards' : 'ti-list'), document.createTextNode(viewMode === 'outline' ? ' cards' : ' outline'));
-  viewToggle.title = viewMode === 'outline' ? 'show card view' : 'show outline view';
-  viewToggle.setAttribute('aria-pressed', String(viewMode === 'outline'));
-  viewToggle.addEventListener('click', () => { viewMode = viewMode === 'outline' ? 'cards' : 'outline'; render(); });
-  const undoBtn = btn('corkboard-tool-btn');
-  undoBtn.appendChild(icon('ti-arrow-back-up'));
-  undoBtn.appendChild(document.createTextNode(' undo'));
-  undoBtn.title = 'undo (⌘Z)';
-  undoBtn.addEventListener('click', () => { ctx.editor.undo(ctx.view); ctx.refreshNav(); });
-  const redoBtn = btn('corkboard-tool-btn');
-  redoBtn.appendChild(icon('ti-arrow-forward-up'));
-  redoBtn.appendChild(document.createTextNode(' redo'));
-  redoBtn.title = 'redo (⌘⇧Z)';
-  redoBtn.addEventListener('click', () => { ctx.editor.redo(ctx.view); ctx.refreshNav(); });
 
   const allScenes = chapters.flatMap((chapter) => chapter.coldStorage ? [] : chapter.scenes);
   const summarizeAllBtn = btn('corkboard-tool-btn' + (summaryLoading.size ? ' loading' : ''));
   summarizeAllBtn.appendChild(icon('ti-sparkles'));
-  summarizeAllBtn.appendChild(document.createTextNode(summaryLoading.size ? ' summarizing…' : ' summarize all'));
+  summarizeAllBtn.appendChild(document.createTextNode(summaryLoading.size ? 'Summarizing…' : 'Summarize All'));
   summarizeAllBtn.title = 'generate summaries for all scene cards';
   summarizeAllBtn.disabled = summaryLoading.size > 0;
   summarizeAllBtn.addEventListener('click', () => summarizeScenes(allScenes));
 
-  const back = btn('corkboard-back');
-  const kbd = document.createElement('kbd');
-  kbd.textContent = 'esc';
-  back.append(kbd, document.createTextNode(' back to writing'));
-  back.addEventListener('click', () => close());
-
-  // Keep undo/redo first: beyond matching the visual action hierarchy, some
-  // keyboard/E2E affordances intentionally target the first toolbar action.
   const exportOutlineBtn = btn('corkboard-tool-btn');
-  exportOutlineBtn.append(icon('ti-clipboard'), document.createTextNode(' copy for Sheets'));
-  exportOutlineBtn.title = 'copy outline as tab-separated text for Google Sheets';
+  exportOutlineBtn.append(icon('ti-clipboard'), document.createTextNode('Copy for Sheets'));
+  exportOutlineBtn.title = 'Copy outline as tab-separated text for Google Sheets';
   exportOutlineBtn.hidden = viewMode !== 'outline';
   exportOutlineBtn.addEventListener('click', () => copyOutlineForSheets(chapters));
-  // Keep undo/redo first: existing keyboard and accessibility affordances
-  // treat the first two toolbar actions as the history controls.
-  right.append(undoBtn, redoBtn, viewToggle, summarizeAllBtn, exportOutlineBtn, back);
-  toolbar.append(left, right);
-  boardEl.appendChild(toolbar);
+  actions.replaceChildren(exportOutlineBtn, summarizeAllBtn);
 
   const body = el('div', 'corkboard-body');
   if (viewMode === 'outline') {
@@ -757,6 +727,7 @@ export function toggle() {
 
 let savedViewport = null;
 export function show() {
+  if (open) return;
   savedViewport = ctx.view.scrollSnapshot();
   open = true;
   document.getElementById('content-row').style.display = 'none';
@@ -785,6 +756,8 @@ export function close({ restore = true } = {}) {
   boardEl.style.display = 'none';
   document.getElementById('content-row').style.display = 'flex';
   ctx.dom.app.classList.remove('corkboard-open');
+  document.getElementById('context-view-controls').replaceChildren();
+  document.getElementById('context-actions').replaceChildren();
   if (restore) {
     ctx.focusEditor();
     if (savedViewport) ctx.view.dispatch({ effects: savedViewport });

@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('api', {
   saveNow: (content) => ipcRenderer.send('save-now', content),
   onSaveConfirmed: (cb) => ipcRenderer.on('save-confirmed', cb),
 
+  onEditHistory: (cb) => ipcRenderer.on('edit-history', (_, direction) => cb(direction)),
+
   // File ops
   openFile: () => ipcRenderer.invoke('open-file'),
   exportFile: (content) => ipcRenderer.invoke('export-file', content),

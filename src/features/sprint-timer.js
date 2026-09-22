@@ -17,11 +17,14 @@ let fillEl = null;
 let wordsEl = null;
 
 let sprint = null;          // { totalSeconds, remaining, view, wordsAtStart, goal }
+let suspendedSprint = null;
 let evokeOpen = false;
 let selectedMinutes = 25;
 let selectedGoal = null;    // null = auto (scales with duration); a number once the user edits it
 let goalInputEl = null;
 let tickTimer = null;
+let statusEl = null;
+let revealEl = null;
 let evokeKeyHandler = null;
 
 function mmss(totalSeconds) {
@@ -147,6 +150,16 @@ function updateVisibility() {
   panelEl.style.display = (evokeOpen || (sprint && sprint.view === 'active')) ? 'block' : 'none';
   edgeEl.style.display = (sprint && sprint.view === 'edge') ? 'block' : 'none';
   edgeEl.classList.toggle('paused', !!(sprint && sprint.paused));
+  ctx.dom.app.classList.toggle('sprint-running', !!sprint && !sprint.paused);
+  ctx.dom.app.classList.toggle('sprint-paused', !!sprint && sprint.paused);
+  statusEl.hidden = !sprint;
+  statusEl.querySelector('span').textContent = sprint?.paused ? 'Sprinting paused…' : 'Sprinting…';
+  statusEl.setAttribute('aria-expanded', String(!!sprint && sprint.view === 'active'));
+  revealEl.hidden = !sprint;
+  revealEl.setAttribute('aria-label', sprint?.paused ? 'Resume sprint' : 'Pause sprint and show navigation');
+  revealEl.title = sprint?.paused ? 'Resume sprint' : 'Pause sprint and show navigation';
+  revealEl.replaceChildren(icon(sprint?.paused ? 'ti-chevron-up' : 'ti-chevron-down'));
+
 }
 
 function buildEvoke() {
@@ -294,6 +307,7 @@ function detachEvokeKeys() {
 }
 
 function openEvoke() {
+  if (evokeOpen) return;
   evokeOpen = true;
   selectedMinutes = 25;
   selectedGoal = null;
@@ -321,7 +335,7 @@ function startSprint(minutes, goal) {
   sprint = {
     totalSeconds: minutes * 60,
     remaining: minutes * 60,
-    view: 'active',
+    view: 'edge',
     paused: false,
     wordsAtStart: ctx.state.wordCount,
     goal,
@@ -333,6 +347,7 @@ function startSprint(minutes, goal) {
   // Sprints default to typewriter view; the user can toggle it back off
   // (⌘⇧T or the palette) at any point without affecting the sprint itself.
   if (!ctx.state.typewriter) ctx.setTypewriter(true, { silent: true });
+  ctx.focusEditor();
 }
 
 function tick() {
@@ -361,6 +376,7 @@ function togglePause() {
   tickTimer = sprint.paused ? null : setInterval(tick, 1000);
   if (sprint.view === 'active') buildActive();
   updateVisibility();
+  if (ctx.state.typewriter) ctx.editor.centerCursor(ctx.view);
 }
 
 function endSprint() {
@@ -403,8 +419,18 @@ export default {
     edgeEl.appendChild(edgeFillEl);
     ctx.dom.app.appendChild(edgeEl);
 
-    sprint = null;
+    statusEl = btn('sprint-status status-item');
+    statusEl.append(icon('ti-run'), el('span', '', 'Sprinting…'));
+    statusEl.title = 'Show sprint timer and controls';
+    statusEl.addEventListener('click', () => setView(sprint?.view === 'active' ? 'edge' : 'active'));
+    ctx.dom.statusLeft.append(statusEl);
+    revealEl = btn('sprint-reveal');
+    revealEl.addEventListener('click', () => { togglePause(); ctx.focusEditor(); });
+    ctx.dom.app.append(revealEl);
+    sprint = suspendedSprint;
+    suspendedSprint = null;
     evokeOpen = false;
+    if (sprint) { buildActive(); updateEdgeVisuals(); }
     updateVisibility();
   },
 
@@ -412,10 +438,14 @@ export default {
     clearInterval(tickTimer);
     tickTimer = null;
     detachEvokeKeys();
+    // Workspace navigation pauses a session; only End/Complete discard it.
+    suspendedSprint = sprint ? { ...sprint, paused: true, view: 'edge' } : null;
     sprint = null;
     evokeOpen = false;
-    [panelEl, edgeEl].forEach(node => node && node.remove());
+    ctx.dom.app.classList.remove('sprint-running', 'sprint-paused');
+    [panelEl, edgeEl, statusEl, revealEl].forEach(node => node && node.remove());
     panelEl = edgeEl = edgeFillEl = timeEl = fillEl = wordsEl = goalInputEl = null;
+    statusEl = revealEl = null;
     ctx = null;
   },
 
