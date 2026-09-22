@@ -106,6 +106,13 @@ function build(state) {
       afterHeading = true;
       const level = String(heading[1].length);
       out.push(Decoration.line({ class: 'cm-heading cm-heading-' + level }).range(line.from));
+      // Keep the section gap anchored to the heading boundary. Attaching it
+      // to the last paragraph made pressing Enter immediately before a
+      // heading transfer 57px of layout from one line to the next, which
+      // caused the editor viewport to jump while the user was typing.
+      if (previousNonBlankLineText(doc, number)) {
+        out.push(Decoration.widget({ widget: SPACERS.paragraphBeforeHeading, block: true, side: -1 }).range(line.from));
+      }
       out.push(Decoration.widget({ widget: SPACERS.headingTight, block: true, side: 1 }).range(line.to));
     } else if (structural) {
       continue;
@@ -120,10 +127,8 @@ function build(state) {
       // the last thing before a heading gets the large section-break gap
       // instead of the ordinary one — the heading is starting a new section,
       // not continuing this one.
-      const next = nextNonBlankLineText(doc, number);
-      const nextIsHeading = next !== null && isHeading(next);
       out.push(Decoration.widget({
-        widget: nextIsHeading ? SPACERS.paragraphBeforeHeading : SPACERS.paragraph,
+        widget: SPACERS.paragraph,
         block: true, side: 1,
       }).range(line.to));
     }
