@@ -80,17 +80,32 @@ const state = {
 if (state.railCollapsed) document.getElementById('scene-rail').setAttribute('inert', '');
 
 // ── Create the CodeMirror editor ──
+let previousEditorDoc = '';
+let typewriterScrollBeforeEdit = null;
 let view = window.BaretextEditor.create(
   host,
   '',
   (doc) => {
+    const previousNewlines = (previousEditorDoc.match(/\n/g) || []).length;
+    const currentNewlines = (doc.match(/\n/g) || []).length;
+    const lineStructureChanged = currentNewlines !== previousNewlines;
+    previousEditorDoc = doc;
     updateCounts(doc);
     window.api.contentChanged(doc);
     if (state.typewriter && view.state.selection.main.empty) {
       const expected = view.state;
       queueMicrotask(() => {
         if (view.state === expected && host.offsetParent !== null) {
-          window.BaretextEditor.centerCursor(view, { smooth: !window.matchMedia('(prefers-reduced-motion: reduce)').matches });
+          // CodeMirror already performs one visibility scroll when Enter or
+          // Backspace changes the line structure. A second smooth centering
+          // pass starts from that temporary position and produces the
+          // characteristic down-then-up jump seen in Typewriter mode.
+          const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          window.BaretextEditor.centerCursor(view, {
+            smooth,
+            startScrollTop: lineStructureChanged ? typewriterScrollBeforeEdit : null,
+          });
+          typewriterScrollBeforeEdit = null;
         }
       });
     }
@@ -100,6 +115,9 @@ let view = window.BaretextEditor.create(
 const cmContent = host.querySelector('.cm-content');
 if (cmContent) cmContent.setAttribute('spellcheck', 'false');
 host.dataset.editorView = 'pretty';
+view.dom.addEventListener('keydown', () => {
+  if (state.typewriter) typewriterScrollBeforeEdit = view.scrollDOM.scrollTop;
+}, true);
 
 function getDoc()      { return window.BaretextEditor.getDoc(view); }
 // window.BaretextEditor.setDoc() deliberately suppresses the editor's own

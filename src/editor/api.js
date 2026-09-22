@@ -175,7 +175,7 @@ export function focus(view) {
   view.focus();
 }
 
-export function centerCursor(view, { smooth = false } = {}) {
+export function centerCursor(view, { smooth = false, startScrollTop = null } = {}) {
   const pos = view.state.selection.main.head;
   if (smooth && view.coordsAtPos) {
     const coords = view.coordsAtPos(pos);
@@ -186,6 +186,7 @@ export function centerCursor(view, { smooth = false } = {}) {
       const viewportCenter = (rect.top + rect.bottom) / 2;
       const max = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
       const target = Math.max(0, Math.min(max, scroller.scrollTop + caretCenter - viewportCenter));
+      if (Number.isFinite(startScrollTop)) scroller.scrollTop = startScrollTop;
       scroller.scrollTo({ top: target, behavior: 'smooth' });
       return;
     }
