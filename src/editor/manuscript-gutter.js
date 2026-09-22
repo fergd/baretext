@@ -311,9 +311,9 @@ html[data-mode="editor"] .cm-gutter-num-inline.cm-gutter-num-scene   { font-size
    !important for the same reason the base color rule above needed it: a
    named scene's numeral is a real child of scene-breaks.js's
    .cm-scene-name-comment line, whose own wildcard would otherwise win. */
-html[data-mode="editor"] .cm-gutter-num-inline.cm-gutter-num-chapter { color: color-mix(in srgb, var(--accent) 10%, transparent) !important; }
-html[data-mode="editor"] .cm-gutter-num-inline.cm-gutter-num-scene   { color: color-mix(in srgb, var(--scene) 10%, transparent) !important; }
-html[data-mode="editor"] .cm-gutter-num-inline.cm-gutter-num-scene.cm-gutter-num-active { color: color-mix(in srgb, var(--scene) 10%, transparent) !important; }
+html[data-mode="editor"] .cm-gutter-num-inline.cm-gutter-num-chapter { color: color-mix(in srgb, var(--accent) 30%, transparent) !important; }
+html[data-mode="editor"] .cm-gutter-num-inline.cm-gutter-num-scene   { color: color-mix(in srgb, var(--scene) 30%, transparent) !important; }
+html[data-mode="editor"] .cm-gutter-num-inline.cm-gutter-num-scene.cm-gutter-num-active { color: color-mix(in srgb, var(--scene) 30%, transparent) !important; }
 
 /* Unnamed-scene ornament number: a block widget, centered at runtime by
    manuscriptGutterAlignPlugin (see above) against the ornament's own
@@ -328,8 +328,8 @@ html[data-mode="editor"] .cm-gutter-num { display: block; }
 html[data-mode="editor"] .cm-gutter-num-ornament { font-size: 28px; font-weight: 400; line-height: 1.1; }
 /* Ornament numbers are always scene numerals -- same tint rule as the
    inline scene numeral above. */
-html[data-mode="editor"] .cm-gutter-num-ornament { color: color-mix(in srgb, var(--scene) 10%, transparent); }
-html[data-mode="editor"] .cm-gutter-num-ornament.cm-gutter-num-active { color: color-mix(in srgb, var(--scene) 10%, transparent); }
+html[data-mode="editor"] .cm-gutter-num-ornament { color: color-mix(in srgb, var(--scene) 30%, transparent); }
+html[data-mode="editor"] .cm-gutter-num-ornament.cm-gutter-num-active { color: color-mix(in srgb, var(--scene) 30%, transparent); }
 
 /* Not enough left margin to hang the numbers below this width — must be
    the last rules in this stylesheet (same specificity as the display:block/
