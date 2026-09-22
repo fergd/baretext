@@ -11,17 +11,25 @@
 #app.corkboard-open #mode-switch { visibility: visible; pointer-events: auto; }
 .writing-toolbar { gap: var(--space-3); }
 .writing-toolbar .rail-label { text-transform: none; letter-spacing: .03em; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#statusbar { min-height: 32px; height: auto; padding: 0 var(--space-2); gap: var(--space-3); grid-template-columns: minmax(0, auto) minmax(0, 1fr) minmax(0, auto); position: relative; z-index: 20; }
+#statusbar {
+  box-sizing: border-box; height: 38px; min-height: 38px; max-height: 38px;
+  padding: 0 var(--space-2); gap: var(--space-3);
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr) minmax(0, auto);
+  align-items: center; position: relative; z-index: 20; overflow: hidden;
+}
 #statusbar .status-group { gap: var(--space-3); min-width: 0; }
 .status-item { white-space: nowrap; }
 #word-count { cursor: default; }
 .document-meta::before { content: '·'; margin-right: var(--space-3); color: var(--text-dimmer); }
-#context-view-controls { display: flex; justify-content: center; gap: var(--space-2); }
-#context-view-controls { min-width: 0; }
+#context-view-controls {
+  display: flex; align-items: center; justify-content: center; gap: var(--space-2);
+  min-width: 0; height: 100%; overflow: hidden;
+}
 #context-actions { display: flex; align-items: center; gap: var(--space-3); }
 #context-actions:empty { display: none; }
 #context-view-controls .corkboard-tool-btn, #context-actions .corkboard-tool-btn {
-  display: inline-flex; align-items: center; gap: var(--space-1); min-height: 28px;
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  height: 28px; min-height: 28px; max-height: 28px;
   font-size: 11px; white-space: nowrap;
 }
 #context-view-controls .context-view { padding: 0 8px; border-radius: var(--radius-control); }
