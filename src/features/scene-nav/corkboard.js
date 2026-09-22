@@ -216,7 +216,7 @@ function scenePayload(scenes) {
 
 function storeSummaryResult(result, scenes) {
   if (!result || !result.summaries) return;
-  const byId = new Map(scenes.map((scene) => [scene.id, scene]));
+  const byId = new Map(scenes.map((scene) => [scene.stableId || scene.id, scene]));
   Object.entries(result.summaries).forEach(([id, summary]) => {
     const scene = byId.get(id);
     if (scene && summary) aiSummaries.set(scene.stableId || scene.id, summary);
@@ -337,8 +337,9 @@ function titleSuggestions(key, target) {
 function jumpTo(scene) { ctx.navigateTo(scene); }
 
 function summaryFor(scene) {
-  return outlineDrafts.has(scene.stableId)
-    ? outlineDrafts.get(scene.stableId)
+  const key = scene.stableId || scene.id;
+  return outlineDrafts.has(key)
+    ? outlineDrafts.get(key)
     : (aiSummaries.get(scene.stableId || scene.id) || scene.synopsis || '');
 }
 
@@ -501,7 +502,7 @@ export function render() {
     chAiBtn.addEventListener('mousedown', (e) => e.stopPropagation());
     chAiBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      const text = chapter.scenes.map((scene) => scene.rawText).join('\n\n---\n\n');
+      const text = chapter.scenes.map((scene) => summarySource(scene)).filter(Boolean).join('\n\n');
       suggestTitles(chAiKey, chapter, 'chapter', text, titleContext(chapters, ci));
     });
     const chDeleteBtn = makeDeleteButton('corkboard-delete-btn', chLabel, () => ctx.deleteChapter(ci, chapters));
@@ -541,7 +542,7 @@ export function render() {
       nameBtn.addEventListener('mousedown', (e) => e.stopPropagation());
       nameBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        suggestTitles(sceneAiKey, scene, 'scene', scene.rawText, titleContext(chapters, ci, si));
+        suggestTitles(sceneAiKey, scene, 'scene', summarySource(scene), titleContext(chapters, ci, si));
       });
       const sceneKey = scene.stableId || scene.id;
       const summaryBtn = btn('corkboard-ai-text-btn' + (summaryLoading.has(sceneKey) ? ' loading' : ''));
