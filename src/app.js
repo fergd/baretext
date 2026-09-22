@@ -90,7 +90,7 @@ let view = window.BaretextEditor.create(
       const expected = view.state;
       queueMicrotask(() => {
         if (view.state === expected && host.offsetParent !== null) {
-          window.BaretextEditor.centerCursor(view, { smooth: state.mode === 'editor' });
+          window.BaretextEditor.centerCursor(view, { smooth: !window.matchMedia('(prefers-reduced-motion: reduce)').matches });
         }
       });
     }
