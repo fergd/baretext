@@ -20,9 +20,9 @@ export function cancelLinkSelection() {
   render();
   return true;
 }
-const aiSummaries = new Map(); // scene rawText -> generated summary
-const summaryLoading = new Set(); // scene rawText currently in flight
-const summaryErrors = new Map(); // scene rawText -> most recent summary error
+const aiSummaries = new Map(); // stable scene id -> generated summary
+const summaryLoading = new Set(); // stable scene ids currently in flight
+const summaryErrors = new Map(); // stable scene id -> most recent summary error
 let namingState = null; // { key, loading, titles, error }
 let aiStatus = null; // safe configuration metadata; never contains the API key
 let titleStyleExamples = '';
@@ -199,8 +199,19 @@ function injectStyle() {
 `);
 }
 
+export function summarySource(scene) {
+  const lines = String(scene.rawText || '').split('\n');
+  if (scene.type === 'h1' || scene.type === 'h2' || scene.type === 'h3') lines.shift();
+  else if (lines[0] && /^(-{3,}|\*{3,}|_{3,})$/.test(lines[0].trim())) {
+    lines.shift();
+    if (lines[0] && /^<!--.*-->$/.test(lines[0].trim())) lines.shift();
+  }
+  while (lines[0] && (!lines[0].trim() || /^<!--.*-->$/.test(lines[0].trim()))) lines.shift();
+  return lines.join('\n').trim();
+}
+
 function scenePayload(scenes) {
-  return scenes.map((scene) => ({ id: scene.id, text: scene.rawText }));
+  return scenes.map((scene) => ({ id: scene.stableId || scene.id, text: summarySource(scene) }));
 }
 
 function storeSummaryResult(result, scenes) {
@@ -208,7 +219,7 @@ function storeSummaryResult(result, scenes) {
   const byId = new Map(scenes.map((scene) => [scene.id, scene]));
   Object.entries(result.summaries).forEach(([id, summary]) => {
     const scene = byId.get(id);
-    if (scene && summary) aiSummaries.set(scene.rawText, summary);
+    if (scene && summary) aiSummaries.set(scene.stableId || scene.id, summary);
   });
 }
 
@@ -219,20 +230,20 @@ async function loadCachedSummaries(scenes) {
 }
 
 async function summarizeScenes(scenes) {
-  const eligible = scenes.filter((scene) => scene.rawText.trim());
+  const eligible = scenes.filter((scene) => summarySource(scene).trim());
   if (!eligible.length) { ctx.showToast('nothing to summarize'); return; }
-  const previous = new Map(eligible.map((scene) => [scene.rawText, aiSummaries.get(scene.rawText)]));
-  eligible.forEach((scene) => { summaryLoading.add(scene.rawText); summaryErrors.delete(scene.rawText); });
+  const previous = new Map(eligible.map((scene) => [scene.stableId || scene.id, aiSummaries.get(scene.stableId || scene.id)]));
+  eligible.forEach((scene) => { summaryLoading.add(scene.stableId || scene.id); summaryErrors.delete(scene.stableId || scene.id); });
   render();
   const result = await ctx.api.aiSummarizeScenes(scenePayload(eligible));
-  eligible.forEach((scene) => summaryLoading.delete(scene.rawText));
+  eligible.forEach((scene) => summaryLoading.delete(scene.stableId || scene.id));
   if (!result.ok) {
-    eligible.forEach((scene) => summaryErrors.set(scene.rawText, result.error));
+    eligible.forEach((scene) => summaryErrors.set(scene.stableId || scene.id, result.error));
     ctx.showToast(result.error, { icon: 'ti-alert-triangle', tone: 'error' });
   }
   else {
     storeSummaryResult(result, eligible);
-    const changed = eligible.filter((scene) => previous.get(scene.rawText) !== aiSummaries.get(scene.rawText));
+    const changed = eligible.filter((scene) => previous.get(scene.stableId || scene.id) !== aiSummaries.get(scene.stableId || scene.id));
     if (changed.length) {
       ctx.showToast(changed.length === 1 ? 'AI summary added' : `${changed.length} AI summaries added`, {
         icon: 'ti-sparkles',
@@ -240,9 +251,10 @@ async function summarizeScenes(scenes) {
         onAction: async () => {
           await ctx.api.aiRemoveCachedSummaries(scenePayload(changed));
           changed.forEach((scene) => {
-            const oldValue = previous.get(scene.rawText);
-            if (oldValue === undefined) aiSummaries.delete(scene.rawText);
-            else aiSummaries.set(scene.rawText, oldValue);
+            const key = scene.stableId || scene.id;
+            const oldValue = previous.get(key);
+            if (oldValue === undefined) aiSummaries.delete(key);
+            else aiSummaries.set(key, oldValue);
           });
           if (open) render();
         },
@@ -327,7 +339,7 @@ function jumpTo(scene) { ctx.navigateTo(scene); }
 function summaryFor(scene) {
   return outlineDrafts.has(scene.stableId)
     ? outlineDrafts.get(scene.stableId)
-    : (aiSummaries.get(scene.rawText) || scene.synopsis || '');
+    : (aiSummaries.get(scene.stableId || scene.id) || scene.synopsis || '');
 }
 
 function outlineRows(chapters) {
@@ -521,7 +533,7 @@ export function render() {
         e.stopPropagation();
         beginEdit(titleTextSpan, scene.title, (newTitle) => ctx.renameTitle(scene, newTitle), render);
       });
-      const sceneAiKey = 'scene:' + scene.rawText;
+      const sceneAiKey = 'scene:' + (scene.stableId || scene.id);
       const nameBtn = btn('corkboard-ai-text-btn' + (namingState && namingState.key === sceneAiKey && namingState.loading ? ' loading' : ''));
       nameBtn.append(icon('ti-sparkles'), document.createTextNode('suggest name'));
       nameBtn.title = 'suggest scene names';
@@ -531,11 +543,12 @@ export function render() {
         e.stopPropagation();
         suggestTitles(sceneAiKey, scene, 'scene', scene.rawText, titleContext(chapters, ci, si));
       });
-      const summaryBtn = btn('corkboard-ai-text-btn' + (summaryLoading.has(scene.rawText) ? ' loading' : ''));
-      summaryBtn.append(icon('ti-sparkles'), document.createTextNode(summaryLoading.has(scene.rawText) ? 'summarizing…' : 'summary'));
+      const sceneKey = scene.stableId || scene.id;
+      const summaryBtn = btn('corkboard-ai-text-btn' + (summaryLoading.has(sceneKey) ? ' loading' : ''));
+      summaryBtn.append(icon('ti-sparkles'), document.createTextNode(summaryLoading.has(sceneKey) ? 'summarizing…' : 'summary'));
       summaryBtn.title = 'summarize scene';
       summaryBtn.setAttribute('aria-label', 'Summarize ' + scene.title);
-      summaryBtn.disabled = summaryLoading.has(scene.rawText);
+      summaryBtn.disabled = summaryLoading.has(sceneKey);
       summaryBtn.addEventListener('mousedown', (e) => e.stopPropagation());
       summaryBtn.addEventListener('click', (e) => { e.stopPropagation(); summarizeScenes([scene]); });
       // Explicit, deliberate navigation control — double-click also jumps,
@@ -573,10 +586,10 @@ export function render() {
         });
       }
 
-      const generatedSummary = aiSummaries.get(scene.rawText);
-      const summaryError = summaryErrors.get(scene.rawText);
+      const generatedSummary = aiSummaries.get(sceneKey);
+      const summaryError = summaryErrors.get(sceneKey);
       const synopsis = el('div', 'scene-card-synopsis' + (generatedSummary ? ' ai' : '') + (summaryError ? ' error' : ''),
-        summaryLoading.has(scene.rawText) ? 'summarizing…' : summaryError || generatedSummary || (scene.isDraft ? (scene.synopsis || 'empty') : scene.synopsis));
+        summaryLoading.has(sceneKey) ? 'summarizing…' : summaryError || generatedSummary || (scene.isDraft ? (scene.synopsis || 'empty') : scene.synopsis));
 
       card.append(
         titleRow,

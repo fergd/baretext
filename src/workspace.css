@@ -11,12 +11,13 @@
 #app.corkboard-open #mode-switch { visibility: visible; pointer-events: auto; }
 .writing-toolbar { gap: var(--space-3); }
 .writing-toolbar .rail-label { text-transform: none; letter-spacing: .03em; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#statusbar { min-height: 32px; height: auto; padding: 0 var(--space-2); gap: var(--space-3); grid-template-columns: auto 1fr auto; }
+#statusbar { min-height: 32px; height: auto; padding: 0 var(--space-2); gap: var(--space-3); grid-template-columns: minmax(0, auto) minmax(0, 1fr) minmax(0, auto); position: relative; z-index: 20; }
 #statusbar .status-group { gap: var(--space-3); min-width: 0; }
 .status-item { white-space: nowrap; }
 #word-count { cursor: default; }
 .document-meta::before { content: '·'; margin-right: var(--space-3); color: var(--text-dimmer); }
 #context-view-controls { display: flex; justify-content: center; gap: var(--space-2); }
+#context-view-controls { min-width: 0; }
 #context-actions { display: flex; align-items: center; gap: var(--space-3); }
 #context-actions:empty { display: none; }
 #context-view-controls .corkboard-tool-btn, #context-actions .corkboard-tool-btn {
@@ -25,6 +26,13 @@
 }
 #context-view-controls .context-view { padding: 0 8px; border-radius: var(--radius-control); }
 #context-view-controls .context-view[aria-pressed="true"] { color: var(--accent); background: var(--wash-accent); }
+#app.corkboard-open #statusbar {
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+}
+#app.corkboard-open #context-view-controls { grid-column: 2; grid-row: 1; }
+#app.corkboard-open #status-actions { grid-column: 3; grid-row: 1; justify-self: end; }
+#app.corkboard-open #status-actions #context-actions { min-width: 0; }
+#app.corkboard-open #status-actions #context-actions .corkboard-tool-btn { padding-inline: 4px; margin-inline: -4px; }
 #tw-status-indicator, #hide-ui-toggle {
   all: unset; box-sizing: border-box; display: inline-flex; align-items: center;
   gap: 6px; min-height: 32px; cursor: pointer; white-space: nowrap;
@@ -68,8 +76,13 @@ html[data-mode="sprinter"] #file-name { display: none; }
   #scene-count { display: none; }
   #statusbar { gap: 8px; }
   #statusbar .status-group, #context-actions { gap: 8px; }
-  #app.corkboard-open #statusbar { grid-template-columns: auto 1fr; }
-  #app.corkboard-open #status-actions { grid-column: 1 / -1; justify-self: end; }
+  #app.corkboard-open #statusbar { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
+  #app.corkboard-open #document-status { overflow: hidden; }
+  #app.corkboard-open #document-status .document-meta { display: none; }
+  #app.corkboard-open #status-actions { grid-column: 3; grid-row: 1; min-width: 0; overflow: hidden; }
+  #app.corkboard-open #status-actions #context-actions { overflow: hidden; }
+  #app.corkboard-open #status-actions #context-actions .corkboard-tool-btn { max-width: 132px; overflow: hidden; text-overflow: ellipsis; }
+  #app.corkboard-open #status-actions #file-name { display: none; }
 }
 @media (max-width: 560px) {
   #file-name { font-size: 0; }
