@@ -439,13 +439,15 @@ export function render() {
   const views = document.getElementById('context-view-controls');
   const actions = document.getElementById('context-actions');
   views.replaceChildren();
-  views.setAttribute('role', 'group');
+  views.setAttribute('role', 'tablist');
   views.setAttribute('aria-label', 'Corkboard view');
   for (const [mode, label, glyph] of [['outline', 'Outline', 'ti-list'], ['cards', 'Cards', 'ti-cards']]) {
-    const button = btn('corkboard-tool-btn context-view');
+    const button = btn('mode-tab context-view');
     button.append(icon(glyph), document.createTextNode(label));
-    button.setAttribute('aria-pressed', String(viewMode === mode));
-    button.addEventListener('click', () => { viewMode = mode; render(); views.querySelector(`[aria-pressed="true"]`).focus(); });
+    button.setAttribute('role', 'tab');
+    button.setAttribute('aria-selected', String(viewMode === mode));
+    button.tabIndex = viewMode === mode ? 0 : -1;
+    button.addEventListener('click', () => { viewMode = mode; render(); views.querySelector(`[aria-selected="true"]`).focus(); });
     views.append(button);
   }
 

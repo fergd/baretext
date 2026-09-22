@@ -22,18 +22,19 @@
 #word-count { cursor: default; }
 .document-meta::before { content: '·'; margin-right: var(--space-3); color: var(--text-dimmer); }
 #context-view-controls {
-  display: flex; align-items: center; justify-content: center; gap: var(--space-2);
-  min-width: 0; height: 100%; overflow: hidden;
+  display: flex; align-items: center; justify-content: center; gap: 2px;
+  min-width: 0; height: 30px; padding: 2px;
+  background: color-mix(in srgb, var(--bg-alt) 60%, transparent);
+  border-radius: 8px; overflow: hidden;
 }
 #context-actions { display: flex; align-items: center; gap: var(--space-3); }
 #context-actions:empty { display: none; }
-#context-view-controls .corkboard-tool-btn, #context-actions .corkboard-tool-btn {
+#context-actions .corkboard-tool-btn {
   display: inline-flex; align-items: center; gap: var(--space-1);
   height: 28px; min-height: 28px; max-height: 28px;
   font-size: 11px; white-space: nowrap;
 }
-#context-view-controls .context-view { padding: 0 8px; border-radius: var(--radius-control); }
-#context-view-controls .context-view[aria-pressed="true"] { color: var(--accent); background: var(--wash-accent); }
+#context-view-controls .mode-tab { min-height: 26px; height: 26px; padding: 0 14px; }
 #app.corkboard-open #statusbar {
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
 }
