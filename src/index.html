@@ -1034,7 +1034,7 @@
       display: flex; align-items: center; gap: 6px; padding: 4px 6px; margin: -4px -6px;
       transition: color 0.15s ease;
     }
-    #backup-status-indicator .ti { font-size: 13px; transition: color 0.15s ease; }
+    #backup-status-indicator .backup-status-icon { display: block; width: 16px; height: 16px; }
     #backup-status-indicator:hover { color: var(--text-dim); }
     #backup-status-indicator.connected .ti { color: var(--syntax-2, var(--accent)); }
     #backup-status-indicator.error .ti { color: #e05c5c; }
@@ -1270,7 +1270,7 @@
       <button type="button" class="status-item footer-toggle" id="tw-status-indicator" aria-pressed="false" aria-label="Toggle typewriter mode"><span class="toggle-track" aria-hidden="true"></span>Typewriter mode</button>
       <button type="button" class="status-item footer-toggle" id="hide-ui-toggle" aria-pressed="false" aria-label="Hide UI"><span class="toggle-track" aria-hidden="true"></span>Hide UI</button>
       <div id="save-error" title="save failed"></div>
-      <button type="button" id="backup-status-indicator" aria-label="Backup settings"><i class="ti ti-cloud" aria-hidden="true"></i></button>
+      <button type="button" id="backup-status-indicator" aria-label="Backup settings"><img class="backup-status-icon" src="icons/cloud-error.svg" alt=""></button>
       <button type="button" class="status-item dimmer" id="file-name" title="Show in Finder" aria-label="Show in Finder">Show in Finder</button>
     </div>
   </div>

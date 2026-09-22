@@ -54,6 +54,22 @@ function nextNonBlankLineText(doc, afterLineNumber) {
   return null;
 }
 
+function previousNonBlankLineText(doc, beforeLineNumber) {
+  for (let n = beforeLineNumber - 1; n >= 1; n--) {
+    const text = doc.line(n).text;
+    if (text.trim() !== '') return text;
+  }
+  return null;
+}
+
+const isStructuralText = (text) => {
+  if (!text) return false;
+  const trimmed = text.trim();
+  return HEADING_LINE_RE.test(text)
+    || /^(?:-{3,}|\*{3,}|_{3,})$/.test(trimmed)
+    || /^<!--.*-->$/.test(trimmed);
+};
+
 function build(state) {
   const doc = state.doc;
   const out = [];
@@ -74,6 +90,17 @@ function build(state) {
       || /^<!--.*-->$/.test(trimmed);
 
     if (!trimmed) {
+      // Source Markdown conventionally puts blank lines around headings and
+      // scene markers. Those lines are separators, not additional writable
+      // paragraphs; the structural spacer attached to the neighboring block
+      // already supplies the intended rhythm. Keep the line visible while
+      // it owns the caret so Enter remains a reliable writing target.
+      const previous = previousNonBlankLineText(doc, number);
+      const next = nextNonBlankLineText(doc, number);
+      const cursorOnLine = state.selection.ranges.some((range) => range.from >= line.from && range.from <= line.to);
+      if (!cursorOnLine && (isStructuralText(previous) || isStructuralText(next))) {
+        out.push(Decoration.line({ class: 'cm-structural-blank' }).range(line.from));
+      }
       continue;
     } else if (heading) {
       afterHeading = true;
@@ -109,13 +136,14 @@ function build(state) {
 // height-aware set until the document actually changes.
 export const blockSpacingPlugin = StateField.define({
   create: (state) => build(state),
-  update: (value, tr) => (tr.docChanged || tr.state.field(editorModeField, false) !== tr.startState.field(editorModeField, false) ? build(tr.state) : value.map(tr.changes)),
+  update: (value, tr) => (tr.docChanged || tr.selectionSet || tr.state.field(editorModeField, false) !== tr.startState.field(editorModeField, false) ? build(tr.state) : value.map(tr.changes)),
   provide: (field) => EditorView.decorations.from(field),
 });
 
 export function injectBlockSpacingStyle() {
   injectStyleTag('bt-block-spacing', `
 .cm-block-spacer { display: block; width: 1px; pointer-events: none; }
+.cm-structural-blank { height: 0 !important; line-height: 0 !important; overflow: hidden; }
 .cm-block-spacer-paragraph { height: 1em; }
 html[data-mode="editor"] .cm-heading-1 { text-wrap: pretty; letter-spacing: -.01em; }
 html[data-mode="editor"] .cm-epigraph { font-size: 14px; line-height: 1.7; font-style: italic; }

@@ -250,7 +250,9 @@ function updateBackupUI(status) {
   backupConnectBtn.textContent = status.needsReconnect ? 'reconnect Google Drive' : 'connect Google Drive';
   backupNowBtn.hidden = !status.connected;
   backupDisconnectBtn.hidden = !status.connected && !status.needsReconnect;
-  backupStatusIndicator.className = status.lastError ? 'error' : (status.connected ? 'connected' : '');
+  const synced = status.connected && !status.lastError;
+  backupStatusIndicator.className = synced ? 'connected' : 'error';
+  backupStatusIndicator.querySelector('.backup-status-icon').src = synced ? 'icons/cloud-sync.svg' : 'icons/cloud-error.svg';
   backupStatusIndicator.title = status.connected
     ? `Google Drive backup: ${status.accountEmail}` + (status.lastBackupAt ? ` · last backup ${relativeTime(status.lastBackupAt)}` : '')
     : 'Google Drive backup — not connected';
