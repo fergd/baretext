@@ -325,6 +325,23 @@
       --typewriter-focus: #9bbc0f;
     }
 
+    /* Game Boy secondary surfaces use the light phosphor screen: the editor
+       stays dark for long-form writing, while command surfaces and the
+       corkboard read like brighter, glanceable device panels. Variables are
+       scoped on the surface so all of its existing controls inherit the
+       corresponding dark-ink treatment automatically. */
+    [data-theme="gameboy"] #palette,
+    [data-theme="gameboy"] #corkboard,
+    [data-theme="gameboy"] #theme-picker {
+      --bg: #9bbc0f; --bg-alt: #8bac0f;
+      --text: #0f380f; --text-dim: #306230; --text-dimmer: #306230;
+      --accent: #306230; --scene: #0f380f; --border: #4f7720;
+      --cursor: #0f380f; --sel: rgba(15,56,15,0.18); --placeholder: var(--text-dimmer);
+      --syntax-2: #306230; --typewriter-focus: #0f380f;
+      --surface-panel: #8bac0f; --surface-raised: #9bbc0f; --surface-inset: #9bbc0f;
+      --selected-surface: rgba(48,98,48,0.18); --selected-text: #0f380f; --focus-ring: #306230;
+    }
+
     /* CRT shader — scanline spacing/opacity (2px tile, 50/50 split, .25
        alpha) follows the widely-referenced technique at
        aleclownes.com/2017/02/01/crt-display -- deliberately skips that
