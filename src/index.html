@@ -9,7 +9,7 @@
     // below is parsed, so there's no flash of the default theme on launch.
     (function () {
       var m = /[?&]theme=([a-z]+)/.exec(location.search);
-      var valid = ['dark', 'light', 'amstrad', 'grove', 'dracula', 'crt'];
+      var valid = ['dark', 'light', 'amstrad', 'grove', 'dracula', 'crt', 'cga', 'gameboy'];
       if (m && valid.indexOf(m[1]) !== -1) {
         document.documentElement.setAttribute('data-theme', m[1]);
       }
@@ -299,6 +299,29 @@
       --cursor: #7dc45a; --sel: rgba(125,196,90,0.18); --placeholder: var(--text-dimmer);
       --syntax-2: #7dc45a;
       --typewriter-focus: #b6e85a;
+    }
+
+    /* ── CGA — a deliberately limited early-PC palette. The dark navy
+       ground keeps the high-energy cyan, magenta, teal, and yellow signals
+       legible without turning the writing surface into a full-spectrum UI. ── */
+    [data-theme="cga"] {
+      --bg: #10102e;  --bg-alt: #08081f;
+      --text: #f8f8ff; --text-dim: #55ffff; --text-dimmer: #ff77ff;
+      --accent: #ffff55; --scene: #55ffff; --border: #aa00aa;
+      --cursor: #ffff55; --sel: rgba(85,255,255,0.22); --placeholder: var(--text-dimmer);
+      --syntax-2: #55ffff;
+      --typewriter-focus: #ffffff;
+    }
+
+    /* ── Game Boy — the four-shade DMG screen palette, mapped from the
+       lightest phosphor surface to the darkest ink. ── */
+    [data-theme="gameboy"] {
+      --bg: #9bbc0f;  --bg-alt: #8bac0f;
+      --text: #0f380f; --text-dim: #0f380f; --text-dimmer: #163f16;
+      --accent: #306230; --scene: #0f380f; --border: #4f7720;
+      --cursor: #0f380f; --sel: rgba(48,98,48,0.22); --placeholder: var(--text-dimmer);
+      --syntax-2: #306230;
+      --typewriter-focus: #0f380f;
     }
 
     /* CRT shader — scanline spacing/opacity (2px tile, 50/50 split, .25

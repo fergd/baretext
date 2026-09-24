@@ -2876,7 +2876,7 @@ describe('Baretext E2E: theme picker', () => {
     `;
   }
 
-  test('"Change theme…" opens a 6-card gallery, each card resolving its own theme\'s tokens', async () => {
+  test('"Change theme…" opens an 8-card gallery, each card resolving its own theme\'s tokens', async () => {
     const result = await app.client.evaluate(browserHelpers + `
       ${openViaPalette('Change theme')}
       return {
@@ -2891,18 +2891,18 @@ describe('Baretext E2E: theme picker', () => {
     `);
     assert.equal(result.pickerDisplay, 'flex');
     assert.equal(result.contentRowDisplay, 'none');
-    assert.deepEqual(result.cards.map((c) => c.theme), ['dark', 'light', 'amstrad', 'grove', 'dracula', 'crt']);
+    assert.deepEqual(result.cards.map((c) => c.theme), ['dark', 'light', 'amstrad', 'grove', 'dracula', 'crt', 'cga', 'gameboy']);
     assert.ok(result.cards.every((c) => c.role === 'radio'));
     // Each card must render its OWN theme's --bg, not the app's actual
     // active theme -- the whole point of the nested data-theme scope trick.
     assert.equal(result.cards[0].bg, 'rgb(36, 36, 36)');   // dark --bg #242424
     assert.equal(result.cards[3].bg, 'rgb(47, 56, 62)');   // grove --bg #2f383e
     // CRT deliberately shares Amstrad's exact --bg (it's a bonus shader
-    // variant of the same palette, not a distinct color scheme) -- 6 cards,
-    // 5 distinct backgrounds.
+    // variant of the same palette, not a distinct color scheme) -- 8 cards,
+    // 7 distinct backgrounds.
     assert.equal(result.cards[5].bg, result.cards[2].bg);
     const distinctBgs = new Set(result.cards.map((c) => c.bg));
-    assert.equal(distinctBgs.size, 5);
+    assert.equal(distinctBgs.size, 7);
   });
 
   test('clicking a card applies + persists the theme and keeps the picker open', async () => {
@@ -2963,7 +2963,7 @@ describe('Baretext E2E: theme picker', () => {
         draculaKbdFocus: dracula.classList.contains('kbd-focus'),
       };
     `);
-    assert.equal(result.cardCount, 6);
+    assert.equal(result.cardCount, 8);
     assert.equal(result.draculaApplied, true);
     assert.equal(result.draculaKbdFocus, true);
   });

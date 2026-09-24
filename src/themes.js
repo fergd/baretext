@@ -21,4 +21,6 @@ export const THEMES = [
   // to Amstrad (whose palette it borrows) so it reads as a bonus discovery
   // at the end of the gallery, not a variant of an existing card.
   { id: 'crt', name: 'CRT' },
+  { id: 'cga', name: 'CGA' },
+  { id: 'gameboy', name: 'Game Boy' },
 ];

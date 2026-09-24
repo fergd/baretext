@@ -81,9 +81,11 @@ const THEME_BG = {
   grove: '#2f383e',
   dracula: '#282a36',
   crt: '#0d130d',
+  cga: '#10102e',
+  gameboy: '#9bbc0f',
 };
 
-// Accent theme (command palette: dark / light / amstrad / grove / dracula / crt) —
+// Accent theme (command palette: dark / light / amstrad / grove / dracula / crt / cga / gameboy) —
 // validated against the current theme set so a stale saved value (e.g. a
 // removed theme) can't leave the app stuck on an unknown data-theme.
 const VALID_ACCENT_THEMES = Object.keys(THEME_BG);

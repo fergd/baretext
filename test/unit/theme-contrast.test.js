@@ -53,7 +53,7 @@ function parseThemeBlocks() {
 const THEMES = parseThemeBlocks();
 
 test('every theme block was actually found and parsed', () => {
-  assert.deepEqual(Object.keys(THEMES).sort(), ['amstrad', 'crt', 'dark', 'dracula', 'grove', 'light']);
+  assert.deepEqual(Object.keys(THEMES).sort(), ['amstrad', 'cga', 'crt', 'dark', 'dracula', 'gameboy', 'grove', 'light']);
 });
 
 for (const [id, t] of Object.entries(THEMES)) {

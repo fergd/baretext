@@ -44,6 +44,6 @@ function parseMainJsThemeBg() {
 test('main.js THEME_BG has every theme index.html defines, with matching --bg hex values', () => {
   const htmlBg = parseHtmlBg();
   const mainBg = parseMainJsThemeBg();
-  assert.deepEqual(Object.keys(htmlBg).sort(), ['amstrad', 'crt', 'dark', 'dracula', 'grove', 'light']);
+  assert.deepEqual(Object.keys(htmlBg).sort(), ['amstrad', 'cga', 'crt', 'dark', 'dracula', 'gameboy', 'grove', 'light']);
   assert.deepEqual(mainBg, htmlBg);
 });

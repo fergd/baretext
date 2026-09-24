@@ -20,6 +20,8 @@ export function injectHeadingColors() {
 [data-theme="grove"]   { --h1: #a7c080; --h2: #e69875; --h3: #dbbc7f; --h4: #83c092; }
 [data-theme="dracula"] { --h1: #bd93f9; --h2: #ff79c6; --h3: #8be9fd; --h4: #50fa7b; }
 [data-theme="crt"]     { --h1: #8fd670; --h2: #6fb050; --h3: #549040; --h4: #3d6c30; }
+[data-theme="cga"]     { --h1: #ffff55; --h2: #ff77ff; --h3: #55ffff; --h4: #55aaaa; }
+[data-theme="gameboy"] { --h1: #0f380f; --h2: #306230; --h3: #4f7720; --h4: #306230; }
 `);
 }
 
