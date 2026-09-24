@@ -82,7 +82,7 @@ const THEME_BG = {
   dracula: '#282a36',
   crt: '#0d130d',
   cga: '#10102e',
-  gameboy: '#9bbc0f',
+  gameboy: '#0f380f',
 };
 
 // Accent theme (command palette: dark / light / amstrad / grove / dracula / crt / cga / gameboy) —

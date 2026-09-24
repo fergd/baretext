@@ -313,15 +313,16 @@
       --typewriter-focus: #ffffff;
     }
 
-    /* ── Game Boy — the four-shade DMG screen palette, mapped from the
-       lightest phosphor surface to the darkest ink. ── */
+    /* ── Game Boy — the four-shade DMG screen palette, remapped for a
+       comfortable writing surface: dark phosphor ground, light phosphor
+       ink, and a quiet intermediate green for chrome. ── */
     [data-theme="gameboy"] {
-      --bg: #9bbc0f;  --bg-alt: #8bac0f;
-      --text: #0f380f; --text-dim: #0f380f; --text-dimmer: #163f16;
-      --accent: #306230; --scene: #0f380f; --border: #4f7720;
-      --cursor: #0f380f; --sel: rgba(48,98,48,0.22); --placeholder: var(--text-dimmer);
-      --syntax-2: #306230;
-      --typewriter-focus: #0f380f;
+      --bg: #0f380f;  --bg-alt: #163f16;
+      --text: #9bbc0f; --text-dim: #9bbc0f; --text-dimmer: #8bac0f;
+      --accent: #8bac0f; --scene: #9bbc0f; --border: #306230;
+      --cursor: #9bbc0f; --sel: rgba(155,188,15,0.24); --placeholder: var(--text-dimmer);
+      --syntax-2: #8bac0f;
+      --typewriter-focus: #9bbc0f;
     }
 
     /* CRT shader — scanline spacing/opacity (2px tile, 50/50 split, .25

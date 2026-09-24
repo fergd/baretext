@@ -596,12 +596,12 @@ async function cmdSaveDir() {
 const themeTextColors = {
   dark: '#faf2d6', light: '#2a2218',
   amstrad: '#c8e6b0', grove: '#d3c6aa', dracula: '#f8f8f2', crt: '#c8e6b0',
-  cga: '#f8f8ff', gameboy: '#0f380f',
+  cga: '#f8f8ff', gameboy: '#9bbc0f',
 };
 const themeAccentColors = {
   dark: '#f8c537', light: '#b8820a',
   amstrad: '#7dc45a', grove: '#a7c080', dracula: '#bd93f9', crt: '#7dc45a',
-  cga: '#ffff55', gameboy: '#306230',
+  cga: '#ffff55', gameboy: '#8bac0f',
 };
 
 function setTheme(t) {
@@ -738,7 +738,7 @@ let paletteClosing = false;
 const themePaletteBg = {
   dark: '#1e1e1e', light: '#e8e3db',
   amstrad: '#0c110c', grove: '#282f34', dracula: '#1e2030', crt: '#0c110c',
-  cga: '#08081f', gameboy: '#8bac0f',
+  cga: '#08081f', gameboy: '#163f16',
 };
 function hexLuminance(hex) {
   const r = parseInt(hex.slice(1,3),16)/255;
