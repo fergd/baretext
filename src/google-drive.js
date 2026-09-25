@@ -26,6 +26,12 @@ let accessTokenExpiresAt = 0;
 let lastBackupAt = null;
 let lastError = null;
 const RECONNECT_MESSAGE = 'Google Drive authorization expired or was revoked. Reconnect to resume backups.';
+const SCOPE_RECONNECT_MESSAGE = 'Google Drive needs to be reconnected to grant its current permissions. Click reconnect Google Drive and approve access again.';
+
+function isInsufficientScopeError(error) {
+  return /insufficient authentication scopes?/i.test(error && error.message || '')
+    || /insufficient.*scope/i.test(error && error.reason || '');
+}
 
 function loadCredentials() {
   if (!credentialStore) return {};
@@ -318,6 +324,18 @@ async function backupDirectory(dir, retryAfterUnauthorized = true) {
     lastError = null;
     return { ok: true };
   } catch (e) {
+    // A refresh token can remain valid while its originally granted scope is
+    // no longer enough for the current Drive request. Treat this differently
+    // from a transient sync failure: stop retrying the same token and make
+    // the required reauthorization explicit in Backup Settings.
+    if (isInsufficientScopeError(e)) {
+      saveCredentials({ needsReconnect: true });
+      accessToken = null;
+      accessTokenExpiresAt = 0;
+      lastError = SCOPE_RECONNECT_MESSAGE;
+      console.error('google-drive: authorization scopes need refreshing');
+      return { ok: false, error: SCOPE_RECONNECT_MESSAGE, needsReconnect: true };
+    }
     // A cached access token can be rejected before its local expiry (for
     // example after a Google-side session reset). Refresh once and retry the
     // complete sync so a transient 401 does not look like a disconnected app.

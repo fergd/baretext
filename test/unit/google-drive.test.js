@@ -255,6 +255,42 @@ test('backupDirectory() fails clearly (never silently falls back to the auto fol
   }
 });
 
+test('backupDirectory() turns an insufficient-scope response into an explicit reconnect state', async () => {
+  const { dir, credentialFilePath, syncFilePath } = setup();
+  const saveDir = fs.mkdtempSync(path.join(os.tmpdir(), 'baretext-google-drive-savedir-'));
+  const google = createFakeGoogle();
+  global.fetch = async (url, options = {}) => {
+    const parsed = new URL(url);
+    const query = parsed.searchParams.get('q') || '';
+    if (parsed.pathname === '/drive/v3/files' && query.includes('mimeType=')) {
+      return jsonResponse({ error: {
+        code: 403,
+        message: 'Request had insufficient authentication scopes.',
+        errors: [{ reason: 'insufficientPermissions' }],
+      } }, 403);
+    }
+    return google.fetchImpl(url, options);
+  };
+  try {
+    googleDrive.init({ credentialFilePath, syncFilePath, safeStorage: fakeSafeStorage, shell: { openExternal: google.fakeOpenExternal } });
+    googleDrive.configure({ clientId: 'client-1', clientSecret: 'secret-1' });
+    await googleDrive.connect();
+    fs.writeFileSync(path.join(saveDir, 'book.md'), 'draft one');
+
+    const result = await googleDrive.backupDirectory(saveDir);
+
+    assert.equal(result.ok, false);
+    assert.equal(result.needsReconnect, true);
+    assert.match(result.error, /needs to be reconnected/);
+    assert.equal(googleDrive.status().connected, false);
+    assert.equal(googleDrive.status().needsReconnect, true);
+  } finally {
+    google.restore();
+    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(saveDir, { recursive: true, force: true });
+  }
+});
+
 test('connect() completes a real loopback OAuth round trip and persists only ciphertext', async () => {
   const { dir, credentialFilePath, syncFilePath } = setup();
   const google = createFakeGoogle();

@@ -27,9 +27,12 @@ async function driveRequest(url, { accessToken, fetchImpl = global.fetch, ...opt
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const message = data && data.error && data.error.message;
+    const driveError = data && data.error;
+    const message = driveError && driveError.message;
     const error = new Error(message || `Google Drive request failed (${response.status})`);
     error.status = response.status;
+    error.code = driveError && (driveError.status || driveError.code);
+    error.reason = driveError && driveError.errors && driveError.errors[0] && driveError.errors[0].reason;
     throw error;
   }
   return data;
