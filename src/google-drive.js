@@ -12,6 +12,7 @@ const auth = require('./google-drive-auth');
 const drive = require('./google-drive-api');
 
 const MANUSCRIPT_EXTENSIONS = new Set(['.md', '.txt']);
+const NOTES_SUFFIX = '.baretext-notes.json';
 // Refresh the access token slightly before Google's own expiry so a backup
 // in progress never straddles the exact moment it goes stale.
 const ACCESS_TOKEN_SAFETY_MARGIN_MS = 60 * 1000;
@@ -259,7 +260,7 @@ function manuscriptFileNames(dir) {
   let entries = [];
   try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return []; }
   return entries
-    .filter((entry) => entry.isFile() && MANUSCRIPT_EXTENSIONS.has(path.extname(entry.name).toLowerCase()))
+    .filter((entry) => entry.isFile() && (MANUSCRIPT_EXTENSIONS.has(path.extname(entry.name).toLowerCase()) || entry.name.endsWith(NOTES_SUFFIX)))
     .map((entry) => entry.name);
 }
 

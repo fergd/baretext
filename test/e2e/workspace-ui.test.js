@@ -16,7 +16,7 @@ test('workspace tabs, contextual controls, and focused sprint states', async () 
       const tabs=[...document.querySelectorAll('.mode-tab')];
       return {labels:tabs.map(b=>b.textContent),top:document.getElementById('mode-switch').closest('nav')?.id,history:!!document.querySelector('.corkboard-toolbar'),finder:document.getElementById('file-name').textContent};
     `);
-    assert.deepEqual(initial, {labels:['Manuscript','Sprinter','Corkboard'],top:'workspace-bar',history:false,finder:'Show in Finder'});
+    assert.deepEqual(initial, {labels:['Manuscript','Sprinter','Corkboard','Notes'],top:'workspace-bar',history:false,finder:'Show in Finder'});
     await shot('manuscript');
     await evaluate(`document.getElementById('tw-status-indicator').click(); document.querySelector('[data-mode="corkboard"].mode-tab').click(); await new Promise(r=>setTimeout(r,150)); return true;`);
     assert.deepEqual(await evaluate(`return {selected:document.querySelector('.mode-tab[aria-selected="true"]').dataset.mode, views:document.querySelectorAll('#context-view-controls button').length, tw:getComputedStyle(document.getElementById('tw-status-indicator')).display};`), {selected:'corkboard',views:2,tw:'none'});

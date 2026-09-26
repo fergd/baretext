@@ -393,6 +393,8 @@ function renderOutlineBody(body, chapters, active) {
 
     chapter.scenes.forEach((scene, si) => {
       const row = el('tr', 'outline-scene-row' + (active && active.chapterIndex === ci && active.sceneIndex === si ? ' active' : ''));
+      row.dataset.ci = String(ci);
+      row.dataset.si = String(si);
       row.addEventListener('dblclick', () => jumpTo(scene));
       row.title = 'double-click to open this scene';
       row.appendChild(el('td', 'outline-number', `${chapter.number}.${si + 1}`));

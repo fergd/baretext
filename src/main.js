@@ -46,6 +46,27 @@ function saveSettings(settings) {
   fs.writeFileSync(settingsPath, JSON.stringify(settings), 'utf8');
 }
 
+function notesPathFor(filePath) {
+  return filePath ? `${filePath}.baretext-notes.json` : null;
+}
+
+function readNotes(filePath) {
+  const notesPath = notesPathFor(filePath);
+  if (!notesPath) return [];
+  try {
+    const parsed = JSON.parse(fs.readFileSync(notesPath, 'utf8'));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+
+function writeNotes(filePath, notes) {
+  const notesPath = notesPathFor(filePath);
+  if (!notesPath) throw new Error('Save the manuscript before adding notes');
+  const safeNotes = Array.isArray(notes) ? notes.slice(0, 2000) : [];
+  fs.writeFileSync(notesPath, JSON.stringify(safeNotes), 'utf8');
+  return safeNotes;
+}
+
 let settings = loadSettings();
 let defaultDir = settings.saveDir || path.join(os.homedir(), 'Documents', 'Barebones');
 if (!fs.existsSync(defaultDir)) {
@@ -424,6 +445,12 @@ ipcMain.handle('open-file', async () => {
     return { content, filePath };
   }
   return null;
+});
+
+ipcMain.handle('notes-load', (event, filePath) => readNotes(filePath));
+ipcMain.handle('notes-save', (event, payload) => {
+  try { return { ok: true, notes: writeNotes(payload && payload.filePath, payload && payload.notes) }; }
+  catch (e) { return { ok: false, error: e.message }; }
 });
 
 // Export / Save As. Result is discriminated ({ok:true,filePath} / {ok:false,

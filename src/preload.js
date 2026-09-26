@@ -69,6 +69,8 @@ contextBridge.exposeInMainWorld('api', {
 
   // File loaded / auto-saved feedback
   onFileLoaded: (cb) => ipcRenderer.on('file-loaded', (_, data) => cb(data)),
+  notesLoad: (filePath) => ipcRenderer.invoke('notes-load', filePath),
+  notesSave: (filePath, notes) => ipcRenderer.invoke('notes-save', { filePath, notes }),
   onAutoSaved: (cb) => ipcRenderer.on('auto-saved', (_, path) => cb(path)),
   // A write to disk (auto-save or manual) failed — see main.js's saveToFile()
   onSaveError: (cb) => ipcRenderer.on('save-error', (_, data) => cb(data)),

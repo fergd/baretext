@@ -5,6 +5,7 @@ import findReplace from './features/find-replace.js';
 import sceneNav from './features/scene-nav/index.js';
 import * as corkboard from './features/scene-nav/corkboard.js';
 import * as themePicker from './theme-picker.js';
+import * as notes from './notes.js';
 import { makeDeleteButton } from './features/scene-nav/ui-helpers.js';
 
 const FEATURES = { core, 'sprint-timer': sprintTimer, 'find-replace': findReplace, 'scene-nav': sceneNav };
@@ -146,6 +147,7 @@ window.api.onThemeChanged(() => {});
 window.api.onFileLoaded(({ content, filePath, cursorPos, typewriter }) => {
   if (content !== null && content !== undefined) setDoc(content, { persist: false, addToHistory: false });
   state.filePath = filePath;
+  notes.load(filePath);
   setFileName(filePath);
   updateCounts(getDoc());
   if (typeof typewriter === 'boolean') setTypewriter(typewriter, { silent: true });
@@ -547,6 +549,7 @@ async function cmdOpen() {
     state.filePath = r.filePath;
     setFileName(r.filePath);
     updateCounts(r.content);
+    await notes.load(r.filePath);
   }
   focusEditor();
 }
@@ -559,6 +562,7 @@ async function cmdNew() {
     state.filePath = r.filePath;
     setFileName(r.filePath);
     updateCounts('');
+    await notes.load(r.filePath);
   }
   focusEditor();
 }
@@ -1014,11 +1018,21 @@ const ctx = {
   openThemePicker: () => themePicker.show(),
   openAiSettings,
   openBackupSettings,
+  addNote: notes.addFromSelection,
 };
 
 // Mode-agnostic (themes apply in both Sprinter and Editor), so this mounts
 // once here rather than through the per-mode feature init/destroy cycle.
 themePicker.mount(ctx);
+notes.mount(ctx);
+
+document.addEventListener('keydown', (event) => {
+  if (!(event.metaKey || event.ctrlKey) || !event.altKey || event.key.toLowerCase() !== 'm') return;
+  if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return;
+  event.preventDefault();
+  event.stopPropagation();
+  notes.addFromSelection();
+}, true);
 
 let activeFeatures = [];
 let currentKeybindings = {};

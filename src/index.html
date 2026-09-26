@@ -1277,6 +1277,7 @@
       <button type="button" class="mode-tab" role="tab" data-mode="sprinter" aria-selected="false" tabindex="-1"><i class="ti ti-run" aria-hidden="true"></i>Sprinter</button>
       <button type="button" class="mode-tab" role="tab" data-mode="corkboard" aria-selected="false" tabindex="-1"><i class="ti ti-cards" aria-hidden="true"></i>Corkboard</button>
     </div>
+    <button type="button" id="notes-toggle" class="mode-tab notes-tab" aria-pressed="false"><i class="ti ti-message-2" aria-hidden="true"></i>Notes</button>
   </nav>
   <button type="button" id="reveal-ui" aria-label="Show UI" title="Show UI (⌘.)"><i class="ti ti-chevron-down" aria-hidden="true"></i></button>
   <div id="content-row">
@@ -1297,6 +1298,15 @@
       </div>
     </div>
   </div>
+  <aside id="notes-rail" aria-label="Notes" aria-hidden="true">
+    <div class="notes-rail-header">
+      <span class="notes-rail-title"><i class="ti ti-message-2" aria-hidden="true"></i> Notes</span>
+      <button type="button" id="notes-close" class="notes-close" aria-label="Close notes"><i class="ti ti-x" aria-hidden="true"></i></button>
+    </div>
+    <div id="notes-context" class="notes-context"></div>
+    <div id="notes-list" class="notes-list"></div>
+    <div id="notes-empty" class="notes-empty">Select text in the manuscript and press ⌘⌥M to add a note.</div>
+  </aside>
   <div id="corkboard"></div>
   <div id="theme-picker"></div>
   <div id="statusbar" role="region" aria-label="Status">
