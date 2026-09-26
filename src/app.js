@@ -1030,7 +1030,7 @@ themePicker.mount(ctx);
 notes.mount(ctx);
 
 document.addEventListener('keydown', (event) => {
-  if (!(event.metaKey || event.ctrlKey) || !event.altKey || event.key.toLowerCase() !== 'm') return;
+  if (!(event.metaKey || event.ctrlKey) || !event.shiftKey || event.key.toLowerCase() !== 'm') return;
   if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return;
   event.preventDefault();
   event.stopPropagation();

@@ -69,7 +69,7 @@ export default {
           { label: 'Typewriter mode',          icon: 'ti-align-center', keys: ['⌘','⇧','T'],    fn: ctx.toggleTypewriter },
           { label: 'Change font',              icon: 'ti-typography',   keys: ['⌘','⇧','F'],    fn: ctx.toggleFontPicker },
           { label: 'Focus mode',               icon: 'ti-eye-off',      keys: ['⌘','.'],         fn: ctx.toggleFocus },
-          { label: 'Add note to selection',    icon: 'ti-message-2',    keys: ['⌘','⌥','M'],      fn: ctx.addNote },
+          { label: 'Add note to selection',    icon: 'ti-message-2',    keys: ['⌘','⇧','M'],      fn: ctx.addNote },
         ]
       },
       { group: 'Theme',
