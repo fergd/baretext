@@ -29,6 +29,7 @@ let currentFilePath = null;
 let saveTimeout = null;
 let credentialStore = null;
 let safeWriter = null;
+let recentFiles = [];
 
 // Default save location: ~/Documents/Barebones/
 const settingsPath = path.join(app.getPath('userData'), 'settings.json');
@@ -68,6 +69,7 @@ function writeNotes(filePath, notes) {
 }
 
 let settings = loadSettings();
+recentFiles = Array.isArray(settings.recentFiles) ? settings.recentFiles.filter((filePath) => typeof filePath === 'string' && fs.existsSync(filePath)).slice(0, 10) : [];
 let defaultDir = settings.saveDir || path.join(os.homedir(), 'Documents', 'Barebones');
 if (!fs.existsSync(defaultDir)) {
   fs.mkdirSync(defaultDir, { recursive: true });
@@ -137,6 +139,26 @@ function printDocument(win) {
   });
 }
 
+function rememberRecentFile(filePath) {
+  if (!filePath || !fs.existsSync(filePath)) return;
+  recentFiles = [filePath, ...recentFiles.filter((entry) => entry !== filePath)].slice(0, 10);
+  settings.recentFiles = recentFiles;
+  saveSettings(settings);
+  if (process.platform === 'darwin') app.addRecentDocument(filePath);
+  installApplicationMenu();
+}
+
+function openFilePath(filePath) {
+  if (!filePath || !fs.existsSync(filePath)) return null;
+  const content = fs.readFileSync(filePath, 'utf8');
+  currentFilePath = filePath;
+  localSnapshots.onSave(defaultDir, filePath);
+  settings.lastFilePath = filePath;
+  saveSettings(settings);
+  rememberRecentFile(filePath);
+  return { content, filePath };
+}
+
 function installApplicationMenu() {
   const template = [];
 
@@ -164,6 +186,24 @@ function installApplicationMenu() {
     {
       label: 'File',
       submenu: [
+        { label: 'New', accelerator: 'CmdOrCtrl+N', click: () => mainWindow?.webContents.send('new-file-command') },
+        { label: 'Open…', accelerator: 'CmdOrCtrl+O', click: () => mainWindow?.webContents.send('open-file-command') },
+        {
+          label: 'Open Recent',
+          submenu: recentFiles.length
+            ? [...recentFiles.map((filePath) => ({ label: path.basename(filePath), click: () => {
+              const result = openFilePath(filePath);
+              if (result) mainWindow?.webContents.send('file-loaded', result);
+            } })), { type: 'separator' }, { label: 'Clear Recent', click: () => {
+              recentFiles = [];
+              settings.recentFiles = [];
+              saveSettings(settings);
+              app.clearRecentDocuments();
+              installApplicationMenu();
+            } }]
+            : [{ label: 'No Recent Documents', enabled: false }],
+        },
+        { type: 'separator' },
         {
           label: 'Print…',
           accelerator: 'CmdOrCtrl+P',
@@ -436,13 +476,7 @@ ipcMain.handle('open-file', async () => {
     properties: ['openFile']
   });
   if (!result.canceled && result.filePaths.length > 0) {
-    const filePath = result.filePaths[0];
-    const content = fs.readFileSync(filePath, 'utf8');
-    currentFilePath = filePath;
-    localSnapshots.onSave(defaultDir, filePath);
-    settings.lastFilePath = filePath;
-    saveSettings(settings);
-    return { content, filePath };
+    return openFilePath(result.filePaths[0]);
   }
   return null;
 });
@@ -666,6 +700,7 @@ function saveToFile(content) {
     // Remember this file so next launch reopens it
     settings.lastFilePath = currentFilePath;
     saveSettings(settings);
+    rememberRecentFile(currentFilePath);
     backup.onSave(defaultDir, currentFilePath);
     mainWindow.webContents.send('auto-saved', currentFilePath);
     return true;

@@ -567,6 +567,9 @@ async function cmdNew() {
   focusEditor();
 }
 
+window.api.onOpenFileCommand(() => { cmdOpen(); });
+window.api.onNewFileCommand(() => { cmdNew(); });
+
 async function cmdExport() {
   closePalette(false);
   const r = await window.api.exportFile(getDoc());

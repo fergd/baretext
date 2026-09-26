@@ -69,6 +69,8 @@ contextBridge.exposeInMainWorld('api', {
 
   // File loaded / auto-saved feedback
   onFileLoaded: (cb) => ipcRenderer.on('file-loaded', (_, data) => cb(data)),
+  onOpenFileCommand: (cb) => ipcRenderer.on('open-file-command', cb),
+  onNewFileCommand: (cb) => ipcRenderer.on('new-file-command', cb),
   notesLoad: (filePath) => ipcRenderer.invoke('notes-load', filePath),
   notesSave: (filePath, notes) => ipcRenderer.invoke('notes-save', { filePath, notes }),
   onAutoSaved: (cb) => ipcRenderer.on('auto-saved', (_, path) => cb(path)),
