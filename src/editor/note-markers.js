@@ -39,7 +39,7 @@ const markerField = StateField.define({
   provide: (field) => EditorView.decorations.from(field, (markers) => Decoration.set(
     markers
       .filter((marker) => Number.isFinite(marker.to) && marker.to >= marker.from)
-      .map((marker) => Decoration.widget({ widget: new NoteMarkerWidget(marker.id), side: 1 }).range(marker.to)),
+      .map((marker) => Decoration.widget({ widget: new NoteMarkerWidget(marker.id), side: -1 }).range(marker.from)),
     true,
   )),
 });
@@ -59,7 +59,9 @@ export function injectNoteMarkerStyle() {
   const style = document.createElement('style');
   style.id = 'bt-note-marker-style';
   style.textContent = `
-    .cm-note-marker { display:inline-block; margin-left:5px; color:var(--accent); font:9px/1 var(--font-mono); vertical-align:super; opacity:.9; cursor:pointer; }
+    .cm-content > .cm-line { position:relative; }
+    .cm-note-marker { position:absolute; left:calc(100% + 12px); top:50%; display:block; width:12px; height:12px; margin-top:-6px; color:var(--accent); font:0/0 var(--font-mono); opacity:.9; cursor:pointer; z-index:2; }
+    .cm-note-marker::before { content:'●'; display:block; font:12px/12px var(--font-mono); }
     .cm-note-marker:hover { opacity:1; transform:scale(1.2); }
   `;
   document.head.appendChild(style);
