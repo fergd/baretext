@@ -119,6 +119,13 @@ export function mount(localCtx) {
   ctx = localCtx;
   document.getElementById('notes-toggle').addEventListener('click', toggle);
   document.getElementById('notes-close').addEventListener('click', close);
+  document.addEventListener('baretext-note-marker-click', (event) => {
+    const noteId = event.detail?.noteId;
+    if (!notes.some((note) => note.id === noteId)) return;
+    activeNoteId = noteId;
+    show();
+    requestAnimationFrame(() => list().querySelector('.notes-card.active textarea')?.focus());
+  });
   ctx.editor.subscribe(ctx.view, (update) => {
     if (update.docChanged || update.selectionSet) requestAnimationFrame(refresh);
   });

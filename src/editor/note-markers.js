@@ -12,9 +12,19 @@ class NoteMarkerWidget extends WidgetType {
     marker.textContent = '●';
     marker.title = 'Note attached';
     marker.setAttribute('aria-label', 'Note attached');
+    marker.dataset.noteId = this.noteId;
+    marker.addEventListener('mousedown', (event) => event.preventDefault());
+    marker.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      marker.dispatchEvent(new CustomEvent('baretext-note-marker-click', {
+        bubbles: true,
+        detail: { noteId: this.noteId },
+      }));
+    });
     return marker;
   }
-  ignoreEvent() { return true; }
+  ignoreEvent() { return false; }
 }
 
 const markerField = StateField.define({
@@ -49,7 +59,8 @@ export function injectNoteMarkerStyle() {
   const style = document.createElement('style');
   style.id = 'bt-note-marker-style';
   style.textContent = `
-    .cm-note-marker { display:inline-block; margin-left:5px; color:var(--accent); font:9px/1 var(--font-mono); vertical-align:super; opacity:.9; pointer-events:none; }
+    .cm-note-marker { display:inline-block; margin-left:5px; color:var(--accent); font:9px/1 var(--font-mono); vertical-align:super; opacity:.9; cursor:pointer; }
+    .cm-note-marker:hover { opacity:1; transform:scale(1.2); }
   `;
   document.head.appendChild(style);
 }
