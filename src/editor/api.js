@@ -20,6 +20,7 @@ import { outlineState, getStableOutline } from './outline-state.js';
 import { structuralEdit } from './transaction-types.js';
 import { sceneBoundaryGuardKeymap } from './scene-boundary-guard.js';
 import { sceneLinkMetadata, preserveSceneLinks } from './scene-links.js';
+import { noteMarkers, injectNoteMarkerStyle } from './note-markers.js';
 
 let registeredKeys = {};
 
@@ -51,6 +52,7 @@ export function create(container, initialDoc, onChange, placeholderText) {
   injectManuscriptGutterStyle();
   injectBookTitleStyle();
   injectOpeningCapsStyle();
+  injectNoteMarkerStyle();
 
   const listeners = new Set();
   const view = new EditorView({
@@ -78,6 +80,7 @@ export function create(container, initialDoc, onChange, placeholderText) {
         bookTitlePlugin,
         sceneLinkMetadata,
         preserveSceneLinks,
+        noteMarkers,
         bookTitleAtomicRange,
         bookTitleClickGuard,
         sceneBreakDecorator,

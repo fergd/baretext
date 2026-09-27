@@ -54,6 +54,10 @@ function paintCounts() {
   });
 }
 
+function paintEditorMarkers() {
+  ctx?.editor?.syncNoteMarkers?.(ctx.view, notes);
+}
+
 function render() {
   if (!ctx || !open) return;
   const current = activeScene();
@@ -79,7 +83,7 @@ function render() {
     const jump = document.createElement('button'); jump.className = 'notes-action'; jump.textContent = 'open';
     jump.addEventListener('click', () => { if (scene) { ctx.editor.navigate(ctx.view, scene.scene.contentPos, { align: ctx.state.typewriter ? 'center' : 'start', scrollPos: scene.scene.pos }); ctx.focusEditor(); } });
     const resolve = document.createElement('button'); resolve.className = 'notes-action'; resolve.textContent = 'resolve';
-    resolve.addEventListener('click', () => { note.resolved = true; saveSoon(); render(); paintCounts(); });
+    resolve.addEventListener('click', () => { note.resolved = true; saveSoon(); paintEditorMarkers(); render(); paintCounts(); });
     actions.append(jump, resolve); footer.appendChild(actions); card.append(quote, input, footer); list().appendChild(card);
   });
   paintCounts();
@@ -87,6 +91,7 @@ function render() {
 
 export async function load(filePath) {
   notes = filePath ? (await ctx.api.notesLoad(filePath)) || [] : [];
+  paintEditorMarkers();
   render(); paintCounts();
 }
 
@@ -105,7 +110,7 @@ export function addFromSelection() {
   const quote = ctx.view.state.sliceDoc(selection.from, selection.to).trim();
   if (!quote) { ctx.showToast('select text first'); return false; }
   const note = { id: `note-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, sceneId: scene.stableId || scene.id, quote: quote.slice(0, 1000), from: selection.from, to: selection.to, text: '', resolved: false, createdAt: new Date().toISOString() };
-  notes.unshift(note); activeNoteId = note.id; saveSoon(); show(); render();
+  notes.unshift(note); activeNoteId = note.id; saveSoon(); paintEditorMarkers(); show(); render();
   requestAnimationFrame(() => list().querySelector('.notes-input')?.focus());
   return true;
 }

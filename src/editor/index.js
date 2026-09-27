@@ -4,6 +4,7 @@ import { insertSceneBreak } from './scene-breaks.js';
 import { setSearchQuery, findNext, findPrevious, replaceCurrent, replaceAll, clearSearch } from './search.js';
 import { undo, redo } from './history-commands.js';
 import { setBookTitle, readBookTitle } from './book-title.js';
+import { syncNoteMarkers } from './note-markers.js';
 
 window.BaretextEditor = {
   registerKeys: api.registerKeys,
@@ -36,4 +37,5 @@ window.BaretextEditor = {
   redo,
   setBookTitle,
   getBookTitle: (view) => readBookTitle(api.getDoc(view)),
+  syncNoteMarkers,
 };
