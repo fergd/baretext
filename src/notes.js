@@ -80,7 +80,7 @@ function render() {
     const scene = sceneForNote(note);
     footer.appendChild(document.createTextNode(scene ? scene.scene.title || 'untitled scene' : 'scene moved'));
     const actions = document.createElement('span'); actions.className = 'notes-card-actions';
-    const jump = document.createElement('button'); jump.className = 'notes-action'; jump.textContent = 'open';
+    const jump = document.createElement('button'); jump.className = 'notes-action'; jump.textContent = 'show in manuscript'; jump.title = 'Show this note in the manuscript';
     jump.addEventListener('click', () => { if (scene) { ctx.editor.navigate(ctx.view, scene.scene.contentPos, { align: ctx.state.typewriter ? 'center' : 'start', scrollPos: scene.scene.pos }); ctx.focusEditor(); } });
     const resolve = document.createElement('button'); resolve.className = 'notes-action'; resolve.textContent = 'resolve';
     resolve.addEventListener('click', () => { note.resolved = true; saveSoon(); paintEditorMarkers(); render(); paintCounts(); });
