@@ -1,0 +1,15 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="icon/sprinter" clip-path="url(#clip0_0_149)">
+<g id="Vector">
+</g>
+<path id="Vector_2" d="M7.72852 4.27614C7.47848 4.02609 7.338 3.68696 7.338 3.33333C7.338 2.97971 7.47848 2.64057 7.72852 2.39052C7.97857 2.14048 8.31771 2 8.67133 2C9.02496 2 9.36409 2.14048 9.61414 2.39052C9.86419 2.64057 10.0047 2.97971 10.0047 3.33333C10.0047 3.68696 9.86419 4.02609 9.61414 4.27614C9.36409 4.52619 9.02496 4.66667 8.67133 4.66667C8.31771 4.66667 7.97857 4.52619 7.72852 4.27614Z" stroke="#BDAE93" stroke-linecap="round" stroke-linejoin="round"/>
+<path id="Vector_3" d="M2.66667 11.3333L6 12L6.5 11" stroke="#BDAE93" stroke-linecap="round" stroke-linejoin="round"/>
+<path id="Vector_4" d="M10 14V11.3333L7.33333 9.33333L8 5.33333" stroke="#BDAE93" stroke-linecap="round" stroke-linejoin="round"/>
+<path id="Vector_5" d="M4.66667 8V6L8 5.33333L10 7.33333L12 8" stroke="#BDAE93" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<defs>
+<clipPath id="clip0_0_149">
+<rect width="16" height="16" fill="white"/>
+</clipPath>
+</defs>
+</svg>

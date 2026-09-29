@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'none'" />
+    <title>Baretext</title>
+    <link rel="stylesheet" href="styles/tokens.css" />
+    <link rel="stylesheet" href="styles/shell.css" />
+    <link rel="stylesheet" href="styles/manuscript.css" />
+    <link rel="stylesheet" href="styles/spine.css" />
+    <link rel="stylesheet" href="styles/typewriter.css" />
+    <link rel="stylesheet" href="styles/toolbar.css" />
+    <script src="renderer.js" defer></script>
+  </head>
+  <body>
+    <div class="bt-app" data-mode="manuscript">
+      <header class="bt-chrome">
+        <span class="bt-chrome-title" data-ref="title"></span>
+        <span class="bt-chrome-crumb" data-ref="crumb"></span>
+      </header>
+      <main class="bt-workspace" data-ref="workspace">
+        <nav class="bt-spine" data-ref="spine" aria-label="Scenes"></nav>
+        <div class="bt-scroller" data-ref="scroller">
+          <div class="bt-page" data-ref="page"></div>
+        </div>
+        <div class="bt-tw-guide bt-tw-guide-left" aria-hidden="true"></div>
+        <div class="bt-tw-guide bt-tw-guide-right" aria-hidden="true"></div>
+      </main>
+      <footer class="bt-status">
+        <div class="bt-status-group">
+          <span data-ref="words">0 words</span>
+          <button type="button" data-ref="typewriter" data-on="false">typewriter</button>
+        </div>
+        <div class="bt-status-group">
+          <span class="bt-save-state" data-ref="save-state"></span>
+          <button type="button" data-ref="filename" title="Reveal in Finder"></button>
+        </div>
+      </footer>
+      <div class="bt-toast" role="status" aria-live="polite" data-ref="toast"></div>
+    </div>
+  </body>
+</html>

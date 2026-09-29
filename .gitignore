@@ -1,0 +1,10 @@
+node_modules/
+build/
+test-results/
+playwright-report/
+.DS_Store
+# Copies the app makes when it opens a sample
+* (Baretext).md
+samples/Untitled*.md
+# Regenerate with: python3 scripts/gen-lorem.py
+samples/lorem-ipsum-120k.md

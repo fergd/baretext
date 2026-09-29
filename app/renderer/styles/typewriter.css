@@ -1,0 +1,76 @@
+/* Typewriter mode: the caret's line stays at the vertical center. The fade
+   is a mask fixed to the viewport: whatever line sits in the center band is
+   fully visible; the lines next to it start dim, and the top and bottom
+   lines of the window are fully hidden. */
+
+/* The mask's opacities are registered so they animate: scrolling eases the
+   fade away (reading back), and the next edit eases it back. The mask
+   itself never switches on/off mid-session, so nothing jumps. */
+@property --tw-mask-near { syntax: '<number>'; inherits: false; initial-value: 1; }
+@property --tw-mask-far { syntax: '<number>'; inherits: false; initial-value: 1; }
+@property --tw-mask-edge { syntax: '<number>'; inherits: false; initial-value: 1; }
+
+.bt-app[data-typewriter='true'] .bt-page {
+  padding-top: var(--tw-pad, 50vh);
+  padding-bottom: var(--tw-pad, 50vh);
+}
+.bt-app[data-typewriter='true'] .bt-scroller {
+  --band: var(--tw-band, var(--lh-body));
+  --edge: calc(50% - var(--band) / 2);
+  --tw-mask-near: var(--tw-near);
+  --tw-mask-far: var(--tw-far);
+  --tw-mask-edge: 0;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, var(--tw-mask-edge)) 0%,
+    rgba(0, 0, 0, var(--tw-mask-edge)) var(--tw-hidden),
+    rgba(0, 0, 0, var(--tw-mask-far)) calc(var(--edge) - var(--tw-reach)),
+    rgba(0, 0, 0, var(--tw-mask-near)) var(--edge),
+    #000 var(--edge),
+    #000 calc(var(--edge) + var(--band)),
+    rgba(0, 0, 0, var(--tw-mask-near)) calc(var(--edge) + var(--band)),
+    rgba(0, 0, 0, var(--tw-mask-far)) calc(var(--edge) + var(--band) + var(--tw-reach)),
+    rgba(0, 0, 0, var(--tw-mask-edge)) calc(100% - var(--tw-hidden)),
+    rgba(0, 0, 0, var(--tw-mask-edge)) 100%
+  );
+  /* Returning to writing: the fade settles back in. */
+  transition:
+    --tw-mask-near var(--dur-fade-in) var(--ease-in-out),
+    --tw-mask-far var(--dur-fade-in) var(--ease-in-out),
+    --tw-mask-edge var(--dur-fade-in) var(--ease-in-out);
+}
+
+/* Manuscript: near = the lines next to the caret's line, far = `reach` away,
+   hidden = the band at the window's top and bottom edges (one line).
+   Sprinter: steeper (spec §5). */
+.bt-app { --tw-near: 0.4; --tw-far: 0.12; --tw-reach: 160px; --tw-hidden: var(--lh-body); }
+.bt-app[data-mode='sprinter'] { --tw-near: 0.3; --tw-far: 0.04; --tw-reach: 96px; }
+
+/* Reading back: manual scrolling eases the fade away until the next edit. */
+.bt-app[data-typewriter='true'][data-tw-relaxed='true'] .bt-scroller {
+  --tw-mask-near: 1;
+  --tw-mask-far: 1;
+  --tw-mask-edge: 1;
+  transition:
+    --tw-mask-near var(--dur-fade-out) var(--ease-out),
+    --tw-mask-far var(--dur-fade-out) var(--ease-out),
+    --tw-mask-edge var(--dur-fade-out) var(--ease-out);
+}
+
+/* Guide lines in the margins only — never across the text. */
+.bt-tw-guide {
+  position: absolute;
+  top: 50%;
+  width: var(--tw-guide-length);
+  height: 1px;
+  pointer-events: none;
+  opacity: var(--tw-guide-opacity);
+  display: none;
+  z-index: 1;
+}
+.bt-tw-guide-left { left: 0; background: linear-gradient(to right, var(--color-guide), transparent); }
+.bt-tw-guide-right { right: 0; background: linear-gradient(to left, var(--color-guide), transparent); }
+.bt-app[data-typewriter='true'] .bt-tw-guide { display: block; }
+
+/* In Manuscript mode the left guide starts after the tick spine. */
+.bt-app[data-mode='manuscript'] .bt-tw-guide-left { left: var(--spine-w); }

@@ -1,0 +1,134 @@
+/* Design tokens. Components reference these, never literal values.
+   Values from Figma "Baretext Design System" (Manuscript 2125:518,
+   Sprinter 2162:805). All spacing and sizes sit on a 4px grid. */
+
+@font-face { font-family: 'JetBrains Mono'; src: url('../fonts/jetbrains-mono-400-normal.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: block; }
+@font-face { font-family: 'JetBrains Mono'; src: url('../fonts/jetbrains-mono-400-italic.woff2') format('woff2'); font-weight: 400; font-style: italic; font-display: block; }
+@font-face { font-family: 'JetBrains Mono'; src: url('../fonts/jetbrains-mono-700-normal.woff2') format('woff2'); font-weight: 700; font-style: normal; font-display: block; }
+@font-face { font-family: 'JetBrains Mono'; src: url('../fonts/jetbrains-mono-700-italic.woff2') format('woff2'); font-weight: 700; font-style: italic; font-display: block; }
+
+:root {
+  /* spacing — 4px grid */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-24: 96px;
+
+  /* type */
+  --font-editor: 'JetBrains Mono', ui-monospace, monospace;
+  --font-ui: 'JetBrains Mono', ui-monospace, monospace;
+  --text-body: 15px;
+  --lh-body: 24px;
+  --text-chapter: 40px;
+  --lh-chapter: 64px;
+  --text-scene: 28px;
+  --lh-scene: 48px;
+  --tracking-title: 0.3px;
+  --text-ui: 11px;
+  --lh-ui: 24px;
+  --tracking-ui: 0.3px;
+  /* mono faces: headings never use synthesized or real bold */
+  --weight-heading: 400;
+
+  /* layout */
+  --measure: 500px;
+  --chrome-h: 36px;
+  --status-h: 32px;
+  --spine-w: 48px;
+  --spine-pad-left: 12px;
+  --gutter-gap: 24px;
+  --page-pad-top: 64px;
+
+  /* paragraphs (Format → Paragraph Spacing; set on #app) */
+  --paragraph-gap: var(--space-6);
+  --paragraph-indent: 0px;
+
+  /* margin numbers: the heading's own color at reduced opacity */
+  --number-opacity: 0.2;
+  --number-opacity-current: 0.45;
+
+  /* pause ornament: the scene ornament, toned down */
+  --pause-opacity: 0.55;
+
+  /* tick spine */
+  --tick-w: 12px;
+  --tick-w-current: 24px;
+  --tick-h: 2px;
+  --tick-pitch: 8px;
+  --tick-chapter-gap: 16px;
+
+  /* popovers (selection toolbar) */
+  --popover-radius: 8px;
+  --popover-pad: 4px;
+  --toolbar-button: 28px;
+  --toolbar-button-radius: 4px;
+  --toolbar-input-w: 240px;
+  --toolbar-sep-h: 16px;
+  --popover-enter-offset: 4px;
+
+  /* motion */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast: 120ms;
+  --dur-line: 140ms;
+  --dur-panel: 220ms;
+  /* typewriter fade: out when scrolling to read back, in when writing again */
+  --dur-fade-out: 320ms;
+  --dur-fade-in: 560ms;
+  /* spine indicator gliding between ticks; jumping to a scene */
+  --dur-glide: 240ms;
+  --dur-jump: 360ms;
+  /* gentler than --ease-out so the settle is visible, still quick off the mark */
+  --ease-jump: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
+
+  /* typewriter */
+  --tw-guide-length: 240px;
+  --tw-guide-opacity: 0.25;
+}
+
+[data-paragraph-spacing='half'] { --paragraph-gap: var(--space-3); }
+[data-paragraph-spacing='none'] { --paragraph-gap: 0px; --paragraph-indent: var(--space-6); }
+
+/* Dracula (matches the Figma frames) */
+:root,
+:root[data-theme='dracula'] {
+  --color-chrome: #1e1e1e;
+  --color-bg: #282a36;
+  --color-page: #21222c;
+  --color-text: #f8f8f2;
+  --color-text-dim: #97a1bf;
+  --color-text-dimmer: #91929b;
+  --color-border: #44475a;
+  --color-h1: #bd93f9;
+  --color-h2: #ff79c6;
+  --color-scene: #ff79c6;
+  --color-guide: #8be9fd;
+  --color-accent: #bd93f9;
+  --color-caret: #f8f8f2;
+  --color-selection: rgba(189, 147, 249, 0.28);
+  --color-danger: #ff5555;
+  --color-popover: #343746;
+  --color-popover-border: #44475a;
+  --color-popover-hover: rgba(248, 248, 242, 0.08);
+  --color-popover-active: rgba(189, 147, 249, 0.24);
+  --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.36), 0 2px 4px rgba(0, 0, 0, 0.24);
+  color-scheme: dark;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur-line: 0ms;
+    --dur-panel: 0ms;
+    --dur-fade-out: 0ms;
+    --dur-fade-in: 0ms;
+    --dur-glide: 0ms;
+    --dur-jump: 0ms;
+  }
+}

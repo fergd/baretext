@@ -1,0 +1,99 @@
+/* The tick spine: a minimal overview of the book at the left edge. */
+
+.bt-spine {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--spine-w);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  z-index: 2;
+  user-select: none;
+}
+.bt-spine-inner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--tick-chapter-gap);
+  max-height: 100%;
+  overflow-y: auto;
+  scrollbar-width: none;
+  padding: var(--space-6) 0;
+}
+.bt-spine-inner::-webkit-scrollbar { display: none; }
+
+.bt-spine-chapter { display: flex; flex-direction: column; }
+
+/* Each tick owns a full-width row: no dead gaps between targets. */
+.bt-tick {
+  display: flex;
+  align-items: center;
+  width: var(--spine-w);
+  height: var(--tick-pitch);
+  padding-left: var(--spine-pad-left);
+}
+.bt-tick::before {
+  content: '';
+  display: block;
+  width: var(--tick-w);
+  height: var(--tick-h);
+  background: var(--color-text-dimmer);
+  transition: width var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+}
+.bt-tick:hover::before { background: var(--color-text-dim); }
+
+/* The long tick: one bar that glides to the current tick. */
+.bt-spine-indicator {
+  position: absolute;
+  top: calc(var(--tick-h) / -2);
+  left: var(--spine-pad-left);
+  width: var(--tick-w-current);
+  height: var(--tick-h);
+  background: var(--color-text);
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    transform var(--dur-glide) var(--ease-out),
+    opacity var(--dur-fast) var(--ease-out);
+}
+.bt-spine-indicator[data-visible='true'] { opacity: 1; }
+.bt-spine-indicator[data-snap='true'] { transition: none; }
+
+.bt-spine-chapter[data-expanding='true'] .bt-tick { animation: bt-tick-in var(--dur-panel) var(--ease-out) both; }
+@keyframes bt-tick-in { from { opacity: 0; transform: translateY(-4px); } }
+
+.bt-spine-tip {
+  position: absolute;
+  left: calc(var(--spine-w) - var(--space-1));
+  padding: 0 var(--space-2);
+  border-radius: 6px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  font-size: var(--text-ui);
+  line-height: var(--lh-ui);
+  letter-spacing: var(--tracking-ui);
+  color: var(--color-text-dim);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-out);
+  z-index: 3;
+}
+.bt-spine-tip[data-visible='true'] { opacity: 1; }
+.bt-spine-tip .bt-tip-num { color: var(--color-text-dimmer); margin-right: var(--space-2); font-variant-numeric: tabular-nums; }
+
+/* Focus mode: the spine fades away and takes no clicks or hovers; it
+   returns when focus mode ends. (visibility flips after the fade out,
+   and immediately on the way back in.) */
+.bt-spine {
+  transition: opacity var(--dur-panel) var(--ease-out), visibility 0s linear 0s;
+}
+.bt-app[data-focus='true'] .bt-spine {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity var(--dur-panel) var(--ease-out), visibility 0s linear var(--dur-panel);
+}
+.bt-app[data-focus='true'] .bt-spine-tip { visibility: hidden; }
