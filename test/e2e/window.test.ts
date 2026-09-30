@@ -43,3 +43,45 @@ test('the title bar text is optically centered on the bar (level with the traffi
     await app.close();
   }
 });
+
+test('the breadcrumb keeps the writer’s own capitalization; only the book title is in capitals', async () => {
+  const src = '---\ntitle: Testing the Spirits\n---\n# Everything Is Great\n\n## The Stage Side Door\n\nText.\n';
+  const { app, page } = await launch({ file: { name: 'W.md', content: src } });
+  try {
+    await expect(page.locator('[data-ref="crumb"]')).toHaveText('Chapter 1 · Everything Is Great · The Stage Side Door');
+    expect(await page.$eval('[data-ref="crumb"]', (e) => getComputedStyle(e).textTransform)).toBe('none');
+    expect(await page.$eval('[data-ref="title"]', (e) => getComputedStyle(e).textTransform)).toBe('uppercase');
+  } finally {
+    await app.close();
+  }
+});
+
+test('status bar toggles are switches: Typewriter and Focus', async () => {
+  const { app, page } = await launch({ file: { name: 'W.md', content: '# One\n\nText.\n' } });
+  try {
+    const tw = page.getByRole('switch', { name: 'Typewriter' });
+    const focus = page.getByRole('switch', { name: 'Focus' });
+    await expect(tw).toHaveAttribute('aria-checked', 'false');
+    await expect(focus).toHaveAttribute('aria-checked', 'false');
+    await expect(tw.locator('.bt-switch')).toBeVisible();
+
+    await tw.click();
+    await expect(tw).toHaveAttribute('aria-checked', 'true');
+    expect(await page.$eval('.bt-app', (e) => (e as HTMLElement).dataset.typewriter)).toBe('true');
+    // The knob slides to the right when on.
+    const knobX = (sel: string) => page.$eval(sel, (e) => e.getBoundingClientRect().left);
+    await page.keyboard.press('Meta+Shift+t'); // the shortcut keeps the switch in step
+    await expect(tw).toHaveAttribute('aria-checked', 'false');
+    const off = await knobX('[data-ref="typewriter"] .bt-switch-knob');
+    await tw.click();
+    await page.waitForTimeout(300);
+    expect(await knobX('[data-ref="typewriter"] .bt-switch-knob')).toBeGreaterThan(off);
+
+    await focus.click();
+    expect(await page.$eval('.bt-app', (e) => (e as HTMLElement).dataset.focus)).toBe('true');
+    await page.keyboard.press('Escape'); // out of focus mode; the switch follows
+    await expect(focus).toHaveAttribute('aria-checked', 'false');
+  } finally {
+    await app.close();
+  }
+});

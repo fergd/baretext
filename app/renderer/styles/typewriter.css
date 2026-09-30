@@ -14,7 +14,8 @@
   padding-top: var(--tw-pad, 50vh);
   padding-bottom: var(--tw-pad, 50vh);
 }
-.bt-app[data-typewriter='true'] .bt-scroller {
+.bt-app[data-typewriter='true'] .bt-scroller,
+.bt-app[data-tw-fade='true'] .bt-scroller {
   --band: var(--tw-band, var(--lh-body));
   --edge: calc(50% - var(--band) / 2);
   --tw-mask-near: var(--tw-near);
@@ -48,6 +49,18 @@
 
 /* Reading back: manual scrolling eases the fade away until the next edit. */
 .bt-app[data-typewriter='true'][data-tw-relaxed='true'] .bt-scroller {
+  --tw-mask-near: 1;
+  --tw-mask-far: 1;
+  --tw-mask-edge: 1;
+  transition:
+    --tw-mask-near var(--dur-fade-out) var(--ease-out),
+    --tw-mask-far var(--dur-fade-out) var(--ease-out),
+    --tw-mask-edge var(--dur-fade-out) var(--ease-out);
+}
+
+/* Turning typewriter off: the fade eases away (the lights come back on)
+   while nothing moves; the mask is dropped once it has faded out. */
+.bt-app[data-typewriter='false'][data-tw-fade='true'] .bt-scroller {
   --tw-mask-near: 1;
   --tw-mask-far: 1;
   --tw-mask-edge: 1;

@@ -99,7 +99,8 @@ function refreshChrome() {
     $('words').textContent = `${numberFormat.format(outline.words)} ${outline.words === 1 ? 'word' : 'words'}`;
     $('title').textContent = state.doc.firstChild!.textContent || 'Untitled';
     $('crumb').textContent = here
-      ? `chapter ${here.chapter.number}${here.chapter.title ? ` · ${here.chapter.title.toLowerCase()}` : ''} · ${sceneDisplayName(here.scene).toLowerCase()}`
+      // Names exactly as the writer typed them (only the book title is set in capitals).
+      ? `Chapter ${here.chapter.number}${here.chapter.title ? ` · ${here.chapter.title}` : ''} · ${sceneDisplayName(here.scene)}`
       : '';
     spine.update(outline, here?.scene.id ?? null, here?.chapter.id ?? null);
   });
@@ -335,9 +336,28 @@ scroller.addEventListener('mousedown', (e) => {
 });
 
 // ── commands ──
+let twFadeTimer: number | undefined;
 function setTypewriter(on: boolean) {
+  const turningOff = typewriter.enabled && !on;
+  // Turning off: the caret's line stays exactly where it is on screen, even
+  // though the centering padding goes away; the fade eases out.
+  let anchor: number | null = null;
+  if (turningOff && view) {
+    try { anchor = view.coordsAtPos(view.state.selection.head).top; } catch { anchor = null; }
+  }
+  clearTimeout(twFadeTimer);
+  if (turningOff) {
+    app.dataset.twFade = 'true';
+    const ms = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dur-fade-out')) || 0;
+    twFadeTimer = window.setTimeout(() => { delete app.dataset.twFade; }, ms);
+  } else {
+    delete app.dataset.twFade;
+  }
   typewriter.setEnabled(on);
-  $('typewriter').dataset.on = String(on);
+  if (anchor !== null && view) {
+    scroller.scrollTop += view.coordsAtPos(view.state.selection.head).top - anchor;
+  }
+  $('typewriter').setAttribute('aria-checked', String(on));
 }
 function setParagraphSpacing(spacing: ParagraphSpacing) {
   app.dataset.paragraphSpacing = spacing;
@@ -346,6 +366,7 @@ function setParagraphSpacing(spacing: ParagraphSpacing) {
 }
 function setFocus(on: boolean) {
   app.dataset.focus = String(on);
+  $('focus').setAttribute('aria-checked', String(on));
 }
 
 function runCommand(command: MenuCommand) {
@@ -502,7 +523,10 @@ window.addEventListener('keydown', (e) => {
   setFocus(false);
 });
 
+// Status switches never take focus from the manuscript (the caret stays visible).
+for (const t of document.querySelectorAll<HTMLElement>('.bt-toggle')) t.addEventListener('mousedown', (e) => e.preventDefault());
 $('typewriter').addEventListener('click', () => runCommand('typewriter'));
+$('focus').addEventListener('click', () => runCommand('focus'));
 $('filename').addEventListener('click', () => filePath && bridge.revealInFinder(filePath));
 
 bridge.onMenu(runCommand);
@@ -513,7 +537,7 @@ bridge.onFlushRequest(() => saveNow());
 // ── start ──
 // Every launch starts in the default mode: typewriter and focus mode are
 // per-session and never restored (DECISIONS §8).
-app.dataset.focus = 'false';
+setFocus(false);
 setParagraphSpacing(bridge.initial.paragraphSpacing);
 setTypewriter(false);
 bridge.loadInitial().then(load, (e: Error) => toast(`Could not open the manuscript: ${e.message}`, 'error'));
@@ -577,6 +601,9 @@ window.__baretext = {
   filePath: () => filePath,
   toolbar: () => ({ visible: toolbar.visible, el: toolbar.el.getBoundingClientRect().toJSON() }),
   palette: () => ({ open: palette.isOpen, view: palette.current, timings: { ...palette.timings } }),
+  /** Where the caret's line is on screen (viewport y of its top). */
+  caretTop: () => (view ? view.coordsAtPos(view.state.selection.head).top : null),
+  hasFocus: () => (view ? view.hasFocus() : false),
   textBetween: (from: number, to: number) => (view ? view.state.doc.textBetween(from, to, '\n') : ''),
   history: () => ({ open: history.isOpen }),
   find: () => ({ open: find.isOpen, count: find.el.querySelector('.bt-find-count')!.textContent, ms: find.lastSearchMs }),

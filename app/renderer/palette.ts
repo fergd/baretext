@@ -157,10 +157,11 @@ export class Palette {
       label.textContent = item.label;
       row.append(label);
       if (item.state === 'on' || item.state === 'off') {
+        // On/off commands show a switch (the same one as the status bar).
         const s = document.createElement('span');
-        s.className = 'bt-palette-state';
-        s.dataset.state = item.state;
-        s.textContent = item.state;
+        s.className = 'bt-switch';
+        s.setAttribute('aria-hidden', 'true');
+        s.append(Object.assign(document.createElement('span'), { className: 'bt-switch-knob' }));
         row.append(s);
         row.setAttribute('aria-checked', String(item.state === 'on'));
       } else if (item.state === 'current') {

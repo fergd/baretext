@@ -30,6 +30,9 @@ export class Typewriter {
   }
 
   setEnabled(on: boolean) {
+    // Any line-advance motion belongs to the old layout.
+    this.anim?.cancel();
+    this.anim = null;
     this.enabled = on;
     this.app.dataset.typewriter = String(on);
     this.relax(false);

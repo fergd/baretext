@@ -80,7 +80,35 @@ button {
 .bt-status-group { display: flex; align-items: center; gap: var(--space-4); min-width: 0; }
 .bt-status button { height: var(--lh-ui); padding: 0 var(--space-1); border-radius: 4px; }
 .bt-status button:hover { color: var(--color-text-dim); }
-.bt-status [data-on='true'] { color: var(--color-text-dim); }
+
+/* ── switch: every on/off control uses it (status bar, palette) ── */
+.bt-toggle { display: inline-flex; align-items: center; gap: var(--space-2); }
+.bt-toggle[aria-checked='true'] { color: var(--color-text-dim); }
+.bt-switch {
+  position: relative;
+  flex: none;
+  width: var(--switch-w);
+  height: var(--switch-h);
+  border: 1px solid currentColor;
+  border-radius: var(--switch-h);
+  opacity: 0.8;
+  transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.bt-switch-knob {
+  position: absolute;
+  top: 50%;
+  left: var(--switch-pad);
+  width: var(--switch-knob);
+  height: var(--switch-knob);
+  border-radius: 50%;
+  background: currentColor;
+  translate: 0 -50%;
+  transition: left var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+}
+[aria-checked='true'] > .bt-switch,
+[aria-checked='true'] .bt-switch { background: var(--color-accent); border-color: var(--color-accent); opacity: 1; }
+[aria-checked='true'] > .bt-switch .bt-switch-knob,
+[aria-checked='true'] .bt-switch .bt-switch-knob { left: calc(100% - var(--switch-knob) - var(--switch-pad)); background: var(--color-switch-knob-on); }
 .bt-save-state[data-state='error'] { color: var(--color-danger); }
 
 /* Focus mode: the page alone. */

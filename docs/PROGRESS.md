@@ -207,3 +207,41 @@ themes/fonts · export/print · integrations (DECISIONS §7).
 - Tests: 102 unit, 46 end-to-end.
 - Not yet: deleting a manual snapshot from the panel (the store supports
   it); a snapshot before big structural deletes (no such command yet).
+
+## 2026-09-30 — Checkpoint (session handoff)
+**Since the snapshots entry**
+- Window size/position/zoom/full screen remembered; large centered default.
+- Title bar: text and traffic lights centered on the bar (user-confirmed);
+  breadcrumb keeps the writer's capitalization (only the book title in caps).
+- On/off controls are switches (status bar: Typewriter, Focus; palette
+  toggles). Palette rows are a grid so switches and shortcuts line up.
+- Bug fix: turning typewriter off no longer moves the text or hides the
+  caret; the fade eases out.
+
+**State**
+- Branch `rebuild`, everything committed. 107 unit, 54 end-to-end tests,
+  all passing. Fuzzer clean at 30,000 cases.
+- Run: `npm start`. Tests: `npx vitest run`, `npx playwright test`
+  (build first: `npm run build`). Deep fuzz: `FC_RUNS=30000 npx vitest run
+  packages/editor/test/fuzz.test.ts --testTimeout=600000`.
+- Samples: `samples/test-file.md`, `samples/lorem-ipsum-120k.md`
+  (regenerate: `python3 scripts/gen-lorem.py`). Work only inside this
+  project; the user's real manuscripts are never used for testing.
+
+**Working agreements (from this session)**
+- User reviews by screenshot and feel; small, precise UI requests.
+- Bug fix = failing test first; verify in the real hidden app; screenshots
+  for anything visual; record decisions in DECISIONS.md.
+- Commit only when asked; branch `rebuild`.
+
+**Open**
+- Deleting a snapshot from the History panel (store supports it).
+- Find's Aa / ab are pressed-state buttons, not switches (user may want
+  switches).
+- Book title and breadcrumb sit close together (offered a wider gap or ·).
+- Dictation not verified by a person.
+
+**Next (proposed order)**
+Outline peek/pin (⌘\) · Sprinter mode + sprint timer · corkboard ·
+cold storage UI · notes · themes/fonts · export/print · integrations
+(DECISIONS §7).

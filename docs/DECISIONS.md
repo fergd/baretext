@@ -337,6 +337,19 @@ Build the main app first. When integrations are built, follow this design.
   ≤ 2.1 ms, keystroke ≤ 0.9 ms.
 - **⌘K is the command palette** (spec §7.3). Link has no shortcut: selection
   toolbar button or Format → Link….
+- **On/off controls are switches** (2026-09-30, user direction): an
+  outlined pill with a sliding knob before the label, filled with the
+  accent when on (`.bt-switch`, tokens `--switch-*`), `role="switch"` /
+  `aria-checked`. Used by the status bar (Typewriter, Focus) and the
+  palette's toggle commands. Find's Aa / ab stay pressed-state buttons
+  (toolbar options). Breadcrumb names keep the writer's capitalization;
+  only the book title is set in capitals.
+- **Turning typewriter off moves nothing** (2026-09-30, bug fix): the
+  caret's line keeps its place on screen (scroll compensates for the
+  removed centering padding), focus stays in the manuscript (status
+  switches never take focus), and the fade eases out before the mask is
+  dropped. Palette rows are a grid: label | switch/✓ column | shortcut
+  column, so controls line up.
 - **Title bar alignment** (2026-09-30): traffic lights at (12, 11) so they
   center on the 36px bar's midline; title text shifted down 1px
   (`--chrome-optical-offset`) so its capitals center there too (measured

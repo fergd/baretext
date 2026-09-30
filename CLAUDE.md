@@ -5,6 +5,8 @@ Distraction-free macOS writing app for long-form fiction. Fresh build.
 Read before working:
 1. `docs/AGENT_SPEC.md` — product spec and rules (read §0 first).
 2. `docs/DECISIONS.md` — settled decisions; **overrides the spec where marked**.
+3. `docs/PROGRESS.md` — what's built, verified and open; read the latest
+   checkpoint at the end first.
 
 Key rules (details in the docs above):
 - Protect the manuscript above all. Nothing may silently lose or corrupt text.

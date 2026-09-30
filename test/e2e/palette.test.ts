@@ -18,7 +18,9 @@ test('opens instantly: typing right after ⌘K goes to the palette, never the ma
     expect(await page.inputValue('.bt-palette-input')).toBe('type');
     expect(JSON.stringify(await model(page))).toBe(before);
     expect(await activeLabel(page)).toBe('Typewriter mode');
-    await expect(page.locator('.bt-palette-row[aria-selected="true"] .bt-palette-state')).toHaveText('off');
+    // Toggles show a switch, not "on"/"off" text.
+    await expect(page.locator('.bt-palette-row[aria-selected="true"] .bt-switch')).toBeVisible();
+    await expect(page.locator('.bt-palette-row[aria-selected="true"]')).toHaveAttribute('aria-checked', 'false');
 
     await page.keyboard.press('Enter');
     expect((await state(page)).open).toBe(false);
@@ -28,7 +30,7 @@ test('opens instantly: typing right after ⌘K goes to the palette, never the ma
     // The toggle now shows its state.
     await page.keyboard.press('Meta+k');
     await page.keyboard.type('typew');
-    await expect(page.locator('.bt-palette-row[aria-selected="true"] .bt-palette-state')).toHaveText('on');
+    await expect(page.locator('.bt-palette-row[aria-selected="true"]')).toHaveAttribute('aria-checked', 'true');
   } finally {
     await app.close();
   }
@@ -157,6 +159,20 @@ test('paragraph spacing: one command opens its choices, current one ticked', asy
     await page.keyboard.press('Enter');
     expect(await page.$eval('.bt-app', (e) => (e as HTMLElement).dataset.paragraphSpacing)).toBe('half');
     expect(await editorFocused(page)).toBe(true);
+  } finally {
+    await app.close();
+  }
+});
+
+test('palette controls sit in columns: switches line up, shortcuts line up', async () => {
+  const { app, page } = await launch({ file: { name: 'P.md', content: FILE } });
+  try {
+    await page.keyboard.press('Meta+k');
+    const switches = await page.$$eval('.bt-palette-row .bt-switch', (els) => els.map((e) => Math.round(e.getBoundingClientRect().left)));
+    expect(switches.length).toBeGreaterThanOrEqual(2);
+    expect(new Set(switches).size).toBe(1);
+    const keys = await page.$$eval('.bt-palette-row .bt-palette-keys', (els) => els.map((e) => Math.round(e.getBoundingClientRect().right)));
+    expect(new Set(keys).size).toBe(1);
   } finally {
     await app.close();
   }

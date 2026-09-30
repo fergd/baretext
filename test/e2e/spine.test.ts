@@ -38,7 +38,7 @@ test('scrolling by hand moves the long tick to the scene being read; writing han
     for (let i = 0; i < 12; i++) await page.mouse.wheel(0, 600);
     await expect.poll(() => currentTick(page)).not.toBe('1.1 Scene 1.1');
     const reading = await currentTick(page);
-    expect(await crumb(page)).toContain(reading!.split(' ').slice(1).join(' ').toLowerCase());
+    expect(await crumb(page)).toContain(reading!.split(' ').slice(1).join(' '));
     // The caret never moved.
     const first = (await model(page)).chapters[0].scenes[0].id;
     expect(await page.evaluate(() => (window as any).__baretext.currentScene())).toBe(first);

@@ -82,6 +82,8 @@
   --palette-row-h: 32px;
   --text-palette: 13px;
   --text-palette-input: 15px;
+  --palette-state-w: 24px;
+  --palette-keys-w: 40px;
 
   /* find & replace */
   --find-w: 440px;
@@ -94,6 +96,12 @@
   --history-list-w: 280px;
   --history-label-w: 180px;
   --lh-preview: 20px;
+
+  /* switch (on/off controls) */
+  --switch-w: 20px;
+  --switch-h: 12px;
+  --switch-knob: 6px;
+  --switch-pad: 2px;
 
   /* motion */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
@@ -138,6 +146,7 @@
   --color-danger: #ff5555;
   --color-popover: #343746;
   --color-scrim: rgba(0, 0, 0, 0.24);
+  --color-switch-knob-on: #21222c;
   --color-palette-item: rgba(248, 248, 242, 0.86);
   --color-palette-divider: rgba(248, 248, 242, 0.08);
   --color-find-field: rgba(0, 0, 0, 0.16);
