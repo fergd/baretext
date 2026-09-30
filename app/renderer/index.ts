@@ -4,7 +4,11 @@ import { Decoration, DecorationSet, EditorView } from 'prosemirror-view';
 import {
   createManuscriptState,
   docToModel,
+  hasFormattableText,
   insertSectionBreak,
+  nameScene,
+  nameSceneAt,
+  sceneDepth,
   schema,
   splitScene,
   toggleBold,
@@ -14,6 +18,7 @@ import {
 import type { BaretextBridge, MenuCommand, OpenedDocument, ParagraphSpacing } from '../shared/bridge';
 import { currentScene, outlineOf, sceneAt, sceneDisplayName } from './outline';
 import { Spine } from './spine';
+import { Palette, type PaletteItem, type PaletteView } from './palette';
 import { SelectionToolbar } from './toolbar';
 import { Typewriter } from './typewriter';
 
@@ -274,6 +279,16 @@ scroller.addEventListener('mousedown', (e) => {
   if (!view || e.button !== 0) return;
   // The scrollbar: a hand scroll, never a caret placement.
   if (e.target === scroller && e.offsetX >= scroller.clientWidth) { startReading(); return; }
+  // An unnamed scene's ornament: name that scene.
+  const boundary = (e.target as HTMLElement).closest('.bt-scene-boundary');
+  if (boundary) {
+    e.preventDefault();
+    const $at = view.state.doc.resolve(view.posAtDOM(boundary, 0));
+    const d = sceneDepth($at);
+    if (d >= 0) nameSceneAt($at.before(d))(view.state, view.dispatch);
+    view.focus();
+    return;
+  }
   const target = e.target as HTMLElement;
   const inText = target.closest('.ProseMirror p, .ProseMirror h1, .ProseMirror h2, .ProseMirror h3, .ProseMirror blockquote');
   if (inText && !target.closest('[contenteditable="false"]')) return;
@@ -315,12 +330,100 @@ function runCommand(command: MenuCommand) {
     case 'italic': run(toggleItalic); break;
     case 'split-scene': run(splitScene); break;
     case 'pause': run(insertSectionBreak); break;
+    case 'name-scene': run(nameScene); break;
     case 'quote': run(toggleQuote); break;
     case 'link': toolbar.openLink(); break;
     case 'typewriter': setTypewriter(!typewriter.enabled); break;
     case 'focus': setFocus(app.dataset.focus !== 'true'); break;
     case 'save': void saveNow().then((ok) => ok && toast('Saved')); break;
+    case 'palette': togglePalette(commandsView()); break;
+    case 'goto': togglePalette(jumpView()); break;
   }
+}
+
+// ── command palette (⌘K) and jump (⌘⇧O) ──
+// Targeted: only what exists and applies right now. Features add their
+// commands here as they are built.
+const palette = new Palette(document.body);
+
+const SPACINGS: [ParagraphSpacing, string][] = [['full', 'Full line'], ['half', 'Half line'], ['none', 'None, indent first lines']];
+
+function commandsView(): PaletteView {
+  return {
+    name: 'commands',
+    placeholder: 'Type a command',
+    items: () => {
+      const selection = view ? hasFormattableText(view.state) : false;
+      const items: PaletteItem[] = [
+        { id: 'goto', group: 'Navigate', label: 'Go to chapter or scene…', keywords: 'jump navigate find', keys: '⌘⇧O', keepOpen: true, run: () => palette.open(jumpView()) },
+        { id: 'scene-break', group: 'Insert', label: 'Scene break', keywords: 'split new scene', keys: '⌘↵', run: () => runCommand('split-scene') },
+        { id: 'pause', group: 'Insert', label: 'Pause', keywords: 'section break within scene', keys: '⌘⇧↵', run: () => runCommand('pause') },
+      ];
+      const here = view ? currentScene(view.state) : null;
+      if (here) {
+        items.push({ id: 'name-scene', group: 'Insert', label: here.scene.name ? 'Rename scene' : 'Name scene', keywords: 'title heading rename scene name', run: () => runCommand('name-scene') });
+      }
+      if (selection) {
+        items.push(
+          { id: 'bold', group: 'Format', label: 'Bold', keys: '⌘B', run: () => runCommand('bold') },
+          { id: 'italic', group: 'Format', label: 'Italic', keys: '⌘I', run: () => runCommand('italic') },
+          { id: 'quote', group: 'Format', label: 'Quote', keywords: 'epigraph blockquote', run: () => runCommand('quote') },
+          { id: 'link', group: 'Format', label: 'Link…', keywords: 'url web address', run: () => runCommand('link') },
+        );
+      }
+      items.push(
+        { id: 'typewriter', group: 'View', label: 'Typewriter mode', keywords: 'center line', keys: '⌘⇧T', state: typewriter.enabled ? 'on' : 'off', run: () => runCommand('typewriter') },
+        { id: 'focus', group: 'View', label: 'Focus mode', keywords: 'hide chrome distraction quiet', keys: '⌘.', state: app.dataset.focus === 'true' ? 'on' : 'off', run: () => runCommand('focus') },
+        ...SPACINGS.map(([value, text]): PaletteItem => ({
+          id: `spacing-${value}`, group: 'View', label: `Paragraph spacing: ${text}`, keywords: 'gap indent',
+          state: app.dataset.paragraphSpacing === value ? 'current' : undefined,
+          run: () => { setParagraphSpacing(value); bridge.setPrefs({ paragraphSpacing: value }); },
+        })),
+        { id: 'new', group: 'File', label: 'New manuscript', keywords: 'create file', keys: '⌘N', run: () => bridge.fileCommand('new') },
+        { id: 'open', group: 'File', label: 'Open…', keywords: 'file', keys: '⌘O', run: () => bridge.fileCommand('open') },
+        { id: 'save', group: 'File', label: 'Save', keys: '⌘S', run: () => runCommand('save') },
+        { id: 'reveal', group: 'File', label: 'Reveal in Finder', keywords: 'show file folder', run: () => { if (filePath) bridge.revealInFinder(filePath); } },
+      );
+      return items;
+    },
+  };
+}
+
+function jumpView(): PaletteView {
+  const doc = view?.state.doc;
+  const here = view ? currentScene(view.state) : null;
+  return {
+    name: 'jump',
+    placeholder: 'Go to chapter or scene',
+    initialId: here ? `scene-${here.scene.id}` : null,
+    back: commandsView,
+    items: () => {
+      if (!doc) return [];
+      const items: PaletteItem[] = [];
+      for (const chapter of outlineOf(doc).chapters) {
+        const title = chapter.title || 'Untitled';
+        const first = chapter.scenes[0];
+        items.push({
+          id: `chapter-${chapter.id}`, group: 'Chapters', label: `${chapter.number} ${title}`,
+          run: () => { if (first) navigate(first.id); },
+        });
+        for (const scene of chapter.scenes) {
+          items.push({
+            id: `scene-${scene.id}`, group: 'Chapters', label: `${scene.label} ${sceneDisplayName(scene)}`,
+            keywords: title, depth: 1, state: scene.id === here?.scene.id ? 'current' : undefined,
+            run: () => navigate(scene.id),
+          });
+        }
+      }
+      return items;
+    },
+  };
+}
+
+/** A palette key closes its own view, switches from the other, or opens. */
+function togglePalette(next: PaletteView) {
+  if (palette.current === next.name) { palette.close(); return; }
+  palette.open(next, () => view?.focus());
 }
 
 const NAV_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End']);
@@ -331,6 +434,8 @@ window.addEventListener('keydown', (e) => {
   if (k === 's' && !e.shiftKey) { e.preventDefault(); runCommand('save'); }
   else if (k === 't' && e.shiftKey) { e.preventDefault(); runCommand('typewriter'); }
   else if (e.key === '.' && !e.shiftKey) { e.preventDefault(); runCommand('focus'); }
+  else if (k === 'k' && !e.shiftKey) { e.preventDefault(); runCommand('palette'); }
+  else if (k === 'o' && e.shiftKey) { e.preventDefault(); runCommand('goto'); }
 }, true);
 
 // Esc steps out one layer at a time: anything open (toolbar, link field,
@@ -359,6 +464,22 @@ setParagraphSpacing(bridge.initial.paragraphSpacing);
 setTypewriter(false);
 bridge.loadInitial().then(load, (e: Error) => toast(`Could not open the manuscript: ${e.message}`, 'error'));
 
+function selectText(text: string, collapseToEnd: boolean): boolean {
+  if (!view) return false;
+  let from = -1;
+  view.state.doc.descendants((node, p) => {
+    if (from >= 0) return false;
+    const i = node.isText ? node.text!.indexOf(text) : -1;
+    if (i >= 0) from = p + i;
+    return from < 0;
+  });
+  if (from < 0) return false;
+  const to = from + text.length;
+  view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, collapseToEnd ? to : from, to)));
+  view.focus();
+  return true;
+}
+
 // Read-only hooks for end-to-end tests (assert on model state, not DOM).
 window.__baretext = {
   model: () => (view ? docToModel(view.state.doc) : null),
@@ -377,22 +498,12 @@ window.__baretext = {
     return !!sel;
   },
   /** Place the caret right after the first occurrence of `text` in the prose. */
-  caretAfter: (text: string) => {
-    if (!view) return false;
-    let pos = -1;
-    view.state.doc.descendants((node, p) => {
-      if (pos >= 0) return false;
-      const i = node.isText ? node.text!.indexOf(text) : -1;
-      if (i >= 0) pos = p + i + text.length;
-      return pos < 0;
-    });
-    if (pos < 0) return false;
-    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, pos)));
-    view.focus();
-    return true;
-  },
+  caretAfter: (text: string) => selectText(text, true),
+  /** Select the first occurrence of `text` in the prose. */
+  selectText: (text: string) => selectText(text, false),
   saveNow,
   isSaved: () => (view ? view.state.doc === savedDoc : true),
   filePath: () => filePath,
   toolbar: () => ({ visible: toolbar.visible, el: toolbar.el.getBoundingClientRect().toJSON() }),
+  palette: () => ({ open: palette.isOpen, view: palette.current, timings: { ...palette.timings } }),
 };

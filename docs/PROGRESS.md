@@ -131,3 +131,17 @@ DECISIONS.md).
 Command palette (⌘K) · naming/renaming scenes · outline peek/pin ·
 Sprinter + sprint timer · snapshots · corkboard · cold storage UI · notes ·
 find/replace · themes/fonts · export/print · integrations (DECISIONS §7).
+
+## 2026-09-29 — Command palette and scene naming
+- Command palette (⌘K) with Go to chapter or scene (⌘⇧O): targeted command
+  set, fast fuzzy search, measured open ≤ 2.1 ms and keystroke ≤ 0.9 ms on
+  120k words. `app/renderer/palette.ts`, `app/renderer/fuzzy.ts`.
+- Scene naming: click an unnamed scene's ornament, Format → Name Scene, or
+  the palette (Name/Rename scene); empty names go away on Backspace or when
+  left. Commands in `packages/editor/src/commands.ts`, drop rule in
+  `packages/editor/src/naming.ts`.
+- Fuzzer caught two naming bugs before they shipped (a larger deletion
+  could drop a name; undo depended on timing) — both fixed.
+- Tests: 81 unit, 31 E2E.
+- Open: the first scene of a chapter has no ornament to click when unnamed
+  (name it from the palette or menu).

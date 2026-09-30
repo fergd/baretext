@@ -16,6 +16,7 @@ import {
   flattenPastedSlice,
   forwardDelete,
   insertSectionBreak,
+  nameScene,
   removeLink,
   setLink,
   splitScene,
@@ -31,7 +32,7 @@ type Op =
   | { kind: 'cursor'; at: number }
   | { kind: 'select'; a: number; b: number }
   | { kind: 'type'; text: string }
-  | { kind: 'enter' | 'backspace' | 'delete' | 'bold' | 'italic' | 'quote' | 'link' | 'unlink' | 'pause' | 'split' | 'undo' | 'redo' }
+  | { kind: 'enter' | 'backspace' | 'delete' | 'bold' | 'italic' | 'quote' | 'link' | 'unlink' | 'pause' | 'name' | 'split' | 'undo' | 'redo' }
   | { kind: 'paste'; a: number; b: number }
   | { kind: 'raw'; a: number; b: number; text: string };
 
@@ -41,7 +42,7 @@ const op: fc.Arbitrary<Op> = fc.oneof(
   { weight: 2, arbitrary: fc.tuple(unit, unit).map(([a, b]): Op => ({ kind: 'select', a, b })) },
   { weight: 4, arbitrary: fc.constantFrom('a', 'word ', '*', '#', '-', '\n', '—', '漢').map((text): Op => ({ kind: 'type', text })) },
   { weight: 2, arbitrary: fc.constantFrom<Op>({ kind: 'enter' }, { kind: 'backspace' }, { kind: 'delete' }) },
-  { weight: 1, arbitrary: fc.constantFrom<Op>({ kind: 'bold' }, { kind: 'italic' }, { kind: 'quote' }, { kind: 'link' }, { kind: 'unlink' }, { kind: 'pause' }, { kind: 'split' }, { kind: 'undo' }, { kind: 'redo' }) },
+  { weight: 1, arbitrary: fc.constantFrom<Op>({ kind: 'bold' }, { kind: 'italic' }, { kind: 'quote' }, { kind: 'link' }, { kind: 'unlink' }, { kind: 'pause' }, { kind: 'name' }, { kind: 'split' }, { kind: 'undo' }, { kind: 'redo' }) },
   { weight: 1, arbitrary: fc.tuple(unit, unit).map(([a, b]): Op => ({ kind: 'paste', a, b })) },
   { weight: 1, arbitrary: fc.tuple(unit, unit, fc.constantFrom('', 'x')).map(([a, b, text]): Op => ({ kind: 'raw', a, b, text })) },
 );
@@ -75,7 +76,10 @@ describe('editing fuzzer', () => {
 
         for (const o of ops) {
           const sigBefore = h.signature();
-          let structural = false;
+          // Leaving a scene name that is already empty drops it (by design);
+          // otherwise ordinary edits never change structure.
+          const $was = h.state.selection.$head;
+          let structural = $was.parent.type.name === 'scene_heading' && $was.parent.content.size === 0;
           switch (o.kind) {
             case 'cursor':
               h.state = h.state.apply(h.state.tr.setSelection(Selection.near(h.state.doc.resolve(posAt(h.state, o.at)))));
@@ -98,6 +102,7 @@ describe('editing fuzzer', () => {
             case 'link': h.run(setLink('example.com')); break;
             case 'unlink': h.run(removeLink); break;
             case 'pause': h.run(insertSectionBreak); break;
+            case 'name': h.run(nameScene); structural = true; break;
             case 'split': h.run(splitScene); structural = true; break;
             case 'undo': h.run(undo); structural = true; break;
             case 'redo': h.run(redo); structural = true; break;

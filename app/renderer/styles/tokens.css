@@ -72,6 +72,15 @@
   --toolbar-sep-h: 16px;
   --popover-enter-offset: 4px;
 
+  /* command palette */
+  --palette-top: 96px;
+  --palette-w: 560px;
+  --palette-max-h: 440px;
+  --palette-input-h: 48px;
+  --palette-row-h: 32px;
+  --text-palette: 13px;
+  --text-palette-input: 15px;
+
   /* motion */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --dur-fast: 120ms;
@@ -114,6 +123,7 @@
   --color-selection: rgba(189, 147, 249, 0.28);
   --color-danger: #ff5555;
   --color-popover: #343746;
+  --color-scrim: rgba(0, 0, 0, 0.24);
   --color-popover-border: #44475a;
   --color-popover-hover: rgba(248, 248, 242, 0.08);
   --color-popover-active: rgba(189, 147, 249, 0.24);

@@ -25,7 +25,7 @@ export interface InitialPrefs {
 }
 
 export type MenuCommand =
-  | 'undo' | 'redo' | 'typewriter' | 'focus' | 'bold' | 'italic' | 'link' | 'quote' | 'split-scene' | 'pause' | 'save';
+  | 'undo' | 'redo' | 'typewriter' | 'focus' | 'bold' | 'italic' | 'link' | 'quote' | 'split-scene' | 'pause' | 'name-scene' | 'save' | 'palette' | 'goto';
 
 export interface BaretextBridge {
   initial: InitialPrefs;
@@ -33,6 +33,8 @@ export interface BaretextBridge {
   save(filePath: string, manuscript: Manuscript, caret: number): Promise<SaveResult>;
   setPrefs(patch: Partial<Omit<InitialPrefs, 'hidden'>>): void;
   revealInFinder(filePath: string): void;
+  /** File commands the main process owns (they may show a dialog or switch documents). */
+  fileCommand(command: 'new' | 'open'): void;
   onMenu(cb: (command: MenuCommand) => void): void;
   /** Main changed a formatting preference (from the native menu). */
   onParagraphSpacing(cb: (spacing: ParagraphSpacing) => void): void;
@@ -47,6 +49,7 @@ export const CHANNELS = {
   opened: 'doc:opened',
   setPrefs: 'prefs:set',
   reveal: 'shell:reveal',
+  fileCommand: 'file:command',
   menu: 'menu:command',
   paragraphSpacing: 'prefs:paragraph-spacing',
   flush: 'app:flush',

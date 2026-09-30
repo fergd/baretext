@@ -117,6 +117,7 @@
 /* ── scene boundary (unnamed scene) ── */
 .bt-scene-boundary {
   position: relative;
+  cursor: pointer; /* click to name the scene */
   height: var(--lh-body);
   margin-top: var(--space-6);
   user-select: none;

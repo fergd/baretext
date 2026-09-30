@@ -206,7 +206,52 @@ export const enter: Command = (state, dispatch) => {
   return true;
 };
 
-export const backspace: Command = chainCommands(undoInputRule, safeDeleteSelection, backspaceAtBoundary, joinBackward, swallowAtEdge(-1));
+// ───────────────────────────── scene names ─────────────────────────────
+
+/**
+ * Name the scene at `scenePos` (a scene inside a chapter). An unnamed scene
+ * gets an empty name with the caret in it; a named one has its name
+ * selected, ready to retype (rename).
+ */
+export const nameSceneAt = (scenePos: number): Command => (state, dispatch) => {
+  const scene = state.doc.nodeAt(scenePos);
+  if (!scene || scene.type !== schema.nodes.scene) return false;
+  if (state.doc.resolve(scenePos).parent.type !== schema.nodes.chapter) return false; // never in cold storage
+  if (!dispatch) return true;
+  const heading = scene.firstChild?.type === schema.nodes.scene_heading ? scene.firstChild : null;
+  const tr = state.tr;
+  if (heading) {
+    tr.setSelection(TextSelection.create(tr.doc, scenePos + 2, scenePos + 2 + heading.content.size));
+  } else {
+    tr.insert(scenePos + 1, schema.nodes.scene_heading!.create());
+    tr.setSelection(TextSelection.create(tr.doc, scenePos + 2));
+    markStructural(tr);
+  }
+  dispatch(tr.scrollIntoView());
+  return true;
+};
+
+/** Name (or rename) the scene holding the caret. */
+export const nameScene: Command = (state, dispatch) => {
+  const $h = state.selection.$head;
+  const d = sceneDepth($h);
+  return d < 0 ? false : nameSceneAt($h.before(d))(state, dispatch);
+};
+
+/** Backspace in an empty scene name: the scene becomes unnamed again. */
+export const removeEmptySceneName: Command = (state, dispatch) => {
+  const $c = cursor(state);
+  if (!$c || $c.parent.type !== schema.nodes.scene_heading || $c.parent.content.size > 0) return false;
+  if (dispatch) {
+    const tr = state.tr.delete($c.before(), $c.after());
+    const $scene = tr.doc.resolve(tr.mapping.map($c.before()));
+    tr.setSelection(Selection.findFrom($scene, 1, true) ?? Selection.near($scene));
+    dispatch(markStructural(tr).scrollIntoView());
+  }
+  return true;
+};
+
+export const backspace: Command = chainCommands(undoInputRule, safeDeleteSelection, removeEmptySceneName, backspaceAtBoundary, joinBackward, swallowAtEdge(-1));
 export const forwardDelete: Command = chainCommands(safeDeleteSelection, deleteAtBoundary, joinForward, swallowAtEdge(1));
 
 /**

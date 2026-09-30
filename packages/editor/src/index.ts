@@ -22,6 +22,7 @@ import { modelToDoc } from './convert';
 import { structureDecorations, type Placeholders } from './decorations';
 import { lineBreakSanitizer, selectionOutsideColdStorage } from './sanitize';
 import { structureGuard, type GuardOptions } from './structure';
+import { dropEmptySceneNames } from './naming';
 
 export * from './schema';
 export * from './convert';
@@ -79,6 +80,7 @@ export function manuscriptPlugins(options: EditorOptions = {}): Plugin[] {
     structureGuard(options),
     lineBreakSanitizer(),
     selectionOutsideColdStorage(),
+    dropEmptySceneNames(),
     inputRules({ rules: [emDash] }),
     safeReplace,
     keymap({

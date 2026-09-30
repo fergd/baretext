@@ -281,6 +281,26 @@ Build the main app first. When integrations are built, follow this design.
   and renumber live. The pause ornament is the scene ornament's quieter
   sibling: short lines and a small ring, in the scene color at reduced
   opacity (`--pause-opacity`).
+- **Naming scenes (2026-09-29):** click an unnamed scene's ornament
+  (tooltip "Name scene"), or Format → Name Scene, or the palette ("Name
+  scene" / "Rename scene"). Unnamed → an empty name with the caret in it
+  ("Untitled" placeholder); named → the name is selected to retype. Enter
+  moves to the scene's first line. Backspace in an empty name makes the
+  scene unnamed again. Leaving a name that is already empty drops it (not an
+  undo step — it holds no text, and undo never resurrects it); a name
+  emptied by a larger edit is kept. Never in cold storage or titles.
+- **Command palette built (2026-09-29).** Targeted, not exhaustive: only
+  commands that exist and apply now (Format appears only with a selection).
+  Groups: Navigate, Insert, Format, View, File (Mode/Theme/AI/Backup join
+  when those features exist). Toggles show on/off; choices show ✓. Search:
+  every word must match; label before keywords; prefix > word start >
+  anywhere > letters in order; numbers match exactly. **Go to chapter or
+  scene** (⌘⇧O, or from the palette) is a view of the same palette: current
+  scene marked and preselected, Backspace on empty returns to commands.
+  Performance rules (the previous app's palette lagged): input focused
+  synchronously on open; rows built once per opening, typing only re-ranks;
+  one delegated listener; no backdrop blur. Measured on 120k words: open
+  ≤ 2.1 ms, keystroke ≤ 0.9 ms.
 - **⌘K is the command palette** (spec §7.3). Link has no shortcut: selection
   toolbar button or Format → Link….
 - **Development documents live in the project's `samples/` folder**

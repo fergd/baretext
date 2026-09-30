@@ -1,0 +1,108 @@
+/* Command palette: a solid panel (no backdrop blur — it is what made the
+   previous app's palette lag) that opens with a quick fade and scale. */
+
+.bt-palette-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 29;
+  background: var(--color-scrim);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+.bt-palette-scrim[data-open='true'] { opacity: 1; pointer-events: auto; }
+
+.bt-palette {
+  position: fixed;
+  top: var(--palette-top);
+  left: 50%;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  width: min(var(--palette-w), calc(100vw - 2 * var(--space-4)));
+  max-height: var(--palette-max-h);
+  translate: -50% 0;
+  background: var(--color-popover);
+  border: 1px solid var(--color-popover-border);
+  border-radius: var(--popover-radius);
+  box-shadow: var(--shadow-popover);
+  font-family: var(--font-ui);
+  font-size: var(--text-palette);
+  letter-spacing: var(--tracking-ui);
+  color: var(--color-text-dim);
+  overflow: hidden;
+  opacity: 0;
+  scale: 0.98;
+  visibility: hidden;
+  transition:
+    opacity var(--dur-fast) var(--ease-out),
+    scale var(--dur-fast) var(--ease-out),
+    visibility 0s linear var(--dur-fast);
+}
+.bt-palette[data-open='true'] {
+  opacity: 1;
+  scale: 1;
+  visibility: visible;
+  transition: opacity var(--dur-fast) var(--ease-out), scale var(--dur-fast) var(--ease-out), visibility 0s;
+}
+
+.bt-palette-input {
+  flex: none;
+  height: var(--palette-input-h);
+  padding: 0 var(--space-4);
+  border: 0;
+  border-bottom: 1px solid var(--color-popover-border);
+  background: transparent;
+  font: inherit;
+  font-size: var(--text-palette-input);
+  color: var(--color-text);
+  outline: none;
+}
+.bt-palette-input::placeholder { color: var(--color-text-dimmer); }
+
+.bt-palette-list {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-1);
+  scrollbar-width: thin;
+}
+
+.bt-palette-group {
+  padding: var(--space-2) var(--space-3) var(--space-1);
+  font-size: var(--text-ui);
+  line-height: var(--lh-ui);
+  color: var(--color-text-dimmer);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.bt-palette-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: var(--palette-row-h);
+  padding: 0 var(--space-3);
+  border-radius: var(--toolbar-button-radius);
+  cursor: default;
+  white-space: nowrap;
+}
+.bt-palette-row[data-depth='1'] { padding-left: var(--space-8); }
+.bt-palette-row[aria-selected='true'] { background: var(--color-popover-hover); color: var(--color-text); }
+
+.bt-palette-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+.bt-palette-keys {
+  font: inherit;
+  font-size: var(--text-ui);
+  color: var(--color-text-dimmer);
+  font-variant-numeric: tabular-nums;
+}
+.bt-palette-state { font-size: var(--text-ui); color: var(--color-text-dimmer); }
+.bt-palette-state[data-state='on'] { color: var(--color-accent); }
+.bt-palette-check { color: var(--color-accent); }
+
+.bt-palette-empty {
+  padding: var(--space-4);
+  color: var(--color-text-dimmer);
+}
+.bt-palette-empty[hidden] { display: none; }

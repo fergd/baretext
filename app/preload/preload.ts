@@ -19,6 +19,7 @@ const bridge: BaretextBridge = {
   save: (filePath: string, manuscript: Manuscript, caret: number) => ipcRenderer.invoke(CHANNELS.save, filePath, manuscript, caret),
   setPrefs: (patch) => ipcRenderer.send(CHANNELS.setPrefs, patch),
   revealInFinder: (filePath: string) => ipcRenderer.send(CHANNELS.reveal, filePath),
+  fileCommand: (command) => ipcRenderer.send(CHANNELS.fileCommand, command),
   onMenu: (cb) => { ipcRenderer.on(CHANNELS.menu, (_e, command: MenuCommand) => cb(command)); },
   onParagraphSpacing: (cb) => { ipcRenderer.on(CHANNELS.paragraphSpacing, (_e, spacing: ParagraphSpacing) => cb(spacing)); },
   onDocumentOpened: (cb) => { ipcRenderer.on(CHANNELS.opened, (_e, doc: OpenedDocument) => cb(doc)); },

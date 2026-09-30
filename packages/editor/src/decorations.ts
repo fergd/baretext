@@ -22,6 +22,7 @@ function sceneBoundaryWidget(label: string): HTMLElement {
   el.className = 'bt-scene-boundary';
   el.contentEditable = 'false';
   el.setAttribute('aria-hidden', 'true');
+  el.title = 'Name scene'; // clicking it names the scene (renderer)
   const num = document.createElement('span');
   num.className = 'bt-num bt-num-scene';
   num.textContent = label;

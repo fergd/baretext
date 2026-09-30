@@ -116,9 +116,12 @@ test('the link button edits a link in the toolbar and returns to the same select
     await dragSelect(page, 'lazy', 'dog');
     await expect.poll(async () => (await bar(page)).visible).toBe(true);
     const sel = await selection(page);
-    // ⌘K is reserved for the command palette: it never opens the link field.
+    // ⌘K is the command palette: it never opens the link field.
     await page.keyboard.press('Meta+k');
+    expect((await page.evaluate(() => (window as any).__baretext.palette())).view).toBe('commands');
     await expect(page.locator('.bt-toolbar')).toHaveAttribute('data-mode', 'buttons');
+    await page.keyboard.press('Escape'); // closes the palette; the selection is untouched
+    expect(await selection(page)).toEqual(sel);
     await page.click('.bt-toolbar-button[data-action="link"]');
     const input = page.locator('.bt-toolbar-input');
     await expect(input).toBeFocused();
