@@ -170,6 +170,19 @@ Pull exact values from Figma when implementing each component.
 - Stored outside the manuscript folder (app data), content-deduplicated.
 - History panel: time, word count, word delta, preview; restore is one
   undoable step and snapshots the current state first.
+- **Built (2026-09-29).** Store: `app/main/snapshots.ts` in
+  `<app data>/Snapshots/<file>/` (index + content by hash; one queue per
+  manuscript; a damaged index is set aside and rebuilt from the content).
+  Taken: a Daily on open or the first save of the day (the day's starting
+  state); an Autosave point at most every 15 min of saving; "Opened";
+  "Before Replace All"; "Before restore"; and **manual snapshots with an
+  optional label (kept until deleted)**. Automatic ones identical to the
+  newest are skipped; named ones are always listed (content stored once).
+  **History…** / **Save snapshot…** in the File menu and palette. The panel
+  lists time, reason or label, words and the change since the previous
+  version; the preview shows the version read-only with its change vs now;
+  **Restore this version** needs no confirmation because it snapshots the
+  current version first and is one ⌘Z. 120k-word history + preview: ~100 ms.
 - **OVERRIDES spec §10.6:** no local git/version-control history — the
   snapshot store replaces it.
 
@@ -314,7 +327,8 @@ Build the main app first. When integrations are built, follow this design.
   Groups: Navigate, Insert, Format, View, File (Mode/Theme/AI/Backup join
   when those features exist). Toggles show on/off; choices show ✓. Search:
   every word must match; label before keywords; prefix > word start >
-  anywhere > letters in order; numbers match exactly. **Go to chapter or
+  anywhere > letters in order; numbers match exactly. Paragraph spacing is
+  one command that opens its three choices (keeps the list short). **Go to chapter or
   scene** (⌘⇧O, or from the palette) is a view of the same palette: current
   scene marked and preselected, Backspace on empty returns to commands.
   Performance rules (the previous app's palette lagged): input focused
@@ -323,6 +337,17 @@ Build the main app first. When integrations are built, follow this design.
   ≤ 2.1 ms, keystroke ≤ 0.9 ms.
 - **⌘K is the command palette** (spec §7.3). Link has no shortcut: selection
   toolbar button or Format → Link….
+- **Title bar alignment** (2026-09-30): traffic lights at (12, 11) so they
+  center on the 36px bar's midline; title text shifted down 1px
+  (`--chrome-optical-offset`) so its capitals center there too (measured
+  17.93px, tested); title starts at 88px (`--chrome-inset`) to clear the
+  wider buttons on recent macOS. Native buttons can't be captured in hidden
+  test windows; the user confirmed the alignment by eye.
+- **Window size and position are remembered** (2026-09-30): the normal
+  frame plus zoomed/full-screen state, saved as it changes and on close,
+  restored at launch if still on a connected display (else centered on the
+  main display). First launch: up to 1440×900, never over 90% of the screen.
+  Hidden test windows stay 1100×800 unless a test sets a size.
 - **Development documents live in the project's `samples/` folder**
   (new documents, the Open/Save default). Never the previous app's
   `~/Documents/Baretext`. The packaged app's location is undecided.

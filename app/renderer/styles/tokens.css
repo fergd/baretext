@@ -39,6 +39,8 @@
   /* layout */
   --measure: 500px;
   --chrome-h: 36px;
+  --chrome-inset: 88px;
+  --chrome-optical-offset: 1px;
   --status-h: 32px;
   --spine-w: 48px;
   --spine-pad-left: 12px;
@@ -84,6 +86,14 @@
   /* find & replace */
   --find-w: 440px;
   --find-count-w: 96px; /* room for "1 of 10,000+" inside the field */
+
+  /* history */
+  --history-top: 64px;
+  --history-w: 880px;
+  --history-h: 600px;
+  --history-list-w: 280px;
+  --history-label-w: 180px;
+  --lh-preview: 20px;
 
   /* motion */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);

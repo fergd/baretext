@@ -33,8 +33,11 @@ button {
   -webkit-app-region: drag;
   display: flex;
   align-items: center;
-  /* clear the traffic lights: 12px inset + 52px buttons + 12px */
-  padding-left: 76px;
+  /* clear the traffic lights (12px inset + buttons, wider on recent macOS) + gap */
+  padding-left: var(--chrome-inset);
+  /* Optical centering: the capitals' center sits on the bar's midline, level
+     with the traffic lights (measured: 17.4px before, ~18px with this). */
+  padding-top: var(--chrome-optical-offset);
   padding-right: var(--space-3);
   gap: var(--space-2);
   background: var(--color-chrome);

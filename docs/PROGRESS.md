@@ -196,3 +196,14 @@ drafting and revising:
 Snapshots (see and restore earlier versions) · outline peek/pin (⌘\) ·
 Sprinter mode + sprint timer · corkboard · cold storage UI · notes ·
 themes/fonts · export/print · integrations (DECISIONS §7).
+
+## 2026-09-29 — Snapshots and History
+- Local snapshots (Daily, Autosave every 15 min, Opened, before Replace All
+  and before restore, manual with a label) in the app's data folder,
+  deduplicated, pruned (10 points, 30 days of dailies, manual kept).
+- History panel (File → History…, palette): list, read-only preview,
+  change vs now, one-click restore (one ⌘Z; current version kept first).
+- Palette: Paragraph spacing folded into one command with a choices view.
+- Tests: 102 unit, 46 end-to-end.
+- Not yet: deleting a manual snapshot from the panel (the store supports
+  it); a snapshot before big structural deletes (no such command yet).

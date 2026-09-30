@@ -142,3 +142,22 @@ test('performance on a 120k-word book', async () => {
     await app.close();
   }
 });
+
+test('paragraph spacing: one command opens its choices, current one ticked', async () => {
+  const { app, page } = await launch({ file: { name: 'P.md', content: FILE } });
+  try {
+    await page.keyboard.press('Meta+k');
+    await page.keyboard.type('half'); // found through the command's keywords
+    expect(await activeLabel(page)).toBe('Paragraph spacing…');
+    await page.keyboard.press('Enter');
+    expect((await state(page)).view).toBe('spacing');
+    expect(await labels(page)).toEqual(['Full line', 'Half line', 'None, indent first lines']);
+    await expect(page.locator('.bt-palette-row[aria-current="true"] .bt-palette-label')).toHaveText('Full line');
+    await page.keyboard.type('half');
+    await page.keyboard.press('Enter');
+    expect(await page.$eval('.bt-app', (e) => (e as HTMLElement).dataset.paragraphSpacing)).toBe('half');
+    expect(await editorFocused(page)).toBe(true);
+  } finally {
+    await app.close();
+  }
+});

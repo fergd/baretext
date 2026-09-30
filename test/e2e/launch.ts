@@ -14,20 +14,27 @@ export interface Launched {
 }
 
 /** Launch the real app hidden, with throwaway settings and save directories. */
-export async function launch(options: { file?: { name: string; content: string }; settings?: object } = {}): Promise<Launched> {
+export async function launch(options: {
+  file?: { name: string; content: string };
+  settings?: object;
+  /** Relaunch with an earlier launch's data (settings as that run left them). */
+  reuse?: { userData: string; saveDir: string };
+} = {}): Promise<Launched> {
   const root = mkdtempSync(path.join(os.tmpdir(), 'baretext-e2e-'));
-  const userData = path.join(root, 'userData');
-  const saveDir = path.join(root, 'manuscripts');
+  const userData = options.reuse?.userData ?? path.join(root, 'userData');
+  const saveDir = options.reuse?.saveDir ?? path.join(root, 'manuscripts');
   const { mkdirSync } = await import('node:fs');
   mkdirSync(userData, { recursive: true });
   mkdirSync(saveDir, { recursive: true });
-  let settings: object = options.settings ?? {};
-  if (options.file) {
-    const filePath = path.join(saveDir, options.file.name);
-    writeFileSync(filePath, options.file.content);
-    settings = { ...settings, lastFile: filePath };
+  if (!options.reuse) {
+    let settings: object = options.settings ?? {};
+    if (options.file) {
+      const filePath = path.join(saveDir, options.file.name);
+      writeFileSync(filePath, options.file.content);
+      settings = { ...settings, lastFile: filePath };
+    }
+    writeFileSync(path.join(userData, 'settings.json'), JSON.stringify(settings));
   }
-  writeFileSync(path.join(userData, 'settings.json'), JSON.stringify(settings));
   const app = await electron.launch({
     args: [path.join(here, '../../build/main/main.cjs')],
     env: { ...process.env, BARETEXT_HIDDEN: '1', BARETEXT_USER_DATA: userData, BARETEXT_SAVE_DIR: saveDir },

@@ -4,7 +4,9 @@ import { chainCommands, deleteSelection, joinBackward, joinForward, liftEmptyBlo
 import { Fragment, Slice, type Node as PMNode, type ResolvedPos } from 'prosemirror-model';
 import { undoInputRule } from 'prosemirror-inputrules';
 import { Selection, TextSelection, type Command, type EditorState, type Transaction } from 'prosemirror-state';
-import { newId } from '@baretext/format';
+import { newId, type Manuscript } from '@baretext/format';
+import { closeHistory } from 'prosemirror-history';
+import { modelToDoc } from './convert';
 import { schema, TITLE_TYPES } from './schema';
 import { markStructural } from './structure';
 import { markFreshSceneName } from './naming';
@@ -385,4 +387,23 @@ export function pasteIntoTitle(state: EditorState, slice: Slice): Transaction | 
   if (!isTitle(state.selection.$from.parent) || !withinOneRegion(state.selection.$from, state.selection.$to)) return null;
   const text = slice.content.textBetween(0, slice.content.size, ' ', ' ').replace(/\s+/g, ' ');
   return state.tr.insertText(text).scrollIntoView();
+}
+
+// ───────────────────────────── restore ─────────────────────────────
+
+/**
+ * Replace the whole manuscript with an earlier version (History → Restore).
+ * One undo step of its own; the caret lands on the first line of prose.
+ */
+export function restoreManuscript(state: EditorState, m: Manuscript): Transaction {
+  const doc = modelToDoc(m);
+  const tr = closeHistory(state.tr).replaceWith(0, state.doc.content.size, doc.content);
+  let first = -1;
+  tr.doc.descendants((node, pos) => {
+    if (first >= 0 || node.type === schema.nodes.cold_storage) return false;
+    if (node.type === schema.nodes.paragraph) { first = pos + 1; return false; }
+    return true;
+  });
+  tr.setSelection(first >= 0 ? TextSelection.create(tr.doc, first) : Selection.atStart(tr.doc));
+  return markStructural(tr).scrollIntoView();
 }

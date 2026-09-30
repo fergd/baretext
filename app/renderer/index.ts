@@ -8,6 +8,7 @@ import {
   insertSectionBreak,
   nameScene,
   nameSceneAt,
+  restoreManuscript,
   sceneDepth,
   schema,
   splitScene,
@@ -19,6 +20,7 @@ import type { BaretextBridge, MenuCommand, OpenedDocument, ParagraphSpacing } fr
 import { currentScene, outlineOf, sceneAt, sceneDisplayName } from './outline';
 import { Spine } from './spine';
 import { FindPanel } from './find';
+import { HistoryPanel } from './history';
 import { Palette, type PaletteItem, type PaletteView } from './palette';
 import { SelectionToolbar } from './toolbar';
 import { Typewriter } from './typewriter';
@@ -213,7 +215,27 @@ scroller.addEventListener('wheel', startReading, { passive: true });
 const spine = new Spine($('spine'), (id) => navigate(id));
 const typewriter = new Typewriter(app, scroller, page, () => view);
 const toolbar = new SelectionToolbar($('workspace'), scroller, () => view);
-const find = new FindPanel($('workspace'), scroller, () => view);
+const find = new FindPanel($('workspace'), scroller, () => view, () => snapshotNow('Before Replace All'));
+
+/** A point-in-time snapshot of the manuscript as it is now (before a risky change). */
+function snapshotNow(reason: string) {
+  if (view && filePath) void bridge.takeSnapshot(filePath, docToModel(view.state.doc), 'point', reason);
+}
+
+const history = new HistoryPanel(document.body, {
+  bridge,
+  filePath: () => filePath,
+  current: () => (view ? docToModel(view.state.doc) : null),
+  currentWords: () => (view ? outlineOf(view.state.doc).words : 0),
+  restore: (m, from) => {
+    if (!view) return;
+    view.dispatch(restoreManuscript(view.state, m));
+    view.focus();
+    const at = new Date(from.time).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+    toast(`Restored the version from ${at}. ⌘Z undoes it.`);
+  },
+  onClose: () => view?.focus(),
+});
 find.el.addEventListener('keydown', (e) => { if (e.key === 'Escape') toolbar.quiet(); }, true);
 find.el.addEventListener('click', (e) => { if ((e.target as HTMLElement).closest('[data-action="close"]')) toolbar.quiet(); }, true);
 
@@ -243,6 +265,7 @@ function dispatch(this: EditorView, tr: Transaction) {
 function load(doc: OpenedDocument) {
   clearTimeout(saveTimer);
   find.close(); // matches belong to the old document
+  history.close();
   filePath = doc.filePath;
   let state: EditorState = createManuscriptState(doc.manuscript, {
     onReject: () => console.warn('[baretext] rejected a change that would have damaged structure'),
@@ -347,6 +370,8 @@ function runCommand(command: MenuCommand) {
     case 'find-replace': palette.close(); find.open(true); break;
     case 'find-next': find.next(1); break;
     case 'find-prev': find.next(-1); break;
+    case 'history': palette.close(); find.close(); void history.open(false); break;
+    case 'snapshot': palette.close(); find.close(); void history.open(true); break;
   }
 }
 
@@ -385,18 +410,33 @@ function commandsView(): PaletteView {
       items.push(
         { id: 'typewriter', group: 'View', label: 'Typewriter mode', keywords: 'center line', keys: '⌘⇧T', state: typewriter.enabled ? 'on' : 'off', run: () => runCommand('typewriter') },
         { id: 'focus', group: 'View', label: 'Focus mode', keywords: 'hide chrome distraction quiet', keys: '⌘.', state: app.dataset.focus === 'true' ? 'on' : 'off', run: () => runCommand('focus') },
-        ...SPACINGS.map(([value, text]): PaletteItem => ({
-          id: `spacing-${value}`, group: 'View', label: `Paragraph spacing: ${text}`, keywords: 'gap indent',
-          state: app.dataset.paragraphSpacing === value ? 'current' : undefined,
-          run: () => { setParagraphSpacing(value); bridge.setPrefs({ paragraphSpacing: value }); },
-        })),
+        {
+          id: 'spacing', group: 'View', label: `Paragraph spacing…`, keywords: 'gap indent full half none line',
+          keepOpen: true, run: () => palette.open(spacingView()),
+        },
         { id: 'new', group: 'File', label: 'New manuscript', keywords: 'create file', keys: '⌘N', run: () => bridge.fileCommand('new') },
         { id: 'open', group: 'File', label: 'Open…', keywords: 'file', keys: '⌘O', run: () => bridge.fileCommand('open') },
         { id: 'save', group: 'File', label: 'Save', keys: '⌘S', run: () => runCommand('save') },
+        { id: 'history', group: 'File', label: 'History…', keywords: 'versions snapshots restore backup earlier', run: () => runCommand('history') },
+        { id: 'snapshot', group: 'File', label: 'Save snapshot…', keywords: 'version backup checkpoint', run: () => runCommand('snapshot') },
         { id: 'reveal', group: 'File', label: 'Reveal in Finder', keywords: 'show file folder', run: () => { if (filePath) bridge.revealInFinder(filePath); } },
       );
       return items;
     },
+  };
+}
+
+function spacingView(): PaletteView {
+  return {
+    name: 'spacing',
+    placeholder: 'Paragraph spacing',
+    back: commandsView,
+    initialId: `spacing-${app.dataset.paragraphSpacing}`,
+    items: () => SPACINGS.map(([value, text]): PaletteItem => ({
+      id: `spacing-${value}`, group: 'Paragraph spacing', label: text,
+      state: app.dataset.paragraphSpacing === value ? 'current' : undefined,
+      run: () => { setParagraphSpacing(value); bridge.setPrefs({ paragraphSpacing: value }); },
+    })),
   };
 }
 
@@ -538,5 +578,6 @@ window.__baretext = {
   toolbar: () => ({ visible: toolbar.visible, el: toolbar.el.getBoundingClientRect().toJSON() }),
   palette: () => ({ open: palette.isOpen, view: palette.current, timings: { ...palette.timings } }),
   textBetween: (from: number, to: number) => (view ? view.state.doc.textBetween(from, to, '\n') : ''),
+  history: () => ({ open: history.isOpen }),
   find: () => ({ open: find.isOpen, count: find.el.querySelector('.bt-find-count')!.textContent, ms: find.lastSearchMs }),
 };

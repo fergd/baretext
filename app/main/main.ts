@@ -1,11 +1,13 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell, type MenuItemConstructorOptions } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, screen, shell, type MenuItemConstructorOptions } from 'electron';
 import { randomBytes } from 'node:crypto';
 import { existsSync, promises as fs } from 'node:fs';
 import path from 'node:path';
-import { emptyManuscript, parse, type Manuscript } from '@baretext/format';
+import { emptyManuscript, manuscriptWords, parse, serialize, validate, type Manuscript } from '@baretext/format';
 import { CHANNELS, PARAGRAPH_SPACINGS, type InitialPrefs, type MenuCommand, type OpenedDocument, type ParagraphSpacing } from '../shared/bridge';
 import { saveManuscript } from './save';
+import { SnapshotStore, type SnapshotEntry } from './snapshots';
 import { SettingsStore } from './settings';
+import { MIN_SIZE, placeWindow } from './window';
 
 // Test isolation: throwaway data dirs and a hidden window (spec §0.11).
 // Otherwise use our own data folder: never share settings with the
@@ -21,6 +23,19 @@ let currentFile: string | null = null;
 let quitting = false;
 
 const recoveryRoot = () => path.join(app.getPath('userData'), 'Recovery');
+let snapshotStore: SnapshotStore | null = null;
+const snapshots = () => (snapshotStore ??= new SnapshotStore(path.join(app.getPath('userData'), 'Snapshots')));
+
+/** Snapshots never block writing: failures are logged, never thrown at the writer. */
+function snapshotOpened(doc: OpenedDocument) {
+  const text = serialize(doc.manuscript);
+  const words = manuscriptWords(doc.manuscript);
+  void snapshots().take(doc.filePath, text, words, 'daily', 'Daily')
+    .then(() => snapshots().take(doc.filePath, text, words, 'point', 'Opened'))
+    .catch((e) => console.error('snapshot on open failed:', e));
+}
+
+const snapshotInfo = ({ hash: _hash, ...info }: SnapshotEntry) => info;
 // While developing, documents live in the project's samples/ folder — never
 // in the previous app's ~/Documents/Baretext. The packaged app's real
 // location is still to be decided.
@@ -83,6 +98,7 @@ async function initialDocument(): Promise<OpenedDocument> {
     try {
       const doc = await readDocument(last);
       remember(doc.filePath);
+      snapshotOpened(doc);
       return doc;
     } catch (e) {
       console.error('could not reopen last file:', e);
@@ -90,6 +106,7 @@ async function initialDocument(): Promise<OpenedDocument> {
   }
   const doc = await createDocument();
   remember(doc.filePath);
+  snapshotOpened(doc);
   return doc;
 }
 
@@ -119,6 +136,7 @@ async function switchTo(load: () => Promise<OpenedDocument>) {
   try {
     const doc = await load();
     remember(doc.filePath);
+    snapshotOpened(doc);
     win?.webContents.send(CHANNELS.opened, doc);
   } catch (e) {
     dialog.showErrorBox('Baretext', `Could not open the file: ${(e as Error).message}`);
@@ -169,6 +187,9 @@ function buildMenu() {
         { type: 'separator' },
         { label: 'Save', ...label('CmdOrCtrl+S'), click: () => send('save') },
         { label: 'Reveal in Finder', click: () => currentFile && shell.showItemInFolder(currentFile) },
+        { type: 'separator' },
+        { label: 'History…', click: () => send('history') },
+        { label: 'Save Snapshot…', click: () => send('snapshot') },
         { type: 'separator' },
         { role: 'close' },
       ],
@@ -237,14 +258,19 @@ function createWindow() {
   const initial: InitialPrefs = {
     theme: s.theme, paragraphSpacing: s.paragraphSpacing, hidden: HIDDEN,
   };
+  // Where it was last time (if still on a connected display), else a large
+  // centered window. Hidden test windows keep a fixed size unless a test sets one.
+  const primary = screen.getPrimaryDisplay();
+  const areas = [primary.workArea, ...screen.getAllDisplays().filter((d) => d.id !== primary.id).map((d) => d.workArea)];
+  const bounds = HIDDEN && !s.window ? { width: 1100, height: 800 } : placeWindow(s.window, areas);
   win = new BrowserWindow({
-    width: 1100,
-    height: 800,
-    minWidth: 520,
-    minHeight: 360,
+    ...bounds,
+    minWidth: MIN_SIZE.width,
+    minHeight: MIN_SIZE.height,
     show: false,
     titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 12, y: 12 },
+    // Centers the traffic lights on the 36px title bar's midline (18px).
+    trafficLightPosition: { x: 12, y: 11 },
     backgroundColor: THEME_BACKGROUNDS[s.theme] ?? '#21222c',
     webPreferences: {
       preload: path.join(__dirname, '../preload/preload.cjs'),
@@ -258,7 +284,22 @@ function createWindow() {
     },
   });
   win.loadFile(path.join(__dirname, '../renderer/index.html'));
-  if (!HIDDEN) win.once('ready-to-show', () => win?.show());
+  if (s.window?.maximized) win.maximize();
+  if (!HIDDEN) win.once('ready-to-show', () => {
+    win?.show();
+    if (s.window?.fullscreen) win?.setFullScreen(true);
+  });
+  // Remember the window as the writer leaves it (debounced while dragging).
+  let boundsTimer: NodeJS.Timeout | undefined;
+  const rememberBounds = () => {
+    if (!win || win.isDestroyed()) return;
+    const b = win.getNormalBounds();
+    settings.update({ window: { ...b, maximized: win.isMaximized(), fullscreen: win.isFullScreen() } });
+  };
+  const scheduleBounds = () => { clearTimeout(boundsTimer); boundsTimer = setTimeout(rememberBounds, 400); };
+  for (const event of ['resize', 'move', 'maximize', 'unmaximize', 'enter-full-screen', 'leave-full-screen'] as const) {
+    win.on(event as 'resize', scheduleBounds);
+  }
 
   // Links in prose never navigate the app window.
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -267,6 +308,7 @@ function createWindow() {
   });
   win.webContents.on('will-navigate', (e) => e.preventDefault());
 
+  win.on('close', () => { clearTimeout(boundsTimer); rememberBounds(); });
   win.on('close', async (e) => {
     if (quitting) return;
     e.preventDefault();
@@ -290,7 +332,27 @@ function registerIpc() {
     }
     const result = await saveManuscript(filePath, manuscript, { recoveryRoot: recoveryRoot() });
     if (Number.isInteger(caret)) settings.update({ carets: { ...settings.get().carets, [filePath]: caret as number } });
+    if (result.ok && !result.skipped) {
+      void snapshots().auto(filePath, serialize(manuscript), manuscriptWords(manuscript)).catch((e) => console.error('snapshot failed:', e));
+    }
     return result;
+  });
+  const own = (filePath: unknown): filePath is string => typeof filePath === 'string' && filePath === currentFile;
+  ipcMain.handle(CHANNELS.snapshotsList, async (_e, filePath: unknown) =>
+    own(filePath) ? (await snapshots().list(filePath)).map(snapshotInfo) : []);
+  ipcMain.handle(CHANNELS.snapshotsRead, async (_e, filePath: unknown, id: unknown) => {
+    if (!own(filePath) || typeof id !== 'string') throw new Error('Not this window’s manuscript.');
+    return parse(await snapshots().read(filePath, id)).manuscript;
+  });
+  ipcMain.handle(CHANNELS.snapshotsTake, async (_e, filePath: unknown, manuscript: Manuscript, kind: unknown, reason: unknown, label: unknown) => {
+    if (!own(filePath) || (kind !== 'point' && kind !== 'manual') || typeof reason !== 'string') return null;
+    if (validate(manuscript).length) return null; // never store something that isn't a valid manuscript
+    const entry = await snapshots().take(filePath, serialize(manuscript), manuscriptWords(manuscript), kind, reason.slice(0, 80),
+      typeof label === 'string' ? label : undefined);
+    return entry && snapshotInfo(entry);
+  });
+  ipcMain.handle(CHANNELS.snapshotsRemove, async (_e, filePath: unknown, id: unknown) => {
+    if (own(filePath) && typeof id === 'string') await snapshots().remove(filePath, id);
   });
   ipcMain.on(CHANNELS.setPrefs, (_e, patch: Record<string, unknown>) => {
     const next: Record<string, unknown> = {};

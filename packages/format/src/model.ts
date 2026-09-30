@@ -178,3 +178,10 @@ export function countWords(text: string): number {
   const m = text.match(/[\p{L}\p{N}]+(?:['’\-][\p{L}\p{N}]+)*/gu);
   return m ? m.length : 0;
 }
+
+/** Words in the manuscript's prose (as the status bar counts): scene text, not names or cold storage. */
+export function manuscriptWords(m: Manuscript): number {
+  let n = 0;
+  for (const c of m.chapters) for (const s of c.scenes) n += countWords(sceneText(s));
+  return n;
+}

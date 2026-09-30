@@ -25,7 +25,17 @@ export interface InitialPrefs {
 }
 
 export type MenuCommand =
-  | 'undo' | 'redo' | 'typewriter' | 'focus' | 'bold' | 'italic' | 'link' | 'quote' | 'split-scene' | 'pause' | 'name-scene' | 'save' | 'palette' | 'goto' | 'find' | 'find-replace' | 'find-next' | 'find-prev';
+  | 'undo' | 'redo' | 'typewriter' | 'focus' | 'bold' | 'italic' | 'link' | 'quote' | 'split-scene' | 'pause' | 'name-scene' | 'save' | 'palette' | 'goto' | 'find' | 'find-replace' | 'find-next' | 'find-prev' | 'history' | 'snapshot';
+
+/** A local snapshot of a manuscript (DECISIONS §6). */
+export interface SnapshotInfo {
+  id: string;
+  kind: 'point' | 'daily' | 'manual';
+  reason: string;
+  label?: string;
+  time: number;
+  words: number;
+}
 
 export interface BaretextBridge {
   initial: InitialPrefs;
@@ -33,6 +43,11 @@ export interface BaretextBridge {
   save(filePath: string, manuscript: Manuscript, caret: number): Promise<SaveResult>;
   setPrefs(patch: Partial<Omit<InitialPrefs, 'hidden'>>): void;
   revealInFinder(filePath: string): void;
+  listSnapshots(filePath: string): Promise<SnapshotInfo[]>;
+  readSnapshot(filePath: string, id: string): Promise<Manuscript>;
+  /** A snapshot of the manuscript as it is in the window now (before a risky change, or by hand). */
+  takeSnapshot(filePath: string, manuscript: Manuscript, kind: 'point' | 'manual', reason: string, label?: string): Promise<SnapshotInfo | null>;
+  removeSnapshot(filePath: string, id: string): Promise<void>;
   /** File commands the main process owns (they may show a dialog or switch documents). */
   fileCommand(command: 'new' | 'open'): void;
   onMenu(cb: (command: MenuCommand) => void): void;
@@ -50,6 +65,10 @@ export const CHANNELS = {
   setPrefs: 'prefs:set',
   reveal: 'shell:reveal',
   fileCommand: 'file:command',
+  snapshotsList: 'snapshots:list',
+  snapshotsRead: 'snapshots:read',
+  snapshotsTake: 'snapshots:take',
+  snapshotsRemove: 'snapshots:remove',
   menu: 'menu:command',
   paragraphSpacing: 'prefs:paragraph-spacing',
   flush: 'app:flush',

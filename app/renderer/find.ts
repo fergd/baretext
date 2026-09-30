@@ -40,6 +40,8 @@ export class FindPanel {
     workspace: HTMLElement,
     private readonly scroller: HTMLElement,
     private readonly getView: () => EditorView | null,
+    /** Runs just before Replace All changes the manuscript (a snapshot). */
+    private readonly beforeReplaceAll: () => void = () => {},
   ) {
     this.el = document.createElement('div');
     this.el.className = 'bt-find';
@@ -206,6 +208,7 @@ export class FindPanel {
     const all = findMatches(view.state.doc, this.input.value, { ...this.options(), limit: Infinity });
     const tr = replaceAll(view.state, all, this.replaceInput.value);
     if (!tr) return;
+    this.beforeReplaceAll();
     view.dispatch(tr);
     this.count.textContent = `Replaced ${numberFormat.format(all.length)}`;
     this.matches = findMatches(view.state.doc, this.input.value, this.options());

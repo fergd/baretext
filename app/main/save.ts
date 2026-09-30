@@ -19,7 +19,7 @@ export function isDestructive(oldBytes: number, newBytes: number): boolean {
   return false;
 }
 
-function fileKey(filePath: string): string {
+export function fileKey(filePath: string): string {
   const base = path.basename(filePath).replace(/[^\w.-]+/g, '_').slice(0, 40);
   return `${base}-${createHash('sha256').update(path.resolve(filePath)).digest('hex').slice(0, 12)}`;
 }

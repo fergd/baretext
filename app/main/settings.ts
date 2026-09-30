@@ -14,6 +14,8 @@ export interface Settings {
   theme: string;
   paragraphSpacing: ParagraphSpacing;
   saveDir: string | null;
+  /** Where the window was (its normal, unzoomed frame) and how. */
+  window: { x: number; y: number; width: number; height: number; maximized: boolean; fullscreen: boolean } | null;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -23,6 +25,7 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'dracula',
   paragraphSpacing: 'full',
   saveDir: null,
+  window: null,
 };
 
 const isString = (v: unknown): v is string => typeof v === 'string';
@@ -41,6 +44,14 @@ export function validateSettings(raw: unknown): Settings {
   if (isString(r.theme) && /^[a-z0-9-]{1,32}$/.test(r.theme)) s.theme = r.theme;
   if (PARAGRAPH_SPACINGS.includes(r.paragraphSpacing as ParagraphSpacing)) s.paragraphSpacing = r.paragraphSpacing as ParagraphSpacing;
   if (isString(r.saveDir)) s.saveDir = r.saveDir;
+  const w = r.window as Record<string, unknown> | null | undefined;
+  if (w && typeof w === 'object' && ['x', 'y', 'width', 'height'].every((k) => Number.isFinite(w[k]))) {
+    s.window = {
+      x: Math.round(w.x as number), y: Math.round(w.y as number),
+      width: Math.round(w.width as number), height: Math.round(w.height as number),
+      maximized: w.maximized === true, fullscreen: w.fullscreen === true,
+    };
+  }
   return s;
 }
 
