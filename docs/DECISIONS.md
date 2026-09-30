@@ -281,6 +281,21 @@ Build the main app first. When integrations are built, follow this design.
   and renumber live. The pause ornament is the scene ornament's quieter
   sibling: short lines and a small ring, in the scene color at reduced
   opacity (`--pause-opacity`).
+- **Find & replace (2026-09-29):** ⌘F (selection pre-fills); a chevron at the
+  left of the find bar shows/hides Replace (⌥⌘F opens with it, or jumps to
+  it when find is already open); ⌘G / ⇧⌘G, Enter / ⇧Enter; Edit menu and palette. Searches every
+  visible textblock (prose, quotes, chapter titles, scene names), never cold
+  storage; matches may cross formatting, never blocks. Case-insensitive by
+  default (Match case, Whole word toggles); straight and curly quotes match
+  each other. Replacement takes the formatting of the first replaced
+  character; Replace All is one undo step. The manuscript selection is left
+  alone while searching and lands on the current match on Esc (no selection
+  toolbar). Performance: block text prepared once per document version;
+  only matches within about a screen are decorated (≤ 600); counts cap at
+  10,000+. Measured on 120k words: ≤ 1.3 ms per keystroke.
+- **Empty scene names from the file stay.** Only a name the writer just
+  started with Name scene and left without typing is dropped, and only on a
+  caret move (the fuzzer found both earlier rules could change a file).
 - **Naming scenes (2026-09-29):** click an unnamed scene's ornament
   (tooltip "Name scene"), or Format → Name Scene, or the palette ("Name
   scene" / "Rename scene"). Unnamed → an empty name with the caret in it

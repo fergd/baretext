@@ -7,6 +7,7 @@ import { Selection, TextSelection, type Command, type EditorState, type Transact
 import { newId } from '@baretext/format';
 import { schema, TITLE_TYPES } from './schema';
 import { markStructural } from './structure';
+import { markFreshSceneName } from './naming';
 
 const isTitle = (node: PMNode) => TITLE_TYPES.has(node.type.name);
 
@@ -225,7 +226,7 @@ export const nameSceneAt = (scenePos: number): Command => (state, dispatch) => {
   } else {
     tr.insert(scenePos + 1, schema.nodes.scene_heading!.create());
     tr.setSelection(TextSelection.create(tr.doc, scenePos + 2));
-    markStructural(tr);
+    markFreshSceneName(markStructural(tr), scenePos + 1);
   }
   dispatch(tr.scrollIntoView());
   return true;

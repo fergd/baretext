@@ -1,0 +1,95 @@
+/* Find & replace: a small bar at the top right of the workspace. */
+
+.bt-find {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-4);
+  z-index: 25;
+  /* One grid for both rows: chevron | field | buttons. Shared columns keep
+     the Find and Replace fields exactly the same width. */
+  display: grid;
+  grid-template-columns: var(--toolbar-button) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-1);
+  width: min(var(--find-w), calc(100% - 2 * var(--space-4)));
+  padding: var(--popover-pad);
+  background: var(--color-popover);
+  border: 1px solid var(--color-popover-border);
+  border-radius: var(--popover-radius);
+  box-shadow: var(--shadow-popover);
+  font-family: var(--font-ui);
+  font-size: var(--text-palette);
+  letter-spacing: var(--tracking-ui);
+  color: var(--color-text-dim);
+  opacity: 0;
+  translate: 0 calc(-1 * var(--popover-enter-offset));
+  visibility: hidden;
+  transition: opacity var(--dur-fast) var(--ease-out), translate var(--dur-fast) var(--ease-out), visibility 0s linear var(--dur-fast);
+}
+.bt-find[data-open='true'] {
+  opacity: 1;
+  translate: 0 0;
+  visibility: visible;
+  transition: opacity var(--dur-fast) var(--ease-out), translate var(--dur-fast) var(--ease-out), visibility 0s;
+}
+
+.bt-find-row { display: contents; }
+.bt-find-replace-row { display: none; }
+.bt-find[data-replace='true'] .bt-find-replace-row { display: contents; }
+.bt-find-controls { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-1); }
+
+.bt-find-input {
+  min-width: 0;
+  height: var(--toolbar-button);
+  padding: 0 var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--toolbar-button-radius);
+  background: var(--color-find-field);
+  font: inherit;
+  color: var(--color-text);
+  outline: none;
+}
+.bt-find-input:focus { border-color: var(--color-popover-border); }
+.bt-find-input::placeholder { color: var(--color-text-dimmer); }
+.bt-find[data-empty='true'] .bt-find-field .bt-find-input { border-color: var(--color-danger); }
+
+/* The match count sits inside the Find field, at its right end. */
+.bt-find-field { position: relative; display: grid; min-width: 0; }
+.bt-find[data-counted='true'] .bt-find-field .bt-find-input { padding-right: var(--find-count-w); }
+.bt-find-count {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: var(--space-2);
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+  font-size: var(--text-ui);
+  color: var(--color-text-dimmer);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.bt-find-toggle,
+.bt-find-icon,
+.bt-find-text {
+  display: grid;
+  place-items: center;
+  height: var(--toolbar-button);
+  border-radius: var(--toolbar-button-radius);
+  color: var(--color-text-dim);
+}
+.bt-find-toggle, .bt-find-icon { width: var(--toolbar-button); }
+/* The Replace toggle: a chevron that turns down when Replace is showing. */
+.bt-find-expand svg { transition: rotate var(--dur-fast) var(--ease-out); }
+.bt-find-expand[aria-expanded='true'] svg { rotate: 90deg; }
+.bt-find-indent { flex: none; width: var(--toolbar-button); }
+.bt-find-toggle { font-size: var(--text-ui); }
+.bt-find-text { padding: 0 var(--space-2); }
+.bt-find-toggle:hover, .bt-find-icon:hover, .bt-find-text:hover { background: var(--color-popover-hover); color: var(--color-text); }
+.bt-find-toggle[aria-pressed='true'] { background: var(--color-popover-active); color: var(--color-text); }
+
+/* Matches in the manuscript. */
+.bt-find-match { background: var(--color-find-match); border-radius: 2px; }
+.bt-find-current { background: var(--color-find-current); box-shadow: 0 0 0 1px var(--color-find-current-ring); }

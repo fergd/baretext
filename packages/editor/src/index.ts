@@ -23,6 +23,7 @@ import { structureDecorations, type Placeholders } from './decorations';
 import { lineBreakSanitizer, selectionOutsideColdStorage } from './sanitize';
 import { structureGuard, type GuardOptions } from './structure';
 import { dropEmptySceneNames } from './naming';
+import { findHighlights } from './find';
 
 export * from './schema';
 export * from './convert';
@@ -30,6 +31,7 @@ export * from './commands';
 export * from './structure';
 export * from './decorations';
 export * from './format';
+export * from './find';
 
 const emDash = new InputRule(/--$/, '—');
 
@@ -110,6 +112,7 @@ export function manuscriptPlugins(options: EditorOptions = {}): Plugin[] {
     keymap(baseKeymap),
     history({ newGroupDelay: 500 }),
     structureDecorations(placeholders),
+    findHighlights(),
   ];
 }
 

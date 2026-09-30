@@ -18,6 +18,7 @@ import {
 import type { BaretextBridge, MenuCommand, OpenedDocument, ParagraphSpacing } from '../shared/bridge';
 import { currentScene, outlineOf, sceneAt, sceneDisplayName } from './outline';
 import { Spine } from './spine';
+import { FindPanel } from './find';
 import { Palette, type PaletteItem, type PaletteView } from './palette';
 import { SelectionToolbar } from './toolbar';
 import { Typewriter } from './typewriter';
@@ -212,6 +213,9 @@ scroller.addEventListener('wheel', startReading, { passive: true });
 const spine = new Spine($('spine'), (id) => navigate(id));
 const typewriter = new Typewriter(app, scroller, page, () => view);
 const toolbar = new SelectionToolbar($('workspace'), scroller, () => view);
+const find = new FindPanel($('workspace'), scroller, () => view);
+find.el.addEventListener('keydown', (e) => { if (e.key === 'Escape') toolbar.quiet(); }, true);
+find.el.addEventListener('click', (e) => { if ((e.target as HTMLElement).closest('[data-action="close"]')) toolbar.quiet(); }, true);
 
 // ── editor ──
 function dispatch(this: EditorView, tr: Transaction) {
@@ -238,6 +242,7 @@ function dispatch(this: EditorView, tr: Transaction) {
 
 function load(doc: OpenedDocument) {
   clearTimeout(saveTimer);
+  find.close(); // matches belong to the old document
   filePath = doc.filePath;
   let state: EditorState = createManuscriptState(doc.manuscript, {
     onReject: () => console.warn('[baretext] rejected a change that would have damaged structure'),
@@ -338,6 +343,10 @@ function runCommand(command: MenuCommand) {
     case 'save': void saveNow().then((ok) => ok && toast('Saved')); break;
     case 'palette': togglePalette(commandsView()); break;
     case 'goto': togglePalette(jumpView()); break;
+    case 'find': palette.close(); find.open(false); break;
+    case 'find-replace': palette.close(); find.open(true); break;
+    case 'find-next': find.next(1); break;
+    case 'find-prev': find.next(-1); break;
   }
 }
 
@@ -355,7 +364,9 @@ function commandsView(): PaletteView {
     items: () => {
       const selection = view ? hasFormattableText(view.state) : false;
       const items: PaletteItem[] = [
-        { id: 'goto', group: 'Navigate', label: 'Go to chapter or scene…', keywords: 'jump navigate find', keys: '⌘⇧O', keepOpen: true, run: () => palette.open(jumpView()) },
+        { id: 'goto', group: 'Navigate', label: 'Go to chapter or scene…', keywords: 'jump navigate', keys: '⌘⇧O', keepOpen: true, run: () => palette.open(jumpView()) },
+        { id: 'find', group: 'Navigate', label: 'Find…', keywords: 'search text', keys: '⌘F', run: () => runCommand('find') },
+        { id: 'find-replace', group: 'Navigate', label: 'Find and replace…', keywords: 'search substitute change', keys: '⌥⌘F', run: () => runCommand('find-replace') },
         { id: 'scene-break', group: 'Insert', label: 'Scene break', keywords: 'split new scene', keys: '⌘↵', run: () => runCommand('split-scene') },
         { id: 'pause', group: 'Insert', label: 'Pause', keywords: 'section break within scene', keys: '⌘⇧↵', run: () => runCommand('pause') },
       ];
@@ -429,6 +440,7 @@ function togglePalette(next: PaletteView) {
 const NAV_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End']);
 window.addEventListener('keydown', (e) => {
   if (NAV_KEYS.has(e.key)) lastKeyNav = Date.now();
+  if (e.metaKey && e.altKey && !e.ctrlKey && !e.shiftKey && e.code === 'KeyF') { e.preventDefault(); runCommand('find-replace'); return; }
   if (!e.metaKey || e.ctrlKey || e.altKey) return;
   const k = e.key.toLowerCase();
   if (k === 's' && !e.shiftKey) { e.preventDefault(); runCommand('save'); }
@@ -436,6 +448,8 @@ window.addEventListener('keydown', (e) => {
   else if (e.key === '.' && !e.shiftKey) { e.preventDefault(); runCommand('focus'); }
   else if (k === 'k' && !e.shiftKey) { e.preventDefault(); runCommand('palette'); }
   else if (k === 'o' && e.shiftKey) { e.preventDefault(); runCommand('goto'); }
+  else if (k === 'f' && !e.shiftKey) { e.preventDefault(); runCommand('find'); }
+  else if (k === 'g') { e.preventDefault(); runCommand(e.shiftKey ? 'find-prev' : 'find-next'); }
 }, true);
 
 // Esc steps out one layer at a time: anything open (toolbar, link field,
@@ -506,4 +520,6 @@ window.__baretext = {
   filePath: () => filePath,
   toolbar: () => ({ visible: toolbar.visible, el: toolbar.el.getBoundingClientRect().toJSON() }),
   palette: () => ({ open: palette.isOpen, view: palette.current, timings: { ...palette.timings } }),
+  textBetween: (from: number, to: number) => (view ? view.state.doc.textBetween(from, to, '\n') : ''),
+  find: () => ({ open: find.isOpen, count: find.el.querySelector('.bt-find-count')!.textContent, ms: find.lastSearchMs }),
 };

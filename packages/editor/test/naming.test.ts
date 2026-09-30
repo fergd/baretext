@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { undo } from 'prosemirror-history';
+import { undo, undoDepth } from 'prosemirror-history';
 import { TextSelection } from 'prosemirror-state';
-import { backspace, docToModel, nameScene, nameSceneAt, schema } from '../src';
-import { harness } from './helpers';
+import { backspace, deleteAcrossStructure, docToModel, nameScene, nameSceneAt, schema } from '../src';
+import { harness, sampleManuscript, scene } from './helpers';
 
 // sampleManuscript: c1 "One" → s1 (unnamed: "Alpha first.", "Alpha last."), s2 "Two" ("Beta only.");
 // c2 "Next" → s3 (unnamed: "Gamma."); cold storage k1.
@@ -90,5 +90,36 @@ describe('naming scenes', () => {
     expect(h.run(nameSceneAt(coldScene))).toBe(false);
     expect(h.state.doc.eq(original)).toBe(true);
     expect(h.rejected).toBe(0);
+  });
+});
+
+describe('empty names and editing (fuzzer regression)', () => {
+  it('typing over a selection that ends in an empty name never drops it outside undo', () => {
+    const m = sampleManuscript();
+    m.chapters[1]!.scenes.push(scene('s4', ['Delta.'], '')); // a scene with an empty name
+    const h = harness(m);
+    const original = h.state.doc;
+    let emptyName = -1;
+    h.state.doc.descendants((n, pos) => { if (n.type === schema.nodes.scene_heading && n.content.size === 0) emptyName = pos + 1; });
+    h.state = h.state.apply(h.state.tr.setSelection(TextSelection.create(h.state.doc, h.at('Gamma.'), emptyName)));
+    const tr = deleteAcrossStructure(h.state)!;
+    h.state = h.state.apply(tr.insertText('a'));
+    while (undoDepth(h.state) > 0) h.run(undo);
+    expect(h.state.doc.eq(original)).toBe(true);
+  });
+});
+
+describe('only names the writer just started are dropped', () => {
+  it('an empty name that came from the file stays when the caret passes through', () => {
+    const m = sampleManuscript();
+    m.chapters[1]!.scenes.push(scene('s4', ['Delta.'], ''));
+    const h = harness(m);
+    const original = h.state.doc;
+    let emptyName = -1;
+    h.state.doc.descendants((n, pos) => { if (n.type === schema.nodes.scene_heading && n.content.size === 0) emptyName = pos + 1; });
+    h.cursor(emptyName);
+    h.cursor(h.at('Delta.'));
+    expect(h.state.doc.eq(original)).toBe(true);
+    expect(h.model().chapters[1]!.scenes[1]!.name).toBe('');
   });
 });

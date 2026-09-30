@@ -145,3 +145,54 @@ find/replace · themes/fonts · export/print · integrations (DECISIONS §7).
 - Tests: 81 unit, 31 E2E.
 - Open: the first scene of a chapter has no ornament to click when unnamed
   (name it from the palette or menu).
+
+## 2026-09-29 — Find & replace; where we're at
+**Built**
+- Find & replace (⌘F; ⌥⌘F or the chevron for Replace; ⌘G / ⇧⌘G; Edit
+  menu and palette). Searches everything visible (prose, quotes, chapter
+  titles, scene names), never cold storage; Match case / Whole word;
+  straight and curly quotes match. Replacement keeps formatting; Replace
+  All is one undo. Esc leaves the current match selected. Count sits inside
+  the Find field; Find and Replace fields share one width.
+  `packages/editor/src/find.ts`, `app/renderer/find.ts`.
+- Measured on 120k words: ≤ 1.3 ms per keystroke; highlights limited to
+  about a screen (≤ 600); counts cap at 10,000+.
+
+**Fixed (found by the fuzzer, before reaching a file)**
+- Typing over a selection that ended in an empty scene name removed it
+  outside undo; a caret passing through an empty name that came from the
+  file removed it. Now only a name just started with Name scene and left
+  without typing is dropped, and only on a caret move. Regression tests
+  added; fuzzer clean at 30,000 cases (twice) and 20,000 with Replace All.
+
+**Tests:** 91 unit, 36 end-to-end.
+
+### Where we're at
+The Manuscript-mode writing surface is feature-complete for day-to-day
+drafting and revising:
+- **Writing:** structure-safe editing; bold/italic/quote/link via
+  selection toolbar, shortcuts, menus and palette; scene breaks (⌘↵),
+  pauses (⌘⇧↵); scene naming/renaming; paragraph spacing setting.
+- **Moving around:** tick spine (gliding indicator, follows reading,
+  jump motion), command palette (⌘K), Go to chapter or scene (⌘⇧O),
+  find & replace (⌘F).
+- **Focus:** typewriter mode (line-based fade that eases away while
+  reading back), focus mode (hides chrome and spine; Esc exits). Every
+  launch starts in Manuscript mode with both off.
+- **Safety:** verified atomic saves with recovery copies; imports never
+  rewrite originals; development documents live in `samples/`.
+
+**Still open**
+- Clear the app's settings entries pointing at the real manuscript and
+  `~/Documents/Baretext/Untitled.md` (needs the app quit).
+- Spec wording still says "Editor" / "typewriter persists"
+  (DECISIONS.md overrides).
+- Unquoting a scene's last paragraph leaves the empty line quoting added.
+- An unnamed first scene of a chapter has no ornament to click (name it
+  from the palette or menu).
+- Not verified outside hidden windows: real IME/dictation, trackpad feel.
+
+**Next (proposed order)**
+Snapshots (see and restore earlier versions) · outline peek/pin (⌘\) ·
+Sprinter mode + sprint timer · corkboard · cold storage UI · notes ·
+themes/fonts · export/print · integrations (DECISIONS §7).

@@ -15,8 +15,10 @@ import {
   enter,
   flattenPastedSlice,
   forwardDelete,
+  findMatches,
   insertSectionBreak,
   nameScene,
+  replaceAll,
   removeLink,
   setLink,
   splitScene,
@@ -34,7 +36,8 @@ type Op =
   | { kind: 'type'; text: string }
   | { kind: 'enter' | 'backspace' | 'delete' | 'bold' | 'italic' | 'quote' | 'link' | 'unlink' | 'pause' | 'name' | 'split' | 'undo' | 'redo' }
   | { kind: 'paste'; a: number; b: number }
-  | { kind: 'raw'; a: number; b: number; text: string };
+  | { kind: 'raw'; a: number; b: number; text: string }
+  | { kind: 'replace'; query: string; text: string };
 
 const unit = fc.double({ min: 0, max: 1, noNaN: true });
 const op: fc.Arbitrary<Op> = fc.oneof(
@@ -45,6 +48,7 @@ const op: fc.Arbitrary<Op> = fc.oneof(
   { weight: 1, arbitrary: fc.constantFrom<Op>({ kind: 'bold' }, { kind: 'italic' }, { kind: 'quote' }, { kind: 'link' }, { kind: 'unlink' }, { kind: 'pause' }, { kind: 'name' }, { kind: 'split' }, { kind: 'undo' }, { kind: 'redo' }) },
   { weight: 1, arbitrary: fc.tuple(unit, unit).map(([a, b]): Op => ({ kind: 'paste', a, b })) },
   { weight: 1, arbitrary: fc.tuple(unit, unit, fc.constantFrom('', 'x')).map(([a, b, text]): Op => ({ kind: 'raw', a, b, text })) },
+  { weight: 1, arbitrary: fc.tuple(fc.constantFrom('a', 'l', 'ph', '.', 'Alpha'), fc.constantFrom('', 'Z', 'xyz')).map(([query, text]): Op => ({ kind: 'replace', query, text })) },
 );
 
 const posAt = (state: EditorState, u: number) => Math.floor(u * state.doc.content.size);
@@ -76,7 +80,7 @@ describe('editing fuzzer', () => {
 
         for (const o of ops) {
           const sigBefore = h.signature();
-          // Leaving a scene name that is already empty drops it (by design);
+          // Leaving a just-started empty scene name drops it (by design);
           // otherwise ordinary edits never change structure.
           const $was = h.state.selection.$head;
           let structural = $was.parent.type.name === 'scene_heading' && $was.parent.content.size === 0;
@@ -118,6 +122,11 @@ describe('editing fuzzer', () => {
                 }
                 h.state = h.state.apply(h.state.tr.replaceSelection(slice));
               }
+              break;
+            }
+            case 'replace': {
+              const tr = replaceAll(h.state, findMatches(h.state.doc, o.query, { limit: Infinity }), o.text);
+              if (tr) h.state = h.state.apply(tr);
               break;
             }
             case 'raw': {

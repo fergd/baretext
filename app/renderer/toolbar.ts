@@ -64,6 +64,7 @@ export class SelectionToolbar {
   private keyGeneration = 0;
   private applying = false;
   private keyTimer: number | undefined;
+  private quietOnce = false;
   private frame = 0;
 
   constructor(private readonly workspace: HTMLElement, private readonly scroller: HTMLElement, private readonly getView: () => EditorView | null) {
@@ -195,6 +196,11 @@ export class SelectionToolbar {
     return true;
   }
 
+  /** The next selection change (e.g. find landing on a match) shows no toolbar. */
+  quiet() {
+    this.quietOnce = true;
+  }
+
   get visible(): boolean {
     return this.el.dataset.visible === 'true';
   }
@@ -215,6 +221,7 @@ export class SelectionToolbar {
     }
     if (state.selection.eq(prev.selection)) return;
     this.hide();
+    if (this.quietOnce) { this.quietOnce = false; return; }
     if (this.pointerSelecting || !hasFormattableText(state)) return;
     // Keyboard (or programmatic) selection: show once it pauses.
     this.keyTimer = window.setTimeout(() => this.settle(), KEYBOARD_PAUSE_MS);
