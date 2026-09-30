@@ -182,15 +182,15 @@ drafting and revising:
 - **Safety:** verified atomic saves with recovery copies; imports never
   rewrite originals; development documents live in `samples/`.
 
-**Still open**
-- Clear the app's settings entries pointing at the real manuscript and
-  `~/Documents/Baretext/Untitled.md` (needs the app quit).
-- Spec wording still says "Editor" / "typewriter persists"
-  (DECISIONS.md overrides).
-- Unquoting a scene's last paragraph leaves the empty line quoting added.
-- An unnamed first scene of a chapter has no ornament to click (name it
-  from the palette or menu).
-- Not verified outside hidden windows: real IME/dictation, trackpad feel.
+**Still open** — sorted the same day:
+- ✓ Settings no longer list the real manuscript or `~/Documents/Baretext`
+  (backup kept). The `(Baretext)` copy in the book folder was left alone.
+- ✓ Spec now says Manuscript / per-session modes (§2.1, §2.2, §6, §14.1).
+- ✓ Unquoting a scene's last paragraph removes the line quoting added.
+- ✓ An unnamed first scene shows `1.1` beside its first line; click it to
+  name the scene.
+- ✓ IME composition tested end to end (4 tests). Dictation and trackpad
+  feel remain a person's check (trackpad feel reported good).
 
 **Next (proposed order)**
 Snapshots (see and restore earlier versions) · outline peek/pin (⌘\) ·

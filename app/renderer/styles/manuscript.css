@@ -113,6 +113,19 @@
   user-select: none;
 }
 .bt-current-scene .bt-num-scene { opacity: var(--number-opacity-current); }
+/* An unnamed first scene's number (body size, beside its first line):
+   clickable to name the scene, in the scene color like its siblings. */
+.bt-num-first {
+  /* Anchored to its own line (static position), then hung into the margin. */
+  top: auto;
+  right: auto;
+  translate: calc(-100% - var(--gutter-gap)) 0;
+  color: var(--color-h2);
+  font-style: normal;
+  font-weight: 400;
+  pointer-events: auto;
+  cursor: pointer;
+}
 
 /* ── scene boundary (unnamed scene) ── */
 .bt-scene-boundary {

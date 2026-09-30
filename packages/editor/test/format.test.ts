@@ -93,6 +93,27 @@ describe('quote', () => {
     expect(blocksOf(h, 0, 0)).toEqual(['One.', 'Two.', '> Three.', '']);
   });
 
+  it('unquoting the last paragraph again removes the line quoting added', () => {
+    const h = threeParagraphs();
+    const original = h.state.doc;
+    h.cursor(h.at('Three.'));
+    h.run(toggleQuote);
+    h.cursor(h.at('Three.'));
+    h.run(toggleQuote);
+    expect(blocksOf(h, 0, 0)).toEqual(['One.', 'Two.', 'Three.']);
+    expect(h.state.doc.eq(original)).toBe(true);
+  });
+
+  it('keeps that trailing line once something is written on it', () => {
+    const h = threeParagraphs();
+    h.cursor(h.at('Three.'));
+    h.run(toggleQuote);
+    h.state = h.state.apply(h.state.tr.insertText('Four.', h.state.doc.resolve(h.at('Three.')).after(3) + 1));
+    h.cursor(h.at('Three.'));
+    h.run(toggleQuote);
+    expect(blocksOf(h, 0, 0)).toEqual(['One.', 'Two.', 'Three.', 'Four.']);
+  });
+
   it('unquotes only the selected paragraphs of a longer quote', () => {
     const h = threeParagraphs();
     h.select(h.at('One.'), h.at('Three.', 2));

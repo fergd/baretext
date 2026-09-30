@@ -128,6 +128,8 @@
   --color-danger: #ff5555;
   --color-popover: #343746;
   --color-scrim: rgba(0, 0, 0, 0.24);
+  --color-palette-item: rgba(248, 248, 242, 0.86);
+  --color-palette-divider: rgba(248, 248, 242, 0.08);
   --color-find-field: rgba(0, 0, 0, 0.16);
   --color-find-match: rgba(241, 250, 140, 0.22);
   --color-find-current: rgba(255, 184, 108, 0.5);

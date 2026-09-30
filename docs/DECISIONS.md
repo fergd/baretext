@@ -113,13 +113,12 @@ Pull exact values from Figma when implementing each component.
   caret, or choosing a tick hands them back to the caret. Choosing a tick:
   nearby scenes glide into place (FLIP, 360ms, `--ease-jump`); distant ones slide 32px and
   fade up, never a long scroll.
-- **The two modes are Manuscript and Sprinter** (2026-09-29) — OVERRIDES
-  spec §2.1's internal name "Editor". One name everywhere: UI, docs, code
+- **The two modes are Manuscript and Sprinter** (2026-09-29; the spec text
+  now matches). One name everywhere: UI, docs, code
   (`data-mode="manuscript"`). "Editor" means only the text-editing component
   (`packages/editor`), never the mode.
 - **Every launch starts in Manuscript mode with typewriter and focus mode
-  off** (2026-09-29) — OVERRIDES spec §2.2 ("persist across launches"),
-  §6 ("The setting persists") and §14.1 (persisted: mode, typewriter).
+  off** (2026-09-29; spec §2.2, §6 and §14.1 now match).
   They are per-session and never written to settings; old settings files'
   values are ignored. Theme and paragraph spacing still persist.
 - **Esc steps out one layer at a time** (2026-09-29): an open surface
@@ -242,7 +241,8 @@ Build the main app first. When integrations are built, follow this design.
   selection already has it (word-processor behavior).
 - **Scene numbers:** named scenes show `c.s` beside the name; unnamed scenes
   after the first show it beside the line–ring–line ornament. The first
-  scene of a chapter, if unnamed, shows no number (open question).
+  scene of a chapter, if unnamed, shows its number (`1.1`) at body size
+  beside its first line; clicking it names the scene (2026-09-29).
 - **Cold storage** can only change through explicit commands; ordinary
   input can never edit it, and the selection can never rest inside it.
 - **Raw line breaks** in text (dictation, IME) become spaces; paragraphs are
@@ -281,6 +281,11 @@ Build the main app first. When integrations are built, follow this design.
   and renumber live. The pause ornament is the scene ornament's quieter
   sibling: short lines and a small ring, in the scene color at reduced
   opacity (`--pause-opacity`).
+- **Unquoting a scene's last paragraph** removes the empty line quoting
+  added, when it is still empty (a line with writing on it stays).
+- **Input methods (IME):** composition is tested end to end with the same
+  browser events a real IME produces (paragraph, title, across scenes, Esc
+  mid-composition). Dictation and trackpad feel need a person to check.
 - **Find & replace (2026-09-29):** ⌘F (selection pre-fills); a chevron at the
   left of the find bar shows/hides Replace (⌥⌘F opens with it, or jumps to
   it when find is already open); ⌘G / ⇧⌘G, Enter / ⇧Enter; Edit menu and palette. Searches every

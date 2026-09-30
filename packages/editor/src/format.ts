@@ -134,7 +134,20 @@ export const toggleQuote: Command = (state, dispatch) => {
   let from = first.pos + 1;
   let to = last.pos + last.node.nodeSize - 1;
   liftQuoted(tr, from, to);
-  if (!allQuoted) {
+  if (allQuoted) {
+    // Undo the writable line quoting added: if the unquoted paragraph is now
+    // followed only by an empty last line, that line goes (no text, and the
+    // scene still ends in a paragraph).
+    const $end = tr.doc.resolve(tr.mapping.map(to));
+    const d = sceneDepth($end);
+    const scene = d >= 0 ? $end.node(d) : null;
+    const last = scene?.lastChild;
+    if (scene && last && $end.depth === d + 1 && $end.index(d) === scene.childCount - 2 &&
+        last.type === schema.nodes.paragraph && last.content.size === 0) {
+      const sceneEnd = $end.end(d);
+      tr.delete(sceneEnd - last.nodeSize, sceneEnd);
+    }
+  } else {
     from = tr.mapping.map(from);
     to = tr.mapping.map(to);
     // A scene always ends in a plain paragraph: keep a writable line after the quote.

@@ -284,8 +284,8 @@ scroller.addEventListener('mousedown', (e) => {
   if (!view || e.button !== 0) return;
   // The scrollbar: a hand scroll, never a caret placement.
   if (e.target === scroller && e.offsetX >= scroller.clientWidth) { startReading(); return; }
-  // An unnamed scene's ornament: name that scene.
-  const boundary = (e.target as HTMLElement).closest('.bt-scene-boundary');
+  // An unnamed scene's ornament (or an unnamed first scene's number): name that scene.
+  const boundary = (e.target as HTMLElement).closest('.bt-scene-boundary, .bt-num-first');
   if (boundary) {
     e.preventDefault();
     const $at = view.state.doc.resolve(view.posAtDOM(boundary, 0));
@@ -515,6 +515,23 @@ window.__baretext = {
   caretAfter: (text: string) => selectText(text, true),
   /** Select the first occurrence of `text` in the prose. */
   selectText: (text: string) => selectText(text, false),
+  /** Select from the first occurrence of `start` to the end of the first `end` after it. */
+  selectRange: (start: string, end: string) => {
+    if (!view) return false;
+    let from = -1;
+    let to = -1;
+    view.state.doc.descendants((node, p) => {
+      if (to >= 0) return false;
+      if (!node.isText) return true;
+      if (from < 0) { const i = node.text!.indexOf(start); if (i >= 0) from = p + i; }
+      if (from >= 0) { const j = node.text!.indexOf(end); if (j >= 0 && p + j >= from) to = p + j + end.length; }
+      return true;
+    });
+    if (from < 0 || to < 0) return false;
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, from, to)));
+    view.focus();
+    return true;
+  },
   saveNow,
   isSaved: () => (view ? view.state.doc === savedDoc : true),
   filePath: () => filePath,

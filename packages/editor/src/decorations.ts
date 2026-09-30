@@ -8,9 +8,11 @@ import { Decoration, DecorationSet } from 'prosemirror-view';
 import { schema } from './schema';
 import { structureSignature } from './structure';
 
-function numberWidget(text: string, kind: 'chapter' | 'scene'): HTMLElement {
+function numberWidget(text: string, kind: 'chapter' | 'scene' | 'first'): HTMLElement {
   const el = document.createElement('span');
-  el.className = `bt-num bt-num-${kind}`;
+  // 'first': an unnamed first scene's number beside its first line; clicking it names the scene.
+  el.className = kind === 'first' ? 'bt-num bt-num-scene bt-num-first' : `bt-num bt-num-${kind}`;
+  if (kind === 'first') el.title = 'Name scene';
   el.contentEditable = 'false';
   el.setAttribute('aria-hidden', 'true');
   el.textContent = text;
@@ -90,6 +92,12 @@ export function buildDecorations(doc: PMNode, placeholders: Placeholders): Decor
         decos.push(Decoration.widget(pos + 2, () => numberWidget(label, 'scene'), { side: -1, key: `s${label}`, ignoreSelection: true }));
       } else if (sceneNo > 1) {
         decos.push(Decoration.widget(pos + 1, () => sceneBoundaryWidget(label), { side: -1, key: `b${label}`, ignoreSelection: true }));
+      } else {
+        // Unnamed first scene: its number beside its first line of text.
+        const first = child.firstChild;
+        const at = first?.type === schema.nodes.paragraph ? pos + 2
+          : first?.type === schema.nodes.quote ? pos + 3 : -1;
+        if (at > 0) decos.push(Decoration.widget(at, () => numberWidget(label, 'first'), { side: -1, key: `f${label}`, ignoreSelection: true }));
       }
       let pauseNo = 0;
       child.forEach((block, blockOffset) => {

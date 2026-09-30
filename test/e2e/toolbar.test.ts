@@ -99,7 +99,8 @@ test('quote button wraps and unwraps the selected paragraphs', async () => {
     expect(blocks[1].paragraphs).toHaveLength(2);
     await expect(page.locator('.bt-toolbar-button[data-action="quote"]')).toHaveAttribute('aria-pressed', 'true');
     await page.click('.bt-toolbar-button[data-action="quote"]');
-    expect((await paragraphs(page)).map((b: any) => b.type)).toEqual(['paragraph', 'paragraph', 'paragraph', 'paragraph']);
+    // Back exactly as it was: the line quoting added at the scene's end goes too.
+    expect((await paragraphs(page)).map((b: any) => b.type)).toEqual(['paragraph', 'paragraph', 'paragraph']);
   } finally {
     await app.close();
   }

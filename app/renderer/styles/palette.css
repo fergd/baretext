@@ -75,8 +75,16 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
+/* Each section after the first opens with a hairline and a little air. */
+.bt-palette-group:not(:first-child) {
+  margin-top: var(--space-1);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-palette-divider);
+}
 
 .bt-palette-row {
+  /* Commands read brighter than the section headers above them. */
+  color: var(--color-palette-item);
   display: flex;
   align-items: center;
   gap: var(--space-3);

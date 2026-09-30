@@ -132,12 +132,12 @@ mounted on entry and torn down on exit.
 
 | Mode | UI label | Purpose | Features |
 |---|---|---|---|
-| Editor | "Manuscript" | Structuring and revising a long work | core, find/replace, chapter/scene navigation (outline, corkboard, cold storage), notes, structure numbering |
+| Manuscript | "Manuscript" | Structuring and revising a long work | core, find/replace, chapter/scene navigation (outline, corkboard, cold storage), notes, structure numbering |
 | Sprinter | "Sprinter" | A temporary, timed, stripped-down writing session | core, sprint timer. No navigation or numbering |
 
-- The app **launches into Editor**.
+- The app **launches into Manuscript**, always (the mode is never restored).
 - Choosing Sprinter opens sprint setup. Cancelling setup, ending the sprint,
-  or the timer completing **returns to Editor at the caret**.
+  or the timer completing **returns to Manuscript at the caret**.
 - Switch modes from the mode switch, the command palette, or ⌘⇧D. All three
   share one state.
 - The mode switch is hidden while the corkboard is open.
@@ -145,7 +145,8 @@ mounted on entry and torn down on exit.
   once at startup.
 
 ### 2.2 View toggles (not modes)
-These compose with either mode and persist across launches:
+These compose with either mode. Typewriter and focus mode last for the
+session only (every launch starts with both off); font and theme persist.
 - **Typewriter mode** (⌘⇧T, §6)
 - **Focus mode** (⌘.)
 - **Font** (⌘⇧F): a choice of writing typefaces
@@ -246,7 +247,7 @@ Keep Markdown inside the serializer/parser and nowhere else.
   Everything else becomes clean text.
 - Input methods, dictation, and accented-character entry work correctly.
 
-### 4.2 Manuscript content (Editor mode)
+### 4.2 Manuscript content (Manuscript mode)
 The manuscript area presents the book as a continuous, readable document.
 It must show:
 
@@ -331,12 +332,12 @@ The sprint has these **states**. The design of each is up to the user.
 | **Active** | Shows the time remaining and progress toward the goal, with pause/resume, minimize, and end. |
 | **Minimized** | A compact, unobtrusive presence that still shows the countdown and a paused state, and can be restored in one click. |
 | **Hidden** (⌘⇧H) | Only a minimal indicator remains. It says "sprinting" even while paused, by design, and no countdown is visible. |
-| **Complete** | A brief confirmation, then a return to Editor at the caret. |
+| **Complete** | A brief confirmation, then a return to Manuscript at the caret. |
 
 - Selecting Sprinter again reveals a hidden or minimized timer. There are no
   duplicate sprint controls elsewhere.
 - Focus mode also hides the minimized presence.
-- Sprinter's typewriter focus effect is stronger than Editor's, meaning less
+- Sprinter's typewriter focus effect is stronger than Manuscript's, meaning less
   surrounding text stays legible.
 
 ---
@@ -348,7 +349,7 @@ platen.
 
 - **A standalone on/off setting**, independent of mode. Toggle it with ⌘⇧T or
   the palette. The status area shows its state and may offer a secondary
-  toggle. The setting persists.
+  toggle. It lasts for the session; every launch starts with it off.
 - **Centering:** the caret's line stays at a fixed vertical position (by
   default the middle of the manuscript area). Moving to another line
   transitions smoothly, and typing within a line causes no motion.
@@ -395,11 +396,11 @@ shared controller.
 | ⌘⇧T | Typewriter mode |
 | ⌘⇧F | Font picker |
 | ⌘. | Focus mode |
-| ⌘⇧D | Toggle Sprinter / Editor |
+| ⌘⇧D | Toggle Sprinter / Manuscript |
 | ⌘⇧S | Start or restore a sprint |
 | ⌘⇧H | Hide the sprint timer |
-| ⌘F | Find & replace (Editor) |
-| ⌘⇧C | Corkboard (Editor) |
+| ⌘F | Find & replace (Manuscript) |
+| ⌘⇧C | Corkboard (Manuscript) |
 | ⌘⇧M | Add note to selection |
 | ⌘\ | Show / hide the outline area |
 
@@ -407,7 +408,7 @@ The native macOS menu mirrors the file commands, including **Open Recent**
 (the last 10 existing files). When the manuscript is focused, Edit →
 Undo/Redo uses the manuscript's history.
 
-### 7.4 Find & replace (Editor, ⌘F)
+### 7.4 Find & replace (Manuscript, ⌘F)
 - Counts matches, steps through them, and replaces one or all.
 - Matches are visibly identified in the manuscript.
 - It searches **the prose the writer sees**, never markup.
@@ -415,7 +416,7 @@ Undo/Redo uses the manuscript's history.
 
 ---
 
-## 8. Chapter and scene navigation (Editor mode)
+## 8. Chapter and scene navigation (Manuscript mode)
 
 All navigation areas read **the manuscript model**. For each scene, that
 includes its title, word count, synopsis (its opening prose), link group,
@@ -685,7 +686,8 @@ revision, without ever writing prose for the author.
   - content and cursor changes; save now; open file;
   - load/save notes; export; print;
   - AI and backup actions;
-  - persisted preferences: theme, mode, typewriter, and outline state.
+  - persisted preferences: theme, paragraph spacing, and outline state (mode,
+    typewriter, and focus are per-session and never restored).
 - **Security and testing:** a strict content-security policy on the UI; a
   small, validated settings file; and the UI can launch hidden for tests.
 
@@ -713,8 +715,9 @@ revision, without ever writing prose for the author.
 6. **Mode registry:** mode → feature ids.
    - Adding a feature = one module + one line.
    - Switching modes tears down the outgoing features, initializes the
-     incoming ones, merges their commands and keybindings, exposes the active
-     mode to the presentation layer, and persists the choice.
+     incoming ones, merges their commands and keybindings, and exposes the
+     active mode to the presentation layer. (The mode is not restored at the next
+     launch: the app always starts in Manuscript.)
 7. **Mode-agnostic views** are mounted once: the theme picker, notes, and
    settings.
 

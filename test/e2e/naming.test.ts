@@ -63,3 +63,25 @@ test('rename from the palette; an empty name goes away (Backspace, or just leavi
     await app.close();
   }
 });
+
+test('an unnamed first scene shows its number beside its first line; clicking it names the scene', async () => {
+  const { app, page } = await launch({ file: { name: 'N.md', content: FILE } });
+  try {
+    const num = page.locator('.bt-num-first');
+    await expect(num).toHaveCount(1);
+    await expect(num).toHaveText('1.1');
+    // It sits beside the scene's first line, in the margin.
+    const [n, line] = await Promise.all([num.boundingBox(), page.locator('.ProseMirror p').first().boundingBox()]);
+    expect(Math.abs(n!.y - line!.y)).toBeLessThanOrEqual(1);
+    expect(n!.x + n!.width).toBeLessThan(line!.x);
+
+    await num.click();
+    expect(await names(page)).toEqual(['', null, 'Harbor']);
+    await page.keyboard.type('Morning');
+    expect(await names(page)).toEqual(['Morning', null, 'Harbor']);
+    await expect(page.locator('.bt-num-first')).toHaveCount(0); // now a named heading with its number
+    expect((await model(page)).chapters[0].scenes[0].blocks[0].content[0].text).toBe('Opening prose.');
+  } finally {
+    await app.close();
+  }
+});
