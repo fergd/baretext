@@ -4,7 +4,7 @@ import { CHANNELS, type BaretextBridge, type InitialPrefs, type MenuCommand, typ
 
 function readInitial(): InitialPrefs {
   const arg = process.argv.find((a) => a.startsWith('--bt-initial='));
-  const fallback: InitialPrefs = { theme: 'dracula', paragraphSpacing: 'full', hidden: false };
+  const fallback: InitialPrefs = { theme: 'dracula', paragraphSpacing: 'full', outline: 'hidden', hidden: false };
   if (!arg) return fallback;
   try {
     return { ...fallback, ...JSON.parse(decodeURIComponent(arg.slice('--bt-initial='.length))) };

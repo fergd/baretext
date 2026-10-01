@@ -4,7 +4,7 @@
 import { promises as fs, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { atomicWrite } from './save';
-import { PARAGRAPH_SPACINGS, type ParagraphSpacing } from '../shared/bridge';
+import { OUTLINE_STATES, PARAGRAPH_SPACINGS, type OutlineState, type ParagraphSpacing } from '../shared/bridge';
 
 export interface Settings {
   lastFile: string | null;
@@ -13,6 +13,7 @@ export interface Settings {
   carets: Record<string, number>;
   theme: string;
   paragraphSpacing: ParagraphSpacing;
+  outline: OutlineState;
   saveDir: string | null;
   /** Where the window was (its normal, unzoomed frame) and how. */
   window: { x: number; y: number; width: number; height: number; maximized: boolean; fullscreen: boolean } | null;
@@ -24,6 +25,7 @@ export const DEFAULT_SETTINGS: Settings = {
   carets: {},
   theme: 'dracula',
   paragraphSpacing: 'full',
+  outline: 'hidden',
   saveDir: null,
   window: null,
 };
@@ -43,6 +45,7 @@ export function validateSettings(raw: unknown): Settings {
   }
   if (isString(r.theme) && /^[a-z0-9-]{1,32}$/.test(r.theme)) s.theme = r.theme;
   if (PARAGRAPH_SPACINGS.includes(r.paragraphSpacing as ParagraphSpacing)) s.paragraphSpacing = r.paragraphSpacing as ParagraphSpacing;
+  if (OUTLINE_STATES.includes(r.outline as OutlineState)) s.outline = r.outline as OutlineState;
   if (isString(r.saveDir)) s.saveDir = r.saveDir;
   const w = r.window as Record<string, unknown> | null | undefined;
   if (w && typeof w === 'object' && ['x', 'y', 'width', 'height'].every((k) => Number.isFinite(w[k]))) {

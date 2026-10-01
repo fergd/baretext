@@ -1,0 +1,110 @@
+/* The outline: a column beside the page, opened from the title bar's
+   sidebar button or ⌘\. Rows are a grid so numbers, names and counts
+   line up. */
+
+.bt-outline {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  width: var(--outline-w);
+  font-size: var(--text-ui);
+  line-height: var(--lh-ui);
+  letter-spacing: var(--tracking-ui);
+  color: var(--color-text-dim);
+  user-select: none;
+  visibility: hidden;
+  opacity: 0;
+}
+
+/* Pinned: a column beside the page. */
+.bt-outline[data-presence='pinned'],
+.bt-outline[data-closing='true'] {
+  top: 0;
+  bottom: 0;
+  left: 0;
+  background: var(--color-outline-column);
+  border-right: 1px solid var(--color-palette-divider);
+  visibility: visible;
+  opacity: 1;
+}
+.bt-app[data-outline='pinned'] .bt-scroller { left: var(--outline-w); }
+.bt-app[data-outline='pinned'] .bt-spine,
+.bt-app[data-outline='pinned'] .bt-spine-tip { visibility: hidden; }
+.bt-app[data-outline='pinned'] .bt-tw-guide-left { left: var(--outline-w); }
+
+/* Focus mode: the pinned column steps aside with the rest of the chrome. */
+.bt-app[data-focus='true'] .bt-outline:not([data-closing='true']) { visibility: hidden; }
+.bt-app[data-focus='true'][data-outline='pinned'] .bt-scroller { left: 0; }
+.bt-app[data-focus='true'][data-outline='pinned'] .bt-tw-guide-left { left: 0; }
+
+.bt-outline-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  height: var(--palette-input-h);
+  padding: 0 var(--space-4);
+  border-bottom: 1px solid var(--color-palette-divider);
+  white-space: nowrap;
+}
+.bt-outline-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--color-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.bt-outline-total { flex: none; color: var(--color-text-dimmer); font-variant-numeric: tabular-nums; }
+
+.bt-outline-tree {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--space-2) var(--space-1) var(--space-4);
+  scrollbar-width: thin;
+}
+
+.bt-outline-row {
+  display: grid;
+  grid-template-columns: var(--outline-toggle-w) var(--outline-num-w) minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--space-1);
+  height: var(--outline-row-h);
+  padding: 0 var(--space-2) 0 var(--space-1);
+  border-radius: var(--toolbar-button-radius);
+  white-space: nowrap;
+  cursor: default;
+}
+.bt-outline-row:hover { background: var(--color-popover-hover); }
+.bt-outline-row:focus-visible { outline-offset: -1px; }
+
+.bt-outline-chapter { color: var(--color-palette-item); }
+.bt-outline-chapter + [role='group'] { margin-bottom: var(--space-2); }
+.bt-outline-scene > .bt-outline-num { grid-column: 2; }
+
+.bt-outline-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-dimmer);
+  transition: rotate var(--dur-fast) var(--ease-out);
+}
+.bt-outline-chapter[aria-expanded='false'] .bt-outline-toggle { rotate: -90deg; }
+
+.bt-outline-num { color: var(--color-text-dimmer); font-variant-numeric: tabular-nums; }
+.bt-outline-name { overflow: hidden; text-overflow: ellipsis; }
+.bt-outline-scene[data-unnamed='true'] .bt-outline-name { color: var(--color-text-dimmer); }
+.bt-outline-meta { color: var(--color-text-dimmer); font-variant-numeric: tabular-nums; }
+
+/* Where the writer is: the current scene reads brightest, with the accent stripe. */
+.bt-outline-scene[aria-current='location'] {
+  background: var(--color-popover-active);
+  color: var(--color-text);
+}
+.bt-outline-scene[aria-current='location'] .bt-outline-num,
+.bt-outline-scene[aria-current='location'] .bt-outline-name { color: var(--color-text); }
+.bt-outline-chapter[data-here='true'] > .bt-outline-num { color: var(--color-accent); }

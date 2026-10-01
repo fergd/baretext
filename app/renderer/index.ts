@@ -19,6 +19,7 @@ import {
 import type { BaretextBridge, MenuCommand, OpenedDocument, ParagraphSpacing } from '../shared/bridge';
 import { currentScene, outlineOf, sceneAt, sceneDisplayName } from './outline';
 import { Spine } from './spine';
+import { OutlinePanel, type OutlinePresence } from './outline-panel';
 import { FindPanel } from './find';
 import { HistoryPanel } from './history';
 import { Palette, type PaletteItem, type PaletteView } from './palette';
@@ -103,6 +104,7 @@ function refreshChrome() {
       ? `Chapter ${here.chapter.number}${here.chapter.title ? ` · ${here.chapter.title}` : ''} · ${sceneDisplayName(here.scene)}`
       : '';
     spine.update(outline, here?.scene.id ?? null, here?.chapter.id ?? null);
+    outlinePanel.update(outline, state.doc.firstChild!.textContent, here?.scene.id ?? null, here?.chapter.id ?? null);
   });
 }
 
@@ -214,6 +216,53 @@ scroller.addEventListener('scroll', () => {
 scroller.addEventListener('wheel', startReading, { passive: true });
 
 const spine = new Spine($('spine'), (id) => navigate(id));
+
+// ── outline: a column beside the page, opened deliberately (button, ⌘\, menu) ──
+const outlinePanel = new OutlinePanel($('workspace'), {
+  navigate: (id) => navigate(id),
+  toEditor: () => view?.focus(),
+  onPresence: (presence: OutlinePresence) => {
+    const open = presence === 'pinned';
+    $('sidebar').setAttribute('aria-pressed', String(open));
+    $('sidebar').setAttribute('aria-label', open ? 'Hide outline' : 'Show outline');
+    $('sidebar').title = `${open ? 'Hide' : 'Show'} outline  ⌘\\`;
+  },
+});
+
+/** Keep the caret's line where it is on screen across a layout change. */
+function keepCaretLine(change: () => void) {
+  let anchor: number | null = null;
+  if (view) { try { anchor = view.coordsAtPos(view.state.selection.head).top; } catch { anchor = null; } }
+  change();
+  if (typewriter.enabled) { typewriter.recenter(false); return; }
+  if (anchor !== null && view) scroller.scrollTop += view.coordsAtPos(view.state.selection.head).top - anchor;
+}
+
+/**
+ * The column opens or closes: the layout changes at once, then the column
+ * slides and the page glides from where it was to its new center (FLIP),
+ * so nothing in the manuscript is laid out again during the motion.
+ */
+function sidebarMotion(open: boolean, change: () => void, animate = true) {
+  const before = page.getBoundingClientRect().left;
+  keepCaretLine(change);
+  const root = getComputedStyle(document.documentElement);
+  const duration = animate ? parseFloat(root.getPropertyValue('--dur-sidebar')) || 0 : 0;
+  const easing = root.getPropertyValue('--ease-sidebar').trim() || 'ease-out';
+  outlinePanel.motion(open, duration, easing);
+  const dx = before - page.getBoundingClientRect().left;
+  if (duration && Math.abs(dx) >= 1) {
+    page.animate([{ transform: `translateX(${dx}px)` }, { transform: 'translateX(0)' }], { duration, easing, composite: 'add' });
+  }
+}
+
+function setOutlinePinned(pinned: boolean, persist = true, animate = true) {
+  sidebarMotion(pinned, () => {
+    app.dataset.outline = pinned ? 'pinned' : 'hidden';
+    outlinePanel.setPresence(pinned ? 'pinned' : 'hidden');
+  }, animate && app.dataset.focus !== 'true');
+  if (persist) bridge.setPrefs({ outline: pinned ? 'pinned' : 'hidden' });
+}
 const typewriter = new Typewriter(app, scroller, page, () => view);
 const toolbar = new SelectionToolbar($('workspace'), scroller, () => view);
 const find = new FindPanel($('workspace'), scroller, () => view, () => snapshotNow('Before Replace All'));
@@ -365,6 +414,8 @@ function setParagraphSpacing(spacing: ParagraphSpacing) {
   if (typewriter.enabled) typewriter.recenter(false);
 }
 function setFocus(on: boolean) {
+  if (on && outlinePanel.el.contains(document.activeElement)) view?.focus();
+  if (app.dataset.outline === 'pinned' && app.dataset.focus !== String(on)) sidebarMotion(!on, () => { app.dataset.focus = String(on); });
   app.dataset.focus = String(on);
   $('focus').setAttribute('aria-checked', String(on));
 }
@@ -393,6 +444,17 @@ function runCommand(command: MenuCommand) {
     case 'find-prev': find.next(-1); break;
     case 'history': palette.close(); find.close(); void history.open(false); break;
     case 'snapshot': palette.close(); find.close(); void history.open(true); break;
+    case 'outline': setOutlinePinned(outlinePanel.presence !== 'pinned'); break;
+    case 'outline-focus': {
+      palette.close();
+      if (app.dataset.focus === 'true') setFocus(false);
+      if (outlinePanel.presence === 'hidden') setOutlinePinned(true);
+      // Where you are right now, not as of the last painted frame.
+      const here = (reading && readingHere) || currentScene(view.state);
+      outlinePanel.update(outlineOf(view.state.doc), view.state.doc.firstChild!.textContent, here?.scene.id ?? null, here?.chapter.id ?? null);
+      outlinePanel.focusTree();
+      break;
+    }
   }
 }
 
@@ -429,6 +491,7 @@ function commandsView(): PaletteView {
         );
       }
       items.push(
+        { id: 'outline', group: 'View', label: 'Outline', keywords: 'sidebar chapters scenes tree navigator', keys: '⌘\\', state: outlinePanel.presence === 'pinned' ? 'on' : 'off', run: () => runCommand('outline') },
         { id: 'typewriter', group: 'View', label: 'Typewriter mode', keywords: 'center line', keys: '⌘⇧T', state: typewriter.enabled ? 'on' : 'off', run: () => runCommand('typewriter') },
         { id: 'focus', group: 'View', label: 'Focus mode', keywords: 'hide chrome distraction quiet', keys: '⌘.', state: app.dataset.focus === 'true' ? 'on' : 'off', run: () => runCommand('focus') },
         {
@@ -502,6 +565,7 @@ const NAV_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Pa
 window.addEventListener('keydown', (e) => {
   if (NAV_KEYS.has(e.key)) lastKeyNav = Date.now();
   if (e.metaKey && e.altKey && !e.ctrlKey && !e.shiftKey && e.code === 'KeyF') { e.preventDefault(); runCommand('find-replace'); return; }
+  if (e.metaKey && !e.ctrlKey && !e.shiftKey && e.code === 'Backslash') { e.preventDefault(); runCommand(e.altKey ? 'outline-focus' : 'outline'); return; }
   if (!e.metaKey || e.ctrlKey || e.altKey) return;
   const k = e.key.toLowerCase();
   if (k === 's' && !e.shiftKey) { e.preventDefault(); runCommand('save'); }
@@ -525,6 +589,8 @@ window.addEventListener('keydown', (e) => {
 
 // Status switches never take focus from the manuscript (the caret stays visible).
 for (const t of document.querySelectorAll<HTMLElement>('.bt-toggle')) t.addEventListener('mousedown', (e) => e.preventDefault());
+$('sidebar').addEventListener('mousedown', (e) => e.preventDefault());
+$('sidebar').addEventListener('click', () => runCommand('outline'));
 $('typewriter').addEventListener('click', () => runCommand('typewriter'));
 $('focus').addEventListener('click', () => runCommand('focus'));
 $('filename').addEventListener('click', () => filePath && bridge.revealInFinder(filePath));
@@ -540,6 +606,7 @@ bridge.onFlushRequest(() => saveNow());
 setFocus(false);
 setParagraphSpacing(bridge.initial.paragraphSpacing);
 setTypewriter(false);
+setOutlinePinned(bridge.initial.outline === 'pinned', false, false);
 bridge.loadInitial().then(load, (e: Error) => toast(`Could not open the manuscript: ${e.message}`, 'error'));
 
 function selectText(text: string, collapseToEnd: boolean): boolean {
@@ -606,5 +673,6 @@ window.__baretext = {
   hasFocus: () => (view ? view.hasFocus() : false),
   textBetween: (from: number, to: number) => (view ? view.state.doc.textBetween(from, to, '\n') : ''),
   history: () => ({ open: history.isOpen }),
+  outline: () => ({ presence: outlinePanel.presence, focused: outlinePanel.el.contains(document.activeElement) }),
   find: () => ({ open: find.isOpen, count: find.el.querySelector('.bt-find-count')!.textContent, ms: find.lastSearchMs }),
 };

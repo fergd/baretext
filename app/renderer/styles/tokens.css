@@ -41,6 +41,7 @@
   --chrome-h: 36px;
   --chrome-inset: 88px;
   --chrome-optical-offset: 1px;
+  --chrome-button: 24px;
   --status-h: 32px;
   --spine-w: 48px;
   --spine-pad-left: 12px;
@@ -97,6 +98,12 @@
   --history-label-w: 180px;
   --lh-preview: 20px;
 
+  /* outline (a column beside the page) */
+  --outline-w: 248px;
+  --outline-row-h: 28px;
+  --outline-num-w: 32px;
+  --outline-toggle-w: 16px;
+
   /* switch (on/off controls) */
   --switch-w: 20px;
   --switch-h: 12px;
@@ -117,6 +124,9 @@
   /* gentler than --ease-out so the settle is visible, still quick off the mark */
   --ease-jump: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
+  /* the outline column opening/closing: quick off the mark, long soft settle */
+  --dur-sidebar: 420ms;
+  --ease-sidebar: cubic-bezier(0.32, 0.72, 0, 1);
 
   /* typewriter */
   --tw-guide-length: 240px;
@@ -154,6 +164,7 @@
   --color-find-current: rgba(255, 184, 108, 0.5);
   --color-find-current-ring: rgba(255, 184, 108, 0.9);
   --color-popover-border: #44475a;
+  --color-outline-column: #1e1f28;
   --color-popover-hover: rgba(248, 248, 242, 0.08);
   --color-popover-active: rgba(189, 147, 249, 0.24);
   --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.36), 0 2px 4px rgba(0, 0, 0, 0.24);
@@ -169,5 +180,6 @@
     --dur-fade-in: 0ms;
     --dur-glide: 0ms;
     --dur-jump: 0ms;
+    --dur-sidebar: 0ms;
   }
 }

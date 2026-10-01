@@ -129,8 +129,38 @@ Pull exact values from Figma when implementing each component.
   in the editor, so `defaultPrevented` is not a usable signal).
 - **Focus mode hides the spine** (fades out over 220ms; no clicks or hover
   while hidden; fades back when focus mode ends). 2026-09-29.
-- Hovering the spine peeks the outline as glass; ⌘\ pins it as a column
-  (see `docs/reference-tokens` and the old writing-rail handoff).
+- ~~Hovering the spine peeks the outline as glass~~ — **dropped
+  (2026-09-30, user):** hover-to-open didn't feel right; the outline opens
+  only by a deliberate action. A floating version may return later only as
+  its own deliberate action, if at all.
+- **Outline (2026-09-30; no Figma frame yet, built from the palette's
+  styling and tokens):**
+  - A sidebar icon button at the start of the title bar (after the traffic
+    lights), ⌘\, View → Outline (checkbox) and the palette's Outline switch
+    open and close it as a 248px column. The page recenters beside it; the
+    caret's line stays put; the spine hides while it is open. The state
+    persists (`outline` in settings). The button never takes focus from
+    the manuscript.
+  - ⌥⌘\ (View → Move to Outline) moves keyboard focus into the tree on the
+    current scene, opening it if closed. Esc returns to the manuscript.
+    Clicking rows never takes focus from the manuscript.
+  - Rows: chevron · number · name · word count. A folded chapter shows
+    `scenes · words`. Clicking a chapter's name opens its first scene; the
+    chevron folds. Current scene: accent wash; current chapter's number in
+    accent. It opens with the current scene in view and is never scrolled
+    by a click or refresh.
+  - Counts refresh 250ms after typing pauses; structure changes at once.
+  - Focus mode hides the column and restores it after (with the same motion).
+  - **Motion (2026-09-30, user asked for "modern" open/close):** the layout
+    changes at once; the column slides in from the left edge (420ms,
+    `--ease-sidebar` cubic-bezier(0.32, 0.72, 0, 1)) while the page glides
+    from its old center to its new one (FLIP, transform only, so the
+    manuscript is never re-laid out mid-motion). Rows in view cascade in
+    (12px slide + fade, whole wave within 160ms). Closing reverses the slide;
+    the column stays painted until it has gone. Reduced motion: instant.
+  - **Icon:** closed shows the empty sidebar frame ("Show outline"); open
+    becomes "Hide outline": the left pane fills in and a chevron points
+    left. The two morph with the same timing.
 
 ## 4. Typewriter mode — OVERRIDES spec §6 "focus by sentence"
 

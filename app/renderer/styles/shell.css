@@ -49,6 +49,33 @@ button {
   overflow: hidden;
   user-select: none;
 }
+.bt-chrome-button {
+  -webkit-app-region: no-drag;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--chrome-button);
+  height: var(--chrome-button);
+  margin-top: calc(-1 * var(--chrome-optical-offset)); /* the icon centers on the bar, not the text's optical line */
+  border-radius: var(--toolbar-button-radius);
+  color: var(--color-text-dimmer);
+  transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+}
+.bt-chrome-button:hover { color: var(--color-text-dim); background: var(--color-popover-hover); }
+.bt-chrome-button[aria-pressed='true'] { color: var(--color-text-dim); }
+
+/* Sidebar icon: closed shows the empty pane; open becomes "close sidebar"
+   (the pane fills in and a chevron points the way it will go). */
+.bt-sidebar-pane,
+.bt-sidebar-chevron {
+  transform-box: fill-box;
+  transition: opacity var(--dur-sidebar) var(--ease-sidebar), transform var(--dur-sidebar) var(--ease-sidebar);
+}
+.bt-sidebar-pane { transform-origin: left center; transform: scaleX(0); opacity: 0; }
+.bt-sidebar-chevron { transform: translateX(2px); opacity: 0; }
+[aria-pressed='true'] .bt-sidebar-pane { transform: scaleX(1); opacity: 0.5; }
+[aria-pressed='true'] .bt-sidebar-chevron { transform: translateX(0); opacity: 1; }
 .bt-chrome-title { color: var(--color-text-dim); text-transform: uppercase; letter-spacing: 0.1em; overflow: hidden; text-overflow: ellipsis; }
 .bt-chrome-crumb { overflow: hidden; text-overflow: ellipsis; }
 

@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { existsSync, promises as fs } from 'node:fs';
 import path from 'node:path';
 import { emptyManuscript, manuscriptWords, parse, serialize, validate, type Manuscript } from '@baretext/format';
-import { CHANNELS, PARAGRAPH_SPACINGS, type InitialPrefs, type MenuCommand, type OpenedDocument, type ParagraphSpacing } from '../shared/bridge';
+import { CHANNELS, OUTLINE_STATES, PARAGRAPH_SPACINGS, type OutlineState, type InitialPrefs, type MenuCommand, type OpenedDocument, type ParagraphSpacing } from '../shared/bridge';
 import { saveManuscript } from './save';
 import { SnapshotStore, type SnapshotEntry } from './snapshots';
 import { SettingsStore } from './settings';
@@ -240,6 +240,9 @@ function buildMenu() {
         { label: 'Command Palette…', ...label('CmdOrCtrl+K'), click: () => send('palette') },
         { label: 'Go to Chapter or Scene…', ...label('Shift+CmdOrCtrl+O'), click: () => send('goto') },
         { type: 'separator' },
+        { label: 'Outline', type: 'checkbox', checked: settings.get().outline === 'pinned', ...label('CmdOrCtrl+\\'), click: () => send('outline') },
+        { label: 'Move to Outline', ...label('Alt+CmdOrCtrl+\\'), click: () => send('outline-focus') },
+        { type: 'separator' },
         { label: 'Typewriter Mode', ...label('Shift+CmdOrCtrl+T'), click: () => send('typewriter') },
         { label: 'Focus Mode', ...label('CmdOrCtrl+.'), click: () => send('focus') },
         { type: 'separator' },
@@ -256,7 +259,7 @@ function buildMenu() {
 function createWindow() {
   const s = settings.get();
   const initial: InitialPrefs = {
-    theme: s.theme, paragraphSpacing: s.paragraphSpacing, hidden: HIDDEN,
+    theme: s.theme, paragraphSpacing: s.paragraphSpacing, outline: s.outline, hidden: HIDDEN,
   };
   // Where it was last time (if still on a connected display), else a large
   // centered window. Hidden test windows keep a fixed size unless a test sets one.
@@ -358,8 +361,9 @@ function registerIpc() {
     const next: Record<string, unknown> = {};
     if (typeof patch.theme === 'string') next.theme = patch.theme;
     if (PARAGRAPH_SPACINGS.includes(patch.paragraphSpacing as ParagraphSpacing)) next.paragraphSpacing = patch.paragraphSpacing;
+    if (OUTLINE_STATES.includes(patch.outline as OutlineState)) next.outline = patch.outline;
     settings.update(next);
-    if ('paragraphSpacing' in next) buildMenu(); // keep the radio items in step
+    if ('paragraphSpacing' in next || 'outline' in next) buildMenu(); // keep the checked items in step
   });
   ipcMain.on(CHANNELS.fileCommand, (_e, command: unknown) => {
     if (command === 'new') void switchTo(createDocument);

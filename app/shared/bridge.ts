@@ -18,14 +18,19 @@ export type SaveResult =
 export const PARAGRAPH_SPACINGS = ['full', 'half', 'none'] as const;
 export type ParagraphSpacing = (typeof PARAGRAPH_SPACINGS)[number];
 
+/** Whether the outline is kept open as a column (⌘\). */
+export const OUTLINE_STATES = ['hidden', 'pinned'] as const;
+export type OutlineState = (typeof OUTLINE_STATES)[number];
+
 export interface InitialPrefs {
   theme: string;
   paragraphSpacing: ParagraphSpacing;
+  outline: OutlineState;
   hidden: boolean;
 }
 
 export type MenuCommand =
-  | 'undo' | 'redo' | 'typewriter' | 'focus' | 'bold' | 'italic' | 'link' | 'quote' | 'split-scene' | 'pause' | 'name-scene' | 'save' | 'palette' | 'goto' | 'find' | 'find-replace' | 'find-next' | 'find-prev' | 'history' | 'snapshot';
+  | 'undo' | 'redo' | 'typewriter' | 'focus' | 'bold' | 'italic' | 'link' | 'quote' | 'split-scene' | 'pause' | 'name-scene' | 'save' | 'palette' | 'goto' | 'find' | 'find-replace' | 'find-next' | 'find-prev' | 'history' | 'snapshot' | 'outline' | 'outline-focus';
 
 /** A local snapshot of a manuscript (DECISIONS §6). */
 export interface SnapshotInfo {

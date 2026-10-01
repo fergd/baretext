@@ -245,3 +245,72 @@ themes/fonts · export/print · integrations (DECISIONS §7).
 Outline peek/pin (⌘\) · Sprinter mode + sprint timer · corkboard ·
 cold storage UI · notes · themes/fonts · export/print · integrations
 (DECISIONS §7).
+
+## 2026-09-30 — Outline (first pass)
+- The outline opens as a column beside the page from a sidebar button in
+  the title bar, ⌘\, View → Outline or the palette; remembered across
+  launches; ⌥⌘\ moves focus into it. `app/renderer/outline-panel.ts`,
+  `styles/outline.css`.
+- A hover-to-peek version was built first and dropped at the user's
+  request: opening should be a deliberate action.
+- Content: book title and total, chapters (number, title, words; folded
+  chapters show scene count), scenes (number, name, words), current scene
+  marked. Keyboard tree: ↑/↓, ←/→ fold and move, Home/End, Enter/Space, Esc.
+- No Figma design exists for the outline; this pass uses existing tokens
+  and palette styling.
+- Found while testing: ⌥⌘\ right after a jump focused the previous scene
+  (the outline learned the current scene one frame late). Fixed; covered.
+- Opening/closing animate (slide, page glide, row cascade); the button's
+  icon morphs into a close icon while open. Reduced motion skips all of it.
+- Measured on 120k words (174 rows): open ≤ 7.6 ms, close ≈ 1.4 ms (the
+  layout change; the motion itself is transform-only).
+- Tests: 108 unit, 61 end-to-end (7 outline tests). "Move to outline"
+  stays out of the palette to keep it at ≤ 16 commands.
+
+**Still open in §8.1 (outline)**
+Inline rename (F2), add chapter / add scene in a chapter, copy, archive to
+cold storage, delete (two-step), drag and ⌥↑/⌥↓ to reorder, Cold Storage
+section, note counts, editable book title. Reordering and deleting need
+new structural commands in `packages/editor` (with fuzzing).
+
+## 2026-09-30 — Checkpoint (session handoff)
+**Since the last checkpoint**
+- Outline (first pass): a column beside the page, opened only deliberately
+  (title-bar sidebar button, ⌘\, View → Outline, palette switch); ⌥⌘\
+  moves focus into its keyboard tree. Remembered across launches.
+- Hover-to-peek was built and dropped (user: opening must be deliberate).
+- Open/close motion: column slides, page glides (FLIP), rows cascade;
+  sidebar icon morphs to a close icon. Reduced motion: instant.
+
+**State**
+- Branch `rebuild`, everything committed. 108 unit, 61 end-to-end tests,
+  all passing. Fuzzer last run clean at 30,000 cases (no editor changes
+  since).
+- Run: `npm start`. Tests: `npx vitest run`, `npx playwright test`
+  (build first: `npm run build`). Deep fuzz: `FC_RUNS=30000 npx vitest run
+  packages/editor/test/fuzz.test.ts --testTimeout=600000`.
+- Throwaway screenshot specs must live in `test/e2e/` (module resolution
+  fails from outside the project); delete them after use.
+
+**Working agreements**
+- User reviews by screenshot and feel; small, precise UI requests.
+- Surfaces open by a deliberate action (button, shortcut, menu), never on
+  hover. Hover is for tooltips only.
+- Bug fix = failing test first; verify in the real hidden app; record
+  decisions in DECISIONS.md. Commit only when asked; branch `rebuild`.
+
+**Open**
+- Outline §8.1 still to build: inline rename (F2), add chapter / scene in
+  a chapter, copy, archive to cold storage, two-step delete, drag and
+  ⌥↑/⌥↓ reorder, Cold Storage section, note counts, editable book title.
+  Reorder/delete need new structural commands in `packages/editor` (fuzzed).
+- Outline has no Figma design; visuals await the user's direction.
+- Deleting a snapshot from the History panel (store supports it).
+- Find's Aa / ab are pressed-state buttons, not switches.
+- Book title and breadcrumb sit close together.
+- Dictation not verified by a person.
+
+**Next (proposed order)**
+Outline editing (rename, add, delete, reorder, cold storage) · Sprinter
+mode + sprint timer · corkboard · notes · themes/fonts · export/print ·
+integrations (DECISIONS §7).
