@@ -65,7 +65,7 @@ to change a decision, raise it with the user; don't silently diverge.
 - **4px grid** for all spacing, sizes, and positions (strokes such as 2px
   ticks are exempt). Figma values off-grid get rounded (e.g. 26→24/28,
   18→16/20, 21→20).
-- Body rhythm: JetBrains Mono 15/24. Chapter title 40/64, scene title 28/48
+- Body rhythm: 15/24 (was JetBrains Mono; IBM Plex since 2026-10-01, see §9). Chapter title 40/64, scene title 28/48
   (mono → weight 400, never synthesized bold).
 - Text uses `text-box` trimming (cap/alphabetic) for optical centering in
   controls; tabular numerals for counts, timer, numbering.
@@ -137,7 +137,9 @@ Pull exact values from Figma when implementing each component.
   styling and tokens):**
   - A sidebar icon button at the start of the title bar (after the traffic
     lights), ⌘\, View → Outline (checkbox) and the palette's Outline switch
-    open and close it as a 248px column. The page recenters beside it; the
+    open and close it as a 296px column (248px when the window is narrower
+    than 1,100px, so the page keeps room for its margin numbers; user,
+    2026-10-01). The page recenters beside it; the
     caret's line stays put; the spine hides while it is open. The state
     persists (`outline` in settings). The button never takes focus from
     the manuscript.
@@ -434,3 +436,67 @@ Build the main app first. When integrations are built, follow this design.
   (2026-09-29)
 - **Own data folder** (`~/Library/Application Support/Baretext Next`), never
   shared with the previous app.
+
+## 9. Typography: IBM Plex (2026-10-01, user)
+
+- **IBM Plex throughout**, bundled in `app/renderer/fonts` (SIL Open Font
+  License, `fonts/LICENSES/IBM-Plex-OFL.txt`); JetBrains Mono removed.
+- **Numbers are IBM Plex Mono** (`--font-num`): chapter and scene numbers
+  in the outline and the page margins, word counts, the spine tip number.
+  Mixed strings ("1 of 12") stay in the interface face with tabular
+  figures; the status bar sets only the count in mono.
+- **Everything else in the interface is IBM Plex Sans Condensed**
+  (`--font-ui`), including chapter and scene names in the outline.
+- **Prose: the writer chooses Mono, Sans or Serif** (IBM Plex Mono / Sans /
+  Serif; default Mono). The page's chapter and scene headings follow the
+  prose font. Saved as `proseFont` in settings; Format → Prose Font and
+  the palette's "Prose font…". The caret's line stays put when it changes.
+  This is the first setting of the future Style section (theme, fonts…).
+- Apple's SF Pro / New York / SF Mono were considered: SF Pro is reachable
+  in Electron via `system-ui`, but New York and SF Mono are not (hidden
+  system fonts; loading their files directly is a licensing gray area),
+  and none may be bundled. Not used.
+- Title bar optical offset is 0 with Plex (JetBrains Mono needed 1px).
+
+## 10. Appearance (2026-10-01, user)
+
+- **One place for appearance:** Baretext → Settings… (⌘,) and the palette's
+  "Appearance…" open a panel: prose font (Mono/Sans/Serif), theme, paragraph
+  spacing, prose width (Narrow ~55 chars, today's 500px / Wide ~70 chars,
+  ~660px), font size (Small 14/24 · Medium 15/24 · Large 17/28 · Extra large
+  19/32). A live sample window shows the choices; **nothing changes until
+  Save**; Cancel/Esc discards. **Overrides spec §11** ("applies a theme on
+  selection" and "each theme has its own palette entry"). The separate
+  Prose Font / Paragraph Spacing menu and palette entries go away.
+- **Themes: Dracula (default), Dark, Light, Grove, High Contrast.** The
+  first four come from the old app's reference tokens, extended to every
+  color the app uses. **High Contrast** is dark and meets **WCAG AAA**
+  (all text ≥ 7:1 on every surface, titles and accent ≥ 4.5:1), enforced
+  by its own tests. The green-phosphor CRT
+  theme (Amstrad) is **not** carried over. Default: Dracula.
+- Every theme passes an automated WCAG AA check
+  (`app/renderer/test/themes.test.ts`): body, dim and dimmest text ≥ 4.5:1
+  on every surface; titles and accent ≥ 3:1 on the page. This lightened
+  Dracula's dimmest text slightly (#91929b → #9fa0a8; it was 4.3:1 on
+  popovers). Light uses stronger margin-number opacity (0.4 / 0.65).
+- The saved theme is applied before first paint (window background per
+  theme; `data-theme` set first thing in the renderer).
+- **Built (2026-10-01):** the panel (`app/renderer/appearance.ts`) has
+  theme cards (each drawn in its own theme), then Prose font, Font size,
+  Paragraph spacing, Prose width as segmented choices; a sample window
+  with the writer's current scene; Reset to defaults; Cancel / Save.
+  Keyboard: one tab stop per group, arrows choose (wrapping), ⌘↵ saves,
+  Esc cancels (and is claimed, so it never leaves focus mode). Opens on the
+  theme in use. Theme tokens apply to any element with `data-theme`, so the
+  sample and cards can show a theme the app isn't using.
+- **Tweaks (2026-10-01, user):** the panel is as tall as its controls
+  need whenever the window allows (scrolls only when it can't); the
+  sample fills its side edge to edge (no inner frame); no "Nothing
+  changes until you save" hint.
+- Font size scales the prose line and the full-line paragraph gap (half
+  gap: 12 / 12 / 16 / 16px). Heading sizes don't change.
+- Margin numbers hide when the page area (not the window) is too narrow:
+  under 740px for Narrow prose, 900px for Wide.
+- The Format menu's Prose Font and Paragraph Spacing submenus and their
+  palette entries are gone; the app menu is built explicitly to hold
+  Settings… (⌘,).

@@ -10,3 +10,20 @@ describe('settings validation', () => {
     expect(validateSettings(null).outline).toBe('hidden');
   });
 });
+
+describe('prose font', () => {
+  it('defaults to mono and keeps only mono, sans or serif', () => {
+    expect(validateSettings({}).proseFont).toBe('mono');
+    expect(validateSettings({ proseFont: 'serif' }).proseFont).toBe('serif');
+    expect(validateSettings({ proseFont: 'sans' }).proseFont).toBe('sans');
+    expect(validateSettings({ proseFont: 'comic' }).proseFont).toBe('mono');
+  });
+});
+
+describe('theme', () => {
+  it('defaults to Dracula and keeps only known themes (the old CRT theme is gone)', () => {
+    expect(validateSettings({}).theme).toBe('dracula');
+    for (const t of ['dark', 'light', 'grove', 'dracula', 'contrast']) expect(validateSettings({ theme: t }).theme).toBe(t);
+    expect(validateSettings({ theme: 'amstrad' }).theme).toBe('dracula');
+  });
+});

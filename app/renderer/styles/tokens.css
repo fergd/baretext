@@ -2,10 +2,23 @@
    Values from Figma "Baretext Design System" (Manuscript 2125:518,
    Sprinter 2162:805). All spacing and sizes sit on a 4px grid. */
 
-@font-face { font-family: 'JetBrains Mono'; src: url('../fonts/jetbrains-mono-400-normal.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: block; }
-@font-face { font-family: 'JetBrains Mono'; src: url('../fonts/jetbrains-mono-400-italic.woff2') format('woff2'); font-weight: 400; font-style: italic; font-display: block; }
-@font-face { font-family: 'JetBrains Mono'; src: url('../fonts/jetbrains-mono-700-normal.woff2') format('woff2'); font-weight: 700; font-style: normal; font-display: block; }
-@font-face { font-family: 'JetBrains Mono'; src: url('../fonts/jetbrains-mono-700-italic.woff2') format('woff2'); font-weight: 700; font-style: italic; font-display: block; }
+
+/* IBM Plex (SIL Open Font License; fonts/LICENSES/IBM-Plex-OFL.txt). */
+@font-face { font-family: 'IBM Plex Mono'; src: url('../fonts/ibm-plex-mono-400-normal.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: block; }
+@font-face { font-family: 'IBM Plex Mono'; src: url('../fonts/ibm-plex-mono-400-italic.woff2') format('woff2'); font-weight: 400; font-style: italic; font-display: block; }
+@font-face { font-family: 'IBM Plex Mono'; src: url('../fonts/ibm-plex-mono-700-normal.woff2') format('woff2'); font-weight: 700; font-style: normal; font-display: block; }
+@font-face { font-family: 'IBM Plex Mono'; src: url('../fonts/ibm-plex-mono-700-italic.woff2') format('woff2'); font-weight: 700; font-style: italic; font-display: block; }
+@font-face { font-family: 'IBM Plex Sans'; src: url('../fonts/ibm-plex-sans-400-normal.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: block; }
+@font-face { font-family: 'IBM Plex Sans'; src: url('../fonts/ibm-plex-sans-400-italic.woff2') format('woff2'); font-weight: 400; font-style: italic; font-display: block; }
+@font-face { font-family: 'IBM Plex Sans'; src: url('../fonts/ibm-plex-sans-700-normal.woff2') format('woff2'); font-weight: 700; font-style: normal; font-display: block; }
+@font-face { font-family: 'IBM Plex Sans'; src: url('../fonts/ibm-plex-sans-700-italic.woff2') format('woff2'); font-weight: 700; font-style: italic; font-display: block; }
+@font-face { font-family: 'IBM Plex Serif'; src: url('../fonts/ibm-plex-serif-400-normal.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: block; }
+@font-face { font-family: 'IBM Plex Serif'; src: url('../fonts/ibm-plex-serif-400-italic.woff2') format('woff2'); font-weight: 400; font-style: italic; font-display: block; }
+@font-face { font-family: 'IBM Plex Serif'; src: url('../fonts/ibm-plex-serif-700-normal.woff2') format('woff2'); font-weight: 700; font-style: normal; font-display: block; }
+@font-face { font-family: 'IBM Plex Serif'; src: url('../fonts/ibm-plex-serif-700-italic.woff2') format('woff2'); font-weight: 700; font-style: italic; font-display: block; }
+@font-face { font-family: 'IBM Plex Sans Condensed'; src: url('../fonts/ibm-plex-sans-condensed-400-normal.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: block; }
+@font-face { font-family: 'IBM Plex Sans Condensed'; src: url('../fonts/ibm-plex-sans-condensed-400-italic.woff2') format('woff2'); font-weight: 400; font-style: italic; font-display: block; }
+@font-face { font-family: 'IBM Plex Sans Condensed'; src: url('../fonts/ibm-plex-sans-condensed-700-normal.woff2') format('woff2'); font-weight: 700; font-style: normal; font-display: block; }
 
 :root {
   /* spacing — 4px grid */
@@ -21,8 +34,16 @@
   --space-24: 96px;
 
   /* type */
-  --font-editor: 'JetBrains Mono', ui-monospace, monospace;
-  --font-ui: 'JetBrains Mono', ui-monospace, monospace;
+  /* IBM Plex throughout. Numbers (chapter and scene numbers, counts) are
+     always Plex Mono; all other interface text is Plex Sans Condensed; the
+     prose (and its headings) is the writer's choice: mono, sans or serif. */
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-serif: 'IBM Plex Serif', Georgia, serif;
+  --font-condensed: 'IBM Plex Sans Condensed', 'IBM Plex Sans', system-ui, sans-serif;
+  --font-ui: var(--font-condensed);
+  --font-num: var(--font-mono);
+  --font-editor: var(--font-mono);
   --text-body: 15px;
   --lh-body: 24px;
   --text-chapter: 40px;
@@ -40,7 +61,7 @@
   --measure: 500px;
   --chrome-h: 36px;
   --chrome-inset: 88px;
-  --chrome-optical-offset: 1px;
+  --chrome-optical-offset: 0px; /* IBM Plex Sans Condensed centers on its own (JetBrains Mono needed 1px) */
   --chrome-button: 24px;
   --status-h: 32px;
   --spine-w: 48px;
@@ -49,8 +70,10 @@
   --page-pad-top: 64px;
 
   /* paragraphs (Format → Paragraph Spacing; set on #app) */
-  --paragraph-gap: var(--space-6);
+  --paragraph-gap-full: 24px;
+  --paragraph-gap-half: 12px;
   --paragraph-indent: 0px;
+  --measure-wide: 660px;
 
   /* margin numbers: the heading's own color at reduced opacity */
   --number-opacity: 0.2;
@@ -99,12 +122,20 @@
   --lh-preview: 20px;
 
   /* outline (a column beside the page) */
-  --outline-w: 248px;
+  --outline-w: 296px;
   --outline-row-h: 28px;
   --outline-num-w: 32px;
   --outline-toggle-w: 16px;
   --outline-drop-h: 2px;
   --outline-ghost-opacity: 0.88;
+
+  /* appearance */
+  --appearance-top: 48px;
+  --appearance-w: 1120px;
+  --appearance-controls-w: 320px;
+  --appearance-choice-h: 40px;
+  --appearance-card-w: 88px;
+  --appearance-swatch-h: 48px;
 
   /* switch (on/off controls) */
   --switch-w: 20px;
@@ -135,18 +166,35 @@
   --tw-guide-opacity: 0.25;
 }
 
-[data-paragraph-spacing='half'] { --paragraph-gap: var(--space-3); }
+/* Narrow windows: a slimmer outline column, so the page keeps room for
+   its margin numbers (page + margins ≈ 780px; 296 + 780 ≈ 1,100). */
+@media (max-width: 1099px) {
+  :root { --outline-w: 248px; }
+}
+
+/* Prose font (Format → Prose Font; set on #app). */
+[data-prose-font='sans'] { --font-editor: var(--font-sans); }
+[data-prose-font='serif'] { --font-editor: var(--font-serif); }
+
+/* Appearance (set on #app and on the Appearance sample). Font size scales
+   the prose and its line; a full-line paragraph gap is one line. */
+[data-font-size='small'] { --text-body: 14px; --lh-body: 24px; }
+[data-font-size='large'] { --text-body: 17px; --lh-body: 28px; --paragraph-gap-full: 28px; --paragraph-gap-half: 16px; }
+[data-font-size='xlarge'] { --text-body: 19px; --lh-body: 32px; --paragraph-gap-full: 32px; --paragraph-gap-half: 16px; }
+[data-prose-width='wide'] { --measure: var(--measure-wide); }
+.bt-app, .bt-sample { --paragraph-gap: var(--paragraph-gap-full); }
+[data-paragraph-spacing='half'] { --paragraph-gap: var(--paragraph-gap-half); }
 [data-paragraph-spacing='none'] { --paragraph-gap: 0px; --paragraph-indent: var(--space-6); }
 
 /* Dracula (matches the Figma frames) */
 :root,
-:root[data-theme='dracula'] {
+[data-theme='dracula'] {
   --color-chrome: #1e1e1e;
   --color-bg: #282a36;
   --color-page: #21222c;
   --color-text: #f8f8f2;
   --color-text-dim: #97a1bf;
-  --color-text-dimmer: #91929b;
+  --color-text-dimmer: #9fa0a8; /* AA on every surface (was #91929b: 4.3:1 on popovers) */
   --color-border: #44475a;
   --color-h1: #bd93f9;
   --color-h2: #ff79c6;
@@ -170,6 +218,149 @@
   --color-popover-hover: rgba(248, 248, 242, 0.08);
   --color-popover-active: rgba(189, 147, 249, 0.24);
   --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.36), 0 2px 4px rgba(0, 0, 0, 0.24);
+  color-scheme: dark;
+}
+
+/* Dark — the old app's native theme: warm ink on charcoal, amber accent. */
+[data-theme='dark'] {
+  --color-chrome: #191919;
+  --color-bg: #2c2c2c;
+  --color-page: #242424;
+  --color-text: #faf2d6;
+  --color-text-dim: #bdae93;
+  --color-text-dimmer: #9f9480;
+  --color-border: #3a3a3a;
+  --color-h1: #f8c537;
+  --color-h2: #d98a3f;
+  --color-scene: #d98a3f;
+  --color-guide: #fbe6a0;
+  --color-accent: #f8c537;
+  --color-caret: #f8c537;
+  --color-selection: rgba(248, 197, 55, 0.22);
+  --color-danger: #ff7a66;
+  --color-popover: #2e2e2e;
+  --color-scrim: rgba(0, 0, 0, 0.24);
+  --color-switch-knob-on: #191919;
+  --color-palette-item: rgba(250, 242, 214, 0.86);
+  --color-palette-divider: rgba(250, 242, 214, 0.08);
+  --color-find-field: rgba(0, 0, 0, 0.16);
+  --color-find-match: rgba(250, 242, 214, 0.16);
+  --color-find-current: rgba(217, 138, 63, 0.5);
+  --color-find-current-ring: rgba(217, 138, 63, 0.9);
+  --color-popover-border: #3a3a3a;
+  --color-outline-column: #1f1f1f;
+  --color-popover-hover: rgba(250, 242, 214, 0.08);
+  --color-popover-active: rgba(248, 197, 55, 0.2);
+  --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.24);
+  color-scheme: dark;
+}
+
+/* Light — parchment and ink, amber accent. */
+[data-theme='light'] {
+  --color-chrome: #ebe5d9;
+  --color-bg: #fbf8f2;
+  --color-page: #f5f0e8;
+  --color-text: #2a2218;
+  --color-text-dim: #5e533f;
+  --color-text-dimmer: #6f6553;
+  --color-border: #d0c8b8;
+  --color-h1: #8a5f00;
+  --color-h2: #9a5414;
+  --color-scene: #9a5414;
+  --color-guide: #b8820a;
+  --color-accent: #8a5f00;
+  --color-caret: #2a2218;
+  --color-selection: rgba(184, 130, 10, 0.2);
+  --color-danger: #b0281a;
+  --color-popover: #fffdf8;
+  --color-scrim: rgba(42, 34, 24, 0.12);
+  --color-switch-knob-on: #fffdf8;
+  --color-palette-item: rgba(42, 34, 24, 0.9);
+  --color-palette-divider: rgba(42, 34, 24, 0.1);
+  --color-find-field: rgba(42, 34, 24, 0.06);
+  --color-find-match: rgba(184, 130, 10, 0.2);
+  --color-find-current: rgba(168, 99, 26, 0.35);
+  --color-find-current-ring: rgba(168, 99, 26, 0.85);
+  --color-popover-border: #d0c8b8;
+  --color-outline-column: #efe9df;
+  --color-popover-hover: rgba(42, 34, 24, 0.06);
+  --color-popover-active: rgba(184, 130, 10, 0.18);
+  --shadow-popover: 0 8px 24px rgba(60, 40, 10, 0.14), 0 2px 4px rgba(60, 40, 10, 0.08);
+  /* margin numbers wash out on parchment at the dark themes' opacity */
+  --number-opacity: 0.4;
+  --number-opacity-current: 0.65;
+  color-scheme: light;
+}
+
+/* Grove — Everforest Dark: green-grey, warm text, green accent, blue caret. */
+[data-theme='grove'] {
+  --color-chrome: #272f34;
+  --color-bg: #374247;
+  --color-page: #2f383e;
+  --color-text: #d3c6aa;
+  --color-text-dim: #bcc5b6;
+  --color-text-dimmer: #a3aea6;
+  --color-border: #525c62;
+  --color-h1: #a7c080;
+  --color-h2: #e69875;
+  --color-scene: #e69875;
+  --color-guide: #7fbbb3;
+  --color-accent: #a7c080;
+  --color-caret: #7fbbb3;
+  --color-selection: rgba(127, 187, 179, 0.24);
+  --color-danger: #e67e80;
+  --color-popover: #374145;
+  --color-scrim: rgba(0, 0, 0, 0.24);
+  --color-switch-knob-on: #2f383e;
+  --color-palette-item: rgba(211, 198, 170, 0.9);
+  --color-palette-divider: rgba(211, 198, 170, 0.1);
+  --color-find-field: rgba(0, 0, 0, 0.16);
+  --color-find-match: rgba(219, 188, 127, 0.25);
+  --color-find-current: rgba(230, 152, 117, 0.45);
+  --color-find-current-ring: rgba(230, 152, 117, 0.9);
+  --color-popover-border: #525c62;
+  --color-outline-column: #2b3338;
+  --color-popover-hover: rgba(211, 198, 170, 0.08);
+  --color-popover-active: rgba(167, 192, 128, 0.2);
+  --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.36), 0 2px 4px rgba(0, 0, 0, 0.24);
+  color-scheme: dark;
+}
+
+/* High Contrast — dark, WCAG AAA: white text on black, every text color at
+   least 7:1 on every surface; strong borders and dividers. */
+[data-theme='contrast'] {
+  --color-chrome: #000000;
+  --color-bg: #141414;
+  --color-page: #0a0a0a;
+  --color-text: #ffffff;
+  --color-text-dim: #e8e8e8;
+  --color-text-dimmer: #cccccc;
+  --color-border: #8c8c8c;
+  --color-h1: #ffd75f;
+  --color-h2: #7fdbff;
+  --color-scene: #7fdbff;
+  --color-guide: #ffd75f;
+  --color-accent: #ffd75f;
+  --color-caret: #ffffff;
+  --color-selection: rgba(127, 219, 255, 0.34);
+  --color-danger: #ff9a8f;
+  --color-popover: #141414;
+  --color-scrim: rgba(0, 0, 0, 0.5);
+  --color-switch-knob-on: #000000;
+  --color-palette-item: #ffffff;
+  --color-palette-divider: rgba(255, 255, 255, 0.3);
+  --color-find-field: rgba(255, 255, 255, 0.06);
+  --color-find-match: rgba(255, 215, 95, 0.3);
+  --color-find-current: rgba(255, 154, 143, 0.55);
+  --color-find-current-ring: #ff9a8f;
+  --color-popover-border: #8c8c8c;
+  --color-outline-column: #050505;
+  --color-popover-hover: rgba(255, 255, 255, 0.12);
+  --color-popover-active: rgba(255, 215, 95, 0.26);
+  --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.2);
+  /* margin numbers stay clearly visible */
+  --number-opacity: 0.6;
+  --number-opacity-current: 0.85;
   color-scheme: dark;
 }
 

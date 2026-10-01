@@ -1,10 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { Manuscript } from '@baretext/format';
-import { CHANNELS, type BaretextBridge, type InitialPrefs, type MenuCommand, type OpenedDocument, type ParagraphSpacing } from '../shared/bridge';
+import { CHANNELS, DEFAULT_APPEARANCE, type BaretextBridge, type InitialPrefs, type MenuCommand, type OpenedDocument } from '../shared/bridge';
 
 function readInitial(): InitialPrefs {
   const arg = process.argv.find((a) => a.startsWith('--bt-initial='));
-  const fallback: InitialPrefs = { theme: 'dracula', paragraphSpacing: 'full', outline: 'hidden', hidden: false };
+  const fallback: InitialPrefs = { ...DEFAULT_APPEARANCE, outline: 'hidden', hidden: false };
   if (!arg) return fallback;
   try {
     return { ...fallback, ...JSON.parse(decodeURIComponent(arg.slice('--bt-initial='.length))) };
@@ -25,7 +25,6 @@ const bridge: BaretextBridge = {
   takeSnapshot: (filePath, manuscript, kind, reason, label) => ipcRenderer.invoke(CHANNELS.snapshotsTake, filePath, manuscript, kind, reason, label),
   removeSnapshot: (filePath, id) => ipcRenderer.invoke(CHANNELS.snapshotsRemove, filePath, id),
   onMenu: (cb) => { ipcRenderer.on(CHANNELS.menu, (_e, command: MenuCommand) => cb(command)); },
-  onParagraphSpacing: (cb) => { ipcRenderer.on(CHANNELS.paragraphSpacing, (_e, spacing: ParagraphSpacing) => cb(spacing)); },
   onDocumentOpened: (cb) => { ipcRenderer.on(CHANNELS.opened, (_e, doc: OpenedDocument) => cb(doc)); },
   onFlushRequest: (cb) => {
     ipcRenderer.on(CHANNELS.flush, async (_e, token: string) => {

@@ -410,3 +410,23 @@ test("a chapter's only scene can't be dragged out (the chapter would be empty)",
     await app.close();
   }
 });
+
+test('the outline is 296px wide, and 248px in a window narrower than 1,100px', async () => {
+  const { app, page } = await launch({ file: { name: 'O.md', content: FILE } });
+  try {
+    const width = () => page.$eval('.bt-outline', (e) => e.getBoundingClientRect().width);
+    const pageLeft = () => page.$eval('.bt-scroller', (e) => e.getBoundingClientRect().left);
+    const size = (w: number) => app.evaluate(({ BrowserWindow }, w) => BrowserWindow.getAllWindows()[0]!.setContentSize(w, 760), w);
+    await size(1300);
+    await page.click('[data-ref="sidebar"]');
+    await expect.poll(width).toBe(296);
+    expect(await pageLeft()).toBe(296);
+    await size(1000);
+    await expect.poll(width).toBe(248);
+    expect(await pageLeft()).toBe(248);
+    await size(1100);
+    await expect.poll(width).toBe(296);
+  } finally {
+    await app.close();
+  }
+});

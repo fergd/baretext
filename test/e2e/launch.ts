@@ -45,3 +45,10 @@ export async function launch(options: {
 }
 
 export const model = (page: Page) => page.evaluate(() => (window as any).__baretext.model());
+
+/** Open Appearance (⌘,), choose `values` (by option value), and Save. */
+export async function setAppearance(page: Page, values: string[]) {
+  await page.keyboard.press('Meta+Comma');
+  for (const v of values) await page.click(`.bt-appearance [role="radio"][data-value="${v}"]`);
+  await page.click('.bt-appearance [data-action="save"]');
+}

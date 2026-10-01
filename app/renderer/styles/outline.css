@@ -58,7 +58,7 @@
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }
-.bt-outline-total { flex: none; color: var(--color-text-dimmer); font-variant-numeric: tabular-nums; }
+.bt-outline-total { flex: none; color: var(--color-text-dimmer); font-family: var(--font-num); font-variant-numeric: tabular-nums; }
 
 .bt-outline-tree {
   flex: 1;
@@ -96,10 +96,10 @@
 }
 .bt-outline-chapter[aria-expanded='false'] .bt-outline-toggle { rotate: -90deg; }
 
-.bt-outline-num { color: var(--color-text-dimmer); font-variant-numeric: tabular-nums; }
+.bt-outline-num { color: var(--color-text-dimmer); font-family: var(--font-num); font-variant-numeric: tabular-nums; }
 .bt-outline-name { overflow: hidden; text-overflow: ellipsis; }
 .bt-outline-scene[data-unnamed='true'] .bt-outline-name { color: var(--color-text-dimmer); }
-.bt-outline-meta { color: var(--color-text-dimmer); font-variant-numeric: tabular-nums; }
+.bt-outline-meta { color: var(--color-text-dimmer); font-family: var(--font-num); font-variant-numeric: tabular-nums; }
 
 /* Where the writer is: the current scene reads brightest, with the accent stripe. */
 .bt-outline-scene[aria-current='location'] {

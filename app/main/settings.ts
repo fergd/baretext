@@ -4,15 +4,18 @@
 import { promises as fs, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { atomicWrite } from './save';
-import { OUTLINE_STATES, PARAGRAPH_SPACINGS, type OutlineState, type ParagraphSpacing } from '../shared/bridge';
+import { FONT_SIZES, OUTLINE_STATES, PARAGRAPH_SPACINGS, PROSE_FONTS, PROSE_WIDTHS, THEMES, type FontSize, type ProseWidth, type Theme, type OutlineState, type ParagraphSpacing, type ProseFont } from '../shared/bridge';
 
 export interface Settings {
   lastFile: string | null;
   recent: string[];
   /** Last caret position per file (document position). */
   carets: Record<string, number>;
-  theme: string;
+  theme: Theme;
   paragraphSpacing: ParagraphSpacing;
+  proseFont: ProseFont;
+  proseWidth: ProseWidth;
+  fontSize: FontSize;
   outline: OutlineState;
   saveDir: string | null;
   /** Where the window was (its normal, unzoomed frame) and how. */
@@ -25,6 +28,9 @@ export const DEFAULT_SETTINGS: Settings = {
   carets: {},
   theme: 'dracula',
   paragraphSpacing: 'full',
+  proseFont: 'mono',
+  proseWidth: 'narrow',
+  fontSize: 'medium',
   outline: 'hidden',
   saveDir: null,
   window: null,
@@ -43,8 +49,11 @@ export function validateSettings(raw: unknown): Settings {
       if (Number.isInteger(v) && (v as number) >= 0) s.carets[k] = v as number;
     }
   }
-  if (isString(r.theme) && /^[a-z0-9-]{1,32}$/.test(r.theme)) s.theme = r.theme;
+  if (THEMES.includes(r.theme as Theme)) s.theme = r.theme as Theme;
   if (PARAGRAPH_SPACINGS.includes(r.paragraphSpacing as ParagraphSpacing)) s.paragraphSpacing = r.paragraphSpacing as ParagraphSpacing;
+  if (PROSE_FONTS.includes(r.proseFont as ProseFont)) s.proseFont = r.proseFont as ProseFont;
+  if (PROSE_WIDTHS.includes(r.proseWidth as ProseWidth)) s.proseWidth = r.proseWidth as ProseWidth;
+  if (FONT_SIZES.includes(r.fontSize as FontSize)) s.fontSize = r.fontSize as FontSize;
   if (OUTLINE_STATES.includes(r.outline as OutlineState)) s.outline = r.outline as OutlineState;
   if (isString(r.saveDir)) s.saveDir = r.saveDir;
   const w = r.window as Record<string, unknown> | null | undefined;

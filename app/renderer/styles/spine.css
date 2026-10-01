@@ -82,7 +82,7 @@
   z-index: 3;
 }
 .bt-spine-tip[data-visible='true'] { opacity: 1; }
-.bt-spine-tip .bt-tip-num { color: var(--color-text-dimmer); margin-right: var(--space-2); font-variant-numeric: tabular-nums; }
+.bt-spine-tip .bt-tip-num { color: var(--color-text-dimmer); margin-right: var(--space-2); font-family: var(--font-num); font-variant-numeric: tabular-nums; }
 
 /* Focus mode: the spine fades away and takes no clicks or hovers; it
    returns when focus mode ends. (visibility flips after the fade out,

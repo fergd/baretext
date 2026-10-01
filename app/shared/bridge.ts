@@ -18,19 +18,49 @@ export type SaveResult =
 export const PARAGRAPH_SPACINGS = ['full', 'half', 'none'] as const;
 export type ParagraphSpacing = (typeof PARAGRAPH_SPACINGS)[number];
 
+/** Color themes (Appearance). Dracula is the default. */
+export const THEMES = ['dark', 'light', 'grove', 'dracula', 'contrast'] as const;
+export type Theme = (typeof THEMES)[number];
+
+/** The prose face (IBM Plex Mono, Sans or Serif); headings on the page follow it. */
+export const PROSE_FONTS = ['mono', 'sans', 'serif'] as const;
+export type ProseFont = (typeof PROSE_FONTS)[number];
+
 /** Whether the outline is kept open as a column (⌘\). */
 export const OUTLINE_STATES = ['hidden', 'pinned'] as const;
 export type OutlineState = (typeof OUTLINE_STATES)[number];
 
-export interface InitialPrefs {
-  theme: string;
+/** Prose column width: Narrow (~55 characters) or Wide (~70). */
+export const PROSE_WIDTHS = ['narrow', 'wide'] as const;
+export type ProseWidth = (typeof PROSE_WIDTHS)[number];
+
+/** Prose size: Small 14/24 · Medium 15/24 · Large 17/28 · Extra large 19/32. */
+export const FONT_SIZES = ['small', 'medium', 'large', 'xlarge'] as const;
+export type FontSize = (typeof FONT_SIZES)[number];
+
+/** Everything the Appearance panel sets, saved together. */
+export interface AppearancePrefs {
+  theme: Theme;
+  proseFont: ProseFont;
   paragraphSpacing: ParagraphSpacing;
+  proseWidth: ProseWidth;
+  fontSize: FontSize;
+}
+
+export const DEFAULT_APPEARANCE: AppearancePrefs = { theme: 'dracula', proseFont: 'mono', paragraphSpacing: 'full', proseWidth: 'narrow', fontSize: 'medium' };
+
+export interface InitialPrefs {
+  theme: Theme;
+  paragraphSpacing: ParagraphSpacing;
+  proseFont: ProseFont;
+  proseWidth: ProseWidth;
+  fontSize: FontSize;
   outline: OutlineState;
   hidden: boolean;
 }
 
 export type MenuCommand =
-  | 'undo' | 'redo' | 'typewriter' | 'focus' | 'bold' | 'italic' | 'link' | 'quote' | 'split-scene' | 'pause' | 'name-scene' | 'save' | 'palette' | 'goto' | 'find' | 'find-replace' | 'find-next' | 'find-prev' | 'history' | 'snapshot' | 'outline' | 'outline-focus' | 'new-scene' | 'new-chapter';
+  | 'undo' | 'redo' | 'typewriter' | 'focus' | 'bold' | 'italic' | 'link' | 'quote' | 'split-scene' | 'pause' | 'name-scene' | 'save' | 'palette' | 'goto' | 'find' | 'find-replace' | 'find-next' | 'find-prev' | 'history' | 'snapshot' | 'outline' | 'outline-focus' | 'new-scene' | 'new-chapter' | 'appearance';
 
 /** A local snapshot of a manuscript (DECISIONS §6). */
 export interface SnapshotInfo {
@@ -56,8 +86,6 @@ export interface BaretextBridge {
   /** File commands the main process owns (they may show a dialog or switch documents). */
   fileCommand(command: 'new' | 'open'): void;
   onMenu(cb: (command: MenuCommand) => void): void;
-  /** Main changed a formatting preference (from the native menu). */
-  onParagraphSpacing(cb: (spacing: ParagraphSpacing) => void): void;
   onDocumentOpened(cb: (doc: OpenedDocument) => void): void;
   /** Main asks the UI to save everything now (before quit or switching files). */
   onFlushRequest(cb: () => Promise<boolean>): void;
@@ -75,7 +103,6 @@ export const CHANNELS = {
   snapshotsTake: 'snapshots:take',
   snapshotsRemove: 'snapshots:remove',
   menu: 'menu:command',
-  paragraphSpacing: 'prefs:paragraph-spacing',
   flush: 'app:flush',
   flushed: 'app:flushed',
 } as const;

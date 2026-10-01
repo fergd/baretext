@@ -395,3 +395,32 @@ integrations (DECISIONS §7).
 Outline: two-step delete · keyboard reorder · Cold Storage · Sprinter mode
 + sprint timer · corkboard · notes · themes/fonts · export/print ·
 integrations (DECISIONS §7).
+
+## 2026-10-01 — Outline width
+- The outline column is 296px (was 248px; long names were cut off), and
+  248px in windows narrower than 1,100px. Token `--outline-w`, breakpoint
+  in `tokens.css`. Test added (68 end-to-end).
+
+## 2026-10-01 — IBM Plex
+- Interface in IBM Plex Sans Condensed, numbers in IBM Plex Mono, prose
+  in the writer's choice of Plex Mono (default), Sans or Serif (Format →
+  Prose Font, palette "Prose font…"); headings follow the prose.
+  JetBrains Mono removed. Decisions in DECISIONS §9.
+- Explored first in a font lab page (Baretext window mock-up with every
+  candidate face, including Apple's): https://claude.ai/artifact/7akooNqHnKeEGbTuXEUW4K
+- The title-bar optical offset went from 1px to 0 (the centering test
+  caught the shift with the new face).
+- Palette no-selection cap 17 → 18 for "Prose font…".
+- Tests: 131 unit, 70 end-to-end.
+
+## 2026-10-01 — Themes and Appearance
+- Five themes: Dracula (default), Dark, Light, Grove, High Contrast (dark,
+  WCAG AAA). Automated contrast test for every theme (AA; AAA for High
+  Contrast); it lightened Dracula's dimmest text slightly. The old CRT
+  theme was dropped.
+- Appearance panel (Baretext → Settings…, ⌘,; palette "Appearance…"):
+  theme, prose font, font size (14/15/17/19), paragraph spacing, prose
+  width (Narrow 500px / Wide 660px), shown live in a sample of the
+  writer's own scene; nothing changes until Save. Saved together; applied
+  before first paint at launch.
+- Tests: 273 unit (141 of them theme contrast), 74 end-to-end.

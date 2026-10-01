@@ -36,7 +36,7 @@ button {
   /* clear the traffic lights (12px inset + buttons, wider on recent macOS) + gap */
   padding-left: var(--chrome-inset);
   /* Optical centering: the capitals' center sits on the bar's midline, level
-     with the traffic lights (measured: 17.4px before, ~18px with this). */
+     with the traffic lights (a token: 0 for IBM Plex Sans Condensed). */
   padding-top: var(--chrome-optical-offset);
   padding-right: var(--space-3);
   gap: var(--space-2);
@@ -136,6 +136,7 @@ button {
 [aria-checked='true'] .bt-switch { background: var(--color-accent); border-color: var(--color-accent); opacity: 1; }
 [aria-checked='true'] > .bt-switch .bt-switch-knob,
 [aria-checked='true'] .bt-switch .bt-switch-knob { left: calc(100% - var(--switch-knob) - var(--switch-pad)); background: var(--color-switch-knob-on); }
+.bt-num-text { font-family: var(--font-num); }
 .bt-save-state[data-state='error'] { color: var(--color-danger); }
 
 /* Focus mode: the page alone. */

@@ -41,7 +41,7 @@ test('targeted: Format commands appear only with a selection, and act on it', as
   try {
     await page.keyboard.press('Meta+k');
     expect(await labels(page)).not.toContain('Bold');
-    expect((await labels(page)).length).toBeLessThanOrEqual(17); // stays short: no Format rows without a selection
+    expect((await labels(page)).length).toBeLessThanOrEqual(18); // stays short: no Format rows without a selection
     await page.keyboard.press('Escape');
     expect((await state(page)).open).toBe(false);
 
@@ -145,20 +145,21 @@ test('performance on a 120k-word book', async () => {
   }
 });
 
-test('paragraph spacing: one command opens its choices, current one ticked', async () => {
+test('Appearance: one palette command (found by what it sets) opens the panel; no separate font or spacing commands', async () => {
   const { app, page } = await launch({ file: { name: 'P.md', content: FILE } });
   try {
+    for (const word of ['half', 'serif', 'theme', 'contrast', 'wide']) {
+      await page.keyboard.press('Meta+k');
+      await page.keyboard.type(word);
+      expect(await activeLabel(page)).toBe('Appearance…');
+      await page.keyboard.press('Escape');
+    }
     await page.keyboard.press('Meta+k');
-    await page.keyboard.type('half'); // found through the command's keywords
-    expect(await activeLabel(page)).toBe('Paragraph spacing…');
+    expect(await labels(page)).not.toContain('Prose font…');
+    expect(await labels(page)).not.toContain('Paragraph spacing…');
+    await page.keyboard.type('appearance');
     await page.keyboard.press('Enter');
-    expect((await state(page)).view).toBe('spacing');
-    expect(await labels(page)).toEqual(['Full line', 'Half line', 'None, indent first lines']);
-    await expect(page.locator('.bt-palette-row[aria-current="true"] .bt-palette-label')).toHaveText('Full line');
-    await page.keyboard.type('half');
-    await page.keyboard.press('Enter');
-    expect(await page.$eval('.bt-app', (e) => (e as HTMLElement).dataset.paragraphSpacing)).toBe('half');
-    expect(await editorFocused(page)).toBe(true);
+    expect((await page.evaluate(() => (window as any).__baretext.appearance())).open).toBe(true);
   } finally {
     await app.close();
   }

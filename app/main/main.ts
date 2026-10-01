@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { existsSync, promises as fs } from 'node:fs';
 import path from 'node:path';
 import { emptyManuscript, manuscriptWords, parse, serialize, validate, type Manuscript } from '@baretext/format';
-import { CHANNELS, OUTLINE_STATES, PARAGRAPH_SPACINGS, type OutlineState, type InitialPrefs, type MenuCommand, type OpenedDocument, type ParagraphSpacing } from '../shared/bridge';
+import { CHANNELS, FONT_SIZES, OUTLINE_STATES, PARAGRAPH_SPACINGS, PROSE_FONTS, PROSE_WIDTHS, THEMES, type FontSize, type ProseFont, type ProseWidth, type Theme, type OutlineState, type InitialPrefs, type MenuCommand, type OpenedDocument, type ParagraphSpacing } from '../shared/bridge';
 import { saveManuscript } from './save';
 import { SnapshotStore, type SnapshotEntry } from './snapshots';
 import { SettingsStore } from './settings';
@@ -15,7 +15,8 @@ import { MIN_SIZE, placeWindow } from './window';
 app.setPath('userData', process.env.BARETEXT_USER_DATA ?? path.join(app.getPath('appData'), 'Baretext Next'));
 const HIDDEN = process.env.BARETEXT_HIDDEN === '1';
 
-const THEME_BACKGROUNDS: Record<string, string> = { dracula: '#21222c' };
+// The window's color before the page paints (each theme's page color), so no theme flashes another.
+const THEME_BACKGROUNDS: Record<Theme, string> = { dark: '#242424', light: '#f5f0e8', grove: '#2f383e', dracula: '#21222c', contrast: '#0a0a0a' };
 
 let settings: SettingsStore;
 let win: BrowserWindow | null = null;
@@ -160,19 +161,28 @@ function send(command: MenuCommand) {
   win?.webContents.send(CHANNELS.menu, command);
 }
 
-function setParagraphSpacing(spacing: ParagraphSpacing) {
-  settings.update({ paragraphSpacing: spacing });
-  win?.webContents.send(CHANNELS.paragraphSpacing, spacing);
-  buildMenu();
-}
-
 function buildMenu() {
   // Shortcuts handled inside the editor are shown here but not registered,
   // so each key is handled in exactly one place.
   const label = (accelerator: string) => ({ accelerator, registerAccelerator: false });
   const recent = settings.get().recent.filter((p) => existsSync(p));
   const template: MenuItemConstructorOptions[] = [
-    { role: 'appMenu' },
+    {
+      label: app.name,
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        { label: 'Settings…', ...label('CmdOrCtrl+,'), click: () => send('appearance') },
+        { type: 'separator' },
+        { role: 'services' },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' },
+      ],
+    },
     {
       label: 'File',
       submenu: [
@@ -224,16 +234,6 @@ function buildMenu() {
         { label: 'Name Scene', click: () => send('name-scene') },
         { label: 'New Scene at End of Chapter', click: () => send('new-scene') },
         { label: 'New Chapter', click: () => send('new-chapter') },
-        { type: 'separator' },
-        {
-          label: 'Paragraph Spacing',
-          submenu: ([['full', 'Full Line'], ['half', 'Half Line'], ['none', 'None (Indent First Lines)']] as const).map(([value, text]) => ({
-            label: text,
-            type: 'radio' as const,
-            checked: settings.get().paragraphSpacing === value,
-            click: () => setParagraphSpacing(value),
-          })),
-        },
       ],
     },
     {
@@ -261,7 +261,7 @@ function buildMenu() {
 function createWindow() {
   const s = settings.get();
   const initial: InitialPrefs = {
-    theme: s.theme, paragraphSpacing: s.paragraphSpacing, outline: s.outline, hidden: HIDDEN,
+    theme: s.theme, paragraphSpacing: s.paragraphSpacing, proseFont: s.proseFont, proseWidth: s.proseWidth, fontSize: s.fontSize, outline: s.outline, hidden: HIDDEN,
   };
   // Where it was last time (if still on a connected display), else a large
   // centered window. Hidden test windows keep a fixed size unless a test sets one.
@@ -361,11 +361,14 @@ function registerIpc() {
   });
   ipcMain.on(CHANNELS.setPrefs, (_e, patch: Record<string, unknown>) => {
     const next: Record<string, unknown> = {};
-    if (typeof patch.theme === 'string') next.theme = patch.theme;
+    if (THEMES.includes(patch.theme as Theme)) next.theme = patch.theme;
     if (PARAGRAPH_SPACINGS.includes(patch.paragraphSpacing as ParagraphSpacing)) next.paragraphSpacing = patch.paragraphSpacing;
+    if (PROSE_FONTS.includes(patch.proseFont as ProseFont)) next.proseFont = patch.proseFont;
+    if (PROSE_WIDTHS.includes(patch.proseWidth as ProseWidth)) next.proseWidth = patch.proseWidth;
+    if (FONT_SIZES.includes(patch.fontSize as FontSize)) next.fontSize = patch.fontSize;
     if (OUTLINE_STATES.includes(patch.outline as OutlineState)) next.outline = patch.outline;
     settings.update(next);
-    if ('paragraphSpacing' in next || 'outline' in next) buildMenu(); // keep the checked items in step
+    if ('outline' in next) buildMenu(); // keep the checked item in step
   });
   ipcMain.on(CHANNELS.fileCommand, (_e, command: unknown) => {
     if (command === 'new') void switchTo(createDocument);

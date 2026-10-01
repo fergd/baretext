@@ -4,6 +4,8 @@
 .bt-scroller {
   position: absolute;
   inset: 0;
+  /* margin numbers show only when the page area has room for them */
+  container: page-area / inline-size;
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
@@ -108,6 +110,7 @@
   letter-spacing: var(--tracking-title);
   color: inherit;
   opacity: var(--number-opacity);
+  font-family: var(--font-num);
   font-variant-numeric: tabular-nums lining-nums;
   pointer-events: none;
   user-select: none;
@@ -179,6 +182,7 @@
   line-height: var(--lh-body);
   letter-spacing: var(--tracking-title);
   opacity: var(--number-opacity);
+  font-family: var(--font-num);
   font-variant-numeric: tabular-nums lining-nums;
   pointer-events: none;
 }
@@ -194,6 +198,9 @@
 .bt-quote > p:first-child { margin-top: 0; }
 
 /* Not enough margin for the numbers: hide them; structure stays legible. */
-@container workspace (max-width: 819px) {
+@container page-area (max-width: 739px) {
   .bt-num, .bt-section-break::before { display: none; }
+}
+@container page-area (max-width: 899px) {
+  [data-prose-width='wide'] .bt-num, [data-prose-width='wide'] .bt-section-break::before { display: none; }
 }

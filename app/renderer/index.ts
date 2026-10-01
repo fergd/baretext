@@ -21,12 +21,13 @@ import {
   toggleItalic,
   toggleQuote,
 } from '@baretext/editor';
-import type { BaretextBridge, MenuCommand, OpenedDocument, ParagraphSpacing } from '../shared/bridge';
+import type { AppearancePrefs, BaretextBridge, MenuCommand, OpenedDocument } from '../shared/bridge';
 import { currentScene, outlineOf, sceneAt, sceneDisplayName } from './outline';
 import { Spine } from './spine';
 import { OutlinePanel, type OutlinePresence } from './outline-panel';
 import { FindPanel } from './find';
 import { HistoryPanel } from './history';
+import { AppearancePanel, type SampleText } from './appearance';
 import { Palette, type PaletteItem, type PaletteView } from './palette';
 import { SelectionToolbar } from './toolbar';
 import { Typewriter } from './typewriter';
@@ -40,6 +41,8 @@ declare global {
 }
 
 const bridge = window.baretext;
+// The saved theme, before anything paints.
+document.documentElement.dataset.theme = bridge.initial.theme;
 const $ = <T extends HTMLElement = HTMLElement>(ref: string) => document.querySelector<T>(`[data-ref="${ref}"]`)!;
 const app = document.querySelector<HTMLElement>('.bt-app')!;
 const scroller = $('scroller');
@@ -102,7 +105,11 @@ function refreshChrome() {
     const state = view.state;
     const outline = outlineOf(state.doc);
     const here = (reading && readingHere) || currentScene(state);
-    $('words').textContent = `${numberFormat.format(outline.words)} ${outline.words === 1 ? 'word' : 'words'}`;
+    // The count in the number face, the word in the interface face.
+    const count = document.createElement('span');
+    count.className = 'bt-num-text';
+    count.textContent = numberFormat.format(outline.words);
+    $('words').replaceChildren(count, ` ${outline.words === 1 ? 'word' : 'words'}`);
     $('title').textContent = state.doc.firstChild!.textContent || 'Untitled';
     $('crumb').textContent = here
       // Names exactly as the writer typed them (only the book title is set in capitals).
@@ -318,6 +325,13 @@ function snapshotNow(reason: string) {
   if (view && filePath) void bridge.takeSnapshot(filePath, docToModel(view.state.doc), 'point', reason);
 }
 
+const appearance = new AppearancePanel(document.body, {
+  current: currentAppearance,
+  sample: sampleText,
+  save: (p) => { applyAppearance(p); bridge.setPrefs(p); },
+  onClose: () => view?.focus(),
+});
+
 const history = new HistoryPanel(document.body, {
   bridge,
   filePath: () => filePath,
@@ -454,10 +468,50 @@ function setTypewriter(on: boolean) {
   }
   $('typewriter').setAttribute('aria-checked', String(on));
 }
-function setParagraphSpacing(spacing: ParagraphSpacing) {
-  app.dataset.paragraphSpacing = spacing;
-  // The caret's line moved with the layout; keep it centered.
-  if (typewriter.enabled) typewriter.recenter(false);
+/** Apply appearance choices at once; the page reflows and the caret's line stays where it is on screen. */
+function applyAppearance(p: AppearancePrefs) {
+  keepCaretLine(() => {
+    document.documentElement.dataset.theme = p.theme;
+    app.dataset.proseFont = p.proseFont;
+    app.dataset.paragraphSpacing = p.paragraphSpacing;
+    app.dataset.proseWidth = p.proseWidth;
+    app.dataset.fontSize = p.fontSize;
+  });
+}
+function currentAppearance(): AppearancePrefs {
+  const d = app.dataset;
+  return {
+    theme: document.documentElement.dataset.theme as AppearancePrefs['theme'],
+    proseFont: d.proseFont as AppearancePrefs['proseFont'],
+    paragraphSpacing: d.paragraphSpacing as AppearancePrefs['paragraphSpacing'],
+    proseWidth: d.proseWidth as AppearancePrefs['proseWidth'],
+    fontSize: d.fontSize as AppearancePrefs['fontSize'],
+  };
+}
+
+/** The writer's own words for the Appearance sample: the current scene's opening paragraphs. */
+function sampleText(): SampleText {
+  const fallback: SampleText = { book: '', chapterNumber: 1, chapterTitle: '', sceneLabel: '1.1', sceneName: null, paragraphs: ['Your words appear here, in the look you choose.'], words: 0 };
+  if (!view) return fallback;
+  const doc = view.state.doc;
+  const outline = outlineOf(doc);
+  const here = currentScene(view.state) ?? (outline.chapters[0] ? { chapter: outline.chapters[0], scene: outline.chapters[0].scenes[0]! } : null);
+  if (!here) return fallback;
+  const paragraphs: string[] = [];
+  doc.nodeAt(here.scene.pos)!.descendants((node) => {
+    if (paragraphs.length >= 5) return false;
+    if (node.type === schema.nodes.paragraph) { if (node.textContent.trim()) paragraphs.push(node.textContent); return false; }
+    return node.type !== schema.nodes.scene_heading;
+  });
+  return {
+    book: doc.firstChild!.textContent,
+    chapterNumber: here.chapter.number,
+    chapterTitle: here.chapter.title,
+    sceneLabel: here.scene.label,
+    sceneName: here.scene.name || null,
+    paragraphs: paragraphs.length ? paragraphs : fallback.paragraphs,
+    words: outline.words,
+  };
 }
 function setFocus(on: boolean) {
   if (on && outlinePanel.el.contains(document.activeElement)) view?.focus();
@@ -488,6 +542,7 @@ function runCommand(command: MenuCommand) {
     case 'find-replace': palette.close(); find.open(true); break;
     case 'find-next': find.next(1); break;
     case 'find-prev': find.next(-1); break;
+    case 'appearance': palette.close(); find.close(); history.close(); appearance.open(); break;
     case 'history': palette.close(); find.close(); void history.open(false); break;
     case 'snapshot': palette.close(); find.close(); void history.open(true); break;
     case 'new-scene': { const here = currentScene(view.state); if (here) newSceneIn(here.chapter.id); break; }
@@ -515,7 +570,6 @@ function runCommand(command: MenuCommand) {
 // commands here as they are built.
 const palette = new Palette(document.body);
 
-const SPACINGS: [ParagraphSpacing, string][] = [['full', 'Full line'], ['half', 'Half line'], ['none', 'None, indent first lines']];
 
 function commandsView(): PaletteView {
   return {
@@ -547,10 +601,7 @@ function commandsView(): PaletteView {
         { id: 'outline', group: 'View', label: 'Outline', keywords: 'sidebar chapters scenes tree navigator', keys: '⌘\\', state: outlinePanel.presence === 'pinned' ? 'on' : 'off', run: () => runCommand('outline') },
         { id: 'typewriter', group: 'View', label: 'Typewriter mode', keywords: 'center line', keys: '⌘⇧T', state: typewriter.enabled ? 'on' : 'off', run: () => runCommand('typewriter') },
         { id: 'focus', group: 'View', label: 'Focus mode', keywords: 'hide chrome distraction quiet', keys: '⌘.', state: app.dataset.focus === 'true' ? 'on' : 'off', run: () => runCommand('focus') },
-        {
-          id: 'spacing', group: 'View', label: `Paragraph spacing…`, keywords: 'gap indent full half none line',
-          keepOpen: true, run: () => palette.open(spacingView()),
-        },
+        { id: 'appearance', group: 'View', label: 'Appearance…', keywords: 'settings preferences theme dark light contrast font serif sans mono size spacing width wide narrow style', keys: '⌘,', run: () => runCommand('appearance') },
         { id: 'new', group: 'File', label: 'New manuscript', keywords: 'create file', keys: '⌘N', run: () => bridge.fileCommand('new') },
         { id: 'open', group: 'File', label: 'Open…', keywords: 'file', keys: '⌘O', run: () => bridge.fileCommand('open') },
         { id: 'save', group: 'File', label: 'Save', keys: '⌘S', run: () => runCommand('save') },
@@ -560,20 +611,6 @@ function commandsView(): PaletteView {
       );
       return items;
     },
-  };
-}
-
-function spacingView(): PaletteView {
-  return {
-    name: 'spacing',
-    placeholder: 'Paragraph spacing',
-    back: commandsView,
-    initialId: `spacing-${app.dataset.paragraphSpacing}`,
-    items: () => SPACINGS.map(([value, text]): PaletteItem => ({
-      id: `spacing-${value}`, group: 'Paragraph spacing', label: text,
-      state: app.dataset.paragraphSpacing === value ? 'current' : undefined,
-      run: () => { setParagraphSpacing(value); bridge.setPrefs({ paragraphSpacing: value }); },
-    })),
   };
 }
 
@@ -625,6 +662,7 @@ window.addEventListener('keydown', (e) => {
   else if (k === 't' && e.shiftKey) { e.preventDefault(); runCommand('typewriter'); }
   else if (e.key === '.' && !e.shiftKey) { e.preventDefault(); runCommand('focus'); }
   else if (k === 'k' && !e.shiftKey) { e.preventDefault(); runCommand('palette'); }
+  else if (e.key === ',' && !e.shiftKey) { e.preventDefault(); runCommand('appearance'); }
   else if (k === 'o' && e.shiftKey) { e.preventDefault(); runCommand('goto'); }
   else if (k === 'f' && !e.shiftKey) { e.preventDefault(); runCommand('find'); }
   else if (k === 'g') { e.preventDefault(); runCommand(e.shiftKey ? 'find-prev' : 'find-next'); }
@@ -649,7 +687,6 @@ $('focus').addEventListener('click', () => runCommand('focus'));
 $('filename').addEventListener('click', () => filePath && bridge.revealInFinder(filePath));
 
 bridge.onMenu(runCommand);
-bridge.onParagraphSpacing(setParagraphSpacing);
 bridge.onDocumentOpened(load);
 bridge.onFlushRequest(() => saveNow());
 
@@ -657,7 +694,7 @@ bridge.onFlushRequest(() => saveNow());
 // Every launch starts in the default mode: typewriter and focus mode are
 // per-session and never restored (DECISIONS §8).
 setFocus(false);
-setParagraphSpacing(bridge.initial.paragraphSpacing);
+applyAppearance(bridge.initial);
 setTypewriter(false);
 setOutlinePinned(bridge.initial.outline === 'pinned', false, false);
 bridge.loadInitial().then(load, (e: Error) => toast(`Could not open the manuscript: ${e.message}`, 'error'));
@@ -726,6 +763,7 @@ window.__baretext = {
   hasFocus: () => (view ? view.hasFocus() : false),
   textBetween: (from: number, to: number) => (view ? view.state.doc.textBetween(from, to, '\n') : ''),
   history: () => ({ open: history.isOpen }),
+  appearance: () => ({ open: appearance.isOpen, choices: appearance.choices, applied: currentAppearance() }),
   outline: () => ({ presence: outlinePanel.presence, focused: outlinePanel.el.contains(document.activeElement) }),
   find: () => ({ open: find.isOpen, count: find.el.querySelector('.bt-find-count')!.textContent, ms: find.lastSearchMs }),
 };
