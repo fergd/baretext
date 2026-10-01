@@ -10,8 +10,8 @@
   overflow-x: hidden;
   overscroll-behavior: contain;
 }
-.bt-scroller::-webkit-scrollbar { width: 8px; }
-.bt-scroller::-webkit-scrollbar-thumb { background: transparent; border-radius: 4px; }
+.bt-scroller::-webkit-scrollbar { width: var(--scrollbar-w); }
+.bt-scroller::-webkit-scrollbar-thumb { background: transparent; border-radius: var(--scrollbar-w); }
 .bt-scroller:hover::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--color-text) 12%, transparent); }
 
 .bt-page {
@@ -48,7 +48,7 @@
 .ProseMirror p + p { margin-top: var(--paragraph-gap); text-indent: var(--paragraph-indent); }
 .ProseMirror strong { font-weight: 700; }
 .ProseMirror em { font-style: italic; }
-.ProseMirror a { color: inherit; text-decoration: underline; text-decoration-color: var(--color-text-dimmer); text-underline-offset: 3px; }
+.ProseMirror a { color: inherit; text-decoration: underline; text-decoration-color: var(--color-text-dimmer); text-underline-offset: var(--link-underline-offset); }
 
 /* ── headings ── */
 .bt-book-title,
@@ -149,8 +149,8 @@
   position: absolute;
   inset: 0;
   background: var(--color-scene);
-  -webkit-mask: url('../assets/scene-divider.svg') center / 574px 10px no-repeat;
-  mask: url('../assets/scene-divider.svg') center / 574px 10px no-repeat;
+  -webkit-mask: url('../assets/scene-divider.svg') center / var(--ornament-w) var(--ornament-h) no-repeat;
+  mask: url('../assets/scene-divider.svg') center / var(--ornament-w) var(--ornament-h) no-repeat;
 }
 .bt-scene-boundary + p { margin-top: var(--space-6); }
 
@@ -168,8 +168,8 @@
   inset: 0;
   background: var(--color-scene);
   opacity: var(--pause-opacity);
-  -webkit-mask: url('../assets/pause-divider.svg') center / 72px 10px no-repeat;
-  mask: url('../assets/pause-divider.svg') center / 72px 10px no-repeat;
+  -webkit-mask: url('../assets/pause-divider.svg') center / var(--pause-ornament-w) var(--ornament-h) no-repeat;
+  mask: url('../assets/pause-divider.svg') center / var(--pause-ornament-w) var(--ornament-h) no-repeat;
 }
 /* Its number (6.4.1) hangs in the margin like the others, at body size. */
 .bt-section-break::before {

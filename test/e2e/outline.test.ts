@@ -430,3 +430,60 @@ test('the outline is 296px wide, and 248px in a window narrower than 1,100px', a
     await app.close();
   }
 });
+
+test('opening another manuscript mid-action leaves nothing of the old one behind (rename field, palette, panels)', async () => {
+  const { app, page } = await launch({ file: { name: 'O.md', content: FILE } });
+  try {
+    await page.keyboard.press('Meta+Alt+Backslash');
+    await page.keyboard.press('F2');
+    await page.keyboard.type('Half-typed name');
+    await expect(page.locator('.bt-outline-input')).toBeFocused();
+    await app.evaluate(({ Menu }) => {
+      const file = Menu.getApplicationMenu()!.items.find((i) => i.label === 'File')!;
+      file.submenu!.items.find((i) => i.label === 'New')!.click();
+    });
+    await expect.poll(() => page.evaluate(() => (window as any).__baretext.model().chapters.length)).toBe(1);
+    await expect(page.locator('.bt-outline-input')).toHaveCount(0);
+    await expect(page.locator('.bt-outline-row')).toHaveCount(2); // the new manuscript: one chapter, one scene
+    // The old manuscript kept its name: the half-typed rename went nowhere.
+    expect(JSON.stringify(await page.evaluate(() => (window as any).__baretext.model()))).not.toContain('Half-typed');
+
+    // Appearance open while a file opens from the menu bar: it closes (its sample showed the old book).
+    await page.keyboard.press('Meta+Comma');
+    await app.evaluate(({ Menu }) => {
+      const file = Menu.getApplicationMenu()!.items.find((i) => i.label === 'File')!;
+      file.submenu!.items.find((i) => i.label === 'New')!.click();
+    });
+    await expect.poll(() => page.evaluate(() => (window as any).__baretext.appearance().open)).toBe(false);
+  } finally {
+    await app.close();
+  }
+});
+
+test('reading back with the outline open: the current-scene highlight glides to the new row, not a jump', async () => {
+  const { app, page } = await launch({ file: { name: 'O.md', content: FILE } });
+  try {
+    await page.click('[data-ref="sidebar"]');
+    await page.waitForFunction(() => document.getAnimations().length === 0);
+    const highlight = page.locator('.bt-outline-current');
+    await expect(highlight).toHaveAttribute('data-visible', 'true');
+    const box = (await page.locator('.bt-scroller').boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    const start = await page.locator('.bt-outline-row[aria-current="location"]').getAttribute('aria-label');
+    // Scroll by hand until another scene is the one being read.
+    let gliding = false;
+    for (let i = 0; i < 30 && !gliding; i++) {
+      await page.mouse.wheel(0, 400);
+      gliding = await page.evaluate(() => document.getAnimations().some((a) =>
+        (a as CSSTransition).transitionProperty === 'transform' && ((a.effect as KeyframeEffect).target as HTMLElement)?.classList.contains('bt-outline-current')));
+    }
+    expect(gliding).toBe(true);
+    expect(await page.locator('.bt-outline-row[aria-current="location"]').getAttribute('aria-label')).not.toBe(start);
+    // It settles exactly on the current row.
+    await page.waitForFunction(() => document.getAnimations().length === 0);
+    const [h, row] = await page.$$eval('.bt-outline-current, .bt-outline-row[aria-current="location"]', (els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
+    expect(h).toBe(row);
+  } finally {
+    await app.close();
+  }
+});

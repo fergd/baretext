@@ -141,6 +141,7 @@ export class FindPanel {
     const view = this.getView();
     if (!view) return;
     // Leave the manuscript on the current match.
+    this.fresh(view);
     const m = this.matches[this.current];
     const tr = view.state.tr.setMeta(findKey, null);
     if (m && m.to <= view.state.doc.content.size) tr.setSelection(TextSelection.create(view.state.doc, m.from, m.to));
@@ -179,17 +180,24 @@ export class FindPanel {
 
   private step(dir: 1 | -1) {
     const view = this.getView();
-    if (view && view.state.doc !== this.searchedDoc) this.search(false);
+    if (view) this.fresh(view);
     const n = this.matches.length;
     if (!n) return;
     this.current = (this.current + dir + n) % n;
     this.render(true);
   }
 
+  /** The writer may have edited the manuscript since the last search: never act on old positions. */
+  private fresh(view: EditorView) {
+    if (view.state.doc !== this.searchedDoc) this.search(false);
+  }
+
   private replaceOne() {
     const view = this.getView();
+    if (!view) return;
+    this.fresh(view);
     const m = this.matches[this.current];
-    if (!view || !m) return;
+    if (!m) return;
     const tr = replaceMatch(view.state, m, this.replaceInput.value);
     if (!tr) return;
     view.dispatch(tr);

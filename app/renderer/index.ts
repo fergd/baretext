@@ -1,10 +1,14 @@
+// The window: wires the editor to the surfaces around it (spine, outline,
+// palette, find, toolbar, panels, saving) and routes every command — menu,
+// shortcut or palette — through runCommand. Features live in their own
+// modules; this file only connects them.
+
 import { redo, undo } from 'prosemirror-history';
 import { Plugin, Selection, TextSelection, type EditorState, type Transaction } from 'prosemirror-state';
 import { Decoration, DecorationSet, EditorView } from 'prosemirror-view';
 import {
   createManuscriptState,
   docToModel,
-  hasFormattableText,
   insertSectionBreak,
   nameScene,
   nameSceneAt,
@@ -27,16 +31,17 @@ import { Spine } from './spine';
 import { OutlinePanel, type OutlinePresence } from './outline-panel';
 import { FindPanel } from './find';
 import { HistoryPanel } from './history';
-import { AppearancePanel, type SampleText } from './appearance';
-import { Palette, type PaletteItem, type PaletteView } from './palette';
+import { AppearancePanel, readAppearance, sampleFrom, setAppearance } from './appearance';
+import { Palette, type PaletteView } from './palette';
+import { commandsView, jumpView, type CommandContext } from './palette-commands';
 import { SelectionToolbar } from './toolbar';
 import { Typewriter } from './typewriter';
+import { Saver } from './saving';
+import { installTestHooks } from './test-hooks';
 
 declare global {
   interface Window {
     baretext: BaretextBridge;
-    /** Test/debug hook: read-only access to editor state. */
-    __baretext?: unknown;
   }
 }
 
@@ -48,15 +53,8 @@ const app = document.querySelector<HTMLElement>('.bt-app')!;
 const scroller = $('scroller');
 const page = $('page');
 
-const AUTOSAVE_MS = 500;
-const CARET_SAVE_MS = 2000;
-
 let view: EditorView | null = null;
 let filePath: string | null = null;
-let saveTimer: number | undefined;
-let caretTimer: number | undefined;
-let savedDoc: unknown = null;
-let saving: Promise<boolean> | null = null;
 let lastKeyNav = 0;
 /** Reading back: the writer scrolled by hand, so "where you are" follows the scroll, not the caret. */
 let reading = false;
@@ -85,14 +83,9 @@ function toast(message: string, kind: 'info' | 'error' = 'info') {
   el.dataset.kind = kind;
   el.dataset.visible = 'true';
   clearTimeout(toastTimer);
-  toastTimer = window.setTimeout(() => { el.dataset.visible = 'false'; }, kind === 'error' ? 8000 : 2400);
-}
-
-function setSaveState(state: 'saved' | 'unsaved' | 'saving' | 'error', message = '') {
-  const el = $('save-state');
-  el.dataset.state = state;
-  el.textContent = state === 'error' ? 'not saved' : state === 'saving' || state === 'unsaved' ? '•' : '';
-  el.title = message;
+  // Long enough to read: about a second per ten words, never less than the minimum.
+  const readMs = Math.min(15_000, Math.max(kind === 'error' ? 8000 : 2400, message.split(/\s+/).length * 400));
+  toastTimer = window.setTimeout(() => { el.dataset.visible = 'false'; }, readMs);
 }
 
 const numberFormat = new Intl.NumberFormat();
@@ -118,43 +111,6 @@ function refreshChrome() {
     spine.update(outline, here?.scene.id ?? null, here?.chapter.id ?? null);
     outlinePanel.update(outline, state.doc.firstChild!.textContent, here?.scene.id ?? null, here?.chapter.id ?? null);
   });
-}
-
-// ── saving ──
-async function saveNow(): Promise<boolean> {
-  clearTimeout(saveTimer);
-  clearTimeout(caretTimer);
-  if (!view || !filePath) return true;
-  if (saving) await saving;
-  const doc = view.state.doc;
-  const path = filePath;
-  setSaveState('saving');
-  saving = bridge.save(path, docToModel(doc), view.state.selection.head).then(
-    (result) => {
-      if (result.ok) {
-        savedDoc = doc;
-        setSaveState(view?.state.doc === doc ? 'saved' : 'unsaved');
-        return true;
-      }
-      setSaveState('error', result.message);
-      toast(result.message, 'error');
-      return false;
-    },
-    (e: Error) => {
-      setSaveState('error', e.message);
-      toast(`Could not save: ${e.message}`, 'error');
-      return false;
-    },
-  );
-  const ok = await saving;
-  saving = null;
-  return ok;
-}
-
-function scheduleSave() {
-  setSaveState('unsaved');
-  clearTimeout(saveTimer);
-  saveTimer = window.setTimeout(() => void saveNow(), AUTOSAVE_MS);
 }
 
 // ── navigation controller: one path for every "go to scene" ──
@@ -316,7 +272,9 @@ function setOutlinePinned(pinned: boolean, persist = true, animate = true) {
   }, animate && app.dataset.focus !== 'true');
   if (persist) bridge.setPrefs({ outline: pinned ? 'pinned' : 'hidden' });
 }
+// ── surfaces ──
 const typewriter = new Typewriter(app, scroller, page, () => view);
+const saver = new Saver(bridge, () => view, () => filePath, $('save-state'), app);
 const toolbar = new SelectionToolbar($('workspace'), scroller, () => view);
 const find = new FindPanel($('workspace'), scroller, () => view, () => snapshotNow('Before Replace All'));
 
@@ -326,8 +284,8 @@ function snapshotNow(reason: string) {
 }
 
 const appearance = new AppearancePanel(document.body, {
-  current: currentAppearance,
-  sample: sampleText,
+  current: () => readAppearance(app),
+  sample: () => sampleFrom(view?.state ?? null),
   save: (p) => { applyAppearance(p); bridge.setPrefs(p); },
   onClose: () => view?.focus(),
 });
@@ -360,22 +318,23 @@ function dispatch(this: EditorView, tr: Transaction) {
     readingHere = null;
   }
   if (next.doc !== before.doc) {
-    scheduleSave();
+    saver.changed();
     typewriter.recenter(true);
   } else if (!next.selection.eq(before.selection)) {
     // Recenter on explicit keyboard navigation only — never on mouse
     // selection, modifier keys, or manual scrolling.
     if (Date.now() - lastKeyNav < 150 && !tr.getMeta('navigation')) typewriter.recenter(true);
-    clearTimeout(caretTimer);
-    caretTimer = window.setTimeout(() => void saveNow(), CARET_SAVE_MS);
+    saver.caretMoved();
   }
   refreshChrome();
 }
 
 function load(doc: OpenedDocument) {
-  clearTimeout(saveTimer);
-  find.close(); // matches belong to the old document
+  // Everything open belongs to the old document: matches, versions, the sample, the palette's list.
+  find.close();
   history.close();
+  appearance.close();
+  palette.close();
   filePath = doc.filePath;
   let state: EditorState = createManuscriptState(doc.manuscript, {
     onReject: () => console.warn('[baretext] rejected a change that would have damaged structure'),
@@ -385,7 +344,6 @@ function load(doc: OpenedDocument) {
     const sel = TextSelection.near(state.doc.resolve(doc.caret));
     state = state.apply(state.tr.setSelection(sel));
   }
-  savedDoc = state.doc;
   if (view) {
     view.updateState(state);
   } else {
@@ -399,8 +357,9 @@ function load(doc: OpenedDocument) {
   }
   const name = doc.filePath.split('/').pop() ?? doc.filePath;
   $('filename').textContent = name;
-  setSaveState('saved');
-  if (doc.importedFrom) {
+  saver.reset(view.state.doc);
+  if (doc.notice) toast(doc.notice, 'error');
+  else if (doc.importedFrom) {
     const original = doc.importedFrom.split('/').pop();
     toast(`Imported “${original}” as a Baretext copy: “${name}”. The original is untouched.`);
   }
@@ -457,7 +416,7 @@ function setTypewriter(on: boolean) {
   clearTimeout(twFadeTimer);
   if (turningOff) {
     app.dataset.twFade = 'true';
-    const ms = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dur-fade-out')) || 0;
+    const ms = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dur-tw-off')) || 0;
     twFadeTimer = window.setTimeout(() => { delete app.dataset.twFade; }, ms);
   } else {
     delete app.dataset.twFade;
@@ -470,48 +429,7 @@ function setTypewriter(on: boolean) {
 }
 /** Apply appearance choices at once; the page reflows and the caret's line stays where it is on screen. */
 function applyAppearance(p: AppearancePrefs) {
-  keepCaretLine(() => {
-    document.documentElement.dataset.theme = p.theme;
-    app.dataset.proseFont = p.proseFont;
-    app.dataset.paragraphSpacing = p.paragraphSpacing;
-    app.dataset.proseWidth = p.proseWidth;
-    app.dataset.fontSize = p.fontSize;
-  });
-}
-function currentAppearance(): AppearancePrefs {
-  const d = app.dataset;
-  return {
-    theme: document.documentElement.dataset.theme as AppearancePrefs['theme'],
-    proseFont: d.proseFont as AppearancePrefs['proseFont'],
-    paragraphSpacing: d.paragraphSpacing as AppearancePrefs['paragraphSpacing'],
-    proseWidth: d.proseWidth as AppearancePrefs['proseWidth'],
-    fontSize: d.fontSize as AppearancePrefs['fontSize'],
-  };
-}
-
-/** The writer's own words for the Appearance sample: the current scene's opening paragraphs. */
-function sampleText(): SampleText {
-  const fallback: SampleText = { book: '', chapterNumber: 1, chapterTitle: '', sceneLabel: '1.1', sceneName: null, paragraphs: ['Your words appear here, in the look you choose.'], words: 0 };
-  if (!view) return fallback;
-  const doc = view.state.doc;
-  const outline = outlineOf(doc);
-  const here = currentScene(view.state) ?? (outline.chapters[0] ? { chapter: outline.chapters[0], scene: outline.chapters[0].scenes[0]! } : null);
-  if (!here) return fallback;
-  const paragraphs: string[] = [];
-  doc.nodeAt(here.scene.pos)!.descendants((node) => {
-    if (paragraphs.length >= 5) return false;
-    if (node.type === schema.nodes.paragraph) { if (node.textContent.trim()) paragraphs.push(node.textContent); return false; }
-    return node.type !== schema.nodes.scene_heading;
-  });
-  return {
-    book: doc.firstChild!.textContent,
-    chapterNumber: here.chapter.number,
-    chapterTitle: here.chapter.title,
-    sceneLabel: here.scene.label,
-    sceneName: here.scene.name || null,
-    paragraphs: paragraphs.length ? paragraphs : fallback.paragraphs,
-    words: outline.words,
-  };
+  keepCaretLine(() => setAppearance(app, p));
 }
 function setFocus(on: boolean) {
   if (on && outlinePanel.el.contains(document.activeElement)) view?.focus();
@@ -522,6 +440,9 @@ function setFocus(on: boolean) {
 
 function runCommand(command: MenuCommand) {
   if (!view) return;
+  // A panel that covers the window (Appearance, History) keeps every other
+  // command out until it closes; saving is always allowed.
+  if ((appearance.isOpen || history.isOpen) && command !== 'save') return;
   const run = (cmd: (s: EditorState, d?: (tr: Transaction) => void) => boolean) => { cmd(view!.state, view!.dispatch); view!.focus(); };
   switch (command) {
     case 'undo': run(undo); break;
@@ -535,9 +456,9 @@ function runCommand(command: MenuCommand) {
     case 'link': toolbar.openLink(); break;
     case 'typewriter': setTypewriter(!typewriter.enabled); break;
     case 'focus': setFocus(app.dataset.focus !== 'true'); break;
-    case 'save': void saveNow().then((ok) => ok && toast('Saved')); break;
-    case 'palette': togglePalette(commandsView()); break;
-    case 'goto': togglePalette(jumpView()); break;
+    case 'save': void saver.saveNow().then((ok) => ok && toast('Saved')); break;
+    case 'palette': togglePalette(commandsView(commands)); break;
+    case 'goto': togglePalette(jumpView(commands)); break;
     case 'find': palette.close(); find.open(false); break;
     case 'find-replace': palette.close(); find.open(true); break;
     case 'find-next': find.next(1); break;
@@ -566,84 +487,16 @@ function runCommand(command: MenuCommand) {
 }
 
 // ── command palette (⌘K) and jump (⌘⇧O) ──
-// Targeted: only what exists and applies right now. Features add their
-// commands here as they are built.
 const palette = new Palette(document.body);
-
-
-function commandsView(): PaletteView {
-  return {
-    name: 'commands',
-    placeholder: 'Type a command',
-    items: () => {
-      const selection = view ? hasFormattableText(view.state) : false;
-      const items: PaletteItem[] = [
-        { id: 'goto', group: 'Navigate', label: 'Go to chapter or scene…', keywords: 'jump navigate', keys: '⌘⇧O', keepOpen: true, run: () => palette.open(jumpView()) },
-        { id: 'find', group: 'Navigate', label: 'Find…', keywords: 'search text', keys: '⌘F', run: () => runCommand('find') },
-        { id: 'find-replace', group: 'Navigate', label: 'Find and replace…', keywords: 'search substitute change', keys: '⌥⌘F', run: () => runCommand('find-replace') },
-        { id: 'scene-break', group: 'Insert', label: 'Scene break', keywords: 'split new scene', keys: '⌘↵', run: () => runCommand('split-scene') },
-        { id: 'new-chapter', group: 'Insert', label: 'New chapter', keywords: 'add create chapter', run: () => runCommand('new-chapter') },
-        { id: 'pause', group: 'Insert', label: 'Pause', keywords: 'section break within scene', keys: '⌘⇧↵', run: () => runCommand('pause') },
-      ];
-      const here = view ? currentScene(view.state) : null;
-      if (here) {
-        items.push({ id: 'name-scene', group: 'Insert', label: here.scene.name ? 'Rename scene' : 'Name scene', keywords: 'title heading rename scene name', run: () => runCommand('name-scene') });
-      }
-      if (selection) {
-        items.push(
-          { id: 'bold', group: 'Format', label: 'Bold', keys: '⌘B', run: () => runCommand('bold') },
-          { id: 'italic', group: 'Format', label: 'Italic', keys: '⌘I', run: () => runCommand('italic') },
-          { id: 'quote', group: 'Format', label: 'Quote', keywords: 'epigraph blockquote', run: () => runCommand('quote') },
-          { id: 'link', group: 'Format', label: 'Link…', keywords: 'url web address', run: () => runCommand('link') },
-        );
-      }
-      items.push(
-        { id: 'outline', group: 'View', label: 'Outline', keywords: 'sidebar chapters scenes tree navigator', keys: '⌘\\', state: outlinePanel.presence === 'pinned' ? 'on' : 'off', run: () => runCommand('outline') },
-        { id: 'typewriter', group: 'View', label: 'Typewriter mode', keywords: 'center line', keys: '⌘⇧T', state: typewriter.enabled ? 'on' : 'off', run: () => runCommand('typewriter') },
-        { id: 'focus', group: 'View', label: 'Focus mode', keywords: 'hide chrome distraction quiet', keys: '⌘.', state: app.dataset.focus === 'true' ? 'on' : 'off', run: () => runCommand('focus') },
-        { id: 'appearance', group: 'View', label: 'Appearance…', keywords: 'settings preferences theme dark light contrast font serif sans mono size spacing width wide narrow style', keys: '⌘,', run: () => runCommand('appearance') },
-        { id: 'new', group: 'File', label: 'New manuscript', keywords: 'create file', keys: '⌘N', run: () => bridge.fileCommand('new') },
-        { id: 'open', group: 'File', label: 'Open…', keywords: 'file', keys: '⌘O', run: () => bridge.fileCommand('open') },
-        { id: 'save', group: 'File', label: 'Save', keys: '⌘S', run: () => runCommand('save') },
-        { id: 'history', group: 'File', label: 'History…', keywords: 'versions snapshots restore backup earlier', run: () => runCommand('history') },
-        { id: 'snapshot', group: 'File', label: 'Save snapshot…', keywords: 'version backup checkpoint', run: () => runCommand('snapshot') },
-        { id: 'reveal', group: 'File', label: 'Reveal in Finder', keywords: 'show file folder', run: () => { if (filePath) bridge.revealInFinder(filePath); } },
-      );
-      return items;
-    },
-  };
-}
-
-function jumpView(): PaletteView {
-  const doc = view?.state.doc;
-  const here = view ? currentScene(view.state) : null;
-  return {
-    name: 'jump',
-    placeholder: 'Go to chapter or scene',
-    initialId: here ? `scene-${here.scene.id}` : null,
-    back: commandsView,
-    items: () => {
-      if (!doc) return [];
-      const items: PaletteItem[] = [];
-      for (const chapter of outlineOf(doc).chapters) {
-        const title = chapter.title || 'Untitled';
-        const first = chapter.scenes[0];
-        items.push({
-          id: `chapter-${chapter.id}`, group: 'Chapters', label: `${chapter.number} ${title}`,
-          run: () => { if (first) navigate(first.id); },
-        });
-        for (const scene of chapter.scenes) {
-          items.push({
-            id: `scene-${scene.id}`, group: 'Chapters', label: `${scene.label} ${sceneDisplayName(scene)}`,
-            keywords: title, depth: 1, state: scene.id === here?.scene.id ? 'current' : undefined,
-            run: () => navigate(scene.id),
-          });
-        }
-      }
-      return items;
-    },
-  };
-}
+const commands: CommandContext = {
+  view: () => view,
+  run: (command) => runCommand(command),
+  navigate: (id) => navigate(id),
+  open: (next) => palette.open(next),
+  isOn: (toggle) => toggle === 'outline' ? outlinePanel.presence === 'pinned' : toggle === 'typewriter' ? typewriter.enabled : app.dataset.focus === 'true',
+  fileCommand: (command) => bridge.fileCommand(command),
+  reveal: () => { if (filePath) bridge.revealInFinder(filePath); },
+};
 
 /** A palette key closes its own view, switches from the other, or opens. */
 function togglePalette(next: PaletteView) {
@@ -688,7 +541,7 @@ $('filename').addEventListener('click', () => filePath && bridge.revealInFinder(
 
 bridge.onMenu(runCommand);
 bridge.onDocumentOpened(load);
-bridge.onFlushRequest(() => saveNow());
+bridge.onFlushRequest(() => saver.saveNow());
 
 // ── start ──
 // Every launch starts in the default mode: typewriter and focus mode are
@@ -699,71 +552,15 @@ setTypewriter(false);
 setOutlinePinned(bridge.initial.outline === 'pinned', false, false);
 bridge.loadInitial().then(load, (e: Error) => toast(`Could not open the manuscript: ${e.message}`, 'error'));
 
-function selectText(text: string, collapseToEnd: boolean): boolean {
-  if (!view) return false;
-  let from = -1;
-  view.state.doc.descendants((node, p) => {
-    if (from >= 0) return false;
-    const i = node.isText ? node.text!.indexOf(text) : -1;
-    if (i >= 0) from = p + i;
-    return from < 0;
-  });
-  if (from < 0) return false;
-  const to = from + text.length;
-  view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, collapseToEnd ? to : from, to)));
-  view.focus();
-  return true;
-}
-
-// Read-only hooks for end-to-end tests (assert on model state, not DOM).
-window.__baretext = {
-  model: () => (view ? docToModel(view.state.doc) : null),
-  selection: () => (view ? { from: view.state.selection.from, to: view.state.selection.to, head: view.state.selection.head } : null),
-  currentScene: () => (view ? currentScene(view.state)?.scene.id ?? null : null),
-  navigate,
-  /** Place the caret at the end of a scene's last line. */
-  caretToSceneEnd: (sceneId: string) => {
-    if (!view) return false;
-    const scene = outlineOf(view.state.doc).chapters.flatMap((c) => c.scenes).find((s) => s.id === sceneId);
-    if (!scene) return false;
-    const end = scene.pos + view.state.doc.nodeAt(scene.pos)!.nodeSize - 1;
-    const sel = Selection.findFrom(view.state.doc.resolve(end), -1, true);
-    if (sel) view.dispatch(view.state.tr.setSelection(sel));
-    view.focus();
-    return !!sel;
-  },
-  /** Place the caret right after the first occurrence of `text` in the prose. */
-  caretAfter: (text: string) => selectText(text, true),
-  /** Select the first occurrence of `text` in the prose. */
-  selectText: (text: string) => selectText(text, false),
-  /** Select from the first occurrence of `start` to the end of the first `end` after it. */
-  selectRange: (start: string, end: string) => {
-    if (!view) return false;
-    let from = -1;
-    let to = -1;
-    view.state.doc.descendants((node, p) => {
-      if (to >= 0) return false;
-      if (!node.isText) return true;
-      if (from < 0) { const i = node.text!.indexOf(start); if (i >= 0) from = p + i; }
-      if (from >= 0) { const j = node.text!.indexOf(end); if (j >= 0 && p + j >= from) to = p + j + end.length; }
-      return true;
-    });
-    if (from < 0 || to < 0) return false;
-    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, from, to)));
-    view.focus();
-    return true;
-  },
-  saveNow,
-  isSaved: () => (view ? view.state.doc === savedDoc : true),
+installTestHooks({
+  view: () => view,
   filePath: () => filePath,
-  toolbar: () => ({ visible: toolbar.visible, el: toolbar.el.getBoundingClientRect().toJSON() }),
-  palette: () => ({ open: palette.isOpen, view: palette.current, timings: { ...palette.timings } }),
-  /** Where the caret's line is on screen (viewport y of its top). */
-  caretTop: () => (view ? view.coordsAtPos(view.state.selection.head).top : null),
-  hasFocus: () => (view ? view.hasFocus() : false),
-  textBetween: (from: number, to: number) => (view ? view.state.doc.textBetween(from, to, '\n') : ''),
-  history: () => ({ open: history.isOpen }),
-  appearance: () => ({ open: appearance.isOpen, choices: appearance.choices, applied: currentAppearance() }),
+  navigate,
+  saver,
+  toolbar,
+  palette,
+  find,
+  history,
+  appearance: () => ({ open: appearance.isOpen, choices: appearance.choices, applied: readAppearance(app) }),
   outline: () => ({ presence: outlinePanel.presence, focused: outlinePanel.el.contains(document.activeElement) }),
-  find: () => ({ open: find.isOpen, count: find.el.querySelector('.bt-find-count')!.textContent, ms: find.lastSearchMs }),
-};
+});

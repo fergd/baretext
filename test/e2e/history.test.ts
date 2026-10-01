@@ -98,3 +98,27 @@ test('history of a 120k-word book opens and previews quickly', async () => {
     await app.close();
   }
 });
+
+test('a restore that cannot read its version says so and changes nothing', async () => {
+  const { app, page, userData } = await launch({ file: { name: 'H.md', content: '# One\n\nThe first draft.\n' } });
+  try {
+    await page.evaluate(() => (window as any).__baretext.caretAfter('first draft.'));
+    await page.keyboard.type(' More.');
+    await page.evaluate(() => (window as any).__baretext.saveNow());
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.webContents.send('menu:command', 'history'));
+    await expect(page.locator('.bt-history-row').first()).toBeVisible();
+    const before = await model(page);
+    // The stored copies vanish (a damaged data folder).
+    const { readdirSync, rmSync } = await import('node:fs');
+    for (const d of readdirSync(`${userData}/Snapshots`)) rmSync(`${userData}/Snapshots/${d}/objects`, { recursive: true, force: true });
+    await page.locator('.bt-history-row').last().click(); // the older version (before " More.")
+    await expect(page.locator('.bt-history-vs')).toContainText('vs now');
+    await expect(page.locator('.bt-history-preview-text')).toContainText('This version can’t be read');
+    await page.click('.bt-history [data-action="restore"]');
+    await expect(page.locator('.bt-history-vs')).toContainText('Couldn’t restore this version');
+    expect((await page.evaluate(() => (window as any).__baretext.history())).open).toBe(true);
+    expect(await model(page)).toEqual(before);
+  } finally {
+    await app.close();
+  }
+});

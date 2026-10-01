@@ -136,3 +136,24 @@ test('the panel is as tall as its controls need whenever the window allows (no s
     await app.close();
   }
 });
+
+test('while Appearance or History is open, other shortcuts stay out (no find, palette, focus mode or outline behind it)', async () => {
+  const { app, page } = await launch({ file: { name: 'A.md', content: FILE } });
+  try {
+    const state = () => page.evaluate(() => {
+      const b = (window as any).__baretext;
+      return { find: b.find().open, palette: b.palette().open, focus: document.querySelector<HTMLElement>('.bt-app')!.dataset.focus, outline: b.outline().presence };
+    });
+    const quiet = { find: false, palette: false, focus: 'false', outline: 'hidden' };
+    for (const open of ['Meta+Comma', 'history']) {
+      if (open === 'history') await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.webContents.send('menu:command', 'history'));
+      else await page.keyboard.press(open);
+      await page.waitForTimeout(100);
+      for (const key of ['Meta+f', 'Meta+k', 'Meta+.', 'Meta+Backslash', 'Meta+Shift+o', 'Meta+Alt+f']) await page.keyboard.press(key);
+      expect(await state(), open).toEqual(quiet);
+      await page.keyboard.press('Escape');
+    }
+  } finally {
+    await app.close();
+  }
+});

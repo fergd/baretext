@@ -4,7 +4,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { verifyRoundTrip, type Manuscript } from '@baretext/format';
+import { manuscriptWords, parse, verifyRoundTrip, type Manuscript } from '@baretext/format';
 
 export const RECOVERY_KEEP = 100;
 
@@ -17,6 +17,30 @@ export function isDestructive(oldBytes: number, newBytes: number): boolean {
   if (oldBytes >= 1024 && newBytes === 0) return true;
   if (oldBytes >= 4096 && newBytes <= Math.max(256, oldBytes * 0.1)) return true;
   return false;
+}
+
+/**
+ * The same guard measured in prose: removing 90% or more of a manuscript's
+ * words at once. (Titles and identities keep a short or many-scened book's
+ * file large even when every word of prose is gone, so size alone misses it.)
+ */
+export function isGutted(oldWords: number, newWords: number): boolean {
+  return oldWords >= 100 && newWords <= oldWords * 0.1;
+}
+
+/** Word counts of what we last wrote or read, so the previous file is parsed at most once. */
+const knownWords = new Map<string, { data: Buffer; words: number }>();
+
+function wordsIn(filePath: string, data: Buffer): number | null {
+  const known = knownWords.get(filePath);
+  if (known?.data.equals(data)) return known.words;
+  try {
+    const words = manuscriptWords(parse(data.toString('utf8')).manuscript);
+    knownWords.set(filePath, { data, words });
+    return words;
+  } catch {
+    return null; // not a manuscript we can read: the size guard still applies
+  }
 }
 
 export function fileKey(filePath: string): string {
@@ -84,15 +108,14 @@ export async function saveManuscript(filePath: string, manuscript: Manuscript, o
   try {
     const previous = await readIfExists(filePath);
     if (previous && previous.equals(data)) return { ok: true, bytes: data.length, skipped: true };
-    if (previous && !options.force && isDestructive(previous.length, data.length)) {
-      return {
-        ok: false,
-        reason: 'destructive',
-        message: `Save refused: the file would shrink from ${previous.length} to ${data.length} bytes. Your text is safe in the app.`,
-      };
+    const gutting = previous && !options.force &&
+      (isDestructive(previous.length, data.length) || isGutted(wordsIn(filePath, previous) ?? 0, manuscriptWords(manuscript)));
+    if (gutting) {
+      return { ok: false, reason: 'destructive', message: 'Save refused: this change removes most of the manuscript. Your text is safe in the app.' };
     }
     if (previous) await keepRecoveryCopy(options.recoveryRoot, filePath, previous);
     await atomicWrite(filePath, data);
+    knownWords.set(filePath, { data, words: manuscriptWords(manuscript) });
     return { ok: true, bytes: data.length };
   } catch (e) {
     return { ok: false, reason: 'io', message: (e as Error).message };

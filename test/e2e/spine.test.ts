@@ -86,6 +86,8 @@ test('Esc leaves focus mode, but only after closing whatever is open (the toolba
     expect(await focus()).toBe('true');
 
     // Select a word: the toolbar opens. Esc #1 closes it and stays in focus mode.
+    // (Measure only once the page is still: launch scrolling and the fade must not move the word.)
+    await page.waitForFunction(() => document.getAnimations().length === 0);
     const w = await page.evaluate(() => {
       const t = [...document.querySelectorAll('.ProseMirror p')][0]!.firstChild!;
       const r = document.createRange(); r.setStart(t, 0); r.setEnd(t, 5);

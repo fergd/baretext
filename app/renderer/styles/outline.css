@@ -101,11 +101,26 @@
 .bt-outline-scene[data-unnamed='true'] .bt-outline-name { color: var(--color-text-dimmer); }
 .bt-outline-meta { color: var(--color-text-dimmer); font-family: var(--font-num); font-variant-numeric: tabular-nums; }
 
-/* Where the writer is: the current scene reads brightest, with the accent stripe. */
-.bt-outline-scene[aria-current='location'] {
+/* Where the writer is: one wash glides to the current scene's row; its text
+   brightens as the wash arrives. */
+.bt-outline-current {
+  position: absolute;
+  top: 0;
+  left: var(--space-1);
+  right: var(--space-1);
+  height: var(--outline-row-h);
+  border-radius: var(--toolbar-button-radius);
   background: var(--color-popover-active);
-  color: var(--color-text);
+  pointer-events: none;
+  transition: transform var(--dur-glide) var(--ease-out), opacity var(--dur-fast) var(--ease-out);
 }
+.bt-outline-current[data-visible='false'] { opacity: 0; }
+.bt-outline-current[data-snap='true'] { transition: none; }
+.bt-outline-row { position: relative; } /* above the wash */
+.bt-outline-row,
+.bt-outline-row > .bt-outline-num,
+.bt-outline-row > .bt-outline-name { transition: color var(--dur-glide) var(--ease-out), background-color var(--dur-fast) var(--ease-out); }
+.bt-outline-scene[aria-current='location'] { color: var(--color-text); }
 .bt-outline-scene[aria-current='location'] .bt-outline-num,
 .bt-outline-scene[aria-current='location'] .bt-outline-name { color: var(--color-text); }
 .bt-outline-chapter[data-here='true'] > .bt-outline-num { color: var(--color-accent); }
@@ -231,3 +246,6 @@
 .bt-outline-drop[data-kind='chapter'] { padding-left: var(--space-2); }
 .bt-outline-drop[data-visible='true'] { opacity: 1; }
 .bt-outline-chapter[data-drop-into='true'] { background: var(--color-popover-active); box-shadow: inset 0 0 0 1px var(--color-accent); }
+
+/* With the column open, messages center over the page, not the window. */
+.bt-app[data-outline='pinned']:not([data-focus='true']) :is(.bt-notice, .bt-toast) { left: calc(50% + var(--outline-w) / 2); }

@@ -17,7 +17,7 @@ export function sampleManuscript(): Manuscript {
       chapter(2, 'Testing the Spirits', Array.from({ length: 8 }, (_, i) => scene(i % 2 ? null : `Scene ${i + 1}`, P2))),
       chapter(3, 'Cold Comforts', Array.from({ length: 7 }, (_, i) => scene(`Comfort ${i + 1}`, P3))),
       chapter(4, 'Maples in Suburbia', [scene('Early Frost', P2), scene('It Begins', P1, P2, P3), scene(null, P3), scene(null, P2)]),
-      chapter(5, 'A Miracle in Mesa Springs', Array.from({ length: 3 }, (_, i) => scene(null, P1))),
+      chapter(5, 'A Miracle in Mesa Springs', Array.from({ length: 3 }, () => scene(null, P1))),
     ],
     coldStorage: [scene('Cut scene', P2)],
   };

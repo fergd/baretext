@@ -38,7 +38,7 @@ const emDash = new InputRule(/--$/, '—');
 /** Typing or pasting over a selection that spans structure clears it safely first. */
 const safeReplace = new Plugin({
   props: {
-    handleTextInput(view, from, to, text) {
+    handleTextInput(view, _from, _to, text) {
       const { $from, $to } = view.state.selection;
       if (view.state.selection.empty || withinOneRegion($from, $to)) return false;
       const tr = deleteAcrossStructure(view.state);

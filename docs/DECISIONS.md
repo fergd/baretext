@@ -500,3 +500,53 @@ Build the main app first. When integrations are built, follow this design.
 - The Format menu's Prose Font and Paragraph Spacing submenus and their
   palette entries are gone; the app menu is built explicitly to hold
   Settings… (⌘,).
+
+## 11. Quality pass (2026-10-01)
+
+- **A failed save stays in view until resolved** (`app/renderer/saving.ts`).
+  A notice above the status bar explains it. A refused large deletion
+  offers **Undo** or a two-step **Save anyway** ("Confirm: save"; disarms
+  after 4s); any other failure offers **Try again**. The status bar keeps
+  "not saved". `bridge.save(…, force)` passes the confirmation to the guard
+  for that one save.
+- **The destructive-save guard also counts prose:** refusing a save that
+  removes 90% or more of the words of a manuscript of 100+ words, in
+  addition to the size thresholds (structure keeps a short or many-scened
+  book's file large even with every word gone). Word counts of the last
+  write are remembered, so the previous file is parsed at most once.
+  **Cold Storage must account for this:** parked prose doesn't count as
+  manuscript words, so parking most of a book at once would trip the guard.
+- **Problems are sheets on the window** (`dialog.showMessageBox(win, …)`),
+  never app-blocking alerts.
+- **Launch explains a last manuscript that didn't reopen** (moved/renamed,
+  or unreadable) instead of silently starting a new one; the file is never
+  touched. Toasts stay long enough to read (about 400ms a word, 15s max).
+- **Covering panels own the keyboard:** while Appearance or History is
+  open, every command except Save is ignored (shortcuts and menu alike).
+  Opening another manuscript closes find, History, Appearance and the
+  palette.
+- **Find never acts on old positions:** Replace, stepping and closing
+  re-search first if the manuscript changed since the last search.
+- **Selections never reach into Cold Storage:** one that runs into it is
+  trimmed to the last manuscript line (keeping its direction), not
+  collapsed to a caret.
+- **Code rules now enforced by tests/compiler:** `noUnusedLocals` and
+  `noUnusedParameters`; a token lint (`app/renderer/test/tokens-lint.test.ts`)
+  fails on literal colors or px sizes outside `tokens.css` (allowed: 0–2px
+  strokes, black alpha masks, custom-property definitions, query
+  breakpoints).
+- Module layout (renderer): `index.ts` wires the window; `saving.ts`,
+  `palette-commands.ts`, `test-hooks.ts`, `outline-drag.ts` and the
+  appearance helpers in `appearance.ts` hold what used to sit in it.
+
+## 12. Polish (2026-10-01, user)
+
+- **Typewriter off fades back in:** the dimmed lines return and the guide
+  lines fade out together over 400ms (`--dur-tw-off`, ease-in-out), evenly
+  enough to see; previously a front-loaded curve read as a snap (90% done
+  in 80ms) and the guides vanished instantly. Nothing moves.
+- **The outline's current-scene highlight glides:** one wash element moves
+  between rows (240ms, `--dur-glide`) as the current scene changes, by
+  caret or by reading back; the rows' text brightens and dims with it.
+  After a rebuild (structure change, reorder) it snaps. When the current
+  row leaves the list's view, the list scrolls smoothly to it.

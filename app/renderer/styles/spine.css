@@ -62,13 +62,13 @@
 .bt-spine-indicator[data-snap='true'] { transition: none; }
 
 .bt-spine-chapter[data-expanding='true'] .bt-tick { animation: bt-tick-in var(--dur-panel) var(--ease-out) both; }
-@keyframes bt-tick-in { from { opacity: 0; transform: translateY(-4px); } }
+@keyframes bt-tick-in { from { opacity: 0; transform: translateY(calc(-1 * var(--popover-enter-offset))); } }
 
 .bt-spine-tip {
   position: absolute;
   left: calc(var(--spine-w) - var(--space-1));
   padding: 0 var(--space-2);
-  border-radius: 6px;
+  border-radius: var(--radius-tip);
   background: var(--color-bg);
   border: 1px solid var(--color-border);
   font-size: var(--text-ui);

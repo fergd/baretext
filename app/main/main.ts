@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { existsSync, promises as fs } from 'node:fs';
 import path from 'node:path';
 import { emptyManuscript, manuscriptWords, parse, serialize, validate, type Manuscript } from '@baretext/format';
-import { CHANNELS, FONT_SIZES, OUTLINE_STATES, PARAGRAPH_SPACINGS, PROSE_FONTS, PROSE_WIDTHS, THEMES, type FontSize, type ProseFont, type ProseWidth, type Theme, type OutlineState, type InitialPrefs, type MenuCommand, type OpenedDocument, type ParagraphSpacing } from '../shared/bridge';
+import { CHANNELS, OUTLINE_STATES, validAppearance, type InitialPrefs, type MenuCommand, type OpenedDocument, type OutlineState, type Theme } from '../shared/bridge';
 import { saveManuscript } from './save';
 import { SnapshotStore, type SnapshotEntry } from './snapshots';
 import { SettingsStore } from './settings';
@@ -95,20 +95,27 @@ function remember(filePath: string) {
 
 async function initialDocument(): Promise<OpenedDocument> {
   const last = settings.get().lastFile;
-  if (last && existsSync(last)) {
-    try {
-      const doc = await readDocument(last);
-      remember(doc.filePath);
-      snapshotOpened(doc);
-      return doc;
-    } catch (e) {
-      console.error('could not reopen last file:', e);
+  let notice: string | undefined;
+  if (last) {
+    const name = `“${path.basename(last)}”`;
+    if (!existsSync(last)) {
+      notice = `${name} wasn’t found. It may have been moved or renamed; open it with File → Open. This is a new manuscript.`;
+    } else {
+      try {
+        const doc = await readDocument(last);
+        remember(doc.filePath);
+        snapshotOpened(doc);
+        return doc;
+      } catch (e) {
+        console.error('could not reopen last file:', e);
+        notice = `${name} could not be opened (${(e as Error).message}). The file was not changed. This is a new manuscript.`;
+      }
     }
   }
   const doc = await createDocument();
   remember(doc.filePath);
   snapshotOpened(doc);
-  return doc;
+  return { ...doc, notice };
 }
 
 // ── flush: ask the UI to save before quitting or switching documents ──
@@ -129,9 +136,15 @@ function requestFlush(timeoutMs = 10_000): Promise<boolean> {
   });
 }
 
+/** A sheet on the window (never an app-blocking alert): problems the writer should know about. */
+function tell(message: string, detail = '') {
+  if (win && !win.isDestroyed()) void dialog.showMessageBox(win, { type: 'warning', message, detail, buttons: ['OK'] });
+  else dialog.showErrorBox(message, detail);
+}
+
 async function switchTo(load: () => Promise<OpenedDocument>) {
   if (!(await requestFlush())) {
-    dialog.showErrorBox('Baretext', 'The current manuscript could not be saved, so nothing else was opened. Your text is still in the window.');
+    tell('The current manuscript could not be saved, so nothing else was opened.', 'Your text is still in the window. The message at the bottom of the window says what to do.');
     return;
   }
   try {
@@ -140,7 +153,7 @@ async function switchTo(load: () => Promise<OpenedDocument>) {
     snapshotOpened(doc);
     win?.webContents.send(CHANNELS.opened, doc);
   } catch (e) {
-    dialog.showErrorBox('Baretext', `Could not open the file: ${(e as Error).message}`);
+    tell('Could not open the file.', (e as Error).message);
   }
 }
 
@@ -261,7 +274,7 @@ function buildMenu() {
 function createWindow() {
   const s = settings.get();
   const initial: InitialPrefs = {
-    theme: s.theme, paragraphSpacing: s.paragraphSpacing, proseFont: s.proseFont, proseWidth: s.proseWidth, fontSize: s.fontSize, outline: s.outline, hidden: HIDDEN,
+    theme: s.theme, proseFont: s.proseFont, paragraphSpacing: s.paragraphSpacing, proseWidth: s.proseWidth, fontSize: s.fontSize, outline: s.outline, hidden: HIDDEN,
   };
   // Where it was last time (if still on a connected display), else a large
   // centered window. Hidden test windows keep a fixed size unless a test sets one.
@@ -319,7 +332,7 @@ function createWindow() {
     e.preventDefault();
     const ok = await requestFlush();
     if (!ok) {
-      dialog.showErrorBox('Baretext', 'The manuscript could not be saved, so the window was kept open. Your text is safe in the window.');
+      tell('Your latest changes are not saved yet, so the window stays open.', 'Your text is safe in the window. The message at the bottom of the window says what to do.');
       return;
     }
     quitting = true;
@@ -331,11 +344,11 @@ function createWindow() {
 
 function registerIpc() {
   ipcMain.handle(CHANNELS.loadInitial, () => initialDocument());
-  ipcMain.handle(CHANNELS.save, async (_e, filePath: unknown, manuscript: Manuscript, caret: unknown) => {
+  ipcMain.handle(CHANNELS.save, async (_e, filePath: unknown, manuscript: Manuscript, caret: unknown, force: unknown) => {
     if (typeof filePath !== 'string' || filePath !== currentFile) {
       return { ok: false, reason: 'no-file', message: 'This window is not editing that file.' };
     }
-    const result = await saveManuscript(filePath, manuscript, { recoveryRoot: recoveryRoot() });
+    const result = await saveManuscript(filePath, manuscript, { recoveryRoot: recoveryRoot(), force: force === true });
     if (Number.isInteger(caret)) settings.update({ carets: { ...settings.get().carets, [filePath]: caret as number } });
     if (result.ok && !result.skipped) {
       void snapshots().auto(filePath, serialize(manuscript), manuscriptWords(manuscript)).catch((e) => console.error('snapshot failed:', e));
@@ -360,12 +373,7 @@ function registerIpc() {
     if (own(filePath) && typeof id === 'string') await snapshots().remove(filePath, id);
   });
   ipcMain.on(CHANNELS.setPrefs, (_e, patch: Record<string, unknown>) => {
-    const next: Record<string, unknown> = {};
-    if (THEMES.includes(patch.theme as Theme)) next.theme = patch.theme;
-    if (PARAGRAPH_SPACINGS.includes(patch.paragraphSpacing as ParagraphSpacing)) next.paragraphSpacing = patch.paragraphSpacing;
-    if (PROSE_FONTS.includes(patch.proseFont as ProseFont)) next.proseFont = patch.proseFont;
-    if (PROSE_WIDTHS.includes(patch.proseWidth as ProseWidth)) next.proseWidth = patch.proseWidth;
-    if (FONT_SIZES.includes(patch.fontSize as FontSize)) next.fontSize = patch.fontSize;
+    const next: Record<string, unknown> = { ...validAppearance(patch) };
     if (OUTLINE_STATES.includes(patch.outline as OutlineState)) next.outline = patch.outline;
     settings.update(next);
     if ('outline' in next) buildMenu(); // keep the checked item in step

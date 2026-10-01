@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { launch, model } from './launch.ts';
 

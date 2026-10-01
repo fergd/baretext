@@ -105,7 +105,7 @@ button {
   user-select: none;
 }
 .bt-status-group { display: flex; align-items: center; gap: var(--space-4); min-width: 0; }
-.bt-status button { height: var(--lh-ui); padding: 0 var(--space-1); border-radius: 4px; }
+.bt-status button { height: var(--lh-ui); padding: 0 var(--space-1); border-radius: var(--toolbar-button-radius); }
 .bt-status button:hover { color: var(--color-text-dim); }
 
 /* ── switch: every on/off control uses it (status bar, palette) ── */
@@ -149,13 +149,13 @@ button {
   left: 50%;
   bottom: calc(var(--status-h) + var(--space-4));
   transform: translateX(-50%);
-  max-width: min(560px, calc(100vw - 32px));
+  max-width: min(var(--toast-w), calc(100vw - 2 * var(--space-4)));
   padding: var(--space-2) var(--space-4);
-  border-radius: 8px;
+  border-radius: var(--popover-radius);
   background: var(--color-bg);
   border: 1px solid var(--color-border);
   color: var(--color-text);
-  font-size: 12px;
+  font-size: var(--text-toast);
   line-height: var(--lh-ui);
   opacity: 0;
   pointer-events: none;
@@ -163,3 +163,38 @@ button {
 }
 .bt-toast[data-visible='true'] { opacity: 1; pointer-events: auto; }
 .bt-toast[data-kind='error'] { border-color: var(--color-danger); }
+
+/* ── notice: a failed save stays in view until it is resolved ── */
+.bt-notice {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--status-h) + var(--space-4));
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  max-width: min(var(--notice-w), calc(100vw - 2 * var(--space-4)));
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  translate: -50% 0;
+  background: var(--color-popover);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--popover-radius);
+  box-shadow: var(--shadow-popover);
+  font-size: var(--text-palette);
+  line-height: var(--space-5);
+  letter-spacing: var(--tracking-ui);
+  color: var(--color-text);
+}
+.bt-notice[hidden] { display: none; }
+.bt-notice-text { margin: 0; min-width: 0; }
+.bt-notice-actions { flex: none; display: flex; gap: var(--space-1); }
+.bt-notice-button {
+  height: var(--toolbar-button);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-popover-border);
+  border-radius: var(--toolbar-button-radius);
+  color: var(--color-text);
+  white-space: nowrap;
+}
+.bt-notice-button:hover { background: var(--color-popover-hover); }
+.bt-notice-button[data-armed='true'] { border-color: var(--color-danger); color: var(--color-danger); }

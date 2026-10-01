@@ -8,6 +8,8 @@ export interface OpenedDocument {
   caret: number | null;
   /** Set when another file was imported: the original's path (left untouched). */
   importedFrom?: string;
+  /** Something the writer should be told on opening (e.g. why the last manuscript didn't reopen). */
+  notice?: string;
 }
 
 export type SaveResult =
@@ -49,12 +51,20 @@ export interface AppearancePrefs {
 
 export const DEFAULT_APPEARANCE: AppearancePrefs = { theme: 'dracula', proseFont: 'mono', paragraphSpacing: 'full', proseWidth: 'narrow', fontSize: 'medium' };
 
-export interface InitialPrefs {
-  theme: Theme;
-  paragraphSpacing: ParagraphSpacing;
-  proseFont: ProseFont;
-  proseWidth: ProseWidth;
-  fontSize: FontSize;
+const APPEARANCE_CHOICES: { [K in keyof AppearancePrefs]: readonly AppearancePrefs[K][] } = {
+  theme: THEMES, proseFont: PROSE_FONTS, paragraphSpacing: PARAGRAPH_SPACINGS, proseWidth: PROSE_WIDTHS, fontSize: FONT_SIZES,
+};
+
+/** The valid appearance values in `raw` (anything unknown or malformed is left out). */
+export function validAppearance(raw: Record<string, unknown>): Partial<AppearancePrefs> {
+  const out: Record<string, unknown> = {};
+  for (const [key, choices] of Object.entries(APPEARANCE_CHOICES)) {
+    if ((choices as readonly unknown[]).includes(raw[key])) out[key] = raw[key];
+  }
+  return out as Partial<AppearancePrefs>;
+}
+
+export interface InitialPrefs extends AppearancePrefs {
   outline: OutlineState;
   hidden: boolean;
 }
@@ -75,7 +85,8 @@ export interface SnapshotInfo {
 export interface BaretextBridge {
   initial: InitialPrefs;
   loadInitial(): Promise<OpenedDocument>;
-  save(filePath: string, manuscript: Manuscript, caret: number): Promise<SaveResult>;
+  /** `force` overrides the destructive-save guard: only after the writer confirmed (Save anyway). */
+  save(filePath: string, manuscript: Manuscript, caret: number, force?: boolean): Promise<SaveResult>;
   setPrefs(patch: Partial<Omit<InitialPrefs, 'hidden'>>): void;
   revealInFinder(filePath: string): void;
   listSnapshots(filePath: string): Promise<SnapshotInfo[]>;

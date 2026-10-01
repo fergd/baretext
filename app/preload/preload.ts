@@ -16,7 +16,7 @@ function readInitial(): InitialPrefs {
 const bridge: BaretextBridge = {
   initial: readInitial(),
   loadInitial: () => ipcRenderer.invoke(CHANNELS.loadInitial),
-  save: (filePath: string, manuscript: Manuscript, caret: number) => ipcRenderer.invoke(CHANNELS.save, filePath, manuscript, caret),
+  save: (filePath: string, manuscript: Manuscript, caret: number, force?: boolean) => ipcRenderer.invoke(CHANNELS.save, filePath, manuscript, caret, force === true),
   setPrefs: (patch) => ipcRenderer.send(CHANNELS.setPrefs, patch),
   revealInFinder: (filePath: string) => ipcRenderer.send(CHANNELS.reveal, filePath),
   fileCommand: (command) => ipcRenderer.send(CHANNELS.fileCommand, command),

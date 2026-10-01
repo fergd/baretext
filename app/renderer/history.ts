@@ -173,7 +173,16 @@ export class HistoryPanel {
     this.previewHead.append(info, restore);
 
     const token = ++this.loadToken;
-    const m = await this.h.bridge.readSnapshot(file, e.id);
+    let m: Manuscript;
+    try {
+      m = await this.h.bridge.readSnapshot(file, e.id);
+    } catch (err) {
+      if (token !== this.loadToken) return;
+      this.preview.replaceChildren(Object.assign(document.createElement('p'), {
+        className: 'bt-history-empty', textContent: `This version can’t be read: ${(err as Error).message}`,
+      }));
+      return;
+    }
     if (token !== this.loadToken) return; // a newer selection won
     this.renderPreview(m);
   }
@@ -208,12 +217,20 @@ export class HistoryPanel {
     const e = this.entries[this.selected];
     const file = this.h.filePath();
     const now = this.h.current();
-    if (!e || !file || !now) return;
-    // Keep what is here now before replacing it.
-    await this.h.bridge.takeSnapshot(file, now, 'point', 'Before restore');
-    const m = await this.h.bridge.readSnapshot(file, e.id);
-    this.close();
-    this.h.restore(m, e);
+    const button = this.previewHead.querySelector<HTMLButtonElement>('[data-action="restore"]');
+    if (!e || !file || !now || button?.disabled) return;
+    if (button) button.disabled = true; // one restore per click
+    try {
+      // Keep what is here now before replacing it.
+      await this.h.bridge.takeSnapshot(file, now, 'point', 'Before restore');
+      const m = await this.h.bridge.readSnapshot(file, e.id);
+      this.close();
+      this.h.restore(m, e);
+    } catch (err) {
+      if (button) button.disabled = false;
+      const info = this.previewHead.querySelector('.bt-history-vs');
+      if (info) info.textContent = `Couldn’t restore this version: ${(err as Error).message} Nothing was changed.`;
+    }
   }
 
   private async saveSnapshot() {

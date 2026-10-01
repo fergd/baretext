@@ -424,3 +424,78 @@ integrations (DECISIONS §7).
   writer's own scene; nothing changes until Save. Saved together; applied
   before first paint at launch.
 - Tests: 273 unit (141 of them theme contrast), 74 end-to-end.
+
+## 2026-10-01 — Quality pass
+Read the whole codebase as one product; every bug fixed with a failing
+test first.
+
+**Bugs found and fixed**
+- Find's Replace used match positions from before the writer's latest
+  typing and overwrote the wrong characters (e.g. typed "Yes. " became
+  "THE. "). Now re-searches first.
+- A refused large deletion was a dead end: every save failed, and closing
+  the window was blocked by an app-freezing alert. Now a notice offers Undo
+  or a two-step Save anyway; failures of any kind stay visible with Try again.
+- The destructive guard missed near-total deletions in short or many-scened
+  books (structure kept the file large). Now also counts prose words.
+- The last manuscript failing to reopen silently started a new document.
+  Now explained.
+- Shortcuts and menu commands reached the window behind Appearance and
+  History (find, palette, focus mode, outline). Now held back.
+- Opening another manuscript left the Appearance panel showing the old book.
+- History: an unreadable version failed silently (preview and Restore); a
+  double-click could restore twice.
+- Selecting into Cold Storage collapsed the selection (internal Select All
+  path only; the native ⌘A was unaffected).
+
+**Investigated, not bugs**
+- Overlapping saves can't write an older version last (each save writes the
+  document as it is when it runs). No change.
+- The intermittent focus-mode test: the test measured a word while the page
+  was still settling. Test fixed (waits for stillness); 10/10 under load.
+
+**Cleaner code**
+- `index.ts` 769 → ~560 lines; `outline-panel.ts` 680 → 456 (drag moved to
+  `outline-drag.ts`); new `saving.ts`, `palette-commands.ts`, `test-hooks.ts`.
+- Appearance validation and defaults defined once (`validAppearance`,
+  `DEFAULT_APPEARANCE`); main, settings and preload share them.
+- Unused code removed; compiler now rejects unused locals/parameters.
+- Remaining literal colors/sizes moved to tokens; a lint test enforces it.
+- First unit tests for the save pipeline (`app/main/test/save.test.ts`).
+
+**Measured**
+- Fuzzer clean at 60,000 cases. 150k words: typing p95 5–6 ms with
+  typewriter off/on, outline open, and serif/extra large/wide; save 66 ms.
+- Tests: 294 unit, 83 end-to-end.
+
+## 2026-10-01 — Checkpoint (session handoff)
+**State**
+- Branch `rebuild` on github.com/fergd/baretext. Quality pass and polish
+  done, committed and pushed.
+- Run: `npm start`. Tests: `npx vitest run`, `npx playwright test`
+  (build first: `npm run build`). Benchmark: `npx playwright test --config
+  playwright.bench.config.ts`. Deep fuzz: `FC_RUNS=60000 npx vitest run
+  packages/editor/test/fuzz.test.ts --testTimeout=1200000`.
+- Throwaway screenshot specs go in `test/e2e/zz-*.test.ts` and are deleted
+  after use; wait for `document.getAnimations().length === 0` before
+  measuring or dragging. Never leave a test app with a refused save open
+  at close (it keeps the window open by design).
+
+**Working agreements**
+- Top-tier paid-app quality bar. User reviews by screenshot and feel.
+- Surfaces open by a deliberate action, never on hover.
+- Bug fix = failing test first; verify live; record decisions.
+- Commit/push only when asked; PR to `main` deferred (unrelated histories).
+
+**Next (proposed order)**
+Outline: two-step delete (snapshot first) · keyboard reorder (⌥↑/⌥↓) ·
+Cold Storage (park/restore, outline section, standalone view; mind the
+word guard) · Sprinter mode + sprint timer · corkboard · notes ·
+export/print · integrations (DECISIONS §7).
+
+## 2026-10-01 — Polish
+- Typewriter off: a visible fade back in (lines and guides), not a snap.
+- Outline: the current-scene highlight glides between rows while reading
+  back or moving; the list scrolls smoothly to it. (Also fixed: the
+  "scroll the current scene into view" math was off by the header height.)
+- Tests: 294 unit, 85 end-to-end.

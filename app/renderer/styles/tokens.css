@@ -79,6 +79,16 @@
   --number-opacity: 0.2;
   --number-opacity-current: 0.45;
 
+  /* scene ornament (line–ring–line) and its quieter pause sibling */
+  --ornament-w: 574px;
+  --ornament-h: 10px;
+  --pause-ornament-w: 72px;
+
+  /* small details */
+  --scrollbar-w: 8px;
+  --link-underline-offset: 3px;
+  --radius-tip: 6px;
+
   /* pause ornament: the scene ornament, toned down */
   --pause-opacity: 0.55;
 
@@ -129,6 +139,13 @@
   --outline-drop-h: 2px;
   --outline-ghost-opacity: 0.88;
 
+  /* toast */
+  --toast-w: 560px;
+  --text-toast: 12px;
+
+  /* save notice */
+  --notice-w: 640px;
+
   /* appearance */
   --appearance-top: 48px;
   --appearance-w: 1120px;
@@ -146,11 +163,12 @@
   /* motion */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --dur-fast: 120ms;
-  --dur-line: 140ms;
   --dur-panel: 220ms;
   /* typewriter fade: out when scrolling to read back, in when writing again */
   --dur-fade-out: 320ms;
   --dur-fade-in: 560ms;
+  /* turning typewriter off: the fade comes back in, evenly */
+  --dur-tw-off: 400ms;
   /* spine indicator gliding between ticks; jumping to a scene */
   --dur-glide: 240ms;
   --dur-jump: 360ms;
@@ -184,6 +202,12 @@
 [data-prose-width='wide'] { --measure: var(--measure-wide); }
 .bt-app, .bt-sample { --paragraph-gap: var(--paragraph-gap-full); }
 [data-paragraph-spacing='half'] { --paragraph-gap: var(--paragraph-gap-half); }
+
+/* Typewriter fade. Manuscript: near = the lines next to the caret's line,
+   far = `reach` away, hidden = the band at the window's top and bottom edges
+   (one line). Sprinter: steeper (spec §5). */
+.bt-app { --tw-near: 0.4; --tw-far: 0.12; --tw-reach: 160px; --tw-hidden: var(--lh-body); }
+.bt-app[data-mode='sprinter'] { --tw-near: 0.3; --tw-far: 0.04; --tw-reach: 96px; }
 [data-paragraph-spacing='none'] { --paragraph-gap: 0px; --paragraph-indent: var(--space-6); }
 
 /* Dracula (matches the Figma frames) */
@@ -367,10 +391,10 @@
 @media (prefers-reduced-motion: reduce) {
   :root {
     --dur-fast: 0ms;
-    --dur-line: 0ms;
     --dur-panel: 0ms;
     --dur-fade-out: 0ms;
     --dur-fade-in: 0ms;
+    --dur-tw-off: 0ms;
     --dur-glide: 0ms;
     --dur-jump: 0ms;
     --dur-sidebar: 0ms;

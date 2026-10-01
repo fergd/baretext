@@ -41,11 +41,6 @@
     --tw-mask-edge var(--dur-fade-in) var(--ease-in-out);
 }
 
-/* Manuscript: near = the lines next to the caret's line, far = `reach` away,
-   hidden = the band at the window's top and bottom edges (one line).
-   Sprinter: steeper (spec §5). */
-.bt-app { --tw-near: 0.4; --tw-far: 0.12; --tw-reach: 160px; --tw-hidden: var(--lh-body); }
-.bt-app[data-mode='sprinter'] { --tw-near: 0.3; --tw-far: 0.04; --tw-reach: 96px; }
 
 /* Reading back: manual scrolling eases the fade away until the next edit. */
 .bt-app[data-typewriter='true'][data-tw-relaxed='true'] .bt-scroller {
@@ -58,16 +53,22 @@
     --tw-mask-edge var(--dur-fade-out) var(--ease-out);
 }
 
-/* Turning typewriter off: the fade eases away (the lights come back on)
-   while nothing moves; the mask is dropped once it has faded out. */
+/* Turning typewriter off: the dimmed lines fade back in (the lights come
+   back on) and the guides fade out, evenly enough to see, while nothing
+   moves; the mask is dropped once it has faded out. */
 .bt-app[data-typewriter='false'][data-tw-fade='true'] .bt-scroller {
   --tw-mask-near: 1;
   --tw-mask-far: 1;
   --tw-mask-edge: 1;
   transition:
-    --tw-mask-near var(--dur-fade-out) var(--ease-out),
-    --tw-mask-far var(--dur-fade-out) var(--ease-out),
-    --tw-mask-edge var(--dur-fade-out) var(--ease-out);
+    --tw-mask-near var(--dur-tw-off) var(--ease-in-out),
+    --tw-mask-far var(--dur-tw-off) var(--ease-in-out),
+    --tw-mask-edge var(--dur-tw-off) var(--ease-in-out);
+}
+.bt-app[data-typewriter='false'][data-tw-fade='true'] .bt-tw-guide {
+  display: block;
+  opacity: 0;
+  transition: opacity var(--dur-tw-off) var(--ease-in-out);
 }
 
 /* Guide lines in the margins only — never across the text. */

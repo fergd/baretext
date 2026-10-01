@@ -145,3 +145,22 @@ test('Replace is discoverable from the find bar: a toggle shows it', async () =>
     await app.close();
   }
 });
+
+test('Replace after editing the manuscript (find still open) replaces the right words, never stale positions', async () => {
+  const { app, page } = await launch({ file: { name: 'F.md', content: '# One\n\nThe cat sat on the mat.\n\nA dog lay by the door.\n' } });
+  try {
+    await page.keyboard.press('Meta+Alt+f');
+    await page.keyboard.type('the');
+    await page.locator('[data-ref="replace"]').fill('THE');
+    // Back to the manuscript: type before the matches, which moves them.
+    await page.evaluate(() => (window as any).__baretext.selectText('The cat'));
+    await page.keyboard.press('ArrowLeft'); // the caret just before the current match
+    await page.keyboard.type('Yes. ');
+    await page.click('.bt-find [data-action="replace"]');
+    const text = JSON.stringify(await model(page));
+    expect(text).toContain('Yes. THE cat sat on the mat.'); // the match itself was replaced; what was typed is untouched
+    expect(text).toContain('A dog lay by the door.');
+  } finally {
+    await app.close();
+  }
+});

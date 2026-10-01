@@ -1,52 +1,23 @@
-// The outline area (spec §8.1): chapters and scenes as a tree, shown as a
-// column beside the page. Opened and closed only deliberately (the title
-// bar's sidebar button, ⌘\, View → Outline); the state persists. Read-only over the model for now:
-// navigate, collapse/expand, keyboard tree. Editing actions come later.
+// The outline (spec §8.1): chapters and scenes as a keyboard tree in a
+// column beside the page, opened only deliberately (the title bar's sidebar
+// button, ⌘\, View → Outline). Navigate, fold, rename in place, add scenes
+// and chapters, and drag to reorder (outline-drag.ts).
 //
 // Rows are rebuilt only when the outline is showing and the structure or
 // counts changed (on a short debounce while typing); the current-scene mark
 // updates in place, and the list's scroll position is never jumped.
 
-import type { Outline } from './outline';
-import { sceneDisplayName } from './outline';
 import { BOOK_TITLE } from '@baretext/editor';
+import { sceneDisplayName, type Outline } from './outline';
+import { OutlineDrag } from './outline-drag';
 
 const numberFormat = new Intl.NumberFormat();
 const REFRESH_MS = 250;
-const DRAG_THRESHOLD = 4;
-/** Pointer this close to the list's top or bottom edge scrolls it while dragging. */
-const EDGE = 32;
-/** About one row's height (px), for judging a chapter block's upper half. */
-const ROW_GUESS = 28;
 const CASCADE_SPAN_MS = 160;
 const CASCADE_STEP_MS = 12;
 const CASCADE_OFFSET = 12;
 const PLUS = '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9"/></svg>';
 const CHEVRON = '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>';
-
-interface Drop {
-  chapterId: string;
-  index: number;
-  /** Viewport y of the insertion line. */
-  line: number;
-  /** Into a chapter (onto its row) rather than between rows. */
-  into: boolean;
-  /** It would land where it already is. */
-  noop: boolean;
-}
-
-interface Drag {
-  kind: 'scene' | 'chapter';
-  id: string;
-  ghost: HTMLElement;
-  grabY: number;
-  x: number;
-  moving: HTMLElement[];
-  drop: Drop | null;
-  onKey: (e: KeyboardEvent) => void;
-  scrollFrame: number;
-  lastY: number;
-}
 
 export type OutlinePresence = 'hidden' | 'pinned';
 
@@ -63,12 +34,10 @@ export class OutlinePanel {
   private readonly collapsed = new Set<string>();
   private renderedOutline: Outline | null = null;
   private renderedCollapsed = '';
+  private readonly drag: OutlineDrag;
+  /** The current scene's wash: one element that glides between rows. */
+  private readonly highlight: HTMLElement;
   /** The inline rename in progress; rows are not rebuilt under it. */
-  private drag: Drag | null = null;
-  private pressed: { row: HTMLElement; x: number; y: number; pointerId: number } | null = null;
-  /** A drag just ended on this pointer-up: the click that follows is not a navigation. */
-  private swallowClick = false;
-  private readonly indicator: HTMLElement;
   private editing: { id: string; input: HTMLInputElement; returnTo: 'row' | 'editor' } | null = null;
   private refreshTimer: number | undefined;
   /** The row that holds the tree's single tab stop. */
@@ -114,11 +83,22 @@ export class OutlinePanel {
     this.tree = this.el.querySelector('.bt-outline-tree')!;
     host.append(this.el);
 
+    this.highlight = document.createElement('div');
+    this.highlight.className = 'bt-outline-current';
+    this.highlight.setAttribute('aria-hidden', 'true');
+    this.highlight.dataset.visible = 'false';
     this.tree.addEventListener('click', (e) => this.onClick(e));
-    this.tree.addEventListener('pointerdown', (e) => this.onPointerDown(e));
-    this.indicator = document.createElement('div');
-    this.indicator.className = 'bt-outline-drop';
-    this.indicator.setAttribute('aria-hidden', 'true');
+    this.drag = new OutlineDrag({
+      panel: this.el,
+      tree: this.tree,
+      outline: () => this.outline,
+      rows: () => this.rows(),
+      rowFor: (id) => this.rowFor(id),
+      render: (force) => this.render(force),
+      canDrag: () => !this.editing,
+      moveScene: actions.moveScene,
+      moveChapter: actions.moveChapter,
+    });
     this.tree.addEventListener('keydown', (e) => this.onKey(e));
     // Clicks never take focus from the manuscript (keyboard users enter with ⌥⌘\).
     this.tree.addEventListener('mousedown', (e) => {
@@ -202,7 +182,7 @@ export class OutlinePanel {
       clearTimeout(this.refreshTimer);
       this.refreshTimer = window.setTimeout(() => this.render(false), REFRESH_MS);
     }
-    if (hereChanged) this.markCurrent(true);
+    if (hereChanged) this.markCurrent(true, true);
   }
 
   /** Move keyboard focus into the tree, on the current scene. */
@@ -220,7 +200,7 @@ export class OutlinePanel {
 
   private render(force: boolean) {
     clearTimeout(this.refreshTimer);
-    if (this.editing || this.drag) return; // finishing the rename or drag renders
+    if (this.editing || this.drag.active) return; // finishing the rename or drag renders
     const outline = this.outline;
     if (!outline) return;
     const collapsedKey = [...this.collapsed].join(',');
@@ -285,7 +265,12 @@ export class OutlinePanel {
   }
 
   /** Mark the current scene (and its chapter); bring it into view only if it left the list's view. */
-  private markCurrent(reveal: boolean) {
+  /**
+   * Mark the current scene (and its chapter). The highlight is one element
+   * that glides from row to row (`glide`), or snaps after a rebuild; the
+   * list scrolls (smoothly) only when the current row has left its view.
+   */
+  private markCurrent(reveal: boolean, glide = false) {
     for (const row of this.tree.querySelectorAll('[aria-current]')) row.removeAttribute('aria-current');
     const row = this.currentSceneId ? this.rowFor(this.currentSceneId) : null;
     row?.setAttribute('aria-current', 'location');
@@ -293,11 +278,23 @@ export class OutlinePanel {
     for (const c of this.tree.querySelectorAll<HTMLElement>('.bt-outline-chapter[data-here]')) {
       if (c.dataset.id !== this.currentChapterId) delete c.dataset.here;
     }
+    this.placeHighlight(row, glide);
     if (!reveal || !row || this.el.contains(document.activeElement)) return;
-    const top = row.offsetTop - this.tree.offsetTop;
+    const top = row.offsetTop; // the tree is the rows' offset parent
     if (top < this.tree.scrollTop || top + row.offsetHeight > this.tree.scrollTop + this.tree.clientHeight) {
-      this.tree.scrollTop = top - this.tree.clientHeight / 2;
+      this.tree.scrollTo({ top: top - this.tree.clientHeight / 2, behavior: glide && motionMs() ? 'smooth' : 'auto' });
     }
+  }
+
+  private placeHighlight(row: HTMLElement | null, glide: boolean) {
+    const h = this.highlight;
+    if (h.parentElement !== this.tree) this.tree.prepend(h); // a rebuild replaced the rows
+    if (!row) { h.dataset.visible = 'false'; return; }
+    const snap = !glide || h.dataset.visible !== 'true';
+    if (snap) h.dataset.snap = 'true';
+    h.style.transform = `translateY(${row.offsetTop}px)`;
+    h.dataset.visible = 'true';
+    if (snap) { void h.offsetWidth; delete h.dataset.snap; } // commit the snapped position before gliding resumes
   }
 
   private rowFor(id: string): HTMLElement | null {
@@ -379,10 +376,6 @@ export class OutlinePanel {
     if (target) { if (target !== this.title) this.setTabStop(editing.id); target.focus(); }
   }
 
-  get isRenaming(): boolean {
-    return this.editing !== null;
-  }
-
   private chapterTitle(id: string): string {
     return this.outline?.chapters.find((c) => c.id === id)?.title ?? '';
   }
@@ -392,202 +385,8 @@ export class OutlinePanel {
     return '';
   }
 
-  // ── drag to reorder ──
-
-  private onPointerDown(e: PointerEvent) {
-    if (e.button !== 0 || this.editing) return;
-    const target = e.target as HTMLElement;
-    const row = target.closest<HTMLElement>('.bt-outline-row');
-    if (!row || target.closest('input, .bt-outline-add, .bt-outline-toggle')) return;
-    this.pressed = { row, x: e.clientX, y: e.clientY, pointerId: e.pointerId };
-    const move = (ev: PointerEvent) => {
-      if (this.drag) { this.dragTo(ev.clientX, ev.clientY); return; }
-      const p = this.pressed;
-      if (p && Math.hypot(ev.clientX - p.x, ev.clientY - p.y) > DRAG_THRESHOLD) this.startDrag(p.row, ev);
-    };
-    const end = (ev: PointerEvent) => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', end);
-      window.removeEventListener('pointercancel', end);
-      this.pressed = null;
-      if (this.drag) this.endDrag(ev.type === 'pointerup');
-    };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', end);
-    window.addEventListener('pointercancel', end);
-  }
-
-  private startDrag(row: HTMLElement, e: PointerEvent) {
-    const kind = row.dataset.kind as 'scene' | 'chapter';
-    const id = row.dataset.id!;
-    const box = row.getBoundingClientRect();
-    const ghost = row.cloneNode(true) as HTMLElement;
-    ghost.classList.add('bt-outline-ghost');
-    ghost.removeAttribute('role');
-    ghost.removeAttribute('aria-current');
-    ghost.style.width = `${box.width}px`;
-    ghost.style.left = `${box.left}px`;
-    ghost.style.top = `${box.top}px`;
-    document.body.append(ghost);
-    // What moves: the row, and for a chapter all of its scenes.
-    const moving = [row, ...(kind === 'chapter' ? [...(row.nextElementSibling?.matches('[role="group"]') ? row.nextElementSibling.querySelectorAll<HTMLElement>('.bt-outline-row') : [])] : [])];
-    for (const r of moving) r.dataset.dragging = 'true';
-    this.el.dataset.dragging = kind;
-    document.body.append(this.indicator); // above the lifted row
-    const onKey = (ev: KeyboardEvent) => {
-      if (ev.key !== 'Escape') return;
-      ev.preventDefault();
-      ev.stopPropagation(); // Esc cancels the drag, nothing else
-      this.endDrag(false);
-    };
-    window.addEventListener('keydown', onKey, true);
-    this.drag = { kind, id, ghost, grabY: e.clientY - box.top, x: box.left, moving, drop: null, onKey, scrollFrame: 0, lastY: e.clientY };
-    this.dragTo(e.clientX, e.clientY);
-  }
-
-  private dragTo(_x: number, y: number) {
-    const d = this.drag!;
-    d.lastY = y;
-    d.ghost.style.top = `${y - d.grabY}px`;
-    d.drop = d.kind === 'scene' ? this.sceneDrop(d.id, y) : this.chapterDrop(d.id, y);
-    this.showDrop(d.drop);
-    // Near the list's edges, it scrolls.
-    const box = this.tree.getBoundingClientRect();
-    const speed = y < box.top + EDGE ? -(box.top + EDGE - y) : y > box.bottom - EDGE ? y - (box.bottom - EDGE) : 0;
-    cancelAnimationFrame(d.scrollFrame);
-    if (speed) {
-      d.scrollFrame = requestAnimationFrame(() => {
-        if (this.drag !== d) return;
-        this.tree.scrollTop += Math.max(-EDGE, Math.min(EDGE, speed)) / 2;
-        this.dragTo(0, d.lastY);
-      });
-    }
-  }
-
-  /** Where a dragged scene would land: before/after a scene row, or at the end of a chapter (over its row). */
-  private sceneDrop(sceneId: string, y: number): Drop | null {
-    const source = this.outline?.chapters.find((c) => c.scenes.some((sc) => sc.id === sceneId));
-    if (!source) return null;
-    const fromIndex = source.scenes.findIndex((sc) => sc.id === sceneId);
-    for (const row of this.rows()) {
-      const b = row.getBoundingClientRect();
-      if (y < b.top || y >= b.bottom) continue;
-      let chapterId: string;
-      let slot: number; // position among the chapter's scenes as they are now
-      let line: number;
-      let into = false;
-      if (row.dataset.kind === 'chapter') {
-        chapterId = row.dataset.id!;
-        slot = this.outline!.chapters.find((c) => c.id === chapterId)!.scenes.length;
-        line = b.bottom;
-        into = true;
-      } else {
-        chapterId = row.dataset.chapter!;
-        const chapter = this.outline!.chapters.find((c) => c.id === chapterId)!;
-        const i = chapter.scenes.findIndex((sc) => sc.id === row.dataset.id);
-        const after = y >= b.top + b.height / 2;
-        slot = i + (after ? 1 : 0);
-        line = after ? b.bottom : b.top;
-      }
-      const same = chapterId === source.id;
-      if (!same && source.scenes.length === 1) return null; // a chapter always keeps a scene
-      const index = same && slot > fromIndex ? slot - 1 : slot;
-      if (same && index === fromIndex) return { chapterId, index, line, into, noop: true };
-      return { chapterId, index, line, into, noop: false };
-    }
-    return null;
-  }
-
-  /** Where a dragged chapter would land: before or after another chapter's block (its row and scenes). */
-  private chapterDrop(chapterId: string, y: number): Drop | null {
-    const chapters = this.outline?.chapters ?? [];
-    const fromIndex = chapters.findIndex((c) => c.id === chapterId);
-    const blocks = chapters.map((c) => {
-      const row = this.rowFor(c.id)!;
-      const group = row.nextElementSibling?.matches('[role="group"]') ? row.nextElementSibling as HTMLElement : null;
-      return { top: row.getBoundingClientRect().top, bottom: (group ?? row).getBoundingClientRect().bottom };
-    });
-    for (let i = 0; i < blocks.length; i++) {
-      const b = blocks[i]!;
-      const last = i === blocks.length - 1;
-      if (y < b.top && i > 0) continue;
-      if (y >= b.bottom && !last) continue;
-      const after = y >= b.top + Math.min(b.bottom - b.top, 2 * ROW_GUESS) / 2;
-      const slot = i + (after ? 1 : 0);
-      const index = slot > fromIndex ? slot - 1 : slot;
-      const line = after ? (blocks[i + 1]?.top ?? b.bottom) : b.top;
-      return { chapterId, index, line, into: false, noop: index === fromIndex };
-    }
-    return null;
-  }
-
-  private showDrop(drop: Drop | null) {
-    for (const r of this.tree.querySelectorAll<HTMLElement>('[data-drop-into]')) delete r.dataset.dropInto;
-    if (!drop || drop.noop) { this.indicator.dataset.visible = 'false'; return; }
-    if (drop.into) {
-      this.indicator.dataset.visible = 'false';
-      this.rowFor(drop.chapterId)!.dataset.dropInto = 'true';
-      return;
-    }
-    const box = this.tree.getBoundingClientRect();
-    this.indicator.style.top = `${Math.round(drop.line)}px`;
-    this.indicator.style.left = `${Math.round(box.left)}px`;
-    this.indicator.style.width = `${Math.round(box.width)}px`;
-    this.indicator.dataset.kind = this.drag!.kind;
-    this.indicator.dataset.visible = 'true';
-  }
-
-  private endDrag(commit: boolean) {
-    const d = this.drag;
-    if (!d) return;
-    this.drag = null;
-    cancelAnimationFrame(d.scrollFrame);
-    window.removeEventListener('keydown', d.onKey, true);
-    for (const r of d.moving) delete r.dataset.dragging;
-    delete this.el.dataset.dragging;
-    this.showDrop(null);
-    this.indicator.remove();
-    this.swallowClick = true;
-    setTimeout(() => { this.swallowClick = false; }, 0);
-    const drop = commit && d.drop && !d.drop.noop ? d.drop : null;
-    if (!drop) {
-      // Nothing moves: the lifted row settles back where it came from.
-      const home = this.rowFor(d.id)?.getBoundingClientRect();
-      const settle = home ? d.ghost.animate([{ top: d.ghost.style.top }, { top: `${home.top}px` }], { duration: this.motionMs(), easing: this.easing() }) : null;
-      if (settle) settle.onfinish = () => d.ghost.remove(); else d.ghost.remove();
-      this.render(false);
-      return;
-    }
-    // FLIP: remember where every row was, move, then let each glide to its new place.
-    const before = new Map(this.rows().map((r) => [r.dataset.id!, r.getBoundingClientRect().top]));
-    const ghostTop = d.ghost.getBoundingClientRect().top;
-    d.ghost.remove();
-    const moved = d.kind === 'scene' ? this.actions.moveScene(d.id, drop.chapterId, drop.index) : this.actions.moveChapter(d.id, drop.index);
-    this.render(true);
-    if (!moved) return;
-    const ms = this.motionMs();
-    if (!ms) return;
-    for (const row of this.rows()) {
-      const id = row.dataset.id!;
-      const was = id === d.id ? ghostTop : before.get(id);
-      if (was === undefined) continue;
-      const dy = was - row.getBoundingClientRect().top;
-      if (Math.abs(dy) < 1) continue;
-      row.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: ms, easing: this.easing() });
-    }
-    this.rowFor(d.id)?.animate([{ backgroundColor: 'var(--color-popover-active)' }, { backgroundColor: 'transparent' }], { duration: ms * 3, easing: 'ease-out' });
-  }
-
-  private motionMs(): number {
-    return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dur-glide')) || 0;
-  }
-
-  private easing(): string {
-    return getComputedStyle(document.documentElement).getPropertyValue('--ease-out').trim() || 'ease-out';
-  }
-
   private onClick(e: MouseEvent) {
-    if (this.swallowClick) { this.swallowClick = false; return; }
+    if (this.drag.consumeClick()) return;
     const row = (e.target as HTMLElement).closest<HTMLElement>('.bt-outline-row');
     if (!row) return;
     if ((e.target as HTMLElement).closest('.bt-outline-add')) { this.actions.addScene(row.dataset.id!); return; }
@@ -677,4 +476,8 @@ function cell(className: string, text: string): HTMLElement {
 
 function words(n: number): string {
   return `${numberFormat.format(n)} ${n === 1 ? 'word' : 'words'}`;
+}
+
+function motionMs(): number {
+  return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dur-glide')) || 0;
 }

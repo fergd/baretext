@@ -2,7 +2,7 @@
 // imperceptible latency (typewriter on and off).
 import { expect, test } from '@playwright/test';
 import { serialize, type Manuscript } from '../../packages/format/src/index.ts';
-import { launch } from '../e2e/launch.ts';
+import { launch, setAppearance } from '../e2e/launch.ts';
 
 const WORDS = 'the quick brown fox jumps over a lazy dog while evening light fades slowly across quiet fields and distant hills'.split(' ');
 
@@ -106,6 +106,19 @@ test('150k-word manuscript: open time and typing latency', async () => {
     const tw = await measureTyping(page, keys);
     console.log('typing, typewriter on:', tw);
 
+    // The outline open beside the page (its counts refresh as you type).
+    await page.keyboard.press('Meta+Shift+T');
+    await page.keyboard.press('Meta+Backslash');
+    await page.waitForTimeout(600);
+    const outline = await measureTyping(page, keys);
+    console.log('typing, outline open:', outline);
+
+    // The heaviest page: serif, extra large, wide.
+    await setAppearance(page, ['serif', 'xlarge', 'wide']);
+    await page.waitForTimeout(300);
+    const serif = await measureTyping(page, keys);
+    console.log('typing, outline open + serif / extra large / wide:', serif);
+
     // Save must still verify and complete quickly.
     const s0 = Date.now();
     expect(await page.evaluate(() => (window as any).__baretext.saveNow())).toBe(true);
@@ -114,6 +127,8 @@ test('150k-word manuscript: open time and typing latency', async () => {
     expect(info.words).toBeGreaterThanOrEqual(150_000);
     expect(plain.p95).toBeLessThan(16);
     expect(tw.p95).toBeLessThan(16);
+    expect(outline.p95).toBeLessThan(16);
+    expect(serif.p95).toBeLessThan(16);
   } finally {
     await app.close();
   }

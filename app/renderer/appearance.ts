@@ -3,6 +3,9 @@
 // with the writer's own current scene; nothing in the app changes until
 // Save. Cancel or Esc leaves everything as it was.
 
+import type { EditorState } from 'prosemirror-state';
+import { schema } from '@baretext/editor';
+import { currentScene, outlineOf } from './outline';
 import {
   DEFAULT_APPEARANCE,
   type AppearancePrefs,
@@ -219,4 +222,52 @@ export class AppearancePanel {
       </div></div>
       <div class="bt-sample-status"><span><span class="bt-num-text">${numberFormat.format(s.words)}</span> words</span></div>`;
   }
+}
+
+/** Put appearance choices on the app (and the theme on the page root). */
+export function setAppearance(app: HTMLElement, p: AppearancePrefs) {
+  document.documentElement.dataset.theme = p.theme;
+  app.dataset.proseFont = p.proseFont;
+  app.dataset.paragraphSpacing = p.paragraphSpacing;
+  app.dataset.proseWidth = p.proseWidth;
+  app.dataset.fontSize = p.fontSize;
+}
+
+/** The appearance the app is showing now. */
+export function readAppearance(app: HTMLElement): AppearancePrefs {
+  const d = app.dataset;
+  return {
+    theme: document.documentElement.dataset.theme as Theme,
+    proseFont: d.proseFont as ProseFont,
+    paragraphSpacing: d.paragraphSpacing as ParagraphSpacing,
+    proseWidth: d.proseWidth as ProseWidth,
+    fontSize: d.fontSize as FontSize,
+  };
+}
+
+const SAMPLE_PARAGRAPHS = 5;
+
+/** The writer's own words for the sample: the current scene's opening paragraphs. */
+export function sampleFrom(state: EditorState | null): SampleText {
+  const fallback: SampleText = { book: '', chapterNumber: 1, chapterTitle: '', sceneLabel: '1.1', sceneName: null, paragraphs: ['Your words appear here, in the look you choose.'], words: 0 };
+  if (!state) return fallback;
+  const outline = outlineOf(state.doc);
+  const first = outline.chapters[0];
+  const here = currentScene(state) ?? (first ? { chapter: first, scene: first.scenes[0]! } : null);
+  if (!here) return fallback;
+  const paragraphs: string[] = [];
+  state.doc.nodeAt(here.scene.pos)!.descendants((node) => {
+    if (paragraphs.length >= SAMPLE_PARAGRAPHS) return false;
+    if (node.type === schema.nodes.paragraph) { if (node.textContent.trim()) paragraphs.push(node.textContent); return false; }
+    return node.type !== schema.nodes.scene_heading;
+  });
+  return {
+    book: state.doc.firstChild!.textContent,
+    chapterNumber: here.chapter.number,
+    chapterTitle: here.chapter.title,
+    sceneLabel: here.scene.label,
+    sceneName: here.scene.name || null,
+    paragraphs: paragraphs.length ? paragraphs : fallback.paragraphs,
+    words: outline.words,
+  };
 }

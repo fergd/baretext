@@ -45,3 +45,31 @@ test('turning typewriter off brings the lights back with a fade, not a snap', as
     await app.close();
   }
 });
+
+test('turning typewriter off fades back in (lines and guides), not a snap', async () => {
+  const { app, page } = await launch({ file: { name: 'T.md', content: '# One\n\n' + Array.from({ length: 40 }, (_, i) => `Line ${i} of the draft, long enough to wrap across the column a little.`).join('\n\n') + '\n' } });
+  try {
+    await page.evaluate(() => (window as any).__baretext.caretAfter('Line 20'));
+    await page.keyboard.press('Meta+Shift+t');
+    await page.waitForTimeout(800);
+    const samples = await page.evaluate(async () => {
+      const sc = document.querySelector('.bt-scroller') as HTMLElement;
+      const guide = document.querySelector('.bt-tw-guide') as HTMLElement;
+      const read = () => ({ near: parseFloat(getComputedStyle(sc).getPropertyValue('--tw-mask-near')), guide: parseFloat(getComputedStyle(guide).opacity), shown: getComputedStyle(guide).display !== 'none' });
+      const t0 = performance.now();
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'T', code: 'KeyT', metaKey: true, shiftKey: true }));
+      const out: Array<ReturnType<typeof read> & { t: number }> = [];
+      for (let i = 0; i < 16; i++) { await new Promise((r) => setTimeout(r, 40)); out.push({ t: performance.now() - t0, ...read() }); }
+      return out;
+    });
+    const at = (ms: number) => samples.find((s) => s.t >= ms)!;
+    // Still visibly fading a fifth of a second in…
+    expect(at(80).near).toBeLessThan(0.75);
+    expect(at(80).shown && at(80).guide > 0 && at(80).guide < 0.25).toBe(true);
+    // …and done well within half a second.
+    expect(samples.at(-1)!.near).toBe(1);
+    expect(samples.at(-1)!.shown).toBe(false);
+  } finally {
+    await app.close();
+  }
+});
