@@ -314,3 +314,84 @@ new structural commands in `packages/editor` (with fuzzing).
 Outline editing (rename, add, delete, reorder, cold storage) · Sprinter
 mode + sprint timer · corkboard · notes · themes/fonts · export/print ·
 integrations (DECISIONS §7).
+
+## 2026-09-30 — Outline: rename
+- Inline rename in the outline: F2 / double-click a scene or chapter, click
+  the book title. Enter or clicking away keeps it, Esc cancels, blank
+  unnames a scene. One undo step each; the caret never moves.
+- Model command `rename(id, name)` (`packages/editor/src/commands.ts`),
+  7 unit tests, added to the fuzzer (clean at 30,000 cases).
+- Found while testing: after Enter the row showed the old name for up to
+  250ms (the outline waited for its refresh); clicking the book title moved
+  focus off the manuscript. Both fixed and covered.
+- Tests: 115 unit, 62 end-to-end.
+- Next in the outline: add chapter / add scene in a chapter, then reorder,
+  then two-step delete.
+
+## 2026-09-30 — Outline: add chapter / scene
+- + on a chapter row (hover or focus; ⌘↵ on the row) adds an empty scene
+  at the end of that chapter and goes there. "New chapter" at the foot of
+  the outline adds one at the end and opens its title field. Palette and
+  Format menu entries. One undo step each.
+- Model commands `addScene`, `addChapter` with 5 unit tests; both in the
+  fuzzer (clean at 30,000 cases).
+- The palette's no-selection length cap went from 16 to 17 for "New
+  chapter" (the cap exists to catch Format rows leaking in).
+- Tests: 120 unit, 64 end-to-end.
+- Next in the outline: reorder (⌥↑/⌥↓, then drag), then two-step delete.
+
+## 2026-09-30 — Outline: drag to reorder
+- Drag scenes within or across chapters (or onto a chapter row to put it
+  at the end), and drag whole chapters. Lifted row, accent drop line,
+  edge auto-scroll, Esc cancels, rows glide into place. One undo per move.
+- Model commands `moveScene`, `moveChapter` with 10 unit tests; in the
+  fuzzer with a check that every scene survives word for word (clean at
+  30,000 cases).
+- A chapter's only scene can't leave it (format rule).
+- Tests: 130 unit, 67 end-to-end.
+- Open: keyboard reorder ⌥↑/⌥↓ (spec §8.1; uses the same commands);
+  two-step delete.
+
+## 2026-09-30 — Checkpoint (session handoff, tag `checkpoint-2026-09-30-outline`)
+**Since the last checkpoint**
+- Outline is now editable: rename (F2 / double-click / click the book
+  title), add (+ on a chapter row or ⌘↵ on it; "New chapter" at the
+  foot), and drag to reorder scenes and chapters. Each is one undo step.
+- New model commands in `packages/editor/src/commands.ts`: `rename`,
+  `addScene`, `addChapter`, `moveScene`, `moveChapter`, all fuzzed.
+- The outline header (book title + word total) was removed and restored
+  at the user's request: the column needs a top bar.
+
+**State**
+- Branch `rebuild` on github.com/fergd/baretext (origin), everything
+  committed and pushed; tag `checkpoint-2026-09-30-outline` marks this
+  point. 130 unit, 67 end-to-end tests, all passing. Fuzzer clean at
+  30,000 cases.
+- Run: `npm start`. Tests: `npx vitest run`, `npx playwright test`
+  (build first: `npm run build`). Deep fuzz: `FC_RUNS=30000 npx vitest run
+  packages/editor/test/fuzz.test.ts --testTimeout=600000`.
+- Throwaway screenshot specs go in `test/e2e/zz-*.test.ts` and are deleted
+  after use; wait for `document.getAnimations().length === 0` after
+  opening the outline before measuring or dragging.
+
+**Working agreements**
+- User reviews by screenshot and feel; small, precise UI requests.
+- Surfaces open by a deliberate action (button, shortcut, menu), never on
+  hover. Hover is for tooltips only.
+- Bug fix = failing test first; verify in the real hidden app; record
+  decisions in DECISIONS.md. Commit/push only when asked; branch `rebuild`.
+  PR to `main` deferred (unrelated histories: `rebuild` will replace it).
+
+**Open**
+- Outline: keyboard reorder ⌥↑/⌥↓ (spec §8.1; same move commands);
+  two-step delete (snapshot first); copy scene; note counts.
+- Cold Storage is a feature to build (format and editor groundwork only):
+  park/restore commands, outline section, standalone scene view (§8.5).
+- Outline has no Figma design; visuals follow the user's screenshots.
+- Deleting a snapshot from the History panel; Find's Aa / ab are not
+  switches; book title and breadcrumb sit close; dictation unverified.
+
+**Next (proposed order)**
+Outline: two-step delete · keyboard reorder · Cold Storage · Sprinter mode
++ sprint timer · corkboard · notes · themes/fonts · export/print ·
+integrations (DECISIONS §7).

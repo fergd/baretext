@@ -38,6 +38,7 @@
 .bt-app[data-focus='true'][data-outline='pinned'] .bt-scroller { left: 0; }
 .bt-app[data-focus='true'][data-outline='pinned'] .bt-tw-guide-left { left: 0; }
 
+
 .bt-outline-head {
   flex: none;
   display: flex;
@@ -108,3 +109,125 @@
 .bt-outline-scene[aria-current='location'] .bt-outline-num,
 .bt-outline-scene[aria-current='location'] .bt-outline-name { color: var(--color-text); }
 .bt-outline-chapter[data-here='true'] > .bt-outline-num { color: var(--color-accent); }
+
+
+/* Book title: a button that starts a rename. */
+.bt-outline-title { text-align: left; border-radius: var(--toolbar-button-radius); padding: 0 var(--space-1); margin-left: calc(-1 * var(--space-1)); }
+.bt-outline-title:hover { color: var(--color-text); }
+.bt-outline-title[hidden] { display: none; }
+
+/* Inline rename: the field sits exactly where the name was. */
+.bt-outline-name[hidden] { display: none; }
+.bt-outline-input {
+  grid-column: 3;
+  min-width: 0;
+  /* text stays put: the field's padding and border sit in the gap before it */
+  width: calc(100% + var(--space-1));
+  height: var(--space-6);
+  margin-left: calc(-1 * var(--space-1));
+  padding: 0 calc(var(--space-1) - 1px);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--toolbar-button-radius);
+  background: var(--color-find-field);
+  font: inherit;
+  letter-spacing: inherit;
+  color: var(--color-text);
+  outline: none;
+}
+.bt-outline-input::placeholder { color: var(--color-text-dimmer); }
+.bt-outline-head .bt-outline-input { grid-column: auto; flex: 1; margin: 0; }
+.bt-outline-input::selection { background: var(--color-selection); }
+
+/* Add a scene: on a chapter row, the + takes the count's place on hover or keyboard focus. */
+.bt-outline-add {
+  grid-column: 4;
+  grid-row: 1;
+  justify-self: end;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-6);
+  height: var(--space-6);
+  margin-right: calc(-1 * var(--space-1));
+  border-radius: var(--toolbar-button-radius);
+  color: var(--color-text-dim);
+}
+.bt-outline-chapter > .bt-outline-meta { grid-column: 4; grid-row: 1; }
+.bt-outline-chapter:hover > .bt-outline-add,
+.bt-outline-chapter:focus-visible > .bt-outline-add { display: flex; }
+.bt-outline-chapter:hover > .bt-outline-meta,
+.bt-outline-chapter:focus-visible > .bt-outline-meta { visibility: hidden; }
+.bt-outline-add:hover { color: var(--color-text); background: var(--color-popover-hover); }
+
+/* New chapter: a quiet button at the foot of the column. */
+.bt-outline-foot {
+  flex: none;
+  padding: var(--space-2) var(--space-2);
+  border-top: 1px solid var(--color-palette-divider);
+}
+.bt-outline-new-chapter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  height: var(--outline-row-h);
+  padding: 0 var(--space-2);
+  border-radius: var(--toolbar-button-radius);
+  color: var(--color-text-dimmer);
+}
+.bt-outline-new-chapter:hover { color: var(--color-text-dim); background: var(--color-popover-hover); }
+
+/* ── drag to reorder ── */
+.bt-outline-tree { position: relative; }
+.bt-outline[data-dragging] .bt-outline-tree,
+.bt-outline[data-dragging] .bt-outline-row { cursor: grabbing; }
+.bt-outline[data-dragging] .bt-outline-row:hover { background: none; }
+.bt-outline[data-dragging] .bt-outline-chapter > .bt-outline-add { display: none; }
+.bt-outline[data-dragging] .bt-outline-chapter:hover > .bt-outline-meta { visibility: visible; }
+.bt-outline-row[data-dragging='true'] { opacity: 0.32; }
+
+/* The lifted row follows the pointer. */
+.bt-outline-ghost {
+  position: fixed;
+  z-index: 40;
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-ui);
+  line-height: var(--lh-ui);
+  letter-spacing: var(--tracking-ui);
+  color: var(--color-text);
+  background: var(--color-popover);
+  border: 1px solid var(--color-popover-border);
+  box-shadow: var(--shadow-popover);
+  pointer-events: none;
+  cursor: grabbing;
+  scale: 1.02;
+  opacity: var(--outline-ghost-opacity);
+  animation: bt-outline-lift var(--dur-fast) var(--ease-out) both;
+}
+.bt-outline-ghost .bt-outline-add { display: none; }
+.bt-outline-ghost .bt-outline-meta { visibility: visible; }
+@keyframes bt-outline-lift { from { scale: 1; box-shadow: none; } }
+
+/* Where it will land: a line between rows, or a chapter lit up to take it at its end. */
+.bt-outline-drop {
+  position: fixed;
+  z-index: 41;
+  height: var(--outline-drop-h);
+  margin-top: calc(var(--outline-drop-h) / -2);
+  /* inset to the scene names' column (chapters: nearly full width) */
+  padding: 0 var(--space-2) 0 calc(var(--space-1) + var(--outline-toggle-w) + var(--space-1));
+  pointer-events: none;
+  opacity: 0;
+  transition: top var(--dur-fast) var(--ease-out), opacity var(--dur-fast) var(--ease-out);
+}
+.bt-outline-drop::before {
+  content: '';
+  display: block;
+  height: 100%;
+  border-radius: var(--outline-drop-h);
+  background: var(--color-accent);
+}
+.bt-outline-drop[data-kind='chapter'] { padding-left: var(--space-2); }
+.bt-outline-drop[data-visible='true'] { opacity: 1; }
+.bt-outline-chapter[data-drop-into='true'] { background: var(--color-popover-active); box-shadow: inset 0 0 0 1px var(--color-accent); }

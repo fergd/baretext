@@ -103,6 +103,8 @@
   --outline-row-h: 28px;
   --outline-num-w: 32px;
   --outline-toggle-w: 16px;
+  --outline-drop-h: 2px;
+  --outline-ghost-opacity: 0.88;
 
   /* switch (on/off controls) */
   --switch-w: 20px;

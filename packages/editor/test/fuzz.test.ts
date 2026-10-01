@@ -20,6 +20,12 @@ import {
   nameScene,
   replaceAll,
   removeLink,
+  rename,
+  addChapter,
+  moveChapter,
+  moveScene,
+  addScene,
+  BOOK_TITLE,
   setLink,
   splitScene,
   structureSignature,
@@ -37,7 +43,10 @@ type Op =
   | { kind: 'enter' | 'backspace' | 'delete' | 'bold' | 'italic' | 'quote' | 'link' | 'unlink' | 'pause' | 'name' | 'split' | 'undo' | 'redo' }
   | { kind: 'paste'; a: number; b: number }
   | { kind: 'raw'; a: number; b: number; text: string }
-  | { kind: 'replace'; query: string; text: string };
+  | { kind: 'replace'; query: string; text: string }
+  | { kind: 'rename'; target: number; name: string }
+  | { kind: 'add'; what: 'scene' | 'chapter' | 'chapter-after'; target: number }
+  | { kind: 'move'; what: 'scene' | 'chapter'; a: number; b: number; index: number };
 
 const unit = fc.double({ min: 0, max: 1, noNaN: true });
 const op: fc.Arbitrary<Op> = fc.oneof(
@@ -48,6 +57,9 @@ const op: fc.Arbitrary<Op> = fc.oneof(
   { weight: 1, arbitrary: fc.constantFrom<Op>({ kind: 'bold' }, { kind: 'italic' }, { kind: 'quote' }, { kind: 'link' }, { kind: 'unlink' }, { kind: 'pause' }, { kind: 'name' }, { kind: 'split' }, { kind: 'undo' }, { kind: 'redo' }) },
   { weight: 1, arbitrary: fc.tuple(unit, unit).map(([a, b]): Op => ({ kind: 'paste', a, b })) },
   { weight: 1, arbitrary: fc.tuple(unit, unit, fc.constantFrom('', 'x')).map(([a, b, text]): Op => ({ kind: 'raw', a, b, text })) },
+  { weight: 2, arbitrary: fc.tuple(fc.constantFrom<'scene' | 'chapter'>('scene', 'chapter'), unit, unit, fc.integer({ min: 0, max: 5 })).map(([what, a, b, index]): Op => ({ kind: 'move', what, a, b, index })) },
+  { weight: 1, arbitrary: fc.tuple(fc.constantFrom<'scene' | 'chapter' | 'chapter-after'>('scene', 'chapter', 'chapter-after'), unit).map(([what, target]): Op => ({ kind: 'add', what, target })) },
+  { weight: 1, arbitrary: fc.tuple(unit, fc.constantFrom('', '  ', 'Dawn', 'Two', 'a\nb', ' x ')).map(([target, name]): Op => ({ kind: 'rename', target, name })) },
   { weight: 1, arbitrary: fc.tuple(fc.constantFrom('a', 'l', 'ph', '.', 'Alpha'), fc.constantFrom('', 'Z', 'xyz')).map(([query, text]): Op => ({ kind: 'replace', query, text })) },
 );
 
@@ -127,6 +139,46 @@ describe('editing fuzzer', () => {
             case 'replace': {
               const tr = replaceAll(h.state, findMatches(h.state.doc, o.query, { limit: Infinity }), o.text);
               if (tr) h.state = h.state.apply(tr);
+              break;
+            }
+            case 'rename': {
+              // Any target, including a parked scene (which must be refused).
+              const ids = [BOOK_TITLE, 'k1', ...docToModel(h.state.doc).chapters.flatMap((c) => [c.id, ...c.scenes.map((x) => x.id)])];
+              const id = ids[Math.min(ids.length - 1, Math.floor(o.target * ids.length))]!;
+              h.run(rename(id, o.name));
+              structural = true;
+              const want = o.name.replace(/\s+/g, ' ').trim();
+              const after = docToModel(h.state.doc);
+              if (id === BOOK_TITLE) expect(after.title).toBe(want);
+              const ch = after.chapters.find((c) => c.id === id);
+              if (ch) expect(ch.title).toBe(want);
+              const sc = after.chapters.flatMap((c) => c.scenes).find((x) => x.id === id);
+              if (sc) expect(sc.name).toBe(want || null);
+              break;
+            }
+            case 'add': {
+              const chapters = docToModel(h.state.doc).chapters;
+              const chapter = chapters[Math.min(chapters.length - 1, Math.floor(o.target * chapters.length))]!;
+              const scenesBefore = chapters.reduce((n, c) => n + c.scenes.length, 0);
+              h.run(o.what === 'scene' ? addScene(chapter.id) : addChapter(o.what === 'chapter' ? undefined : chapter.id));
+              structural = true;
+              const after = docToModel(h.state.doc).chapters;
+              expect(after.reduce((n, c) => n + c.scenes.length, 0)).toBe(scenesBefore + 1);
+              expect(after.length).toBe(chapters.length + (o.what === 'scene' ? 0 : 1));
+              break;
+            }
+            case 'move': {
+              const before = docToModel(h.state.doc);
+              const pick = <T,>(xs: T[], u: number) => xs[Math.min(xs.length - 1, Math.floor(u * xs.length))]!;
+              const scenesOf = (mm: typeof before) => mm.chapters.flatMap((c) => c.scenes).map((x) => JSON.stringify(x)).sort();
+              if (o.what === 'scene') h.run(moveScene(pick(before.chapters.flatMap((c) => c.scenes), o.a).id, pick(before.chapters, o.b).id, o.index));
+              else h.run(moveChapter(pick(before.chapters, o.a).id, o.index));
+              structural = true;
+              const after = docToModel(h.state.doc);
+              // Nothing lost, duplicated or altered: the same scenes, word for word.
+              expect(scenesOf(after)).toEqual(scenesOf(before));
+              expect(after.chapters.map((c) => c.title).sort()).toEqual(before.chapters.map((c) => c.title).sort());
+              expect(after.chapters.every((c) => c.scenes.length > 0)).toBe(true);
               break;
             }
             case 'raw': {

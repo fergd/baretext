@@ -158,6 +158,43 @@ Pull exact values from Figma when implementing each component.
     manuscript is never re-laid out mid-motion). Rows in view cascade in
     (12px slide + fade, whole wave within 160ms). Closing reverses the slide;
     the column stays painted until it has gone. Reduced motion: instant.
+  - **Rename (2026-09-30):** F2 on a row, double-click a name, or click the
+    book title opens an inline field in place (name pre-selected). Enter or
+    clicking away renames; Esc cancels. Keys inside the field never reach
+    the tree or focus mode. A blank scene name makes the scene unnamed; a
+    blank chapter title is allowed (shown as "Untitled"). Names are
+    trimmed and kept on one line. Each rename is one undo step and never
+    moves the caret. Focus returns where it came from (the row for F2, the
+    manuscript for the mouse). Model: `rename(id, name)` in
+    `packages/editor` (fuzzed); parked scenes are refused.
+  - **Add (2026-09-30):** a + on each chapter row (in place of its count,
+    on hover or keyboard focus; ⌘↵ on a focused chapter row does the same,
+    echoing ⌘↵ = new scene on the page) adds an empty, unnamed scene at the
+    end of that chapter and puts the caret there. "New chapter" at the
+    foot of the outline adds an untitled chapter (one empty scene) at the
+    end of the book, caret in it, and opens its title field in the outline
+    (Esc leaves it Untitled). Palette "New chapter" with the outline closed
+    puts the caret in the title on the page. Format menu: New Scene at End
+    of Chapter, New Chapter. Each add is one undo step. Model:
+    `addScene(chapterId)`, `addChapter(afterId?)` (fuzzed).
+  - **Header stays (2026-09-30, user):** removing the book title and word
+    total felt awkward (the column needs a top bar), so they stay even
+    though the title bar and status bar repeat them.
+  - **Drag to reorder (2026-09-30):** press and move a row 4px to lift it:
+    a copy follows the pointer (88% opacity, slight lift), the original
+    dims, an accent line (drawn above the lifted row) shows where it will
+    land. Scenes drop between scenes or onto a chapter row (lit with an
+    accent ring = its end, works for folded chapters). Chapters drop
+    between chapter blocks and carry their scenes. The list scrolls within
+    32px of its edges. Esc or dropping in place changes nothing (the copy
+    settles home). On drop, rows glide to their new places (FLIP) and the
+    moved row flashes. A drag never navigates or takes focus; the caret
+    stays in its own text (travelling with its scene if it was inside).
+    One undo step per move. **A chapter's only scene can't be dragged out**
+    (the format requires a scene in every chapter; no drop line shows).
+    Model: `moveScene(id, chapterId, index)`, `moveChapter(id, index)`
+    (fuzzed: scenes are never lost, duplicated or altered). Keyboard
+    reorder (⌥↑/⌥↓, spec §8.1) not built yet.
   - **Icon:** closed shows the empty sidebar frame ("Show outline"); open
     becomes "Hide outline": the left pane fills in and a chevron points
     left. The two morph with the same timing.

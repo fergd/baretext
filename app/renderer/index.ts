@@ -8,6 +8,11 @@ import {
   insertSectionBreak,
   nameScene,
   nameSceneAt,
+  rename,
+  addChapter,
+  addScene,
+  moveChapter,
+  moveScene,
   restoreManuscript,
   sceneDepth,
   schema,
@@ -221,6 +226,23 @@ const spine = new Spine($('spine'), (id) => navigate(id));
 const outlinePanel = new OutlinePanel($('workspace'), {
   navigate: (id) => navigate(id),
   toEditor: () => view?.focus(),
+  rename: (id, name) => {
+    const changed = view ? rename(id, name)(view.state, view.dispatch) : false;
+    if (changed) syncOutline(); // the row shows its new name at once
+    return changed;
+  },
+  addScene: (chapterId) => newSceneIn(chapterId),
+  addChapter: () => newChapter(),
+  moveScene: (id, chapterId, index) => {
+    const moved = view ? moveScene(id, chapterId, index)(view.state, view.dispatch) : false;
+    if (moved) syncOutline();
+    return moved;
+  },
+  moveChapter: (id, index) => {
+    const moved = view ? moveChapter(id, index)(view.state, view.dispatch) : false;
+    if (moved) syncOutline();
+    return moved;
+  },
   onPresence: (presence: OutlinePresence) => {
     const open = presence === 'pinned';
     $('sidebar').setAttribute('aria-pressed', String(open));
@@ -228,6 +250,30 @@ const outlinePanel = new OutlinePanel($('workspace'), {
     $('sidebar').title = `${open ? 'Hide' : 'Show'} outline  ⌘\\`;
   },
 });
+
+/** Add an empty scene at the end of a chapter and go there, ready to write. */
+function newSceneIn(chapterId: string) {
+  if (!view || !addScene(chapterId)(view.state, view.dispatch)) return;
+  const here = currentScene(view.state);
+  syncOutline();
+  if (here) navigate(here.scene.id); // scroll and glide to it
+}
+
+/** Add a chapter at the end of the book and go to it; returns its identity. */
+function newChapter(): string | null {
+  if (!view || !addChapter()(view.state, view.dispatch)) return null;
+  const here = currentScene(view.state);
+  syncOutline();
+  if (here) navigate(here.scene.id);
+  return here?.chapter.id ?? null;
+}
+
+/** Give the outline the manuscript as it is now, not as of the last painted frame. */
+function syncOutline() {
+  if (!view) return;
+  const here = (reading && readingHere) || currentScene(view.state);
+  outlinePanel.update(outlineOf(view.state.doc), view.state.doc.firstChild!.textContent, here?.scene.id ?? null, here?.chapter.id ?? null);
+}
 
 /** Keep the caret's line where it is on screen across a layout change. */
 function keepCaretLine(change: () => void) {
@@ -444,14 +490,20 @@ function runCommand(command: MenuCommand) {
     case 'find-prev': find.next(-1); break;
     case 'history': palette.close(); find.close(); void history.open(false); break;
     case 'snapshot': palette.close(); find.close(); void history.open(true); break;
+    case 'new-scene': { const here = currentScene(view.state); if (here) newSceneIn(here.chapter.id); break; }
+    case 'new-chapter': {
+      const id = newChapter();
+      // Name it where it is: in the outline when that is open, else on the page.
+      if (id && outlinePanel.presence === 'pinned') outlinePanel.startRename(id, 'editor');
+      else if (id && view) { const pos = outlineOf(view.state.doc).chapters.find((c) => c.id === id)!.pos; view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, pos + 2))); view.focus(); }
+      break;
+    }
     case 'outline': setOutlinePinned(outlinePanel.presence !== 'pinned'); break;
     case 'outline-focus': {
       palette.close();
       if (app.dataset.focus === 'true') setFocus(false);
       if (outlinePanel.presence === 'hidden') setOutlinePinned(true);
-      // Where you are right now, not as of the last painted frame.
-      const here = (reading && readingHere) || currentScene(view.state);
-      outlinePanel.update(outlineOf(view.state.doc), view.state.doc.firstChild!.textContent, here?.scene.id ?? null, here?.chapter.id ?? null);
+      syncOutline();
       outlinePanel.focusTree();
       break;
     }
@@ -476,6 +528,7 @@ function commandsView(): PaletteView {
         { id: 'find', group: 'Navigate', label: 'Find…', keywords: 'search text', keys: '⌘F', run: () => runCommand('find') },
         { id: 'find-replace', group: 'Navigate', label: 'Find and replace…', keywords: 'search substitute change', keys: '⌥⌘F', run: () => runCommand('find-replace') },
         { id: 'scene-break', group: 'Insert', label: 'Scene break', keywords: 'split new scene', keys: '⌘↵', run: () => runCommand('split-scene') },
+        { id: 'new-chapter', group: 'Insert', label: 'New chapter', keywords: 'add create chapter', run: () => runCommand('new-chapter') },
         { id: 'pause', group: 'Insert', label: 'Pause', keywords: 'section break within scene', keys: '⌘⇧↵', run: () => runCommand('pause') },
       ];
       const here = view ? currentScene(view.state) : null;

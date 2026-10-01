@@ -206,3 +206,207 @@ test('the sidebar button turns into a close button while the outline is open', a
     await app.close();
   }
 });
+
+test('rename from the outline: F2 or double-click, Enter keeps it, Esc cancels, blank unnames a scene', async () => {
+  const { app, page } = await launch({ file: { name: 'O.md', content: FILE } });
+  try {
+    const t = bt(page);
+    const m0 = await model(page);
+    await page.evaluate((id) => (window as any).__baretext.navigate(id), m0.chapters[0].scenes[0].id);
+    const caret = await page.evaluate(() => (window as any).__baretext.selection());
+    const input = page.locator('.bt-outline-input');
+
+    // Keyboard: F2 on a row, type, Enter. Focus returns to the row.
+    await page.keyboard.press('Meta+Alt+Backslash');
+    await page.keyboard.press('ArrowDown'); // 1.2
+    await page.keyboard.press('F2');
+    await expect(input).toBeFocused();
+    expect(await input.inputValue()).toBe('Scene 1.2');
+    await page.keyboard.type('The Quarry'); // replaces the selected name
+    await page.keyboard.press('Enter');
+    expect((await model(page)).chapters[0].scenes[1].name).toBe('The Quarry');
+    expect(await page.evaluate(() => document.activeElement?.getAttribute('aria-label') ?? '')).toMatch(/^1\.2 The Quarry/);
+    // Arrow keys inside the field never moved the tree, and the caret never moved.
+    expect(await page.evaluate(() => (window as any).__baretext.selection())).toEqual(caret);
+
+    // Esc cancels.
+    await page.keyboard.press('F2');
+    await page.keyboard.type('Nope');
+    await page.keyboard.press('Escape');
+    expect((await model(page)).chapters[0].scenes[1].name).toBe('The Quarry');
+    expect((await t.outline()).focused).toBe(true); // Esc left the field, not the outline
+
+    // Blank: the scene becomes unnamed. One ⌘Z brings the name back.
+    await page.keyboard.press('F2');
+    await page.keyboard.press('Backspace');
+    await page.keyboard.press('Enter');
+    expect((await model(page)).chapters[0].scenes[1].name).toBe(null);
+    await expect(row(page, '1.2 Unnamed scene')).toHaveCount(1);
+    await page.keyboard.press('Escape'); // back to the manuscript
+    await page.keyboard.press('Meta+z');
+    expect((await model(page)).chapters[0].scenes[1].name).toBe('The Quarry');
+
+    // Mouse: double-click a chapter's name; clicking inside the field doesn't navigate; clicking away keeps the edit.
+    await row(page, 'Chapter 3 ').locator('.bt-outline-name').dblclick();
+    await expect(input).toBeFocused();
+    await input.click();
+    await page.keyboard.press('End');
+    await page.keyboard.type(': The Return');
+    await page.locator('.bt-scroller').click({ position: { x: 600, y: 200 } });
+    expect((await model(page)).chapters[2].title).toBe('Chapter 3: The Return');
+    await expect(input).toHaveCount(0);
+    expect(await t.hasFocus()).toBe(true);
+
+    // The book title.
+    await page.click('.bt-outline-title');
+    await page.keyboard.type('Testing the Spirits');
+    await page.keyboard.press('Enter');
+    expect((await model(page)).title).toBe('Testing the Spirits');
+    expect(await page.$eval('[data-ref="title"]', (e) => e.textContent)).toBe('Testing the Spirits');
+    expect(await t.hasFocus()).toBe(true);
+  } finally {
+    await app.close();
+  }
+});
+
+test('adding: + on a chapter adds a scene there and goes to it; New chapter adds one and asks for its title', async () => {
+  const { app, page } = await launch({ file: { name: 'O.md', content: FILE } });
+  try {
+    const t = bt(page);
+    await page.click('[data-ref="sidebar"]');
+    const chapter2 = row(page, 'Chapter 2 ');
+    const add = chapter2.locator('.bt-outline-add');
+    await expect(add).toBeHidden();
+    await chapter2.hover();
+    await expect(add).toBeVisible();
+    await add.click();
+    let m = await model(page);
+    expect(m.chapters.map((c: any) => c.scenes.length)).toEqual([3, 4, 3, 3]);
+    expect(await t.scene()).toBe(m.chapters[1].scenes[3].id);
+    expect(await t.hasFocus()).toBe(true);
+    await expect(row(page, '2.4 Unnamed scene')).toHaveAttribute('aria-current', 'location');
+    await page.keyboard.type('First words.');
+    expect((await model(page)).chapters[1].scenes[3].blocks[0].content[0].text).toBe('First words.');
+
+    // Keyboard: ⌘↵ on a chapter row.
+    await page.keyboard.press('Meta+Alt+Backslash');
+    await page.keyboard.press('Home'); // Chapter 1
+    await page.keyboard.press('Meta+Enter');
+    expect((await model(page)).chapters[0].scenes).toHaveLength(4);
+    expect(await t.hasFocus()).toBe(true);
+
+    // New chapter: at the end, with its title field open; Enter names it and returns to the page.
+    await page.click('.bt-outline-new-chapter');
+    await expect(page.locator('.bt-outline-input')).toBeFocused();
+    await page.keyboard.type('Epilogue');
+    await page.keyboard.press('Enter');
+    m = await model(page);
+    expect(m.chapters.map((c: any) => c.title)).toEqual(['Chapter 1', 'Chapter 2', 'Chapter 3', 'Chapter 4', 'Epilogue']);
+    expect(await t.scene()).toBe(m.chapters[4].scenes[0].id);
+    expect(await t.hasFocus()).toBe(true);
+
+    // Undo takes back the title, then the chapter.
+    await page.keyboard.press('Meta+z');
+    expect((await model(page)).chapters[4].title).toBe('');
+    await page.keyboard.press('Meta+z');
+    expect((await model(page)).chapters).toHaveLength(4);
+  } finally {
+    await app.close();
+  }
+});
+
+test('New chapter from the palette with the outline closed puts the caret in its title on the page', async () => {
+  const { app, page } = await launch({ file: { name: 'O.md', content: FILE } });
+  try {
+    await page.keyboard.press('Meta+k');
+    await page.keyboard.type('new chapter');
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('Coda');
+    const m = await model(page);
+    expect(m.chapters).toHaveLength(5);
+    expect(m.chapters[4].title).toBe('Coda');
+  } finally {
+    await app.close();
+  }
+});
+
+// ── drag to reorder ──
+async function openOutline(page: Page) {
+  await page.click('[data-ref="sidebar"]');
+  await page.waitForFunction(() => document.getAnimations().length === 0); // settled
+}
+async function drag(page: Page, from: string, to: string, where: 'top' | 'bottom' | 'middle', opts: { cancel?: boolean } = {}) {
+  const a = (await row(page, from).boundingBox())!;
+  const b = (await row(page, to).boundingBox())!;
+  const y = where === 'top' ? b.y + 4 : where === 'bottom' ? b.y + b.height - 4 : b.y + b.height / 2;
+  await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2 + 10, { steps: 3 });
+  await page.mouse.move(b.x + b.width / 2, y, { steps: 8 });
+  if (opts.cancel) await page.keyboard.press('Escape');
+  await page.mouse.up();
+}
+const order = async (page: Page): Promise<string[][]> => (await model(page)).chapters.map((c: any) => [c.title, ...c.scenes.map((s: any) => s.name)]);
+
+test('drag a scene: within its chapter, into another, or onto a chapter (its end); the caret and focus stay put', async () => {
+  const { app, page } = await launch({ file: { name: 'O.md', content: FILE } });
+  try {
+    const t = bt(page);
+    await openOutline(page);
+    const scene0 = await t.scene();
+
+    await drag(page, '1.1 ', '1.2 ', 'bottom');
+    expect((await order(page))[0]).toEqual(['Chapter 1', 'Scene 1.2', 'Scene 1.1', 'Scene 1.3']);
+    expect(await t.scene()).toBe(scene0); // the caret went with its scene, not to the drop
+    expect(await t.hasFocus()).toBe(true);
+
+    await drag(page, '1.3 ', '3.2 ', 'top');
+    expect((await order(page))[2]).toEqual(['Chapter 3', 'Scene 3.1', 'Scene 1.3', 'Scene 3.2', 'Scene 3.3']);
+    expect((await order(page))[0]).toEqual(['Chapter 1', 'Scene 1.2', 'Scene 1.1']);
+
+    await drag(page, '2.1 ', 'Chapter 4 ', 'middle');
+    expect((await order(page))[3]).toEqual(['Chapter 4', 'Scene 4.1', 'Scene 4.2', 'Scene 4.3', 'Scene 2.1']);
+
+    // One ⌘Z per move.
+    await page.keyboard.press('Meta+z');
+    expect((await order(page))[1]).toEqual(['Chapter 2', 'Scene 2.1', 'Scene 2.2', 'Scene 2.3']);
+  } finally {
+    await app.close();
+  }
+});
+
+test('drag a chapter with all its scenes; Esc or dropping in place changes nothing', async () => {
+  const { app, page } = await launch({ file: { name: 'O.md', content: FILE } });
+  try {
+    await openOutline(page);
+    const start = await order(page);
+    await drag(page, 'Chapter 3 ', 'Chapter 1 ', 'top');
+    expect((await order(page)).map((c) => c[0])).toEqual(['Chapter 3', 'Chapter 1', 'Chapter 2', 'Chapter 4']);
+    expect((await order(page))[0]).toEqual(start[2]);
+
+    const now = await order(page);
+    await drag(page, 'Chapter 2 ', 'Chapter 4 ', 'top', { cancel: true });
+    expect(await order(page)).toEqual(now);
+    await expect(page.locator('.bt-outline-ghost')).toHaveCount(0, { timeout: 2000 });
+    expect((await bt(page).outline()).presence).toBe('pinned'); // Esc only cancelled the drag
+    await drag(page, '2.2 ', '2.2 ', 'top');
+    expect(await order(page)).toEqual(now);
+    // A drag never navigates.
+    expect(await bt(page).scene()).toBe((await model(page)).chapters[1].scenes[0].id);
+  } finally {
+    await app.close();
+  }
+});
+
+test("a chapter's only scene can't be dragged out (the chapter would be empty)", async () => {
+  const file = '# One\n\n## A\n\nText a.\n\n# Two\n\n## Only\n\nText only.\n';
+  const { app, page } = await launch({ file: { name: 'S.md', content: file } });
+  try {
+    await openOutline(page);
+    const start = await order(page);
+    await drag(page, '2.1 ', '1.1 ', 'top');
+    expect(await order(page)).toEqual(start);
+  } finally {
+    await app.close();
+  }
+});
