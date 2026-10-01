@@ -153,26 +153,46 @@
 .bt-outline-head .bt-outline-input { grid-column: auto; flex: 1; margin: 0; }
 .bt-outline-input::selection { background: var(--color-selection); }
 
-/* Add a scene: on a chapter row, the + takes the count's place on hover or keyboard focus. */
-.bt-outline-add {
+/* Row actions (add a scene, delete) take the count's place on hover or keyboard focus. */
+.bt-outline-actions {
   grid-column: 4;
   grid-row: 1;
   justify-self: end;
   display: none;
   align-items: center;
-  justify-content: center;
-  width: var(--space-6);
-  height: var(--space-6);
+  gap: 0;
   margin-right: calc(-1 * var(--space-1));
+}
+.bt-outline-row > .bt-outline-meta { grid-column: 4; grid-row: 1; }
+.bt-outline-row:hover > .bt-outline-actions,
+.bt-outline-row:focus-visible > .bt-outline-actions,
+.bt-outline-row[data-arming='true'] > .bt-outline-actions { display: flex; }
+.bt-outline-row:hover > .bt-outline-meta,
+.bt-outline-row:focus-visible > .bt-outline-meta,
+.bt-outline-row[data-arming='true'] > .bt-outline-meta { visibility: hidden; }
+.bt-outline-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--space-6);
+  height: var(--space-6);
   border-radius: var(--toolbar-button-radius);
   color: var(--color-text-dim);
 }
-.bt-outline-chapter > .bt-outline-meta { grid-column: 4; grid-row: 1; }
-.bt-outline-chapter:hover > .bt-outline-add,
-.bt-outline-chapter:focus-visible > .bt-outline-add { display: flex; }
-.bt-outline-chapter:hover > .bt-outline-meta,
-.bt-outline-chapter:focus-visible > .bt-outline-meta { visibility: hidden; }
-.bt-outline-add:hover { color: var(--color-text); background: var(--color-popover-hover); }
+.bt-outline-action:hover { color: var(--color-text); background: var(--color-popover-hover); }
+.bt-outline-action[data-action='delete']:hover { color: var(--color-danger); }
+
+/* Armed delete: the row asks first (a second press deletes). */
+.bt-outline-row[data-arming='true'] {
+  background: color-mix(in srgb, var(--color-danger) 14%, transparent);
+  color: var(--color-text);
+}
+.bt-outline-row[data-arming='true'] > .bt-outline-actions > :not([data-action='delete']) { display: none; }
+.bt-outline-row[data-arming='true'] .bt-outline-action[data-action='delete'] {
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-danger);
+  color: var(--color-danger);
+}
 
 /* New chapter: a quiet button at the foot of the column. */
 .bt-outline-foot {
@@ -197,8 +217,8 @@
 .bt-outline[data-dragging] .bt-outline-tree,
 .bt-outline[data-dragging] .bt-outline-row { cursor: grabbing; }
 .bt-outline[data-dragging] .bt-outline-row:hover { background: none; }
-.bt-outline[data-dragging] .bt-outline-chapter > .bt-outline-add { display: none; }
-.bt-outline[data-dragging] .bt-outline-chapter:hover > .bt-outline-meta { visibility: visible; }
+.bt-outline[data-dragging] .bt-outline-row > .bt-outline-actions { display: none; }
+.bt-outline[data-dragging] .bt-outline-row:hover > .bt-outline-meta { visibility: visible; }
 .bt-outline-row[data-dragging='true'] { opacity: 0.32; }
 
 /* The lifted row follows the pointer. */
@@ -220,7 +240,7 @@
   opacity: var(--outline-ghost-opacity);
   animation: bt-outline-lift var(--dur-fast) var(--ease-out) both;
 }
-.bt-outline-ghost .bt-outline-add { display: none; }
+.bt-outline-ghost .bt-outline-actions { display: none; }
 .bt-outline-ghost .bt-outline-meta { visibility: visible; }
 @keyframes bt-outline-lift { from { scale: 1; box-shadow: none; } }
 

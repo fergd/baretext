@@ -7,6 +7,7 @@
 import type { Node as PMNode } from 'prosemirror-model';
 import { isHistoryTransaction } from 'prosemirror-history';
 import { Plugin, PluginKey, type Transaction } from 'prosemirror-state';
+import { parkedKey } from './keys';
 
 export const STRUCTURAL = 'baretext:structural';
 
@@ -35,6 +36,18 @@ export function structureSignature(doc: PMNode): string {
   return parts.join(' ');
 }
 
+/** Cold storage is the same, apart from the content of the scene `open` (its identity and attributes kept). */
+function coldUnchangedExcept(before: PMNode, after: PMNode, open: string | null): boolean {
+  if (!open) return after.eq(before);
+  if (after.childCount !== before.childCount) return false;
+  for (let i = 0; i < before.childCount; i++) {
+    const a = before.child(i);
+    const b = after.child(i);
+    if (a.attrs.id === open ? !b.sameMarkup(a) : !b.eq(a)) return false;
+  }
+  return true;
+}
+
 export const structureGuardKey = new PluginKey<{ rejected: number }>('structureGuard');
 
 export interface GuardOptions {
@@ -48,9 +61,10 @@ export function structureGuard(options: GuardOptions = {}): Plugin {
     filterTransaction(tr, state) {
       // Undo/redo only replay changes that were accepted when first made.
       if (!tr.docChanged || tr.getMeta(STRUCTURAL) || isHistoryTransaction(tr)) return true;
-      // Cold storage is edited only through explicit commands (archive,
-      // restore, the isolated scene view), never by ordinary input.
-      const coldUnchanged = tr.doc.lastChild!.eq(state.doc.lastChild!);
+      // Cold storage changes only through explicit commands (move, restore,
+      // rename, delete) — except the text of the one parked scene open on
+      // the page, which the writer edits like any scene.
+      const coldUnchanged = coldUnchangedExcept(state.doc.lastChild!, tr.doc.lastChild!, parkedKey.getState(state) ?? null);
       if (coldUnchanged && structureSignature(tr.doc) === structureSignature(state.doc)) return true;
       options.onReject?.(tr);
       return false;

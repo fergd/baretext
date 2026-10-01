@@ -51,6 +51,10 @@ export function contrast(fg: RGBA, bg: RGBA): number {
 }
 
 // Surfaces text sits on, and the text colors that appear on them.
+// How strongly the cold surfaces are washed with the theme's blue (must match tokens.css).
+const COLD_PAGE_MIX = 0.06;
+const COLD_BAR_MIX = 0.12;
+
 const SURFACES = ['color-chrome', 'color-page', 'color-bg', 'color-popover', 'color-outline-column'];
 const BODY_TEXT = ['color-text', 'color-text-dim', 'color-text-dimmer', 'color-palette-item'];
 
@@ -89,6 +93,19 @@ describe.each(THEMES)('theme %s', (theme) => {
       expect(contrast(color('color-danger'), color('color-chrome'))).toBeGreaterThanOrEqual(7);
     });
   }
+
+  // Cold Storage: the theme's blue, and the surfaces washed with it (DECISIONS §14).
+  const mix = (c: RGBA, pct: number, base: RGBA): RGBA => [0, 1, 2].map((i) => c[i]! * pct + base[i]! * (1 - pct)).concat(1) as RGBA;
+  const coldPage = () => mix(color('color-cold'), COLD_PAGE_MIX, color('color-page'));
+  const coldBar = () => mix(color('color-cold'), COLD_BAR_MIX, color('color-page'));
+
+  it('Cold Storage: the blue label reads on its bar, and prose stays readable on the cold page', () => {
+    const level = theme === 'contrast' ? 7 : 4.5;
+    expect(contrast(color('color-cold'), coldBar()), 'cold on bar').toBeGreaterThanOrEqual(level);
+    expect(contrast(color('color-cold'), color('color-outline-column')), 'cold in the outline').toBeGreaterThanOrEqual(level);
+    for (const fg of ['color-text', 'color-text-dim']) expect(contrast(color(fg), coldPage()), fg).toBeGreaterThanOrEqual(level);
+    for (const fg of ['color-h1', 'color-h2']) expect(contrast(color(fg), coldPage()), fg).toBeGreaterThanOrEqual(theme === 'contrast' ? 4.5 : 3);
+  });
 
   it('an error ("not saved") reads on the status bar', () => {
     expect(contrast(color('color-danger'), color('color-chrome'))).toBeGreaterThanOrEqual(4.5);

@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="styles/manuscript.css" />
     <link rel="stylesheet" href="styles/spine.css" />
     <link rel="stylesheet" href="styles/outline.css" />
+    <link rel="stylesheet" href="styles/cold.css" />
     <link rel="stylesheet" href="styles/typewriter.css" />
     <link rel="stylesheet" href="styles/toolbar.css" />
     <link rel="stylesheet" href="styles/palette.css" />
@@ -26,6 +27,12 @@
       </header>
       <main class="bt-workspace" data-ref="workspace">
         <nav class="bt-spine" data-ref="spine" aria-label="Scenes"></nav>
+        <div class="bt-parked-bar" data-ref="parked-bar" role="region" aria-label="Cold Storage scene">
+          <span class="bt-parked-label" data-ref="parked-label">Cold Storage</span>
+          <span class="bt-parked-name" data-ref="parked-name"></span>
+          <button type="button" class="bt-parked-button" data-ref="parked-restore">Restore</button>
+          <button type="button" class="bt-parked-button" data-ref="parked-back">Back to manuscript<kbd>Esc</kbd></button>
+        </div>
         <div class="bt-scroller" data-ref="scroller">
           <div class="bt-page" data-ref="page"></div>
         </div>

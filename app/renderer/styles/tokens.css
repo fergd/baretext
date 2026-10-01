@@ -143,6 +143,9 @@
   --toast-w: 560px;
   --text-toast: 12px;
 
+  /* Cold Storage bar (over the page while a parked scene is open) */
+  --parked-bar-h: 40px;
+
   /* save notice */
   --notice-w: 640px;
 
@@ -194,6 +197,15 @@
 [data-prose-font='sans'] { --font-editor: var(--font-sans); }
 [data-prose-font='serif'] { --font-editor: var(--font-serif); }
 
+/* Cold Storage surfaces: the page and its bar, washed with the theme's blue
+   (declared on every themed element so each theme mixes its own colors). */
+:root,
+[data-theme] {
+  --color-cold-page: color-mix(in srgb, var(--color-cold) 6%, var(--color-page));
+  --color-cold-bar: color-mix(in srgb, var(--color-cold) 12%, var(--color-page));
+  --color-cold-edge: color-mix(in srgb, var(--color-cold) 28%, var(--color-page));
+}
+
 /* Appearance (set on #app and on the Appearance sample). Font size scales
    the prose and its line; a full-line paragraph gap is one line. */
 [data-font-size='small'] { --text-body: 14px; --lh-body: 24px; }
@@ -242,6 +254,7 @@
   --color-popover-hover: rgba(248, 248, 242, 0.08);
   --color-popover-active: rgba(189, 147, 249, 0.24);
   --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.36), 0 2px 4px rgba(0, 0, 0, 0.24);
+  --color-cold: #8be9fd;
   color-scheme: dark;
 }
 
@@ -276,6 +289,7 @@
   --color-popover-hover: rgba(250, 242, 214, 0.08);
   --color-popover-active: rgba(248, 197, 55, 0.2);
   --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.24);
+  --color-cold: #9cc2d9;
   color-scheme: dark;
 }
 
@@ -313,6 +327,7 @@
   /* margin numbers wash out on parchment at the dark themes' opacity */
   --number-opacity: 0.4;
   --number-opacity-current: 0.65;
+  --color-cold: #2c5f86;
   color-scheme: light;
 }
 
@@ -347,6 +362,7 @@
   --color-popover-hover: rgba(211, 198, 170, 0.08);
   --color-popover-active: rgba(167, 192, 128, 0.2);
   --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.36), 0 2px 4px rgba(0, 0, 0, 0.24);
+  --color-cold: #85beb6;
   color-scheme: dark;
 }
 
@@ -385,6 +401,7 @@
   /* margin numbers stay clearly visible */
   --number-opacity: 0.6;
   --number-opacity-current: 0.85;
+  --color-cold: #9fdcff;
   color-scheme: dark;
 }
 

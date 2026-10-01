@@ -10,14 +10,17 @@
 import { BOOK_TITLE } from '@baretext/editor';
 import { sceneDisplayName, type Outline } from './outline';
 import { OutlineDrag } from './outline-drag';
+import { CHEVRON, PLUS, RESTORE, SNOWFLAKE, TRASH } from './icons';
 
 const numberFormat = new Intl.NumberFormat();
 const REFRESH_MS = 250;
 const CASCADE_SPAN_MS = 160;
 const CASCADE_STEP_MS = 12;
 const CASCADE_OFFSET = 12;
-const PLUS = '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9"/></svg>';
-const CHEVRON = '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>';
+/** The Cold Storage section's identity in the tree (folding, focus). */
+const COLD = 'cold-storage';
+/** How long an armed delete waits for its confirmation. */
+const ARM_MS = 4000;
 
 export type OutlinePresence = 'hidden' | 'pinned';
 
@@ -37,6 +40,8 @@ export class OutlinePanel {
   private readonly drag: OutlineDrag;
   /** The current scene's wash: one element that glides between rows. */
   private readonly highlight: HTMLElement;
+  /** A delete waiting for its confirmation (two steps, spec §0.8). */
+  private arming: { id: string; timer: number; onAway: (e: Event) => void } | null = null;
   /** The inline rename in progress; rows are not rebuilt under it. */
   private editing: { id: string; input: HTMLInputElement; returnTo: 'row' | 'editor' } | null = null;
   private refreshTimer: number | undefined;
@@ -61,6 +66,13 @@ export class OutlinePanel {
       moveChapter: (chapterId: string, index: number) => boolean;
       /** Add a chapter at the end of the book; returns its identity. */
       addChapter: () => string | null;
+      /** Cold Storage: move a scene there, open one on the page, put one back (where it came from, or at a place). */
+      park: (sceneId: string) => void;
+      openParked: (sceneId: string) => void;
+      restore: (sceneId: string, chapterId?: string, index?: number) => void;
+      /** Delete a scene or a chapter (already confirmed). */
+      deleteScene: (sceneId: string) => void;
+      deleteChapter: (chapterId: string) => void;
       /** Presence changed (the shell lays itself out around it). */
       onPresence: (presence: OutlinePresence) => void;
     },
@@ -98,6 +110,8 @@ export class OutlinePanel {
       canDrag: () => !this.editing,
       moveScene: actions.moveScene,
       moveChapter: actions.moveChapter,
+      park: actions.park,
+      restore: actions.restore,
     });
     this.tree.addEventListener('keydown', (e) => this.onKey(e));
     // Clicks never take focus from the manuscript (keyboard users enter with ⌥⌘\).
@@ -107,7 +121,7 @@ export class OutlinePanel {
     });
     this.tree.addEventListener('dblclick', (e) => {
       const row = (e.target as HTMLElement).closest<HTMLElement>('.bt-outline-row');
-      if (row && !(e.target as HTMLElement).closest('input, .bt-outline-toggle, .bt-outline-add')) this.startRename(row.dataset.id!, 'editor');
+      if (row && row.dataset.kind !== 'cold' && !(e.target as HTMLElement).closest('input, .bt-outline-toggle, .bt-outline-actions')) this.startRename(row.dataset.id!, 'editor');
     });
     this.title.addEventListener('mousedown', (e) => { if (!this.el.contains(document.activeElement)) e.preventDefault(); });
     this.title.addEventListener('click', () => this.startRename(BOOK_TITLE, this.el.contains(document.activeElement) ? 'row' : 'editor'));
@@ -232,7 +246,7 @@ export class OutlinePanel {
         cell('bt-outline-num', String(chapter.number)),
         cell('bt-outline-name', chapter.title || 'Untitled'),
         cell('bt-outline-meta', open ? numberFormat.format(chapterWords) : `${chapter.scenes.length} · ${numberFormat.format(chapterWords)}`),
-        addButton(),
+        rowActions('chapter'),
       );
       item.firstElementChild!.innerHTML = CHEVRON;
       frag.append(item);
@@ -251,20 +265,62 @@ export class OutlinePanel {
         const name = sceneDisplayName(scene);
         if (!scene.name) row.dataset.unnamed = 'true';
         row.setAttribute('aria-label', `${scene.label} ${name}, ${words(scene.words)}`);
-        row.append(cell('bt-outline-num', scene.label), cell('bt-outline-name', name), cell('bt-outline-meta', numberFormat.format(scene.words)));
+        row.append(cell('bt-outline-num', scene.label), cell('bt-outline-name', name), cell('bt-outline-meta', numberFormat.format(scene.words)), rowActions('scene'));
         group.append(row);
       }
       frag.append(group);
     }
+    if (outline.parked.length) frag.append(...this.coldSection(outline));
     this.tree.replaceChildren(frag);
     this.tree.scrollTop = scrollTop; // a refresh never moves the list
     if (!this.focusId || !this.rowFor(this.focusId)) this.focusId = this.currentSceneId;
     this.setTabStop(this.focusId ?? '');
+    if (this.arming) this.showArmed(this.arming.id);
     if (hadFocus && this.focusId) this.rowFor(this.focusId)?.focus({ preventScroll: true });
     this.markCurrent(false);
   }
 
   /** Mark the current scene (and its chapter); bring it into view only if it left the list's view. */
+  /** Cold Storage: a folding section after the chapters, newest first. */
+  private coldSection(outline: Outline): HTMLElement[] {
+    const open = !this.collapsed.has(COLD);
+    const head = document.createElement('div');
+    head.setAttribute('role', 'treeitem');
+    head.className = 'bt-outline-row bt-outline-chapter bt-outline-cold';
+    head.dataset.id = COLD;
+    head.dataset.kind = 'cold';
+    head.tabIndex = -1;
+    head.setAttribute('aria-level', '1');
+    head.setAttribute('aria-expanded', String(open));
+    const n = outline.parked.length;
+    head.setAttribute('aria-label', `Cold Storage, ${n} ${n === 1 ? 'scene' : 'scenes'}, ${words(outline.parkedWords)}`);
+    head.append(cell('bt-outline-toggle', ''), cell('bt-outline-num', ''), cell('bt-outline-name', 'Cold Storage'),
+      cell('bt-outline-meta', open ? numberFormat.format(outline.parkedWords) : `${n} · ${numberFormat.format(outline.parkedWords)}`));
+    head.firstElementChild!.innerHTML = CHEVRON;
+    head.children[1]!.innerHTML = SNOWFLAKE;
+    if (!open) return [head];
+    const group = document.createElement('div');
+    group.setAttribute('role', 'group');
+    for (const p of outline.parked) {
+      const row = document.createElement('div');
+      row.setAttribute('role', 'treeitem');
+      row.className = 'bt-outline-row bt-outline-scene bt-outline-parked';
+      row.dataset.id = p.id;
+      row.dataset.kind = 'parked';
+      row.dataset.chapter = COLD;
+      row.tabIndex = -1;
+      row.setAttribute('aria-level', '2');
+      const name = p.name || (p.name === '' ? 'Untitled' : 'Unnamed scene');
+      if (!p.name) row.dataset.unnamed = 'true';
+      const from = p.from ? (p.from.chapter ? `From chapter ${p.from.chapter}` : 'From a chapter that was deleted') : '';
+      row.title = from;
+      row.setAttribute('aria-label', `${name}, ${words(p.words)}, in Cold Storage${from ? `. ${from}` : ''}`);
+      row.append(cell('bt-outline-num', ''), cell('bt-outline-name', name), cell('bt-outline-meta', numberFormat.format(p.words)), rowActions('parked'));
+      group.append(row);
+    }
+    return [head, group];
+  }
+
   /**
    * Mark the current scene (and its chapter). The highlight is one element
    * that glides from row to row (`glide`), or snaps after a rebuild; the
@@ -325,6 +381,8 @@ export class OutlinePanel {
   private activate(row: HTMLElement) {
     if (row.dataset.kind === 'scene') {
       this.actions.navigate(row.dataset.id!);
+    } else if (row.dataset.kind === 'parked') {
+      this.actions.openParked(row.dataset.id!);
     } else {
       this.toggle(row.dataset.id!);
     }
@@ -382,14 +440,78 @@ export class OutlinePanel {
 
   private sceneName(id: string): string {
     for (const c of this.outline?.chapters ?? []) for (const sc of c.scenes) if (sc.id === id) return sc.name ?? '';
-    return '';
+    return this.outline?.parked.find((p) => p.id === id)?.name ?? '';
+  }
+
+  // ── delete (two steps) ──
+
+  /** First step: the row asks "Delete …?" until confirmed, cancelled, or a few seconds pass. */
+  private armDelete(id: string) {
+    this.disarm();
+    const onAway = (e: Event) => {
+      if (e.type === 'keydown') {
+        if ((e as KeyboardEvent).key !== 'Escape') return;
+        e.preventDefault();
+        e.stopPropagation(); // Esc cancels the delete, nothing else
+        this.disarm();
+        return;
+      }
+      if (!(e.target as HTMLElement).closest?.(`.bt-outline-row[data-id="${CSS.escape(id)}"] .bt-outline-action`)) this.disarm();
+    };
+    this.arming = { id, timer: window.setTimeout(() => this.disarm(), ARM_MS), onAway };
+    window.addEventListener('pointerdown', onAway, true);
+    window.addEventListener('keydown', onAway, true);
+    this.showArmed(id);
+  }
+
+  private disarm() {
+    const a = this.arming;
+    if (!a) return;
+    this.arming = null;
+    clearTimeout(a.timer);
+    window.removeEventListener('pointerdown', a.onAway, true);
+    window.removeEventListener('keydown', a.onAway, true);
+    this.render(true);
+  }
+
+  private confirmDelete() {
+    const id = this.arming?.id;
+    if (!id) return;
+    const isChapter = this.rowFor(id)?.dataset.kind === 'chapter';
+    this.disarm();
+    if (isChapter) this.actions.deleteChapter(id);
+    else this.actions.deleteScene(id);
+  }
+
+  /** The armed row: tinted, its name replaced by the question, a Delete button in place of the count. */
+  private showArmed(id: string) {
+    const row = this.rowFor(id);
+    const chapter = this.outline?.chapters.find((c) => c.id === id);
+    const scene = this.outline?.chapters.flatMap((c) => c.scenes).find((s) => s.id === id);
+    const parked = this.outline?.parked.find((p) => p.id === id);
+    if (!row || (!chapter && !scene && !parked)) return;
+    const what = chapter
+      ? `chapter ${chapter.number}${chapter.scenes.length > 1 ? ` and its ${chapter.scenes.length} scenes` : ''}`
+      : scene ? `${scene.label}${scene.name ? ` “${scene.name}”` : ''}`
+      : parked!.name ? `“${parked!.name}”` : 'this scene';
+    const count = chapter ? chapter.scenes.reduce((n, s) => n + s.words, 0) : (scene ?? parked)!.words;
+    row.dataset.arming = 'true';
+    row.querySelector('.bt-outline-name')!.textContent = `Delete ${what}?`;
+    row.title = `${words(count)}. ⌘Z brings it back.`;
+    const confirm = row.querySelector<HTMLElement>('.bt-outline-action[data-action="delete"]')!;
+    confirm.textContent = 'Delete';
+    confirm.setAttribute('aria-label', `Confirm: delete ${what} (${words(count)})`);
   }
 
   private onClick(e: MouseEvent) {
     if (this.drag.consumeClick()) return;
     const row = (e.target as HTMLElement).closest<HTMLElement>('.bt-outline-row');
     if (!row) return;
-    if ((e.target as HTMLElement).closest('.bt-outline-add')) { this.actions.addScene(row.dataset.id!); return; }
+    const action = (e.target as HTMLElement).closest<HTMLElement>('.bt-outline-action')?.dataset.action;
+    if (action === 'add') { this.actions.addScene(row.dataset.id!); return; }
+    if (action === 'park') { this.actions.park(row.dataset.id!); return; }
+    if (action === 'restore') { this.actions.restore(row.dataset.id!); return; }
+    if (action === 'delete') { if (this.arming?.id === row.dataset.id) this.confirmDelete(); else this.armDelete(row.dataset.id!); return; }
     // The chevron only folds; the chapter's name opens its first scene.
     if (row.dataset.kind === 'chapter' && !(e.target as HTMLElement).closest('.bt-outline-toggle')) {
       const first = this.outline?.chapters.find((c) => c.id === row.dataset.id)?.scenes[0];
@@ -412,7 +534,24 @@ export class OutlinePanel {
       to.focus();
       to.scrollIntoView({ block: 'nearest' });
     };
-    const chapterOf = (r: HTMLElement) => (r.dataset.kind === 'scene' ? this.rowFor(r.dataset.chapter!) : r);
+    const chapterOf = (r: HTMLElement) => (r.dataset.chapter ? this.rowFor(r.dataset.chapter) : r);
+    if (this.arming?.id === row.dataset.id && (e.key === 'Enter' || e.key === 'Delete' || e.key === 'Backspace')) {
+      e.preventDefault();
+      e.stopPropagation();
+      this.confirmDelete();
+      return;
+    }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && row.dataset.kind !== 'cold') {
+      e.preventDefault();
+      e.stopPropagation();
+      this.armDelete(row.dataset.id!);
+      return;
+    }
+    if (this.arming && !['Shift', 'Meta', 'Alt', 'Control'].includes(e.key)) {
+      const wasEsc = e.key === 'Escape';
+      this.disarm();
+      if (wasEsc) { e.preventDefault(); e.stopPropagation(); return; } // Esc only cancels the delete
+    }
     if (e.key === 'Enter' && e.metaKey && row.dataset.kind === 'chapter') {
       e.preventDefault();
       e.stopPropagation();
@@ -426,13 +565,11 @@ export class OutlinePanel {
       case 'Home': move(rows[0]); break;
       case 'End': move(rows[rows.length - 1]); break;
       case 'ArrowRight':
-        if (row.dataset.kind === 'chapter') {
-          if (row.getAttribute('aria-expanded') === 'false') this.toggle(row.dataset.id!, true);
-          else move(rows[i + 1]?.dataset.kind === 'scene' ? rows[i + 1] : undefined);
-        }
+        if (row.getAttribute('aria-expanded') === 'false') this.toggle(row.dataset.id!, true);
+        else if (row.hasAttribute('aria-expanded')) move(rows[i + 1]?.getAttribute('aria-level') === '2' ? rows[i + 1] : undefined);
         break;
       case 'ArrowLeft':
-        if (row.dataset.kind === 'chapter') this.toggle(row.dataset.id!, false);
+        if (row.hasAttribute('aria-expanded')) this.toggle(row.dataset.id!, false);
         else move(chapterOf(row) ?? undefined);
         break;
       case 'Enter':
@@ -443,7 +580,7 @@ export class OutlinePanel {
         this.actions.toEditor();
         break;
       case 'F2':
-        this.startRename(row.dataset.id!, 'row');
+        if (row.dataset.kind !== 'cold') this.startRename(row.dataset.id!, 'row');
         break;
       default:
         handled = false;
@@ -455,16 +592,29 @@ export class OutlinePanel {
   }
 }
 
-/** Revealed on hover or keyboard focus; ⌘↵ on the row does the same. */
-function addButton(): HTMLElement {
-  const b = document.createElement('button');
-  b.type = 'button';
-  b.className = 'bt-outline-add';
-  b.tabIndex = -1;
-  b.title = 'New scene in this chapter  ⌘↵';
-  b.setAttribute('aria-label', 'New scene in this chapter');
-  b.innerHTML = PLUS;
-  return b;
+/**
+ * Revealed on hover or keyboard focus. Chapters: add a scene (⌘↵), delete.
+ * Scenes: move to Cold Storage, delete. Parked scenes: restore, delete (⌫).
+ */
+function rowActions(kind: 'scene' | 'chapter' | 'parked'): HTMLElement {
+  const group = document.createElement('span');
+  group.className = 'bt-outline-actions';
+  const button = (action: string, label: string, title: string, icon: string) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'bt-outline-action';
+    b.dataset.action = action;
+    b.tabIndex = -1;
+    b.title = title;
+    b.setAttribute('aria-label', label);
+    b.innerHTML = icon;
+    return b;
+  };
+  if (kind === 'chapter') group.append(button('add', 'New scene in this chapter', 'New scene in this chapter  ⌘↵', PLUS));
+  if (kind === 'scene') group.append(button('park', 'Move to Cold Storage', 'Move to Cold Storage', SNOWFLAKE));
+  if (kind === 'parked') group.append(button('restore', 'Restore to the manuscript', 'Restore (back where it came from)', RESTORE));
+  group.append(button('delete', kind === 'chapter' ? 'Delete chapter' : 'Delete scene', kind === 'chapter' ? 'Delete chapter  ⌫' : 'Delete scene  ⌫', TRASH));
+  return group;
 }
 
 function cell(className: string, text: string): HTMLElement {

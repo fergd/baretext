@@ -54,11 +54,12 @@ describe('rename (outline)', () => {
     expect(names(h)[0]![1]).toBe('Night falls slowly');
   });
 
-  it('an unchanged name is not a change; an unknown or parked scene is refused', () => {
+  it('an unchanged name is not a change; an unknown scene is refused; parked scenes rename', () => {
     const h = harness();
     expect(h.run(rename('s2', 'Two'))).toBe(false);
     expect(h.run(rename('nope', 'X'))).toBe(false);
-    expect(h.run(rename('k1', 'X'))).toBe(false); // cold storage only changes through its own commands
+    expect(h.run(rename('k1', 'X'))).toBe(true); // parked scenes rename like any scene (Cold Storage)
+    h.run(undo);
     expect(undoDepth(h.state)).toBe(0);
   });
 

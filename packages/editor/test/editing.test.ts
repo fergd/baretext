@@ -257,8 +257,9 @@ describe('marks', () => {
 describe('cold storage', () => {
   it('is unreachable by selection searches', () => {
     const h = harness();
-    const end = TextSelection.atEnd(h.state.doc);
-    expect(end.$from.parent.textContent).not.toBe('Cut.');
+    // Anything that puts the selection there (the document's end) is brought back.
+    h.state = h.state.apply(h.state.tr.setSelection(TextSelection.atEnd(h.state.doc)));
+    expect(h.state.selection.$from.parent.textContent).toBe('Gamma.');
     expect(h.model().coldStorage[0]).toEqual(scene('k1', ['Cut.']));
   });
 });

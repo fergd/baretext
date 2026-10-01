@@ -247,6 +247,7 @@ function buildMenu() {
         { label: 'Name Scene', click: () => send('name-scene') },
         { label: 'New Scene at End of Chapter', click: () => send('new-scene') },
         { label: 'New Chapter', click: () => send('new-chapter') },
+        { label: 'Move Scene to Cold Storage', click: () => send('park-scene') },
       ],
     },
     {

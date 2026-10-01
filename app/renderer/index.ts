@@ -17,6 +17,13 @@ import {
   addScene,
   moveChapter,
   moveScene,
+  deleteChapter,
+  deleteScene,
+  closeParked,
+  moveToColdStorage,
+  openParked,
+  parkedKey,
+  restoreFromColdStorage,
   restoreManuscript,
   sceneDepth,
   schema,
@@ -38,6 +45,7 @@ import { SelectionToolbar } from './toolbar';
 import { Typewriter } from './typewriter';
 import { Saver } from './saving';
 import { installTestHooks } from './test-hooks';
+import { SNOWFLAKE } from './icons';
 
 declare global {
   interface Window {
@@ -97,6 +105,9 @@ function refreshChrome() {
     if (!view) return;
     const state = view.state;
     const outline = outlineOf(state.doc);
+    const parked = parkedKey.getState(state);
+    const open = parked ? outline.parked.find((p) => p.id === parked) ?? null : null;
+    if (open) { refreshParked(open, outline); return; }
     const here = (reading && readingHere) || currentScene(state);
     // The count in the number face, the word in the interface face.
     const count = document.createElement('span');
@@ -113,9 +124,71 @@ function refreshChrome() {
   });
 }
 
+/** The chrome while a parked scene is open: its name, its words, its row in the outline. */
+function refreshParked(open: ReturnType<typeof outlineOf>['parked'][number], outline: ReturnType<typeof outlineOf>) {
+  const name = open.name || 'Unnamed scene';
+  const count = document.createElement('span');
+  count.className = 'bt-num-text';
+  count.textContent = numberFormat.format(open.words);
+  $('words').replaceChildren(count, ` ${open.words === 1 ? 'word' : 'words'} in this scene`);
+  $('title').textContent = view!.state.doc.firstChild!.textContent || 'Untitled';
+  $('crumb').textContent = `Cold Storage · ${name}`;
+  $('parked-name').textContent = name;
+  $('parked-restore').title = open.from?.chapter ? `Back to chapter ${open.from.chapter}` : 'Back into the manuscript (end of the last chapter)';
+  spine.update(outline, null, null);
+  outlinePanel.update(outline, view!.state.doc.firstChild!.textContent, open.id, null);
+}
+
+// ── Cold Storage: a parked scene opens on the page; Esc goes back ──
+/** Where the writer was in the manuscript when a parked scene opened. */
+let parkedReturn: { pos: number; scroll: number } | null = null;
+
+function openParkedScene(id: string) {
+  if (!view) return;
+  if (!parkedKey.getState(view.state)) parkedReturn = { pos: view.state.selection.head, scroll: scroller.scrollTop };
+  palette.close();
+  find.close();
+  if (!openParked(id)(view.state, view.dispatch)) return;
+  scroller.scrollTop = 0;
+  view.focus();
+}
+
+/** Close the parked scene; `returnToPlace` puts the writer back where they were (else the caller moves them). */
+function leaveParked(returnToPlace = true) {
+  if (!view || !parkedKey.getState(view.state)) return;
+  const back = parkedReturn;
+  parkedReturn = null;
+  closeParked(returnToPlace ? back?.pos ?? null : null)(view.state, view.dispatch);
+  if (returnToPlace && back) scroller.scrollTop = back.scroll;
+  view.focus();
+}
+
+function parkScene(id: string) {
+  if (!view) return;
+  const outline = outlineOf(view.state.doc);
+  const scene = outline.chapters.flatMap((c) => c.scenes).find((s) => s.id === id);
+  if (!scene || !moveToColdStorage(id)(view.state, view.dispatch)) return;
+  syncOutline();
+  toast(`Moved ${scene.label}${scene.name ? ` “${scene.name}”` : ''} to Cold Storage. ⌘Z undoes it.`);
+}
+
+function restoreScene(id: string, chapterId?: string, index?: number) {
+  if (!view) return;
+  const parked = outlineOf(view.state.doc).parked.find((p) => p.id === id);
+  const wasOpen = parkedKey.getState(view.state) === id;
+  if (!parked) return;
+  if (wasOpen) parkedReturn = null; // it goes into the manuscript and the writer follows it there
+  if (!restoreFromColdStorage(id, chapterId, index)(view.state, view.dispatch)) return;
+  syncOutline();
+  const placed = outlineOf(view.state.doc).chapters.flatMap((c) => c.scenes).find((s) => s.id === id);
+  if (wasOpen && placed) navigate(id); // it was on the page: follow it into the manuscript
+  toast(`Restored ${parked.name ? `“${parked.name}”` : 'the scene'}${placed ? ` as ${placed.label}` : ''}. ⌘Z undoes it.`);
+}
+
 // ── navigation controller: one path for every "go to scene" ──
 function navigate(sceneId: string): boolean {
   if (!view) return false;
+  leaveParked(false); // going somewhere in the manuscript
   const scene = outlineOf(view.state.doc).chapters.flatMap((c) => c.scenes).find((s) => s.id === sceneId);
   if (!scene) return false; // a deleted target never jumps elsewhere
   // Land on the scene's first line of prose, not in its name.
@@ -206,6 +279,11 @@ const outlinePanel = new OutlinePanel($('workspace'), {
     if (moved) syncOutline();
     return moved;
   },
+  park: (id) => parkScene(id),
+  openParked: (id) => openParkedScene(id),
+  restore: (id, chapterId, index) => restoreScene(id, chapterId, index),
+  deleteScene: (id) => deleteFromOutline(id, 'scene'),
+  deleteChapter: (id) => deleteFromOutline(id, 'chapter'),
   onPresence: (presence: OutlinePresence) => {
     const open = presence === 'pinned';
     $('sidebar').setAttribute('aria-pressed', String(open));
@@ -214,8 +292,31 @@ const outlinePanel = new OutlinePanel($('workspace'), {
   },
 });
 
+/**
+ * Delete a scene or chapter (confirmed in the outline). A snapshot keeps the
+ * manuscript as it was; one ⌘Z brings it back.
+ */
+function deleteFromOutline(id: string, kind: 'scene' | 'chapter') {
+  if (!view) return;
+  const outline = outlineOf(view.state.doc);
+  const chapter = outline.chapters.find((c) => c.id === id);
+  const scene = outline.chapters.flatMap((c) => c.scenes).find((s) => s.id === id);
+  const parked = outline.parked.find((p) => p.id === id);
+  const what = kind === 'chapter' && chapter ? `chapter ${chapter.number}${chapter.title ? ` “${chapter.title}”` : ''}`
+    : scene ? `${scene.label}${scene.name ? ` “${scene.name}”` : ''}`
+    : parked ? `${parked.name ? `“${parked.name}”` : 'a scene'} from Cold Storage` : null;
+  if (!what) return;
+  const count = chapter && kind === 'chapter' ? chapter.scenes.reduce((n, s) => n + s.words, 0) : (scene ?? parked)?.words ?? 0;
+  snapshotNow(`Before deleting ${what}`.slice(0, 80));
+  const command = kind === 'chapter' ? deleteChapter(id) : deleteScene(id);
+  if (!command(view.state, view.dispatch)) return;
+  syncOutline();
+  toast(`Deleted ${what} (${numberFormat.format(count)} ${count === 1 ? 'word' : 'words'}). ⌘Z brings it back.`);
+}
+
 /** Add an empty scene at the end of a chapter and go there, ready to write. */
 function newSceneIn(chapterId: string) {
+  leaveParked(false);
   if (!view || !addScene(chapterId)(view.state, view.dispatch)) return;
   const here = currentScene(view.state);
   syncOutline();
@@ -224,6 +325,7 @@ function newSceneIn(chapterId: string) {
 
 /** Add a chapter at the end of the book and go to it; returns its identity. */
 function newChapter(): string | null {
+  leaveParked(false);
   if (!view || !addChapter()(view.state, view.dispatch)) return null;
   const here = currentScene(view.state);
   syncOutline();
@@ -316,6 +418,19 @@ function dispatch(this: EditorView, tr: Transaction) {
   if (reading && (next.doc !== before.doc || !next.selection.eq(before.selection))) {
     reading = false;
     readingHere = null;
+  }
+  const parkedNow = parkedKey.getState(next);
+  if (parkedNow !== parkedKey.getState(before)) {
+    app.dataset.parked = String(!!parkedNow);
+    // Closed some other way than Back (its scene deleted): return to where the writer was.
+    const back = parkedNow ? null : parkedReturn;
+    parkedReturn = parkedNow ? parkedReturn : null;
+    if (back) requestAnimationFrame(() => {
+      if (!view || parkedKey.getState(view.state)) return;
+      const sel = Selection.findFrom(view.state.doc.resolve(Math.min(back.pos, view.state.doc.content.size)), -1, true);
+      if (sel) view.dispatch(view.state.tr.setSelection(sel));
+      scroller.scrollTop = back.scroll;
+    });
   }
   if (next.doc !== before.doc) {
     saver.changed();
@@ -459,8 +574,9 @@ function runCommand(command: MenuCommand) {
     case 'save': void saver.saveNow().then((ok) => ok && toast('Saved')); break;
     case 'palette': togglePalette(commandsView(commands)); break;
     case 'goto': togglePalette(jumpView(commands)); break;
-    case 'find': palette.close(); find.open(false); break;
-    case 'find-replace': palette.close(); find.open(true); break;
+    case 'find': palette.close(); leaveParked(); find.open(false); break;
+    case 'find-replace': palette.close(); leaveParked(); find.open(true); break;
+    case 'park-scene': { const here = currentScene(view.state); if (here) parkScene(here.scene.id); break; }
     case 'find-next': find.next(1); break;
     case 'find-prev': find.next(-1); break;
     case 'appearance': palette.close(); find.close(); history.close(); appearance.open(); break;
@@ -496,6 +612,9 @@ const commands: CommandContext = {
   isOn: (toggle) => toggle === 'outline' ? outlinePanel.presence === 'pinned' : toggle === 'typewriter' ? typewriter.enabled : app.dataset.focus === 'true',
   fileCommand: (command) => bridge.fileCommand(command),
   reveal: () => { if (filePath) bridge.revealInFinder(filePath); },
+  parked: () => (view ? parkedKey.getState(view.state) ?? null : null),
+  leaveParked: () => leaveParked(),
+  restoreParked: () => { const id = view && parkedKey.getState(view.state); if (id) restoreScene(id); },
 };
 
 /** A palette key closes its own view, switches from the other, or opens. */
@@ -526,7 +645,9 @@ window.addEventListener('keydown', (e) => {
 // unclaimed Esc reaches here and leaves focus mode. (defaultPrevented is no
 // signal: ProseMirror cancels every Esc in the editor.) Never during IME.
 window.addEventListener('keydown', (e) => {
-  if (e.key !== 'Escape' || e.isComposing || app.dataset.focus !== 'true') return;
+  if (e.key !== 'Escape' || e.isComposing) return;
+  if (view && parkedKey.getState(view.state)) { e.preventDefault(); leaveParked(); return; } // back to the manuscript first
+  if (app.dataset.focus !== 'true') return;
   e.preventDefault();
   setFocus(false);
 });
@@ -538,6 +659,10 @@ $('sidebar').addEventListener('click', () => runCommand('outline'));
 $('typewriter').addEventListener('click', () => runCommand('typewriter'));
 $('focus').addEventListener('click', () => runCommand('focus'));
 $('filename').addEventListener('click', () => filePath && bridge.revealInFinder(filePath));
+$('parked-label').insertAdjacentHTML('afterbegin', SNOWFLAKE);
+for (const ref of ['parked-restore', 'parked-back']) $(ref).addEventListener('mousedown', (e) => e.preventDefault());
+$('parked-back').addEventListener('click', () => leaveParked());
+$('parked-restore').addEventListener('click', () => { const id = view && parkedKey.getState(view.state); if (id) restoreScene(id); });
 
 bridge.onMenu(runCommand);
 bridge.onDocumentOpened(load);

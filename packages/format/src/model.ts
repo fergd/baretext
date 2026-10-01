@@ -19,7 +19,21 @@ export interface Scene {
   name: string | null;
   /** Link-group id shared by linked scenes, or null. */
   link: string | null;
+  /** Cold Storage only: where the scene was moved from, so Restore can put it back. */
+  origin?: SceneOrigin;
   blocks: Block[];
+}
+
+export interface SceneOrigin {
+  /** The chapter it came from (it may no longer exist). */
+  chapter: string;
+  /** Its position among that chapter's scenes. */
+  index: number;
+}
+
+export function isOrigin(v: unknown): v is SceneOrigin {
+  const o = v as SceneOrigin;
+  return !!o && typeof o === 'object' && typeof o.chapter === 'string' && ID_PATTERN.test(o.chapter) && Number.isInteger(o.index) && o.index >= 0;
 }
 
 export interface Chapter {
@@ -93,7 +107,9 @@ function canonicalBlock(b: Block): Block {
 }
 
 function canonicalScene(s: Scene): Scene {
-  return { id: s.id, name: s.name, link: s.link, blocks: s.blocks.map(canonicalBlock) };
+  const out: Scene = { id: s.id, name: s.name, link: s.link, blocks: s.blocks.map(canonicalBlock) };
+  if (s.origin) out.origin = { chapter: s.origin.chapter, index: s.origin.index };
+  return out;
 }
 
 /** Structural invariants every saved or edited manuscript must satisfy. */
@@ -113,6 +129,7 @@ export function validate(m: Manuscript): string[] {
     if (s.name !== null) checkLine(s.name, `scene name in ${where}`);
     if (s.link !== null && !ID_PATTERN.test(s.link)) errors.push(`scene ${s.id} has invalid link group`);
     if (s.blocks.length === 0) errors.push(`scene ${s.id} has no blocks`);
+    if (s.origin !== undefined && (where !== 'cold storage' || !isOrigin(s.origin))) errors.push(`scene ${s.id} has an invalid origin`);
     for (const b of s.blocks) {
       if (b.type === 'quote' && b.paragraphs.length === 0) errors.push(`scene ${s.id} has an empty quote`);
       const paras = b.type === 'paragraph' ? [b.content] : b.type === 'quote' ? b.paragraphs : [];
@@ -183,5 +200,12 @@ export function countWords(text: string): number {
 export function manuscriptWords(m: Manuscript): number {
   let n = 0;
   for (const c of m.chapters) for (const s of c.scenes) n += countWords(sceneText(s));
+  return n;
+}
+
+/** Every word of prose the file holds: the manuscript and Cold Storage (what the save guard protects). */
+export function fileWords(m: Manuscript): number {
+  let n = manuscriptWords(m);
+  for (const s of m.coldStorage) n += countWords(sceneText(s));
   return n;
 }

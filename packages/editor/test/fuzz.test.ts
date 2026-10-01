@@ -24,6 +24,13 @@ import {
   addChapter,
   moveChapter,
   moveScene,
+  deleteChapter,
+  deleteScene,
+  moveToColdStorage,
+  restoreFromColdStorage,
+  openParked,
+  closeParked,
+  parkedKey,
   addScene,
   BOOK_TITLE,
   setLink,
@@ -46,7 +53,12 @@ type Op =
   | { kind: 'replace'; query: string; text: string }
   | { kind: 'rename'; target: number; name: string }
   | { kind: 'add'; what: 'scene' | 'chapter' | 'chapter-after'; target: number }
-  | { kind: 'move'; what: 'scene' | 'chapter'; a: number; b: number; index: number };
+  | { kind: 'move'; what: 'scene' | 'chapter'; a: number; b: number; index: number }
+  | { kind: 'remove'; what: 'scene' | 'chapter'; a: number }
+  | { kind: 'park'; a: number }
+  | { kind: 'unpark'; a: number; b: number; index: number; home: boolean }
+  | { kind: 'open'; a: number }
+  | { kind: 'close' };
 
 const unit = fc.double({ min: 0, max: 1, noNaN: true });
 const op: fc.Arbitrary<Op> = fc.oneof(
@@ -57,6 +69,11 @@ const op: fc.Arbitrary<Op> = fc.oneof(
   { weight: 1, arbitrary: fc.constantFrom<Op>({ kind: 'bold' }, { kind: 'italic' }, { kind: 'quote' }, { kind: 'link' }, { kind: 'unlink' }, { kind: 'pause' }, { kind: 'name' }, { kind: 'split' }, { kind: 'undo' }, { kind: 'redo' }) },
   { weight: 1, arbitrary: fc.tuple(unit, unit).map(([a, b]): Op => ({ kind: 'paste', a, b })) },
   { weight: 1, arbitrary: fc.tuple(unit, unit, fc.constantFrom('', 'x')).map(([a, b, text]): Op => ({ kind: 'raw', a, b, text })) },
+  { weight: 1, arbitrary: fc.tuple(fc.constantFrom<'scene' | 'chapter'>('scene', 'chapter'), unit).map(([what, a]): Op => ({ kind: 'remove', what, a })) },
+  { weight: 1, arbitrary: unit.map((a): Op => ({ kind: 'park', a })) },
+  { weight: 1, arbitrary: fc.tuple(unit, unit, fc.integer({ min: 0, max: 5 }), fc.boolean()).map(([a, b, index, home]): Op => ({ kind: 'unpark', a, b, index, home })) },
+  { weight: 2, arbitrary: unit.map((a): Op => ({ kind: 'open', a })) },
+  { weight: 1, arbitrary: fc.constant<Op>({ kind: 'close' }) },
   { weight: 2, arbitrary: fc.tuple(fc.constantFrom<'scene' | 'chapter'>('scene', 'chapter'), unit, unit, fc.integer({ min: 0, max: 5 })).map(([what, a, b, index]): Op => ({ kind: 'move', what, a, b, index })) },
   { weight: 1, arbitrary: fc.tuple(fc.constantFrom<'scene' | 'chapter' | 'chapter-after'>('scene', 'chapter', 'chapter-after'), unit).map(([what, target]): Op => ({ kind: 'add', what, target })) },
   { weight: 1, arbitrary: fc.tuple(unit, fc.constantFrom('', '  ', 'Dawn', 'Two', 'a\nb', ' x ')).map(([target, name]): Op => ({ kind: 'rename', target, name })) },
@@ -88,7 +105,7 @@ describe('editing fuzzer', () => {
       fc.property(fc.array(op, { minLength: 1, maxLength: 40 }), (ops) => {
         const h = harness(richManuscript());
         const original = h.state.doc;
-        const cold = JSON.stringify(h.model().coldStorage);
+        let cold = JSON.stringify(h.model().coldStorage);
 
         for (const o of ops) {
           const sigBefore = h.signature();
@@ -181,6 +198,49 @@ describe('editing fuzzer', () => {
               expect(after.chapters.every((c) => c.scenes.length > 0)).toBe(true);
               break;
             }
+            case 'remove': {
+              const before = docToModel(h.state.doc);
+              const pick = <T,>(xs: T[], u: number) => xs[Math.min(xs.length - 1, Math.floor(u * xs.length))]!;
+              const gone = o.what === 'scene' ? [pick(before.chapters.flatMap((c) => c.scenes), o.a).id] : pick(before.chapters, o.a).scenes.map((x) => x.id);
+              if (o.what === 'scene') h.run(deleteScene(gone[0]!));
+              else h.run(deleteChapter(pick(before.chapters, o.a).id));
+              structural = true;
+              const after = docToModel(h.state.doc);
+              // Every scene not deleted is still there, word for word; the only new
+              // scene allowed is the empty one left in an emptied chapter or book.
+              const scenes = (mm: typeof before) => new Map(mm.chapters.flatMap((c) => c.scenes).map((x) => [x.id, JSON.stringify(x)]));
+              const was = scenes(before);
+              const now = scenes(after);
+              for (const [id, json] of was) if (!gone.includes(id)) expect(now.get(id)).toBe(json);
+              const added = [...now.keys()].filter((id) => !was.has(id));
+              expect(added.length).toBeLessThanOrEqual(1);
+              for (const id of added) expect(JSON.parse(now.get(id)!).blocks).toEqual([{ type: 'paragraph', content: [] }]);
+              for (const id of gone) expect(now.has(id)).toBe(false);
+              expect(after.chapters.length).toBeGreaterThan(0);
+              expect(after.chapters.every((c) => c.scenes.length > 0)).toBe(true);
+              break;
+            }
+            case 'park': {
+              const scenes = docToModel(h.state.doc).chapters.flatMap((c) => c.scenes);
+              h.run(moveToColdStorage(scenes[Math.min(scenes.length - 1, Math.floor(o.a * scenes.length))]!.id));
+              structural = true;
+              break;
+            }
+            case 'unpark': {
+              const m0 = docToModel(h.state.doc);
+              if (!m0.coldStorage.length) break;
+              const id = m0.coldStorage[Math.min(m0.coldStorage.length - 1, Math.floor(o.a * m0.coldStorage.length))]!.id;
+              const chapter = m0.chapters[Math.min(m0.chapters.length - 1, Math.floor(o.b * m0.chapters.length))]!.id;
+              h.run(o.home ? restoreFromColdStorage(id) : restoreFromColdStorage(id, chapter, o.index));
+              structural = true;
+              break;
+            }
+            case 'open': {
+              const parked = docToModel(h.state.doc).coldStorage;
+              if (parked.length) h.run(openParked(parked[Math.min(parked.length - 1, Math.floor(o.a * parked.length))]!.id));
+              break;
+            }
+            case 'close': h.run(closeParked(posAt(h.state, 0.3))); break;
             case 'raw': {
               // Arbitrary low-level edits: the guard must refuse any that touch structure.
               const a = Math.min(posAt(h.state, o.a), posAt(h.state, o.b));
@@ -196,7 +256,15 @@ describe('editing fuzzer', () => {
           const m = docToModel(h.state.doc);
           expect(validate(m)).toEqual([]);
           expect(() => verifyRoundTrip(m)).not.toThrow();
-          expect(JSON.stringify(m.coldStorage)).toBe(cold);
+          // Cold Storage changes only through commands (structural ops, undo/redo),
+          // or in the text of the one scene open on the page.
+          const open = parkedKey.getState(h.state);
+          const others = (json: string) => JSON.stringify((JSON.parse(json) as Array<{ id: string }>).filter((x) => x.id !== open));
+          if (!structural) expect(others(JSON.stringify(m.coldStorage))).toBe(others(cold));
+          cold = JSON.stringify(m.coldStorage);
+          // The selection is never inside Cold Storage, except in the open scene.
+          const coldAt = h.state.doc.content.size - h.state.doc.lastChild!.nodeSize;
+          if (!open) expect(h.state.selection.to).toBeLessThanOrEqual(coldAt);
         }
 
         while (undoDepth(h.state) > 0) h.run(undo);

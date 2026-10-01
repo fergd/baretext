@@ -31,7 +31,8 @@ const nodes: Record<string, NodeSpec> = {
   scene: {
     // Every scene ends in a paragraph, so there is always a writable line.
     content: 'scene_heading? block* paragraph',
-    attrs: { id: { default: '', validate: 'string' }, link: { default: null } },
+    // origin: Cold Storage only — { chapter, index } it came from (see SceneOrigin).
+    attrs: { id: { default: '', validate: 'string' }, link: { default: null }, origin: { default: null } },
     isolating: true,
     defining: true,
     toDOM: (n): DOMOutputSpec => ['section', { class: 'bt-scene', 'data-id': n.attrs.id }, 0],
@@ -71,13 +72,12 @@ const nodes: Record<string, NodeSpec> = {
     toDOM: (): DOMOutputSpec => ['blockquote', { class: 'bt-quote' }, 0],
   },
 
-  // Parked scenes. An atom with no rendered content: it takes no space, and
-  // the caret and selection can never enter it.
+  // Parked scenes. Hidden, and out of the caret's reach, except the one scene
+  // opened on the page (cold.ts); otherwise they change only through commands.
   cold_storage: {
     content: 'scene*',
-    atom: true,
     selectable: false,
-    toDOM: (): DOMOutputSpec => ['div', { class: 'bt-cold-storage', hidden: '' }],
+    toDOM: (): DOMOutputSpec => ['div', { class: 'bt-cold-storage' }, 0],
   },
 
   text: { group: 'inline' },

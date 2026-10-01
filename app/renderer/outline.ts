@@ -22,10 +22,23 @@ export interface ChapterEntry {
   scenes: SceneEntry[];
 }
 
+export interface ParkedEntry {
+  id: string;
+  name: string | null;
+  pos: number;
+  words: number;
+  /** Where it came from, if remembered: the chapter's current number, or null if that chapter is gone. */
+  from: { chapter: number | null; index: number } | null;
+}
+
 export interface Outline {
   signature: string;
   chapters: ChapterEntry[];
+  /** Words in the manuscript (Cold Storage not counted). */
   words: number;
+  /** Cold Storage, newest first. */
+  parked: ParkedEntry[];
+  parkedWords: number;
 }
 
 const sceneWords = new WeakMap<PMNode, number>();
@@ -68,7 +81,25 @@ export function outlineOf(doc: PMNode): Outline {
     });
     chapters.push(entry);
   });
-  const outline = { signature: structureSignature(doc), chapters, words };
+  const parked: ParkedEntry[] = [];
+  let parkedWords = 0;
+  const cold = doc.lastChild!;
+  const coldPos = doc.content.size - cold.nodeSize;
+  cold.forEach((scene, offset) => {
+    const heading = scene.firstChild?.type === schema.nodes.scene_heading ? scene.firstChild : null;
+    const origin = scene.attrs.origin as { chapter: string; index: number } | null;
+    const chapter = origin ? chapters.find((c) => c.id === origin.chapter) : undefined;
+    const w = wordsIn(scene);
+    parkedWords += w;
+    parked.push({
+      id: scene.attrs.id,
+      name: heading ? heading.textContent : null,
+      pos: coldPos + 1 + offset,
+      words: w,
+      from: origin ? { chapter: chapter?.number ?? null, index: origin.index } : null,
+    });
+  });
+  const outline = { signature: structureSignature(doc), chapters, words, parked, parkedWords };
   outlines.set(doc, outline);
   return outline;
 }

@@ -20,7 +20,8 @@ import {
 } from './commands';
 import { modelToDoc } from './convert';
 import { structureDecorations, type Placeholders } from './decorations';
-import { lineBreakSanitizer, selectionOutsideColdStorage } from './sanitize';
+import { lineBreakSanitizer } from './sanitize';
+import { parkedView } from './cold';
 import { structureGuard, type GuardOptions } from './structure';
 import { dropEmptySceneNames } from './naming';
 import { findHighlights } from './find';
@@ -28,6 +29,8 @@ import { findHighlights } from './find';
 export * from './schema';
 export * from './convert';
 export * from './commands';
+export { BOOK_TITLE, rename, addScene, addChapter, moveScene, moveChapter, deleteScene, deleteChapter } from './outline-commands';
+export { parkedKey, openParked, closeParked, moveToColdStorage, restoreFromColdStorage } from './cold';
 export * from './structure';
 export * from './decorations';
 export * from './format';
@@ -81,7 +84,7 @@ export function manuscriptPlugins(options: EditorOptions = {}): Plugin[] {
   return [
     structureGuard(options),
     lineBreakSanitizer(),
-    selectionOutsideColdStorage(),
+    parkedView(),
     dropEmptySceneNames(),
     inputRules({ rules: [emDash] }),
     safeReplace,

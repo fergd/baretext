@@ -57,12 +57,13 @@ const manuscript: fc.Arbitrary<Manuscript> = fc
   .record({
     title: maybeText,
     chapters: fc.array(fc.record({ title: maybeText, scenes: fc.array(scene, { minLength: 1, maxLength: 4 }) }), { minLength: 1, maxLength: 4 }),
-    cold: fc.array(scene, { maxLength: 3 }),
+    cold: fc.array(fc.tuple(scene, fc.option(fc.tuple(fc.constantFrom('ca', 'cb'), fc.nat(9)), { nil: null })), { maxLength: 3 }),
   })
   .map(({ title, chapters, cold }) => ({
     title,
     chapters: chapters.map((c) => ({ id: id(), title: c.title, scenes: c.scenes.map((s) => ({ id: id(), ...s })) })),
-    coldStorage: cold.map((s) => ({ id: id(), ...s })),
+    // Parked scenes may remember where they came from (Restore puts them back).
+    coldStorage: cold.map(([s, from]) => ({ id: id(), ...s, ...(from ? { origin: { chapter: from[0], index: from[1] } } : {}) })),
   }));
 
 describe('round trip (own files)', () => {

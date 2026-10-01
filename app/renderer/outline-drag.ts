@@ -22,6 +22,8 @@ interface Drop {
   into: boolean;
   /** It would land where it already is. */
   noop: boolean;
+  /** Into Cold Storage (a manuscript scene dropped on its section). */
+  cold?: boolean;
 }
 
 interface Drag {
@@ -47,6 +49,9 @@ export interface DragHost {
   canDrag(): boolean;
   moveScene(sceneId: string, chapterId: string, index: number): boolean;
   moveChapter(chapterId: string, index: number): boolean;
+  /** Cold Storage: park a scene; put a parked one back at a place. */
+  park(sceneId: string): void;
+  restore(sceneId: string, chapterId: string, index: number): void;
 }
 
 export class OutlineDrag {
@@ -77,7 +82,7 @@ export class OutlineDrag {
     if (e.button !== 0 || !this.h.canDrag()) return;
     const target = e.target as HTMLElement;
     const row = target.closest<HTMLElement>('.bt-outline-row');
-    if (!row || target.closest('input, .bt-outline-add, .bt-outline-toggle')) return;
+    if (!row || row.dataset.kind === 'cold' || target.closest('input, .bt-outline-actions, .bt-outline-toggle')) return;
     const start = { x: e.clientX, y: e.clientY };
     const move = (ev: PointerEvent) => {
       if (this.drag) this.dragTo(ev.clientY);
@@ -95,7 +100,7 @@ export class OutlineDrag {
   }
 
   private start(row: HTMLElement, e: PointerEvent) {
-    const kind = row.dataset.kind as 'scene' | 'chapter';
+    const kind = row.dataset.kind === 'chapter' ? 'chapter' : 'scene'; // a parked row drags like a scene
     const box = row.getBoundingClientRect();
     const ghost = row.cloneNode(true) as HTMLElement;
     ghost.classList.add('bt-outline-ghost');
@@ -141,23 +146,34 @@ export class OutlineDrag {
     }
   }
 
-  /** A scene lands before/after a scene row, or at the end of a chapter (over its row). */
+  /**
+   * A scene lands before/after a scene row, or at the end of a chapter (over
+   * its row). A manuscript scene dropped on Cold Storage is parked; a parked
+   * scene dropped in the manuscript is restored there.
+   */
   private sceneDrop(sceneId: string, y: number): Drop | null {
     const outline = this.h.outline();
-    const source = outline?.chapters.find((c) => c.scenes.some((sc) => sc.id === sceneId));
-    if (!outline || !source) return null;
-    const fromIndex = source.scenes.findIndex((sc) => sc.id === sceneId);
+    if (!outline) return null;
+    const parked = outline.parked.some((p) => p.id === sceneId);
+    const source = outline.chapters.find((c) => c.scenes.some((sc) => sc.id === sceneId));
+    if (!parked && !source) return null;
+    const fromIndex = source ? source.scenes.findIndex((sc) => sc.id === sceneId) : -1;
     for (const row of this.h.rows()) {
       const b = row.getBoundingClientRect();
       if (y < b.top || y >= b.bottom) continue;
+      if (row.dataset.kind === 'cold' || row.dataset.kind === 'parked') {
+        // Onto Cold Storage: parks a manuscript scene; a parked one stays put.
+        const head = this.h.rowFor(row.dataset.kind === 'cold' ? row.dataset.id! : row.dataset.chapter!)!;
+        return { chapterId: head.dataset.id!, index: 0, line: head.getBoundingClientRect().bottom, into: true, noop: parked, cold: true };
+      }
       const into = row.dataset.kind === 'chapter';
       const chapterId = into ? row.dataset.id! : row.dataset.chapter!;
       const chapter = outline.chapters.find((c) => c.id === chapterId)!;
       const after = y >= b.top + b.height / 2;
       // Position among the chapter's scenes as they are now.
       const slot = into ? chapter.scenes.length : chapter.scenes.findIndex((sc) => sc.id === row.dataset.id) + (after ? 1 : 0);
-      const same = chapterId === source.id;
-      if (!same && source.scenes.length === 1) return null; // a chapter always keeps a scene
+      const same = chapterId === source?.id;
+      if (source && !same && source.scenes.length === 1) return null; // a chapter always keeps a scene
       const index = same && slot > fromIndex ? slot - 1 : slot;
       return { chapterId, index, line: into || after ? b.bottom : b.top, into, noop: same && index === fromIndex };
     }
@@ -225,7 +241,10 @@ export class OutlineDrag {
     const before = new Map(this.h.rows().map((r) => [r.dataset.id!, r.getBoundingClientRect().top]));
     const ghostTop = d.ghost.getBoundingClientRect().top;
     d.ghost.remove();
-    const moved = d.kind === 'scene' ? this.h.moveScene(d.id, drop.chapterId, drop.index) : this.h.moveChapter(d.id, drop.index);
+    let moved = true;
+    if (drop.cold) this.h.park(d.id);
+    else if (this.h.outline()?.parked.some((p) => p.id === d.id)) this.h.restore(d.id, drop.chapterId, drop.index);
+    else moved = d.kind === 'scene' ? this.h.moveScene(d.id, drop.chapterId, drop.index) : this.h.moveChapter(d.id, drop.index);
     this.h.render(true);
     if (!moved || !ms) return;
     for (const row of this.h.rows()) {

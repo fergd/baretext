@@ -10,6 +10,7 @@
 import {
   ID_PATTERN,
   emptyParagraph,
+  isOrigin,
   newId,
   normalizeRuns,
   repair,
@@ -524,6 +525,14 @@ export function parse(source: string, fallbackTitle = ''): ParseResult {
     }
     if (s.blocks.length === 0) s.blocks.push(emptyParagraph());
   });
+  // Where parked scenes came from (only trusted when well formed).
+  if (restorable && book!.origins && typeof book!.origins === 'object') {
+    for (const s of draft.coldStorage) {
+      const o = (book!.origins as Record<string, unknown>)[s.id];
+      const origin = Array.isArray(o) ? { chapter: o[0], index: o[1] } : null;
+      if (isOrigin(origin)) s.origin = origin;
+    }
+  }
 
   if (legacy) {
     // A link group needs at least two members (as in the previous app).

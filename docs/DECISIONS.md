@@ -514,8 +514,8 @@ Build the main app first. When integrations are built, follow this design.
   addition to the size thresholds (structure keeps a short or many-scened
   book's file large even with every word gone). Word counts of the last
   write are remembered, so the previous file is parsed at most once.
-  **Cold Storage must account for this:** parked prose doesn't count as
-  manuscript words, so parking most of a book at once would trip the guard.
+  The guard counts every word in the file, Cold Storage included (§14), so
+  parking scenes never trips it.
 - **Problems are sheets on the window** (`dialog.showMessageBox(win, …)`),
   never app-blocking alerts.
 - **Launch explains a last manuscript that didn't reopen** (moved/renamed,
@@ -550,3 +550,69 @@ Build the main app first. When integrations are built, follow this design.
   caret or by reading back; the rows' text brightens and dims with it.
   After a rebuild (structure change, reorder) it snaps. When the current
   row leaves the list's view, the list scrolls smoothly to it.
+
+## 13. Outline: delete (2026-10-01)
+
+- **Two steps (spec §0.8):** a trash button on each row (with + on chapter
+  rows) takes the count's place on hover or keyboard focus; ⌫/Delete on a
+  focused row does the same. The first press **arms** the row (red tint,
+  "Delete 1.3 “Name”?" / "Delete chapter 2 and its 4 scenes?", a red
+  Delete button); a second press (click, ↵, ⌫ or Delete) deletes. Esc,
+  clicking anywhere else, any other key, or 4 seconds cancels.
+- **Safety:** a snapshot ("Before deleting …") is taken first; the delete
+  is one ⌘Z; a toast says what was deleted and how many words, with
+  "⌘Z brings it back". Deleting most of a book at once trips the save guard
+  (DECISIONS §11), which asks again before writing it to disk.
+- **Structure stays valid:** deleting a chapter's only scene leaves an
+  empty scene; deleting the book's only chapter leaves an empty chapter.
+  The caret, if inside, moves to the nearest line of prose.
+- Model: `deleteScene(id)`, `deleteChapter(id)` (fuzzed: every scene not
+  deleted survives word for word).
+
+## 14. Cold Storage (2026-10-01, user)
+
+- **One document.** Parked scenes stay in the manuscript document (at its
+  end), hidden. Opening one shows it alone on the page and makes it
+  editable: one undo history, one save, the same guards. The structure
+  guard lets text change only inside the open scene; everything else in
+  Cold Storage changes only through commands (`packages/editor/src/cold.ts`).
+- **Wording:** "Move to Cold Storage" / "Restore" (user). Toasts: "Moved
+  2.2 “Name” to Cold Storage. ⌘Z undoes it." / "Restored “Name” as 2.2."
+- **Snowflake** is Cold Storage's mark (user): the section header, the
+  "Move to Cold Storage" row action and the open scene's bar
+  (`app/renderer/icons.ts`, shared interface icons).
+- **Each theme has its own Cold Storage blue** (`--color-cold`; user):
+  Dracula cyan, Dark glacier `#9cc2d9`, Light ink `#2c5f86`, Grove aqua
+  `#85beb6`, High Contrast ice `#9fdcff`. Used only for the heading areas
+  (the open scene's bar, tinted 12%; the outline's section heading in the
+  blue) and the background (the open scene's page, washed 6%). Prose and
+  titles keep the theme's colors. The theme test checks the blue on its
+  bar and in the outline, and prose/titles on the washed page (AA; AAA in
+  High Contrast).
+- **Moving:** outline row action (snowflake, on hover/focus), dragging a
+  scene onto the Cold Storage section, palette "Move scene to Cold
+  Storage", Format → Move Scene to Cold Storage. Newest first. A chapter's
+  only scene leaves an empty one. One ⌘Z.
+- **Where it came from is remembered** (chapter + position) in the file's
+  bookkeeping comment (`origins`; older files without it read unchanged).
+  **Restore** puts it back there (end of the last chapter if that chapter
+  is gone); dragging a parked scene into the outline restores it at that
+  spot. It forgets its origin once restored.
+- **The outline's Cold Storage section** follows the chapters (hidden when
+  empty): folding header with count and words; parked rows show name and
+  words (origin in the tooltip) with Restore and Delete (two steps); F2 /
+  double-click renames. Click (or ↵) opens one.
+- **Open on the page** (user: page shows only that scene): a slim bar —
+  "COLD STORAGE · Name", **Restore**, **Back to manuscript (Esc)**. The
+  caret opens on its first line of prose. The status bar counts the
+  scene's words; the breadcrumb reads "Cold Storage · Name"; the spine
+  hides; the outline marks the row. Esc (after any open surface) returns
+  to exactly where the writer was (caret and scroll); so does deleting the
+  open scene. Going anywhere in the manuscript (outline, palette jump,
+  new scene/chapter, Find) closes it first.
+- **Kept out of the manuscript:** word counts, find, the spine (export and
+  print will exclude it unless opted in).
+- **Rename and delete work on parked scenes** (this reverses the earlier
+  "parked scenes are refused" in rename).
+- Known: undoing, after going back, an edit made inside a parked scene
+  changes the (hidden) parked text; the outline's counts show it.

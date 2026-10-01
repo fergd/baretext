@@ -4,7 +4,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { manuscriptWords, parse, verifyRoundTrip, type Manuscript } from '@baretext/format';
+import { fileWords, parse, verifyRoundTrip, type Manuscript } from '@baretext/format';
 
 export const RECOVERY_KEEP = 100;
 
@@ -20,8 +20,8 @@ export function isDestructive(oldBytes: number, newBytes: number): boolean {
 }
 
 /**
- * The same guard measured in prose: removing 90% or more of a manuscript's
- * words at once. (Titles and identities keep a short or many-scened book's
+ * The same guard measured in prose: removing 90% or more of the words in
+ * the file at once (Cold Storage counts: parking a scene keeps its words). (Titles and identities keep a short or many-scened book's
  * file large even when every word of prose is gone, so size alone misses it.)
  */
 export function isGutted(oldWords: number, newWords: number): boolean {
@@ -35,7 +35,7 @@ function wordsIn(filePath: string, data: Buffer): number | null {
   const known = knownWords.get(filePath);
   if (known?.data.equals(data)) return known.words;
   try {
-    const words = manuscriptWords(parse(data.toString('utf8')).manuscript);
+    const words = fileWords(parse(data.toString('utf8')).manuscript);
     knownWords.set(filePath, { data, words });
     return words;
   } catch {
@@ -109,13 +109,13 @@ export async function saveManuscript(filePath: string, manuscript: Manuscript, o
     const previous = await readIfExists(filePath);
     if (previous && previous.equals(data)) return { ok: true, bytes: data.length, skipped: true };
     const gutting = previous && !options.force &&
-      (isDestructive(previous.length, data.length) || isGutted(wordsIn(filePath, previous) ?? 0, manuscriptWords(manuscript)));
+      (isDestructive(previous.length, data.length) || isGutted(wordsIn(filePath, previous) ?? 0, fileWords(manuscript)));
     if (gutting) {
       return { ok: false, reason: 'destructive', message: 'Save refused: this change removes most of the manuscript. Your text is safe in the app.' };
     }
     if (previous) await keepRecoveryCopy(options.recoveryRoot, filePath, previous);
     await atomicWrite(filePath, data);
-    knownWords.set(filePath, { data, words: manuscriptWords(manuscript) });
+    knownWords.set(filePath, { data, words: fileWords(manuscript) });
     return { ok: true, bytes: data.length };
   } catch (e) {
     return { ok: false, reason: 'io', message: (e as Error).message };

@@ -98,3 +98,18 @@ describe('isDestructive (size)', () => {
     expect(isDestructive(4095, 10)).toBe(false);
   });
 });
+
+describe('the guard and Cold Storage', () => {
+  it('moving most of a book into Cold Storage is not a deletion (the words are still in the file)', async () => {
+    const dir = tmp();
+    const file = path.join(dir, 'B.md');
+    const m = book(10, 10); // 10 scenes of prose
+    await saveManuscript(file, m, { recoveryRoot: path.join(dir, 'rec') });
+    const parked: Manuscript = {
+      ...m,
+      chapters: [{ ...m.chapters[0]!, scenes: [m.chapters[0]!.scenes[0]!] }],
+      coldStorage: m.chapters[0]!.scenes.slice(1).map((s, i) => ({ ...s, origin: { chapter: 'c1', index: i + 1 } })),
+    };
+    expect(await saveManuscript(file, parked, { recoveryRoot: path.join(dir, 'rec') })).toMatchObject({ ok: true });
+  });
+});

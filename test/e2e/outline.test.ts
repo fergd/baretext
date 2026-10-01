@@ -275,7 +275,7 @@ test('adding: + on a chapter adds a scene there and goes to it; New chapter adds
     const t = bt(page);
     await page.click('[data-ref="sidebar"]');
     const chapter2 = row(page, 'Chapter 2 ');
-    const add = chapter2.locator('.bt-outline-add');
+    const add = chapter2.locator('.bt-outline-action[data-action="add"]');
     await expect(add).toBeHidden();
     await chapter2.hover();
     await expect(add).toBeVisible();
@@ -483,6 +483,95 @@ test('reading back with the outline open: the current-scene highlight glides to 
     await page.waitForFunction(() => document.getAnimations().length === 0);
     const [h, row] = await page.$$eval('.bt-outline-current, .bt-outline-row[aria-current="location"]', (els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
     expect(h).toBe(row);
+  } finally {
+    await app.close();
+  }
+});
+
+// ── delete (two steps) ──
+const armed = (page: Page) => page.locator('.bt-outline-row[data-arming="true"]');
+
+test('delete a scene with the mouse: arm, then confirm; a snapshot first, ⌘Z brings it back', async () => {
+  const { app, page } = await launch({ file: { name: 'O.md', content: FILE } });
+  try {
+    await openOutline(page);
+    const before = await model(page);
+    const target = row(page, '1.2 ');
+    await target.hover();
+    await target.locator('.bt-outline-action[data-action="delete"]').click();
+    await expect(armed(page)).toHaveCount(1);
+    await expect(armed(page).locator('.bt-outline-name')).toHaveText('Delete 1.2 “Scene 1.2”?');
+    expect(await model(page)).toEqual(before); // nothing yet
+    await armed(page).getByRole('button', { name: /Confirm: delete 1\.2/ }).click();
+    expect((await order(page))[0]).toEqual(['Chapter 1', 'Scene 1.1', 'Scene 1.3']);
+    await expect(page.locator('[data-ref="toast"]')).toContainText('Deleted 1.2 “Scene 1.2”');
+    await expect(page.locator('[data-ref="toast"]')).toContainText('⌘Z brings it back');
+    expect(await bt(page).hasFocus()).toBe(true);
+    // The manuscript as it was is in History.
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.webContents.send('menu:command', 'history'));
+    await expect(page.locator('.bt-history-row').first()).toContainText('Before deleting 1.2 “Scene 1.2”');
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Meta+z');
+    expect(await model(page)).toEqual(before);
+  } finally {
+    await app.close();
+  }
+});
+
+test('delete with the keyboard: ⌫ arms, Esc cancels, ⌫ then ↵ deletes a whole chapter', async () => {
+  const { app, page } = await launch({ file: { name: 'O.md', content: FILE } });
+  try {
+    await openOutline(page);
+    await page.keyboard.press('Meta+Alt+Backslash'); // focus on 1.1
+    await page.keyboard.press('ArrowUp'); // Chapter 1
+    await page.keyboard.press('Backspace');
+    await expect(armed(page).locator('.bt-outline-name')).toHaveText('Delete chapter 1 and its 3 scenes?');
+    await page.keyboard.press('Escape');
+    await expect(armed(page)).toHaveCount(0);
+    expect((await bt(page).outline()).focused).toBe(true); // Esc only cancelled
+    expect((await model(page)).chapters).toHaveLength(4);
+    await page.keyboard.press('Backspace');
+    await page.keyboard.press('Enter');
+    expect((await order(page)).map((c) => c[0])).toEqual(['Chapter 2', 'Chapter 3', 'Chapter 4']);
+    await expect(page.locator('[data-ref="toast"]')).toContainText('Deleted chapter 1 “Chapter 1”');
+  } finally {
+    await app.close();
+  }
+});
+
+test('an armed delete is cancelled by clicking elsewhere or by waiting', async () => {
+  const { app, page } = await launch({ file: { name: 'O.md', content: FILE } });
+  try {
+    await openOutline(page);
+    const target = row(page, '2.1 ');
+    await target.hover();
+    await target.locator('.bt-outline-action[data-action="delete"]').click();
+    await expect(armed(page)).toHaveCount(1);
+    await page.locator('.bt-scroller').click({ position: { x: 600, y: 300 } });
+    await expect(armed(page)).toHaveCount(0);
+    await target.hover();
+    await target.locator('.bt-outline-action[data-action="delete"]').click();
+    await expect(armed(page)).toHaveCount(1);
+    await expect(armed(page)).toHaveCount(0, { timeout: 6000 }); // disarms by itself after a few seconds
+    expect((await model(page)).chapters[1].scenes).toHaveLength(3);
+  } finally {
+    await app.close();
+  }
+});
+
+test("deleting a chapter's only scene leaves the chapter with an empty scene", async () => {
+  const file = '# One\n\n## Only\n\nThe only scene.\n\n# Two\n\nMore.\n';
+  const { app, page } = await launch({ file: { name: 'S.md', content: file } });
+  try {
+    await openOutline(page);
+    const target = row(page, '1.1 ');
+    await target.hover();
+    await target.locator('.bt-outline-action[data-action="delete"]').click();
+    await armed(page).getByRole('button', { name: /Confirm/ }).click();
+    const m = await model(page);
+    expect(m.chapters[0].title).toBe('One');
+    expect(m.chapters[0].scenes).toHaveLength(1);
+    expect(JSON.stringify(m)).not.toContain('The only scene');
   } finally {
     await app.close();
   }

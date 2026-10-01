@@ -16,6 +16,10 @@ export interface CommandContext {
   isOn(toggle: 'outline' | 'typewriter' | 'focus'): boolean;
   fileCommand(command: 'new' | 'open'): void;
   reveal(): void;
+  /** The parked scene open on the page, if any. */
+  parked(): string | null;
+  leaveParked(): void;
+  restoreParked(): void;
 }
 
 export function commandsView(ctx: CommandContext): PaletteView {
@@ -36,6 +40,13 @@ export function commandsView(ctx: CommandContext): PaletteView {
       const here = view ? currentScene(view.state) : null;
       if (here) {
         items.push({ id: 'name-scene', group: 'Insert', label: here.scene.name ? 'Rename scene' : 'Name scene', keywords: 'title heading rename scene name', run: () => ctx.run('name-scene') });
+        items.push({ id: 'park-scene', group: 'Insert', label: 'Move scene to Cold Storage', keywords: 'park cut archive set aside cold storage', run: () => ctx.run('park-scene') });
+      }
+      if (ctx.parked()) {
+        items.unshift(
+          { id: 'leave-parked', group: 'Cold Storage', label: 'Back to manuscript', keywords: 'return close cold storage', keys: 'Esc', run: () => ctx.leaveParked() },
+          { id: 'restore-parked', group: 'Cold Storage', label: 'Restore this scene', keywords: 'put back unpark cold storage', run: () => ctx.restoreParked() },
+        );
       }
       if (selection) {
         items.push(

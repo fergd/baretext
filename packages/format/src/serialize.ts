@@ -40,6 +40,8 @@ export interface Bookkeeping {
   /** Manuscript scenes in order, then cold-storage scenes. */
   scenes: string[];
   links: Record<string, string>;
+  /** Cold Storage scenes' origins: scene id → [chapter id, index]. Omitted when there are none. */
+  origins?: Record<string, [string, number]>;
 }
 
 // Characters that are markup anywhere in a line.
@@ -198,6 +200,8 @@ export function serialize(input: Manuscript): string {
     scenes: allScenes.map((s) => s.id),
     links,
   };
+  const origins = Object.fromEntries(m.coldStorage.filter((s) => s.origin).map((s) => [s.id, [s.origin!.chapter, s.origin!.index]]));
+  if (Object.keys(origins).length) book.origins = origins as Record<string, [string, number]>;
   out.push(`<!-- baretext ${JSON.stringify(book)} -->`, '');
   return out.join('\n');
 }

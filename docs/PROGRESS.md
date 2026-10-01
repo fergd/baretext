@@ -499,3 +499,31 @@ export/print · integrations (DECISIONS §7).
   back or moving; the list scrolls smoothly to it. (Also fixed: the
   "scroll the current scene into view" math was off by the header height.)
 - Tests: 294 unit, 85 end-to-end.
+
+## 2026-10-01 — Outline: delete
+- Two-step delete for scenes and chapters (trash on hover/focus, ⌫ on a
+  focused row): arm, then confirm; snapshot first; one ⌘Z; toast with
+  word count. A chapter's last scene / the book's last chapter leaves an
+  empty one.
+- Model commands with 8 unit tests; fuzzed (clean at 30,000 cases).
+- Tests: 302 unit, 89 end-to-end.
+
+## 2026-10-01 — Cold Storage
+- Move scenes to Cold Storage (row action, drag, palette, Format menu);
+  restore to where they came from (remembered in the file) or by dragging;
+  open a parked scene alone on the page to read and edit it; Esc returns
+  exactly where you were. Outline section with counts; rename and two-step
+  delete for parked scenes. Parked words never count, and never trip the
+  save guard.
+- Format: optional `origin` on parked scenes, stored as `origins` in the
+  bookkeeping comment; fuzzed in the round-trip tests.
+- Editor: one-document design (`cold.ts`): the open parked scene is the
+  only editable part of Cold Storage; structure commands moved to
+  `outline-commands.ts`. Fuzzer extended (park, restore, open, close,
+  typing in the open scene): clean at 60,000 cases.
+- Found by tests while building: opening put the caret in the scene's
+  name; deleting the open parked scene did nothing. Both fixed.
+- Benchmark unchanged (typing p95 5.5–7 ms on 150k words; save 55 ms).
+- Tests: 321 unit, 95 end-to-end.
+- Cold Storage: snowflake mark; a blue per theme for its heading areas
+  and the open scene's page (contrast-tested). Tests: 326 unit, 95 e2e.
