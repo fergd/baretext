@@ -1,5 +1,5 @@
 // The narrow bridge between the UI and the privileged side (spec §14.1).
-import { EXPORT_FORMATS, type ExportBook, type ExportFormat, type Manuscript } from '@baretext/format';
+import { EXPORT_FORMATS, type Block, type ExportBook, type ExportFormat, type Manuscript } from '@baretext/format';
 import type { Note } from './notes';
 
 export interface OpenedDocument {
@@ -87,16 +87,69 @@ export function validExport(raw: unknown): ExportPrefs {
   };
 }
 
+/** Sprint setup choices, remembered between sprints. */
+export const SPRINT_KINDS = ['time', 'words'] as const;
+export type SprintKind = (typeof SPRINT_KINDS)[number];
+export interface SprintPrefs {
+  /** A sprint runs for a time, or until a word count is reached. */
+  kind: SprintKind;
+  minutes: number;
+  /** The target for a words sprint. */
+  words: number;
+  /** A time sprint's word goal; null follows the length (~20 words a minute). */
+  goal: number | null;
+  /** Sprints in the session. */
+  rounds: number;
+  /** Minutes between sprints; 0 for none. */
+  breakMinutes: number;
+}
+
+export const DEFAULT_SPRINT: SprintPrefs = { kind: 'time', minutes: 15, words: 500, goal: null, rounds: 1, breakMinutes: 5 };
+export const SPRINT_LIMITS = { minutes: [1, 180], words: [10, 20000], goal: [1, 20000], rounds: [1, 8], breakMinutes: [0, 60] } as const;
+
+/** Sprint choices from untrusted input (anything malformed falls back to the default). */
+export function validSprint(raw: unknown): SprintPrefs {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const int = (key: keyof typeof SPRINT_LIMITS, fallback: number) => {
+    const v = r[key];
+    const [min, max] = SPRINT_LIMITS[key];
+    return Number.isInteger(v) && (v as number) >= min && (v as number) <= max ? (v as number) : fallback;
+  };
+  return {
+    kind: SPRINT_KINDS.includes(r.kind as SprintKind) ? (r.kind as SprintKind) : DEFAULT_SPRINT.kind,
+    minutes: int('minutes', DEFAULT_SPRINT.minutes),
+    words: int('words', DEFAULT_SPRINT.words),
+    goal: int('goal', 0) || null,
+    rounds: int('rounds', DEFAULT_SPRINT.rounds),
+    breakMinutes: int('breakMinutes', DEFAULT_SPRINT.breakMinutes),
+  };
+}
+
+/** A sprint page's lifecycle: being written; kept in Sprints; placed in a book; discarded. */
+export const SPRINT_STATUSES = ['active', 'kept', 'placed', 'discarded'] as const;
+export type SprintStatus = (typeof SPRINT_STATUSES)[number];
+export interface SprintRecord {
+  id: string;
+  status: SprintStatus;
+  started: number;
+  updated: number;
+  words: number;
+  /** The manuscript open when it was written. */
+  book: string | null;
+  prefs: SprintPrefs;
+}
+
 export type ExportResult = { ok: true; path: string } | { ok: false; canceled: true } | { ok: false; canceled?: false; message: string };
 
 export interface InitialPrefs extends AppearancePrefs {
   outline: OutlineState;
   hidden: boolean;
   export: ExportPrefs;
+  sprint: SprintPrefs;
 }
 
 export type MenuCommand =
-  | 'undo' | 'redo' | 'typewriter' | 'focus' | 'bold' | 'italic' | 'link' | 'quote' | 'split-scene' | 'split-chapter' | 'pause' | 'name-scene' | 'save' | 'palette' | 'goto' | 'find' | 'find-replace' | 'find-next' | 'find-prev' | 'history' | 'snapshot' | 'outline' | 'outline-focus' | 'new-scene' | 'new-chapter' | 'appearance' | 'park-scene' | 'add-note' | 'notes' | 'export';
+  | 'undo' | 'redo' | 'typewriter' | 'focus' | 'bold' | 'italic' | 'link' | 'quote' | 'split-scene' | 'split-chapter' | 'pause' | 'name-scene' | 'save' | 'palette' | 'goto' | 'find' | 'find-replace' | 'find-next' | 'find-prev' | 'history' | 'snapshot' | 'outline' | 'outline-focus' | 'new-scene' | 'new-chapter' | 'appearance' | 'park-scene' | 'add-note' | 'notes' | 'export' | 'sprint' | 'mode' | 'sprint-pause' | 'sprint-hide';
 
 /** A local snapshot of a manuscript (DECISIONS §6). */
 export interface SnapshotInfo {
@@ -117,6 +170,13 @@ export interface BaretextBridge {
   /** Export the book: asks where (macOS save dialog), then writes it. */
   exportBook(filePath: string, format: ExportFormat, book: ExportBook, author: string): Promise<ExportResult>;
   revealInFinder(filePath: string): void;
+  /** Save a sprint page (its writing too, when given). Resolves once it is on disk. */
+  writeSprint(record: SprintRecord, blocks: Block[] | null): Promise<{ ok: boolean; message?: string }>;
+  readSprint(id: string): Promise<Block[]>;
+  /** A sprint the app quit or crashed during, if any. */
+  unfinishedSprint(): Promise<SprintRecord | null>;
+  /** The window's mode, so the menu can say which way the mode item goes. */
+  modeChanged(mode: 'manuscript' | 'sprinter'): void;
   listSnapshots(filePath: string): Promise<SnapshotInfo[]>;
   readSnapshot(filePath: string, id: string): Promise<Manuscript>;
   /** A snapshot of the manuscript as it is in the window now (before a risky change, or by hand). */
@@ -139,6 +199,10 @@ export const CHANNELS = {
   opened: 'doc:opened',
   setPrefs: 'prefs:set',
   reveal: 'shell:reveal',
+  mode: 'mode:changed',
+  sprintWrite: 'sprint:write',
+  sprintRead: 'sprint:read',
+  sprintUnfinished: 'sprint:unfinished',
   fileCommand: 'file:command',
   snapshotsList: 'snapshots:list',
   snapshotsRead: 'snapshots:read',

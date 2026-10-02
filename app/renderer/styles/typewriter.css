@@ -10,12 +10,15 @@
 @property --tw-mask-far { syntax: '<number>'; inherits: false; initial-value: 1; }
 @property --tw-mask-edge { syntax: '<number>'; inherits: false; initial-value: 1; }
 
-.bt-app[data-typewriter='true'] .bt-page {
+.bt-app[data-typewriter='true'] .bt-workspace > .bt-scroller > .bt-page,
+.bt-sprint-page[data-typewriter='true'] > .bt-scroller > .bt-page {
   padding-top: var(--tw-pad, 50vh);
   padding-bottom: var(--tw-pad, 50vh);
 }
-.bt-app[data-typewriter='true'] .bt-scroller,
-.bt-app[data-tw-fade='true'] .bt-scroller {
+.bt-app[data-typewriter='true'] .bt-workspace > .bt-scroller,
+.bt-sprint-page[data-typewriter='true'] > .bt-scroller,
+.bt-app[data-tw-fade='true'] .bt-workspace > .bt-scroller,
+.bt-sprint-page[data-tw-fade='true'] > .bt-scroller {
   --band: var(--tw-band, var(--lh-body));
   --edge: calc(50% - var(--band) / 2);
   --tw-mask-near: var(--tw-near);
@@ -43,7 +46,8 @@
 
 
 /* Reading back: manual scrolling eases the fade away until the next edit. */
-.bt-app[data-typewriter='true'][data-tw-relaxed='true'] .bt-scroller {
+.bt-app[data-typewriter='true'][data-tw-relaxed='true'] .bt-workspace > .bt-scroller,
+.bt-sprint-page[data-typewriter='true'][data-tw-relaxed='true'] > .bt-scroller {
   --tw-mask-near: 1;
   --tw-mask-far: 1;
   --tw-mask-edge: 1;
@@ -56,7 +60,8 @@
 /* Turning typewriter off: the dimmed lines fade back in (the lights come
    back on) and the guides fade out, evenly enough to see, while nothing
    moves; the mask is dropped once it has faded out. */
-.bt-app[data-typewriter='false'][data-tw-fade='true'] .bt-scroller {
+.bt-app[data-typewriter='false'][data-tw-fade='true'] .bt-workspace > .bt-scroller,
+.bt-sprint-page[data-typewriter='false'][data-tw-fade='true'] > .bt-scroller {
   --tw-mask-near: 1;
   --tw-mask-far: 1;
   --tw-mask-edge: 1;
@@ -65,7 +70,8 @@
     --tw-mask-far var(--dur-tw-off) var(--ease-in-out),
     --tw-mask-edge var(--dur-tw-off) var(--ease-in-out);
 }
-.bt-app[data-typewriter='false'][data-tw-fade='true'] .bt-tw-guide {
+.bt-app[data-typewriter='false'][data-tw-fade='true'] .bt-workspace > .bt-tw-guide,
+.bt-sprint-page[data-typewriter='false'][data-tw-fade='true'] > .bt-tw-guide {
   display: block;
   opacity: 0;
   transition: opacity var(--dur-tw-off) var(--ease-in-out);
@@ -84,7 +90,8 @@
 }
 .bt-tw-guide-left { left: 0; background: linear-gradient(to right, var(--color-guide), transparent); }
 .bt-tw-guide-right { right: 0; background: linear-gradient(to left, var(--color-guide), transparent); }
-.bt-app[data-typewriter='true'] .bt-tw-guide { display: block; }
+.bt-app[data-typewriter='true'] .bt-workspace > .bt-tw-guide,
+.bt-sprint-page[data-typewriter='true'] > .bt-tw-guide { display: block; }
 
 /* In Manuscript mode the left guide starts after the tick spine. */
 .bt-app[data-mode='manuscript'] .bt-tw-guide-left { left: var(--spine-w); }

@@ -69,7 +69,7 @@ test('⌘\\ pins the outline beside the page without moving the caret line, and 
     await page.evaluate(async (id) => (window as any).__baretext.navigate(id), (await model(page)).chapters[0].scenes[0].id);
     await page.waitForTimeout(500); // the jump's motion settles
     const before = await t.caretTop();
-    const pageLeft = async () => (await page.locator('.bt-scroller').boundingBox())!.x;
+    const pageLeft = async () => (await page.locator('[data-ref="scroller"]').boundingBox())!.x;
     const left0 = await pageLeft();
     await page.keyboard.press('Meta+Backslash');
     expect((await t.outline()).presence).toBe('pinned');
@@ -252,7 +252,7 @@ test('rename from the outline: F2 or double-click, Enter keeps it, Esc cancels, 
     await input.click();
     await page.keyboard.press('End');
     await page.keyboard.type(': The Return');
-    await page.locator('.bt-scroller').click({ position: { x: 600, y: 200 } });
+    await page.locator('[data-ref="scroller"]').click({ position: { x: 600, y: 200 } });
     expect((await model(page)).chapters[2].title).toBe('Chapter 3: The Return');
     await expect(input).toHaveCount(0);
     expect(await t.hasFocus()).toBe(true);
@@ -415,7 +415,7 @@ test('the outline is 296px wide, and 248px in a window narrower than 1,100px', a
   const { app, page } = await launch({ file: { name: 'O.md', content: FILE } });
   try {
     const width = () => page.$eval('.bt-outline', (e) => e.getBoundingClientRect().width);
-    const pageLeft = () => page.$eval('.bt-scroller', (e) => e.getBoundingClientRect().left);
+    const pageLeft = () => page.$eval('[data-ref="scroller"]', (e) => e.getBoundingClientRect().left);
     const size = (w: number) => app.evaluate(({ BrowserWindow }, w) => BrowserWindow.getAllWindows()[0]!.setContentSize(w, 760), w);
     await size(1300);
     await page.click('[data-ref="sidebar"]');
@@ -467,7 +467,7 @@ test('reading back with the outline open: the current-scene highlight glides to 
     await page.waitForFunction(() => document.getAnimations().length === 0);
     const highlight = page.locator('.bt-outline-current');
     await expect(highlight).toHaveAttribute('data-visible', 'true');
-    const box = (await page.locator('.bt-scroller').boundingBox())!;
+    const box = (await page.locator('[data-ref="scroller"]').boundingBox())!;
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     const start = await page.locator('.bt-outline-row[aria-current="location"]').getAttribute('aria-label');
     // Scroll by hand until another scene is the one being read.
@@ -547,7 +547,7 @@ test('an armed delete is cancelled by clicking elsewhere or by waiting', async (
     await target.hover();
     await target.locator('.bt-outline-action[data-action="delete"]').click();
     await expect(armed(page)).toHaveCount(1);
-    await page.locator('.bt-scroller').click({ position: { x: 600, y: 300 } });
+    await page.locator('[data-ref="scroller"]').click({ position: { x: 600, y: 300 } });
     await expect(armed(page)).toHaveCount(0);
     await target.hover();
     await target.locator('.bt-outline-action[data-action="delete"]').click();

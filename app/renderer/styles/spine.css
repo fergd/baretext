@@ -40,9 +40,20 @@
   width: var(--tick-w);
   height: var(--tick-h);
   background: var(--color-text-dimmer);
-  transition: width var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+  transform-origin: left center;
+  transition:
+    transform var(--dur-tip-out) var(--ease-out),
+    background-color var(--dur-tip-out) var(--ease-out);
 }
-.bt-tick:hover::before { background: var(--color-text-dim); }
+/* Hovered: reaches out a little and takes the accent, springing like the
+   label beside it, so it is clear which tick the label names. */
+.bt-tick:hover::before {
+  background: var(--color-accent);
+  transform: scaleX(var(--tick-hover-scale));
+  transition:
+    transform var(--dur-tip-in) var(--ease-glass),
+    background-color var(--dur-fast) var(--ease-out);
+}
 
 /* The long tick: one bar that glides to the current tick. */
 .bt-spine-indicator {
@@ -65,12 +76,22 @@
 @keyframes bt-tick-in { from { opacity: 0; transform: translateY(calc(-1 * var(--popover-enter-offset))); } }
 
 .bt-spine-tip {
+  /* Placed by transform (--tip-y, set from the hovered tick) so moving it
+     never lays anything out; only transform and opacity animate, on the
+     compositor. Hidden, it takes visibility too: no glass layer is kept
+     while writing. */
+  --tip-x: var(--tip-enter-offset);
+  --tip-s: var(--tip-enter-scale);
   position: absolute;
+  top: 0;
   left: calc(var(--spine-w) - var(--space-1));
   padding: 0 var(--space-2);
   border-radius: var(--radius-tip);
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
+  background: var(--color-glass-fill);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border: 1px solid var(--color-glass-edge);
+  box-shadow: inset 0 1px 0 var(--color-glass-sheen), var(--shadow-glass);
   font-size: var(--text-ui);
   line-height: var(--lh-ui);
   letter-spacing: var(--tracking-ui);
@@ -78,10 +99,40 @@
   white-space: nowrap;
   pointer-events: none;
   opacity: 0;
-  transition: opacity var(--dur-fast) var(--ease-out);
+  visibility: hidden;
+  transform: translate3d(var(--tip-x), var(--tip-y, 0), 0) scale(var(--tip-s));
+  transform-origin: left center;
+  transition:
+    transform var(--dur-tip-out) var(--ease-out),
+    opacity var(--dur-tip-out) var(--ease-out),
+    visibility 0s linear var(--dur-tip-out);
   z-index: 3;
 }
-.bt-spine-tip[data-visible='true'] { opacity: 1; }
+.bt-spine-tip[data-visible='true'] {
+  --tip-x: 0px;
+  --tip-s: 1;
+  opacity: 1;
+  visibility: visible;
+  /* springs in from the tick; between ticks, glides with the same spring */
+  transition:
+    transform var(--dur-tip-in) var(--ease-glass),
+    opacity var(--dur-fast) var(--ease-out),
+    visibility 0s linear 0s;
+}
+/* Appearing at a new tick: jump there first, then spring in. */
+.bt-spine-tip[data-snap='true'] { transition: none; }
+/* No see-through surfaces where they cost legibility. */
+[data-theme='contrast'] .bt-spine-tip {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+@media (prefers-reduced-transparency: reduce) {
+  .bt-spine-tip {
+    background: var(--color-bg);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
 .bt-spine-tip .bt-tip-num { color: var(--color-text-dimmer); margin-right: var(--space-2); font-family: var(--font-num); font-variant-numeric: tabular-nums; }
 
 /* Focus mode: the spine fades away and takes no clicks or hovers; it

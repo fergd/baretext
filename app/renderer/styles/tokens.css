@@ -102,6 +102,8 @@
   /* tick spine */
   --tick-w: 12px;
   --tick-w-current: 24px;
+  /* a hovered tick grows 12px → 16px (a scale, so it never lays out) */
+  --tick-hover-scale: 1.3333;
   --tick-h: 2px;
   --tick-pitch: 8px;
   --tick-chapter-gap: 16px;
@@ -172,6 +174,16 @@
   --appearance-card-w: 88px;
   --appearance-swatch-h: 48px;
 
+  /* sprint setup */
+  --sprint-w: 400px;
+  --sprint-preset-h: 40px;
+  /* the settings rows' controls share one column */
+  --sprint-control-w: 200px;
+  /* segmented controls: a recessed track, the chosen item raised */
+  --seg-h: 24px;
+  --seg-pad: 2px;
+  --seg-item-min: 40px;
+
   /* switch (on/off controls) */
   --switch-w: 20px;
   --switch-h: 12px;
@@ -204,6 +216,21 @@
   --dur-notes-out: 140ms;
   --dur-notes-in: 320ms;
   --notes-drift: 8px;
+  /* glass tips (the spine's scene label): spring in from the tick with a
+     slight overshoot, glide between ticks, settle out quickly */
+  --dur-tip-in: 280ms;
+  --dur-tip-out: 160ms;
+  --ease-glass: cubic-bezier(0.34, 1.3, 0.64, 1);
+  --tip-enter-offset: -4px;
+  --tip-enter-scale: 0.94;
+  --glass-blur: 12px;
+  --glass-saturate: 1.6;
+
+  /* the sprint timer: a guide-style line along the window's bottom edge */
+  --sprint-line-h: 1px;
+  --sprint-line-opacity: 0.6;
+  --sprint-line-opacity-break: 0.3;
+  --dur-sprint-glow: 1200ms;
 
   /* typewriter */
   --tw-guide-length: 240px;
@@ -243,6 +270,14 @@
   --vignette-depth: 1;
   --color-vignette: color-mix(in oklab, var(--color-page) 55%, var(--vignette-shade));
   --shadow-note: 0 1px 2px color-mix(in srgb, var(--color-note-shade) 45%, transparent), 0 6px 16px color-mix(in srgb, var(--color-note-shade) 35%, transparent);
+  /* glass: the theme's surface, partly see-through, a hairline edge, a lit
+     top edge, and a soft shadow cast on the page */
+  --glass-fill-mix: 72%;
+  --glass-sheen-mix: 8%;
+  --color-glass-fill: color-mix(in srgb, var(--color-bg) var(--glass-fill-mix), transparent);
+  --color-glass-edge: color-mix(in srgb, var(--color-text) 14%, transparent);
+  --color-glass-sheen: color-mix(in srgb, white var(--glass-sheen-mix), transparent);
+  --shadow-glass: 0 1px 2px color-mix(in srgb, var(--color-note-shade) 40%, transparent), 0 4px 12px color-mix(in srgb, var(--color-note-shade) 30%, transparent);
 }
 
 /* Appearance (set on #app and on the Appearance sample). Font size scales
@@ -370,6 +405,7 @@
   /* margin numbers wash out on parchment at the dark themes' opacity */
   --number-opacity: 0.4;
   --number-opacity-current: 0.65;
+  --glass-sheen-mix: 60%;
   --color-note: #a03f55;
   --color-cold: #2c5f86;
   color-scheme: light;
@@ -446,6 +482,8 @@
   /* margin numbers stay clearly visible */
   --number-opacity: 0.6;
   --number-opacity-current: 0.85;
+  /* no see-through surfaces: full contrast behind every label */
+  --glass-fill-mix: 100%;
   --color-note: #ff8fd8;
   --color-cold: #9fdcff;
   color-scheme: dark;
@@ -463,5 +501,8 @@
     --dur-sidebar: 0ms;
     --dur-notes-out: 0ms;
     --dur-notes-in: 0ms;
+    --dur-tip-in: 0ms;
+    --dur-tip-out: 0ms;
+    --dur-sprint-glow: 0ms;
   }
 }

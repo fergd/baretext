@@ -4,7 +4,7 @@
 import { promises as fs, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { atomicWrite } from './save';
-import { DEFAULT_APPEARANCE, DEFAULT_EXPORT, OUTLINE_STATES, validAppearance, validExport, type AppearancePrefs, type ExportPrefs, type OutlineState } from '../shared/bridge';
+import { DEFAULT_APPEARANCE, DEFAULT_EXPORT, DEFAULT_SPRINT, validSprint, type SprintPrefs, OUTLINE_STATES, validAppearance, validExport, type AppearancePrefs, type ExportPrefs, type OutlineState } from '../shared/bridge';
 
 export interface Settings extends AppearancePrefs {
   lastFile: string | null;
@@ -14,6 +14,7 @@ export interface Settings extends AppearancePrefs {
   outline: OutlineState;
   saveDir: string | null;
   export: ExportPrefs;
+  sprint: SprintPrefs;
   /** Where the last export was saved. */
   exportDir: string | null;
   /** Where the window was (its normal, unzoomed frame) and how. */
@@ -28,6 +29,7 @@ export const DEFAULT_SETTINGS: Settings = {
   outline: 'hidden',
   saveDir: null,
   export: DEFAULT_EXPORT,
+  sprint: DEFAULT_SPRINT,
   exportDir: null,
   window: null,
 };
@@ -49,6 +51,7 @@ export function validateSettings(raw: unknown): Settings {
   if (OUTLINE_STATES.includes(r.outline as OutlineState)) s.outline = r.outline as OutlineState;
   if (isString(r.saveDir)) s.saveDir = r.saveDir;
   s.export = validExport(r.export);
+  s.sprint = validSprint(r.sprint);
   if (isString(r.exportDir)) s.exportDir = r.exportDir;
   const w = r.window as Record<string, unknown> | null | undefined;
   if (w && typeof w === 'object' && ['x', 'y', 'width', 'height'].every((k) => Number.isFinite(w[k]))) {

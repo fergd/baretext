@@ -33,7 +33,7 @@ test('the long tick glides to a chosen scene, and the page moves instead of jump
 test('scrolling by hand moves the long tick to the scene being read; writing hands it back to the caret', async () => {
   const { app, page } = await launch({ file: { name: 'S.md', content: FILE } });
   try {
-    const box = (await page.locator('.bt-scroller').boundingBox())!;
+    const box = (await page.locator('[data-ref="scroller"]').boundingBox())!;
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     for (let i = 0; i < 12; i++) await page.mouse.wheel(0, 600);
     await expect.poll(() => currentTick(page)).not.toBe('1.1 Scene 1.1');
@@ -106,6 +106,85 @@ test('Esc leaves focus mode, but only after closing whatever is open (the toolba
     // Esc never turns focus mode on.
     await page.keyboard.press('Escape');
     expect(await focus()).toBe('false');
+  } finally {
+    await app.close();
+  }
+});
+
+test('the scene label springs in at the tick, glides between ticks, and is fully gone after leaving', async () => {
+  const { app, page } = await launch({ file: { name: 'S.md', content: FILE } });
+  try {
+    const tip = page.locator('.bt-spine-tip');
+    const tipY = () => tip.evaluate((e) => new DOMMatrixReadOnly(getComputedStyle(e).transform).m42);
+    const tipScale = () => tip.evaluate((e) => new DOMMatrixReadOnly(getComputedStyle(e).transform).a);
+    const hover = async (label: string) => {
+      const b = (await page.locator(`.bt-tick[aria-label="${label}"]`).boundingBox())!;
+      await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+    };
+    expect(await tip.evaluate((e) => getComputedStyle(e).visibility)).toBe('hidden');
+
+    await hover('1.1 Scene 1.1');
+    await page.waitForTimeout(30);
+    expect(await tip.textContent()).toBe('1.1Scene 1.1');
+    const growing = await tipScale();
+    expect(growing).toBeLessThan(1); // grows from the tick, not a blink
+    await expect.poll(tipScale).toBeCloseTo(1, 2);
+    const first = await tipY();
+
+    await hover('1.3 Scene 1.3');
+    const target = await page.locator('.bt-tick[aria-label="1.3 Scene 1.3"]').evaluate((t) => {
+      const host = t.closest('.bt-spine')!.parentElement!.getBoundingClientRect();
+      const r = t.getBoundingClientRect();
+      return Math.round(r.top - host.top + r.height / 2 - 12);
+    });
+    await page.waitForTimeout(40);
+    const mid = await tipY();
+    expect(mid).toBeGreaterThan(first); // gliding…
+    expect(mid).toBeLessThan(target);   // …not jumping
+    expect(await tip.textContent()).toBe('1.3Scene 1.3');
+    await expect.poll(tipY).toBeCloseTo(target, 0);
+
+    // Leaving: it fades out, then drops out of rendering (no glass layer while writing).
+    await page.mouse.move(600, 300);
+    await expect.poll(() => tip.evaluate((e) => getComputedStyle(e).visibility)).toBe('hidden');
+    expect(await tip.evaluate((e) => getComputedStyle(e).opacity)).toBe('0');
+  } finally {
+    await app.close();
+  }
+});
+
+test('the hovered tick grows a little wider and takes the accent color, smoothly, and settles back', async () => {
+  const { app, page } = await launch({ file: { name: 'S.md', content: FILE } });
+  try {
+    const tick = page.locator('.bt-tick[aria-label="2.2 Scene 2.2"]');
+    const mark = () => tick.evaluate((e) => {
+      const s = getComputedStyle(e, '::before');
+      return { scale: new DOMMatrixReadOnly(s.transform === 'none' ? undefined : s.transform).a, color: s.backgroundColor };
+    });
+    const accent = await page.evaluate(() => {
+      const probe = document.createElement('div');
+      probe.style.background = 'var(--color-accent)';
+      document.querySelector('.bt-spine')!.append(probe);
+      const c = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return c;
+    });
+    const rest = await mark();
+    expect(rest.scale).toBe(1);
+    expect(rest.color).not.toBe(accent);
+
+    const b = (await tick.boundingBox())!;
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+    await page.waitForTimeout(40);
+    const mid = await mark();
+    expect(mid.scale).toBeGreaterThan(1);  // growing…
+    expect(mid.scale).toBeLessThan(1.3);   // …not snapped
+    await expect.poll(async () => (await mark()).color).toBe(accent);
+    await expect.poll(async () => (await mark()).scale).toBeCloseTo(16 / 12, 2); // 12px → 16px
+
+    await page.mouse.move(600, 300);
+    await expect.poll(async () => (await mark()).scale).toBe(1);
+    expect((await mark()).color).toBe(rest.color);
   } finally {
     await app.close();
   }

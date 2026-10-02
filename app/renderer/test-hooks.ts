@@ -32,6 +32,8 @@ export interface HookHost {
   exporting(): unknown;
   outline(): unknown;
   notes(): unknown;
+  sprint(): unknown;
+  sprintFinishNow(): void;
 }
 
 /**
@@ -108,6 +110,8 @@ export function installTestHooks(h: HookHost) {
     exporting: h.exporting,
     outline: h.outline,
     notes: h.notes,
+    sprint: h.sprint,
+    sprintFinishNow: h.sprintFinishNow,
     find: () => ({ open: h.find.isOpen, count: h.find.el.querySelector('.bt-find-count')!.textContent, ms: h.find.lastSearchMs }),
   };
 }

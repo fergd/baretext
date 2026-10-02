@@ -638,6 +638,49 @@ export/print · integrations (DECISIONS §7).
 - Verified: typecheck; 365 unit; fuzz 30,000; 117 e2e; today's e2e ×3
   (81/81, no flakes); bench p95 5.5–6.8 ms on 150k words, save 55 ms.
 
+## 2026-10-02 — Spine scene label: glass
+User asked for an iOS-glass feel on the spine's hover label, only if free
+for performance. The label now springs in from its tick (slight overshoot,
+`--ease-glass`), glides between ticks instead of jumping, turns back if
+re-hovered mid-fade, and fades out quickly. Surface: theme surface at 72%
+with backdrop blur, hairline edge, lit top edge, soft shadow (tokens
+`--color-glass-*`, `--shadow-glass`); Contrast and reduced-transparency stay
+opaque. Only transform/opacity animate; hidden, it takes `visibility:
+hidden`, so no glass layer exists while writing. Measured: hover sweep
+p50 8.3 / p99 9.3 ms frames, zero long frames (identical to before); typing
+bench unchanged. E2E: `spine.test.ts` "springs in… glides… fully gone".
+The hovered tick also reaches out 12 → 16px (`scaleX`, `--tick-hover-scale`)
+and takes the theme's accent, with the label's spring in and quick settle
+out, so it is clear which tick the label names. Sweep frames unchanged.
+
+## 2026-10-02 — Sprint setup and Sprinter mode (first pass)
+Setup panel (⌘⇧S; `sprint-setup.ts`, `sprint.css`) per DECISIONS §21:
+Time/Words, presets + custom, goal, rounds, break, summary line. Start
+enters Sprinter (typewriter on, structure fades); ⌘⇧D or the palette's
+"Back to Manuscript" leaves it. No timer yet: Start only enters the mode.
+Tests: `test/e2e/sprint.test.ts` (4), unit `sprint-setup.test.ts`,
+settings validation. Bench unchanged.
+
+## 2026-10-02 — Sprints: a clean slate, kept or placed at the end
+Per DECISIONS §21. `packages/editor/src/sprint.ts` (prose-only schema,
+`placeSprint`), `app/main/sprints.ts` (storage, recovery, 30-day purge),
+`app/renderer/sprint-page.ts` (the page: own editor + typewriter, saves as
+it is written), `sprint-keep.ts` (the end panel). Typewriter CSS is now
+scoped per surface (manuscript scroller vs sprint page). Bug found on the
+way: a blank page could not be stored (a scene is never empty), so every
+sprint start would have shown a save error; failing test first, fixed.
+Tests: editor `sprint.test.ts` (7), main `sprints.test.ts` (5), E2E
+`sprint.test.ts` (13). E2E selectors now use `[data-ref="scroller"]` (there
+can be two scrollers). Bench unchanged.
+
+## 2026-10-02 — Sprint timer line, rounds, breaks
+`sprint-timer.ts` (WAAPI scaleX line, wall-clock end, pause/hide), session
+logic in `index.ts` (rounds, breaks, words target). Sprinter now also turns
+on focus mode. Bug found: closing the palette mid-sprint focused the hidden
+manuscript, so typing went into the book invisibly; failing test first,
+fixed (focus goes to the page being written on) plus the manuscript is
+read-only during a sprint. E2E `sprint.test.ts` now 17. Bench unchanged.
+
 ## 2026-10-02 — Checkpoint (session handoff; supersedes the 2026-10-01 one)
 **State**
 - This folder (`~/Projects/baretext`) and `main` on github.com/fergd/baretext

@@ -1,0 +1,251 @@
+/* Sprint setup: the Appearance panel's parts, one narrow column. */
+
+.bt-appearance.bt-sprint { width: min(var(--sprint-w), calc(100vw - 2 * var(--space-4))); }
+.bt-sprint-body { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); }
+
+/* Segmented control: a recessed track; the chosen item is raised. */
+.bt-seg {
+  display: inline-flex;
+  gap: var(--seg-pad);
+  padding: var(--seg-pad);
+  border-radius: var(--toolbar-button-radius);
+  background: var(--color-find-field);
+}
+.bt-seg-item {
+  min-width: var(--seg-item-min);
+  height: var(--seg-h);
+  padding: 0 var(--space-2);
+  border-radius: calc(var(--toolbar-button-radius) - 1px);
+  font-size: var(--text-ui);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-dim);
+  transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.bt-seg-item:hover:not(:disabled) { color: var(--color-text); }
+.bt-seg-item[aria-checked='true'] { background: var(--color-popover-active); color: var(--color-text); }
+.bt-seg-item:disabled { cursor: default; }
+.bt-sprint-kind { margin-left: auto; }
+
+/* Length: five presets and a custom field, one row; its unit above. */
+.bt-sprint-length {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) minmax(0, 1.5fr);
+  gap: var(--space-1);
+  padding-bottom: var(--space-1);
+}
+.bt-sprint-presets { display: contents; }
+.bt-sprint-unit {
+  grid-row: 1;
+  grid-column: 1 / -1;
+  font-size: var(--text-ui);
+  line-height: var(--lh-ui);
+  color: var(--color-text-dimmer);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.bt-sprint-presets .bt-seg-item,
+.bt-sprint-custom {
+  grid-row: 2;
+  min-width: 0;
+  height: var(--sprint-preset-h);
+  border: 1px solid var(--color-popover-border);
+  border-radius: var(--toolbar-button-radius);
+  font-family: var(--font-num);
+  font-size: var(--text-palette-input);
+  color: var(--color-text-dim);
+}
+.bt-sprint-presets .bt-seg-item:hover { background: var(--color-popover-hover); }
+.bt-sprint-presets .bt-seg-item[aria-checked='true'],
+.bt-sprint-custom[data-active='true'] { border-color: var(--color-accent); background: var(--color-popover-active); color: var(--color-text); }
+.bt-sprint-custom {
+  padding: 0 var(--space-2);
+  background: transparent;
+  text-align: center;
+  letter-spacing: inherit;
+  outline: none;
+  transition: border-color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+}
+.bt-sprint-custom::placeholder { font-family: var(--font-ui); font-size: var(--text-palette); color: var(--color-text-dimmer); }
+.bt-sprint-custom:focus { border-color: var(--color-accent); }
+.bt-sprint[data-kind='words'] .bt-sprint-presets .bt-seg-item { font-size: var(--text-palette); }
+
+/* Settings rows: label left, control right. */
+.bt-sprint-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--toolbar-button);
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+.bt-sprint-label { color: var(--color-text-dim); }
+.bt-sprint-row[data-disabled='true'] { opacity: 0.4; }
+.bt-sprint[data-kind='words'] [data-row='goal'] { display: none; }
+
+.bt-sprint-row > .bt-seg { width: var(--sprint-control-w); }
+.bt-sprint-row > .bt-seg .bt-seg-item { flex: 1 1 0; min-width: 0; }
+
+/* Goal: a number field with its unit inside, as wide as the controls below. */
+.bt-sprint-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: var(--sprint-control-w);
+  height: var(--toolbar-button);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-popover-border);
+  border-radius: var(--toolbar-button-radius);
+  background: var(--color-find-field);
+  cursor: text;
+  transition: border-color var(--dur-fast) var(--ease-out);
+}
+.bt-sprint-field:focus-within { border-color: var(--color-accent); }
+.bt-sprint-goal {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: var(--font-num);
+  font-size: var(--text-palette);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: inherit;
+  color: var(--color-text);
+  text-align: right;
+  outline: none;
+}
+.bt-sprint-goal::placeholder { color: var(--color-text-dimmer); }
+.bt-sprint-suffix { font-size: var(--text-ui); color: var(--color-text-dimmer); }
+
+.bt-sprint-summary { margin-right: auto; font-size: var(--text-ui); color: var(--color-text-dimmer); font-variant-numeric: tabular-nums; }
+.bt-sprint-button { display: inline-flex; align-items: center; gap: var(--space-2); padding: 0 var(--space-3); }
+.bt-sprint-button kbd { font-family: var(--font-num); font-size: var(--text-ui); opacity: 0.6; }
+
+/* ── The sprint page: a clean slate over the manuscript (DECISIONS §21).
+   It fades in over the page; the manuscript underneath stops painting once
+   covered, and never moves. ── */
+.bt-sprint-page {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: var(--color-page);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--dur-panel) var(--ease-out), visibility 0s linear var(--dur-panel);
+}
+.bt-sprint-page[data-open='true'] {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity var(--dur-panel) var(--ease-out), visibility 0s;
+}
+.bt-app[data-mode='sprinter'] .bt-workspace > .bt-scroller {
+  visibility: hidden;
+  transition: visibility 0s linear var(--dur-panel);
+}
+.bt-app[data-mode='sprinter'] .bt-chrome-crumb { visibility: hidden; }
+/* No focus-mode vignette in a sprint: the page covers the workspace, so it
+   would darken only the empty bars' corners. One even page, edge to edge. */
+.bt-app[data-mode='sprinter'] .bt-vignette { opacity: 0; }
+
+/* ── Sprinter mode: less structure (spec §2.1). Numbering, the spine and
+   the outline/notes buttons fade away. ── */
+.bt-num,
+.bt-spine-inner { transition: opacity var(--dur-panel) var(--ease-out), visibility 0s linear 0s; }
+.bt-chrome-button {
+  transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out),
+    opacity var(--dur-panel) var(--ease-out), visibility 0s linear 0s;
+}
+.bt-app[data-mode='sprinter'] .bt-num { opacity: 0; pointer-events: none; }
+.bt-app[data-mode='sprinter'] .bt-spine-inner,
+.bt-app[data-mode='sprinter'] .bt-chrome-button {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out),
+    opacity var(--dur-panel) var(--ease-out), visibility 0s linear var(--dur-panel);
+}
+.bt-app[data-mode='sprinter'] .bt-spine-tip { visibility: hidden; }
+
+/* ── Ending a sprint: where its writing goes. ── */
+.bt-keep-words { margin-left: auto; font-size: var(--text-ui); color: var(--color-text-dimmer); font-variant-numeric: tabular-nums; }
+.bt-keep .bt-sprint-body { padding: var(--space-2); }
+.bt-keep-options { display: flex; flex-direction: column; }
+.bt-keep-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--sprint-preset-h);
+  padding-right: var(--space-2);
+  border-radius: var(--toolbar-button-radius);
+}
+.bt-keep-option:hover { background: var(--color-popover-hover); }
+.bt-keep-option:has([aria-checked='true']) { background: var(--color-popover-active); }
+.bt-keep-radio {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  align-self: stretch;
+  padding: 0 var(--space-2);
+  color: var(--color-text);
+  text-align: left;
+}
+.bt-keep-dot {
+  flex: none;
+  width: var(--space-3);
+  height: var(--space-3);
+  border: 1px solid var(--color-popover-border);
+  border-radius: 50%;
+  transition: border-color var(--dur-fast) var(--ease-out), border-width var(--dur-fast) var(--ease-out);
+}
+.bt-keep-radio[aria-checked='true'] .bt-keep-dot { border: var(--space-1) solid var(--color-accent); }
+.bt-keep-option[data-value='discard'] .bt-keep-radio { color: var(--color-text-dim); }
+.bt-keep-option[data-value='discard']:has([aria-checked='true']) .bt-keep-radio { color: var(--color-danger); }
+.bt-keep-option[data-value='discard'] { margin-top: var(--space-1); border-top: 1px solid var(--color-popover-border); border-radius: 0 0 var(--toolbar-button-radius) var(--toolbar-button-radius); }
+.bt-keep-detail { max-width: var(--sprint-control-w); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-ui); color: var(--color-text-dimmer); }
+.bt-keep-select {
+  max-width: var(--sprint-control-w);
+  height: var(--toolbar-button);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-popover-border);
+  border-radius: var(--toolbar-button-radius);
+  background: var(--color-find-field);
+  font: inherit;
+  font-size: var(--text-ui);
+  letter-spacing: inherit;
+  color: var(--color-text);
+  outline: none;
+}
+.bt-keep-select:focus { border-color: var(--color-accent); }
+.bt-keep [data-action='done']:disabled { opacity: 0.4; cursor: default; filter: none; }
+.bt-keep [data-action='done'][data-danger='true'] { background: var(--color-danger); border-color: var(--color-danger); }
+.bt-keep-back { margin-right: auto; }
+
+/* ── The sprint timer: a line along the very bottom of the window, drawn like
+   the typewriter guides (their color, fading at its tail), growing left to
+   right; a break drains it. Transform only. ── */
+.bt-sprint-line {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--sprint-line-h);
+  z-index: 20;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur-panel) var(--ease-out);
+}
+.bt-app[data-mode='sprinter'] .bt-sprint-line:not([data-phase='idle'], [data-hidden='true']) { opacity: 1; }
+.bt-sprint-line-bar {
+  height: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
+  background: linear-gradient(to right, transparent, var(--color-guide));
+  opacity: var(--sprint-line-opacity);
+  transition: transform var(--dur-glide) var(--ease-out), opacity var(--dur-panel) var(--ease-out);
+}
+.bt-sprint-line[data-phase='break'] .bt-sprint-line-bar { opacity: var(--sprint-line-opacity-break); }
+.bt-sprint-line[data-paused='true'] .bt-sprint-line-bar { opacity: var(--sprint-line-opacity-break); }
+/* The end: the full line glows once, then settles. */
+.bt-sprint-line[data-phase='done'] .bt-sprint-line-bar { animation: bt-sprint-glow var(--dur-sprint-glow) var(--ease-out); }
+@keyframes bt-sprint-glow { 30% { opacity: 1; } }

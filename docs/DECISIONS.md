@@ -786,3 +786,51 @@ Build the main app first. When integrations are built, follow this design.
   positioned against it, and the page row is `minmax(0, 1fr)`. Only the
   scroller, panels and lists scroll. (window.test.ts)
 
+
+## 21. Sprints (2026-10-02, user) — OVERRIDES spec §5 Setup presets; EXTENDS §2.1
+**Setup** chooses the sprint and the session. Sprint by **Time**
+(10 / 15 / 20 / 25 / 30 min + custom) or **Words** (250 / 500 / 750 /
+1,000 / 1,500 + custom). A time sprint's word goal is suggested at ~20
+words/min until typed. Session: **Rounds** 1–4, **Break** Off / 5 / 10 min
+(only with 2+ rounds). Footer: when it ends, or rounds × target. No
+explanatory copy. Enter starts, Esc cancels; choices remembered (settings
+`sprint`).
+
+**A sprint is a clean slate, never the manuscript.** Writers sprint for
+exercises and warm-ups as well as the book, so:
+- Start opens a **truly blank page** (its own editor, prose-only schema)
+  over the manuscript, which is never touched during a sprint (its caret
+  and scroll included). Typewriter on (Sprinter's steeper fade); numbering,
+  spine, outline and notes fade away.
+- The sprint's count is the words on its page (net words: settles §5's
+  open question).
+- The page is saved as it is written (app data `Sprints/<id>.md` + `.json`),
+  so quitting or crashing loses nothing. The app **never launches into a
+  sprint**: the next launch opens the book in Manuscript and asks about the
+  unfinished sprint (Keep writing resumes it).
+- **Ending asks where the writing goes, with nothing preselected:** end of
+  a chapter (chosen), end of the book, Cold Storage — each as one new
+  scene, one undo step; unnamed in the story, named in Cold Storage for
+  what it was ("Sprint · 15 min · Oct 2, 7:58 AM", the start time) — or **Sprints** (kept on its own), or
+  **Discard** (asks twice; kept 30 days, then removed; placed sprints'
+  copies likewise). Esc / Keep writing goes back to the page. A sprint with
+  nothing written just ends.
+- Sprinting is an extra action (⌘⇧S, View menu, palette), never a launch
+  mode. View menu: "Switch to Sprinter…" / "End Sprint…" (⌘⇧D).
+- In Sprinter only writing commands work, and they act on the sprint page.
+- **A sprint is focus mode on top of typewriter mode** (bars hidden, no
+  focus-mode hint, and no vignette: one even page to the window's edges);
+  leaving restores focus mode as it was.
+- **Timer:** a line along the very bottom of the window, drawn like the
+  typewriter guides (guide color, fading at its tail), growing left to right
+  over the sprint; a words sprint fills it as the words come and ends at the
+  target. Between rounds the line drains during the break (dimmer), a pause
+  mark separates the rounds, and the next round starts by itself. At the
+  end the line glows once, then the keep panel opens. ⌘⇧H hides/shows it;
+  the palette pauses/resumes it (paused: dimmer). One compositor animation;
+  the wall clock decides the end. A sprint resumed after a crash continues
+  untimed.
+- While a sprint is open the manuscript editor is read-only, and every
+  hand-back of focus goes to the sprint page.
+- Open: the Sprints library view (and moving a kept sprint into a book
+  later); provisional: break auto-start, words-sprint rounds.

@@ -27,3 +27,14 @@ describe('theme', () => {
     expect(validateSettings({ theme: 'amstrad' }).theme).toBe('dracula');
   });
 });
+
+describe('sprint choices', () => {
+  it('keeps valid choices and falls back field by field', () => {
+    const ok = { kind: 'words', minutes: 40, words: 750, goal: 900, rounds: 3, breakMinutes: 10 };
+    expect(validateSettings({ sprint: ok }).sprint).toEqual(ok);
+    expect(validateSettings({}).sprint).toEqual(DEFAULT_SETTINGS.sprint);
+    const bad = validateSettings({ sprint: { kind: 'laps', minutes: 0, words: 2.5, goal: -3, rounds: 99, breakMinutes: '5' } }).sprint;
+    expect(bad).toEqual({ ...DEFAULT_SETTINGS.sprint, goal: null });
+    expect(validateSettings({ sprint: { goal: null } }).sprint.goal).toBeNull();
+  });
+});

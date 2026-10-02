@@ -146,7 +146,20 @@ export class Spine {
     this.tip.replaceChildren(n, document.createTextNode(name));
     const host = this.el.parentElement!.getBoundingClientRect();
     const r = anchor.getBoundingClientRect();
-    this.tip.style.top = `${Math.round(r.top - host.top + r.height / 2 - 12)}px`;
+    const y = Math.round(r.top - host.top + r.height / 2 - 12);
+    // Still fading out counts as showing: it turns and glides back.
+    const showing = this.tip.dataset.visible === 'true' || this.tip.getAnimations().length > 0;
+    if (!showing) {
+      // Hidden: move to the new tick without animating, commit that, then
+      // spring in from there (the commit is a style flush on one small,
+      // out-of-flow element, only when the tip first appears).
+      this.tip.dataset.snap = 'true';
+      this.tip.style.setProperty('--tip-y', `${y}px`);
+      void getComputedStyle(this.tip).transform;
+      delete this.tip.dataset.snap;
+    } else {
+      this.tip.style.setProperty('--tip-y', `${y}px`);
+    }
     this.tip.dataset.visible = 'true';
   }
 }

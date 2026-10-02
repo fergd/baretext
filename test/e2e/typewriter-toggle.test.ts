@@ -31,7 +31,7 @@ for (const how of ['the status switch', '⌘⇧T'] as const) {
 test('turning typewriter off brings the lights back with a fade, not a snap', async () => {
   const { app, page } = await launch({ file: { name: 'T.md', content: FILE } });
   try {
-    const near = () => page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.bt-scroller')!).getPropertyValue('--tw-mask-near')));
+    const near = () => page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('[data-ref="scroller"]')!).getPropertyValue('--tw-mask-near')));
     await page.keyboard.press('Meta+Shift+t');
     await expect.poll(near).toBeCloseTo(0.4, 2);
     await page.keyboard.press('Meta+Shift+t');
@@ -40,7 +40,7 @@ test('turning typewriter off brings the lights back with a fade, not a snap', as
     expect(mid).toBeGreaterThan(0.4);
     expect(mid).toBeLessThan(1);
     // Once faded, the mask is gone entirely.
-    await expect.poll(() => page.evaluate(() => getComputedStyle(document.querySelector('.bt-scroller')!).webkitMaskImage)).toBe('none');
+    await expect.poll(() => page.evaluate(() => getComputedStyle(document.querySelector('[data-ref="scroller"]')!).webkitMaskImage)).toBe('none');
   } finally {
     await app.close();
   }
@@ -53,7 +53,7 @@ test('turning typewriter off fades back in (lines and guides), not a snap', asyn
     await page.keyboard.press('Meta+Shift+t');
     await page.waitForTimeout(800);
     const samples = await page.evaluate(async () => {
-      const sc = document.querySelector('.bt-scroller') as HTMLElement;
+      const sc = document.querySelector('[data-ref="scroller"]') as HTMLElement;
       const guide = document.querySelector('.bt-tw-guide') as HTMLElement;
       const read = () => ({ near: parseFloat(getComputedStyle(sc).getPropertyValue('--tw-mask-near')), guide: parseFloat(getComputedStyle(guide).opacity), shown: getComputedStyle(guide).display !== 'none' });
       const t0 = performance.now();

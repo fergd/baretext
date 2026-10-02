@@ -88,7 +88,7 @@ test.describe('structure is safe from the keyboard', () => {
       await page.keyboard.type('line');
       await page.waitForTimeout(250); // let the line-advance motion finish
       offsets.push(await page.evaluate(() => {
-        const sc = document.querySelector('.bt-scroller')!.getBoundingClientRect();
+        const sc = document.querySelector('[data-ref="scroller"]')!.getBoundingClientRect();
         const r = window.getSelection()!.getRangeAt(0).getBoundingClientRect();
         return Math.round((r.top + r.bottom) / 2 - (sc.top + sc.height / 2));
       }));

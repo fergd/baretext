@@ -1,10 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { Manuscript } from '@baretext/format';
-import { CHANNELS, DEFAULT_APPEARANCE, DEFAULT_EXPORT, type BaretextBridge, type InitialPrefs, type MenuCommand, type OpenedDocument } from '../shared/bridge';
+import { CHANNELS, DEFAULT_APPEARANCE, DEFAULT_EXPORT, DEFAULT_SPRINT, type BaretextBridge, type InitialPrefs, type MenuCommand, type OpenedDocument } from '../shared/bridge';
 
 function readInitial(): InitialPrefs {
   const arg = process.argv.find((a) => a.startsWith('--bt-initial='));
-  const fallback: InitialPrefs = { ...DEFAULT_APPEARANCE, outline: 'hidden', hidden: false, export: DEFAULT_EXPORT };
+  const fallback: InitialPrefs = { ...DEFAULT_APPEARANCE, outline: 'hidden', hidden: false, export: DEFAULT_EXPORT, sprint: DEFAULT_SPRINT };
   if (!arg) return fallback;
   try {
     return { ...fallback, ...JSON.parse(decodeURIComponent(arg.slice('--bt-initial='.length))) };
@@ -19,6 +19,10 @@ const bridge: BaretextBridge = {
   save: (filePath: string, manuscript: Manuscript, caret: number, force?: boolean) => ipcRenderer.invoke(CHANNELS.save, filePath, manuscript, caret, force === true),
   setPrefs: (patch) => ipcRenderer.send(CHANNELS.setPrefs, patch),
   revealInFinder: (filePath: string) => ipcRenderer.send(CHANNELS.reveal, filePath),
+  modeChanged: (mode) => ipcRenderer.send(CHANNELS.mode, mode),
+  writeSprint: (record, blocks) => ipcRenderer.invoke(CHANNELS.sprintWrite, record, blocks),
+  readSprint: (id) => ipcRenderer.invoke(CHANNELS.sprintRead, id),
+  unfinishedSprint: () => ipcRenderer.invoke(CHANNELS.sprintUnfinished),
   fileCommand: (command) => ipcRenderer.send(CHANNELS.fileCommand, command),
   listSnapshots: (filePath) => ipcRenderer.invoke(CHANNELS.snapshotsList, filePath),
   readSnapshot: (filePath, id) => ipcRenderer.invoke(CHANNELS.snapshotsRead, filePath, id),

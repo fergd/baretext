@@ -170,9 +170,9 @@ test('never appears for titles; hides while the selection is scrolled away', asy
     const w = await wordRect(page, 'number 3 ');
     await page.mouse.dblclick(w.left + 2, w.top + w.height / 2);
     await expect.poll(async () => (await bar(page)).visible).toBe(true);
-    await page.evaluate(() => { document.querySelector('.bt-scroller')!.scrollTop += 2000; });
+    await page.evaluate(() => { document.querySelector('[data-ref="scroller"]')!.scrollTop += 2000; });
     await expect.poll(async () => (await bar(page)).visible).toBe(false);
-    await page.evaluate(() => { document.querySelector('.bt-scroller')!.scrollTop = 0; });
+    await page.evaluate(() => { document.querySelector('[data-ref="scroller"]')!.scrollTop = 0; });
     await expect.poll(async () => (await bar(page)).visible).toBe(true);
   } finally {
     await app.close();
@@ -186,7 +186,7 @@ test('a keyboard selection right after a click still waits for the pause', async
     for (let i = 0; i < 25; i++) {
       await page.keyboard.press('Escape');
       // Mouse up and a Shift+Arrow in the same moment (no awaits between).
-      await page.evaluate(() => { document.querySelector('.bt-scroller')!.scrollTop = 0; });
+      await page.evaluate(() => { document.querySelector('[data-ref="scroller"]')!.scrollTop = 0; });
       await Promise.all([
         page.mouse.click(r.left + 1, r.top + r.height / 2),
         page.keyboard.press('Shift+ArrowRight'),

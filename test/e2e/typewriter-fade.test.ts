@@ -5,14 +5,14 @@ const FILE = '# One\n\n## Scene\n\n' + Array.from({ length: 120 }, (_, i) => `Li
 
 /** Current opacity of the lines next to the caret's line (1 = no fade). */
 const near = (page: Page) => page.evaluate(() =>
-  parseFloat(getComputedStyle(document.querySelector('.bt-scroller')!).getPropertyValue('--tw-mask-near')));
+  parseFloat(getComputedStyle(document.querySelector('[data-ref="scroller"]')!).getPropertyValue('--tw-mask-near')));
 
 test('scrolling eases the typewriter fade away, and writing eases it back', async () => {
   const { app, page } = await launch({ file: { name: 'T.md', content: FILE } });
   try {
     await page.keyboard.press('Meta+Shift+t'); // typewriter is never restored at launch
     await expect.poll(() => near(page)).toBeCloseTo(0.4, 2);
-    const box = (await page.locator('.bt-scroller').boundingBox())!;
+    const box = (await page.locator('[data-ref="scroller"]').boundingBox())!;
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
 
     await page.mouse.wheel(0, 300);

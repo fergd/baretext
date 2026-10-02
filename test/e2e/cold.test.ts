@@ -73,7 +73,7 @@ test('open a parked scene: the page shows only it, the writer edits it, Esc retu
     await action(page, '3.1 ', 'park');
     await page.evaluate(() => (window as any).__baretext.caretAfter('Words that'));
     const before = await t.selection();
-    const scroll = await page.$eval('.bt-scroller', (e) => e.scrollTop);
+    const scroll = await page.$eval('[data-ref="scroller"]', (e) => e.scrollTop);
 
     await page.locator('.bt-outline-parked').click();
     await expect(page.locator('.bt-parked-bar')).toBeVisible();
@@ -92,7 +92,7 @@ test('open a parked scene: the page shows only it, the writer edits it, Esc retu
     await page.keyboard.press('Escape');
     await expect(page.locator('.bt-parked-bar')).toBeHidden();
     expect(await t.selection()).toEqual(before);
-    expect(await page.$eval('.bt-scroller', (e) => e.scrollTop)).toBe(scroll);
+    expect(await page.$eval('[data-ref="scroller"]', (e) => e.scrollTop)).toBe(scroll);
     // The edit stayed with the parked scene.
     expect((await model(page)).coldStorage[0].blocks[0].content[0].text).toMatch(/^Fresh start\./);
   } finally {

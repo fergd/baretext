@@ -67,7 +67,7 @@ test('focus mode dissolves the text at the window edges, and the line being writ
   const { app, page } = await launch({ file: { name: 'M.md', content: '# One\n\n## Two\n\n' + Array(30).fill(P).join('\n\n') + '\n' } });
   try {
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setContentSize(1200, 700));
-    const mask = () => page.$eval('.bt-scroller', (e) => getComputedStyle(e).maskImage);
+    const mask = () => page.$eval('[data-ref="scroller"]', (e) => getComputedStyle(e).maskImage);
     expect(await mask()).toBe('none');
     await page.keyboard.press('Meta+.');
     expect(await mask()).toContain('linear-gradient');
@@ -77,7 +77,7 @@ test('focus mode dissolves the text at the window edges, and the line being writ
     for (let i = 0; i < 6; i++) { await page.keyboard.press('Enter'); await page.keyboard.type('A new line.'); }
     const { caretBottom, edge, fade } = await page.evaluate(() => {
       const v = (window as any).__baretext;
-      const box = document.querySelector('.bt-scroller')!.getBoundingClientRect();
+      const box = document.querySelector('[data-ref="scroller"]')!.getBoundingClientRect();
       const lh = parseFloat(getComputedStyle(document.querySelector('.ProseMirror p')!).lineHeight);
       return { caretBottom: v.caretTop() + lh, edge: box.bottom, fade: parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--focus-fade')) };
     });

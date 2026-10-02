@@ -18,6 +18,8 @@ export interface CommandContext {
   reveal(): void;
   /** The parked scene open on the page, if any. */
   parked(): string | null;
+  mode(): 'manuscript' | 'sprinter';
+  timer(): { running: boolean; paused: boolean; hidden: boolean };
   leaveParked(): void;
   restoreParked(): void;
 }
@@ -43,6 +45,18 @@ export function commandsView(ctx: CommandContext): PaletteView {
         items.push({ id: 'name-scene', group: 'Insert', label: here.scene.name ? 'Rename scene' : 'Name scene', keywords: 'title heading rename scene name', run: () => ctx.run('name-scene') });
         items.push({ id: 'park-scene', group: 'Insert', label: 'Move scene to Cold Storage', keywords: 'park cut archive set aside cold storage', run: () => ctx.run('park-scene') });
       }
+      if (ctx.mode() === 'sprinter') {
+        // Sprinter: writing, and the way out.
+        return [
+          { id: 'end-sprint', group: 'Sprint', label: 'End sprint…', keywords: 'stop finish done keep leave sprinter manuscript', keys: '⌘⇧D', run: () => ctx.run('mode') },
+          ...(ctx.timer().running ? [{ id: 'sprint-pause', group: 'Sprint', label: ctx.timer().paused ? 'Resume timer' : 'Pause timer', keywords: 'stop hold break timer clock', run: () => ctx.run('sprint-pause') }] : []),
+          { id: 'sprint-hide', group: 'Sprint', label: ctx.timer().hidden ? 'Show timer' : 'Hide timer', keywords: 'timer line progress clock', keys: '⌘⇧H', run: () => ctx.run('sprint-hide') },
+          { id: 'pause', group: 'Insert', label: 'Pause', keywords: 'section break', keys: '⌘⇧↵', run: () => ctx.run('pause') },
+          { id: 'typewriter', group: 'View', label: 'Typewriter mode', keywords: 'center line', keys: '⌘⇧T', state: ctx.isOn('typewriter') ? 'on' : 'off', run: () => ctx.run('typewriter') },
+          { id: 'focus', group: 'View', label: 'Focus mode', keywords: 'hide chrome distraction quiet', keys: '⌘.', state: ctx.isOn('focus') ? 'on' : 'off', run: () => ctx.run('focus') },
+          { id: 'save', group: 'File', label: 'Save', keys: '⌘S', run: () => ctx.run('save') },
+        ];
+      }
       if (ctx.parked()) {
         items.unshift(
           { id: 'leave-parked', group: 'Cold Storage', label: 'Back to manuscript', keywords: 'return close cold storage', keys: 'Esc', run: () => ctx.leaveParked() },
@@ -58,6 +72,7 @@ export function commandsView(ctx: CommandContext): PaletteView {
         );
       }
       items.push(
+        { id: 'sprint', group: 'View', label: 'Sprint…', keywords: 'sprinter timer word goal pomodoro write session mode', keys: '⌘⇧S', run: () => ctx.run('sprint') },
         { id: 'outline', group: 'View', label: 'Outline', keywords: 'sidebar chapters scenes tree navigator', keys: '⌘\\', state: ctx.isOn('outline') ? 'on' : 'off', run: () => ctx.run('outline') },
         { id: 'typewriter', group: 'View', label: 'Typewriter mode', keywords: 'center line', keys: '⌘⇧T', state: ctx.isOn('typewriter') ? 'on' : 'off', run: () => ctx.run('typewriter') },
         { id: 'focus', group: 'View', label: 'Focus mode', keywords: 'hide chrome distraction quiet', keys: '⌘.', state: ctx.isOn('focus') ? 'on' : 'off', run: () => ctx.run('focus') },

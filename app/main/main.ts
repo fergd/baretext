@@ -2,12 +2,13 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, screen, shell, type MenuItem
 import { randomBytes } from 'node:crypto';
 import { existsSync, promises as fs } from 'node:fs';
 import path from 'node:path';
-import { bookTitle, emptyManuscript, EXPORT_EXTENSIONS, EXPORT_FORMATS, exportMarkdown, exportText, isExportBook, manuscriptWords, parse, serialize, validate, type ExportFormat, type Manuscript } from '@baretext/format';
+import { bookTitle, emptyManuscript, ID_PATTERN, type Block, EXPORT_EXTENSIONS, EXPORT_FORMATS, exportMarkdown, exportText, isExportBook, manuscriptWords, parse, serialize, validate, type ExportFormat, type Manuscript } from '@baretext/format';
 import { buildDocx } from './export-docx';
-import { CHANNELS, OUTLINE_STATES, validAppearance, validExport, type ExportResult, type InitialPrefs, type MenuCommand, type OpenedDocument, type OutlineState, type Theme } from '../shared/bridge';
+import { CHANNELS, OUTLINE_STATES, validAppearance, validExport, validSprint, type ExportResult, type InitialPrefs, type MenuCommand, type OpenedDocument, type OutlineState, type Theme } from '../shared/bridge';
 import { atomicWrite, saveManuscript } from './save';
 import { notesPathFor, validNotes } from '../shared/notes';
 import { SnapshotStore, type SnapshotEntry } from './snapshots';
+import { SprintStore, validRecord } from './sprints';
 import { SettingsStore } from './settings';
 import { MIN_SIZE, placeWindow } from './window';
 
@@ -28,6 +29,8 @@ let quitting = false;
 const recoveryRoot = () => path.join(app.getPath('userData'), 'Recovery');
 let snapshotStore: SnapshotStore | null = null;
 const snapshots = () => (snapshotStore ??= new SnapshotStore(path.join(app.getPath('userData'), 'Snapshots')));
+let sprintStore: SprintStore | null = null;
+const sprints = () => (sprintStore ??= new SprintStore(path.join(app.getPath('userData'), 'Sprints')));
 
 /** Snapshots never block writing: failures are logged, never thrown at the writer. */
 function snapshotOpened(doc: OpenedDocument) {
@@ -174,6 +177,9 @@ const EXPORT_NAMES: Record<ExportFormat, string> = { docx: 'Word Document', mark
 
 // ── menu ──
 
+/** The window is in Sprinter (the menu's mode item names the way back). */
+let sprinting = false;
+
 function send(command: MenuCommand) {
   win?.webContents.send(CHANNELS.menu, command);
 }
@@ -271,6 +277,10 @@ function buildMenu() {
         { label: 'Typewriter Mode', ...label('Shift+CmdOrCtrl+T'), click: () => send('typewriter') },
         { label: 'Focus Mode', ...label('CmdOrCtrl+.'), click: () => send('focus') },
         { type: 'separator' },
+        { label: 'Sprint…', ...label('Shift+CmdOrCtrl+S'), click: () => send('sprint') },
+        { label: sprinting ? 'End Sprint…' : 'Switch to Sprinter…', ...label('Shift+CmdOrCtrl+D'), click: () => send('mode') },
+        { label: 'Hide Sprint Timer', ...label('Shift+CmdOrCtrl+H'), enabled: sprinting, click: () => send('sprint-hide') },
+        { type: 'separator' },
         { role: 'toggleDevTools' },
       ],
     },
@@ -286,6 +296,7 @@ function createWindow() {
   const initial: InitialPrefs = {
     theme: s.theme, proseFont: s.proseFont, paragraphSpacing: s.paragraphSpacing, proseWidth: s.proseWidth, fontSize: s.fontSize, outline: s.outline, hidden: HIDDEN,
     export: s.export,
+    sprint: s.sprint,
   };
   // Where it was last time (if still on a connected display), else a large
   // centered window. Hidden test windows keep a fixed size unless a test sets one.
@@ -354,7 +365,11 @@ function createWindow() {
 }
 
 function registerIpc() {
-  ipcMain.handle(CHANNELS.loadInitial, () => initialDocument());
+  ipcMain.handle(CHANNELS.loadInitial, () => {
+    // A (re)loaded window starts in Manuscript.
+    if (sprinting) { sprinting = false; buildMenu(); }
+    return initialDocument();
+  });
   ipcMain.handle(CHANNELS.save, async (_e, filePath: unknown, manuscript: Manuscript, caret: unknown, force: unknown) => {
     if (typeof filePath !== 'string' || filePath !== currentFile) {
       return { ok: false, reason: 'no-file', message: 'This window is not editing that file.' };
@@ -435,9 +450,26 @@ function registerIpc() {
   ipcMain.on(CHANNELS.setPrefs, (_e, patch: Record<string, unknown>) => {
     const next: Record<string, unknown> = { ...validAppearance(patch) };
     if ('export' in patch) next.export = validExport(patch.export);
+    if ('sprint' in patch) next.sprint = validSprint(patch.sprint);
     if (OUTLINE_STATES.includes(patch.outline as OutlineState)) next.outline = patch.outline;
     settings.update(next);
     if ('outline' in next) buildMenu(); // keep the checked item in step
+  });
+  ipcMain.handle(CHANNELS.sprintWrite, async (_e, record: unknown, blocks: unknown) => {
+    try {
+      const r = validRecord(record);
+      if (!r) return { ok: false, message: 'Not a sprint.' };
+      await sprints().write(r, Array.isArray(blocks) ? (blocks as Block[]) : null);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, message: (e as Error).message };
+    }
+  });
+  ipcMain.handle(CHANNELS.sprintRead, (_e, id: unknown) => (typeof id === 'string' && ID_PATTERN.test(id) ? sprints().read(id) : []));
+  ipcMain.handle(CHANNELS.sprintUnfinished, () => sprints().unfinished());
+  ipcMain.on(CHANNELS.mode, (_e, mode: unknown) => {
+    const next = mode === 'sprinter';
+    if (next !== sprinting) { sprinting = next; buildMenu(); }
   });
   ipcMain.on(CHANNELS.fileCommand, (_e, command: unknown) => {
     if (command === 'new') void switchTo(createDocument);
@@ -453,6 +485,7 @@ app.whenReady().then(() => {
   registerIpc();
   buildMenu();
   createWindow();
+  void sprints().purge().catch(() => undefined);
 });
 
 app.on('before-quit', () => {
