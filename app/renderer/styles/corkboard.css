@@ -1,0 +1,161 @@
+/* The corkboard (DECISIONS §24): the book as scene cards, grouped by chapter,
+   in place of the page. */
+
+.bt-corkboard {
+  position: absolute;
+  inset: 0;
+  z-index: 6; /* over the page, the spine and the side columns */
+  display: flex;
+  flex-direction: column;
+  background: var(--color-page);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--dur-panel) var(--ease-out), visibility 0s linear var(--dur-panel);
+}
+.bt-corkboard[data-open='true'] {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity var(--dur-panel) var(--ease-out), visibility 0s;
+}
+
+/* ── the board's own toolbar, under the top bar ── */
+.bt-cork-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: var(--cork-bar-h);
+  padding: 0 var(--space-8);
+  border-bottom: 1px solid var(--color-popover-border);
+}
+.bt-cork-summary { margin-left: auto; font-size: var(--text-ui); color: var(--color-text-dimmer); font-variant-numeric: tabular-nums; }
+
+/* The cards' area: it scrolls; the toolbar stays. */
+.bt-cork-board { flex: 1 1 auto; min-height: 0; overflow: auto; padding: var(--space-8) var(--space-8) var(--space-16); outline: none; }
+
+/* Rows: chapters stacked, their cards wrapping, the board centred. */
+.bt-corkboard[data-layout='rows'] .bt-cork-chapter { max-width: var(--cork-w); margin-inline: auto; }
+
+/* ── chapters ── */
+.bt-corkboard[data-layout='rows'] .bt-cork-chapter + .bt-cork-chapter { margin-top: var(--space-8); }
+.bt-cork-chapter-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-popover-border);
+}
+.bt-cork-chapter-number { font-family: var(--font-num); font-size: var(--text-palette); color: var(--color-text-dimmer); font-variant-numeric: tabular-nums; }
+.bt-cork-chapter-title { margin: 0; font-size: var(--text-palette-input); font-weight: 400; color: var(--color-h1); }
+.bt-cork-chapter-meta { margin-left: auto; font-size: var(--text-ui); color: var(--color-text-dimmer); font-variant-numeric: tabular-nums; }
+
+.bt-cork-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--cork-card-min), 1fr));
+  gap: var(--space-3);
+}
+
+/* Columns: one per chapter, side by side; the board scrolls across, each
+   column down its own cards. */
+.bt-corkboard[data-layout='columns'] .bt-cork-board { display: flex; gap: var(--space-4); overflow-y: hidden; padding-bottom: var(--space-6); }
+.bt-corkboard[data-layout='columns'] .bt-cork-chapter { flex: 0 0 var(--cork-column-w); display: flex; flex-direction: column; min-height: 0; }
+.bt-corkboard[data-layout='columns'] .bt-cork-chapter-head { flex-wrap: wrap; row-gap: 0; }
+.bt-corkboard[data-layout='columns'] .bt-cork-chapter-title { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bt-corkboard[data-layout='columns'] .bt-cork-chapter-meta { flex-basis: 100%; margin-left: 0; }
+.bt-corkboard[data-layout='columns'] .bt-cork-grid { grid-template-columns: 1fr; align-content: start; min-height: 0; overflow-y: auto; padding: var(--space-1); margin: calc(-1 * var(--space-1)); }
+
+/* ── cards: the title first, the opening lines quieter beneath ── */
+.bt-cork-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  height: var(--cork-card-h);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-popover-border);
+  border-radius: var(--popover-radius);
+  background: var(--color-popover);
+  font-family: var(--font-ui);
+  letter-spacing: var(--tracking-ui);
+  outline: none;
+  cursor: default;
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+.bt-cork-card:hover { border-color: var(--color-text-dimmer); }
+/* The card with the keyboard (a click gives it that, nothing more). */
+.bt-cork-card:focus { border-color: var(--color-accent); box-shadow: 0 0 0 1px var(--color-accent); }
+
+.bt-cork-card-head { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; }
+.bt-cork-card-number { flex: none; font-family: var(--font-num); font-size: var(--text-ui); color: var(--color-text-dimmer); font-variant-numeric: tabular-nums; }
+.bt-cork-card-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-palette-input);
+  font-weight: 400;
+  line-height: var(--lh-ui);
+  color: var(--color-text);
+}
+.bt-cork-card-title[data-unnamed='true'] { color: var(--color-text-dimmer); }
+
+.bt-cork-card-opening {
+  margin: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  font-size: var(--text-palette);
+  line-height: var(--space-5);
+  color: var(--color-text-dim);
+  text-wrap: pretty;
+}
+
+/* The footer takes the card's spare height: the opening's box stays exactly its three lines. */
+.bt-cork-card-foot { margin-top: auto; display: flex; align-items: center; gap: var(--space-3); font-size: var(--text-ui); color: var(--color-text-dimmer); font-variant-numeric: tabular-nums; }
+.bt-cork-card-notes { color: var(--color-note); }
+.bt-cork-card[data-draft='true'] { border-style: dashed; }
+.bt-cork-card[data-draft='true'] .bt-cork-card-opening { font-style: italic; }
+
+/* A card's actions show on the card the pointer is over or the keyboard is on. */
+.bt-cork-action {
+  flex: none;
+  height: var(--space-5);
+  padding: 0 var(--space-2);
+  border-radius: var(--toolbar-button-radius);
+  font-size: var(--text-ui);
+  color: var(--color-text-dim);
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+}
+.bt-cork-card:is(:hover, :focus-within) .bt-cork-action { opacity: 1; }
+.bt-cork-action:hover { background: var(--color-popover-hover); color: var(--color-text); }
+
+/* ── the view chips in the top bar ── */
+.bt-view-tabs {
+  -webkit-app-region: no-drag;
+  flex: none;
+  display: flex;
+  gap: var(--space-1);
+  margin-left: auto;
+  margin-top: calc(-1 * var(--chrome-optical-offset));
+}
+.bt-view-tab {
+  height: var(--chrome-button);
+  padding: 0 var(--space-2);
+  border-radius: var(--toolbar-button-radius);
+  font: inherit;
+  letter-spacing: inherit;
+  color: var(--color-text-dimmer);
+  transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+}
+.bt-view-tab:hover { color: var(--color-text-dim); background: var(--color-popover-hover); }
+.bt-view-tab[aria-selected='true'] { color: var(--color-text); background: var(--color-popover-active); }
+
+/* On the corkboard: what acts on the page steps aside. */
+.bt-app[data-view='corkboard'] :is(.bt-spine, .bt-spine-tip, [data-ref='sidebar'], [data-ref='notes-button'], [data-ref='typewriter'], [data-ref='focus']) { visibility: hidden; }
+/* In Sprinter there are no other views. */
+.bt-app[data-mode='sprinter'] .bt-view-tabs { visibility: hidden; }

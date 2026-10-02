@@ -151,6 +151,19 @@ test('150k-word manuscript: open time and typing latency', async () => {
     expect(await page.evaluate(() => (window as any).__baretext.saveNow())).toBe(true);
     console.log(`save (serialize + verify + atomic write): ${Date.now() - s0} ms`);
 
+    // The corkboard: every scene of the book as a card, drawn when it opens.
+    const corkboardMs = await page.evaluate(async () => {
+      const t0 = performance.now();
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'C', code: 'KeyC', metaKey: true, shiftKey: true, bubbles: true }));
+      await new Promise((r) => requestAnimationFrame(() => r(null)));
+      document.querySelector('.bt-corkboard')!.getBoundingClientRect(); // laid out
+      return performance.now() - t0;
+    });
+    const cards = await page.$$eval('.bt-cork-card', (cs) => cs.length);
+    console.log(`corkboard open (${cards} cards): ${corkboardMs.toFixed(1)} ms`);
+    expect(cards).toBeGreaterThan(100);
+    expect(corkboardMs).toBeLessThan(200);
+
     expect(info.words).toBeGreaterThanOrEqual(150_000);
     expect(plain.p95).toBeLessThan(16);
     expect(tw.p95).toBeLessThan(16);

@@ -28,6 +28,14 @@ describe('theme', () => {
   });
 });
 
+describe('corkboard layout', () => {
+  it('keeps rows or columns, and falls back to rows', () => {
+    expect(validateSettings({ corkboardLayout: 'columns' }).corkboardLayout).toBe('columns');
+    expect(validateSettings({ corkboardLayout: 'grid' }).corkboardLayout).toBe('rows');
+    expect(validateSettings({}).corkboardLayout).toBe('rows');
+  });
+});
+
 describe('sprint choices', () => {
   it('keeps valid choices and falls back field by field', () => {
     const ok = { kind: 'words', minutes: 40, words: 750, rounds: 3, breakMinutes: 10 };

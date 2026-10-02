@@ -12,6 +12,8 @@ export interface SceneEntry {
   name: string | null;
   pos: number;
   words: number;
+  /** Its first prose, a few lines' worth (the corkboard card's lines). */
+  opening: string;
 }
 
 export interface ChapterEntry {
@@ -41,18 +43,34 @@ export interface Outline {
   parkedWords: number;
 }
 
-const sceneWords = new WeakMap<PMNode, number>();
-function wordsIn(scene: PMNode): number {
-  let n = sceneWords.get(scene);
-  if (n === undefined) {
-    let total = 0;
+/** How much of a scene's opening a card holds (it clamps to its lines). */
+const OPENING_CHARS = 300;
+
+const sceneFacts = new WeakMap<PMNode, { words: number; opening: string }>();
+/** A scene's words and opening, worked out once per (immutable) scene node. */
+function factsOf(scene: PMNode): { words: number; opening: string } {
+  let facts = sceneFacts.get(scene);
+  if (!facts) {
+    let words = 0;
+    let prose = '';
     scene.forEach((child) => {
-      if (child.type !== schema.nodes.scene_heading) total += countWords(child.textBetween(0, child.content.size, ' ', ' '));
+      if (child.type === schema.nodes.scene_heading) return;
+      const text = child.textBetween(0, child.content.size, ' ', ' ');
+      words += countWords(text);
+      if (prose.length <= OPENING_CHARS) prose += ` ${text}`;
     });
-    n = total;
-    sceneWords.set(scene, n);
+    facts = { words, opening: clip(prose.replace(/\s+/g, ' ').trim(), OPENING_CHARS) };
+    sceneFacts.set(scene, facts);
   }
-  return n;
+  return facts;
+}
+
+/** `text` cut to at most `max` characters, at a word, with an ellipsis. */
+function clip(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const cut = text.slice(0, max);
+  const space = cut.lastIndexOf(' ');
+  return `${(space > max / 2 ? cut.slice(0, space) : cut).trimEnd()}…`;
 }
 
 const outlines = new WeakMap<PMNode, Outline>();
@@ -69,14 +87,15 @@ export function outlineOf(doc: PMNode): Outline {
     top.forEach((child, childOffset) => {
       if (child.type !== schema.nodes.scene) return;
       const heading = child.firstChild?.type === schema.nodes.scene_heading ? child.firstChild : null;
-      const w = wordsIn(child);
-      words += w;
+      const facts = factsOf(child);
+      words += facts.words;
       entry.scenes.push({
         id: child.attrs.id,
         label: `${number}.${entry.scenes.length + 1}`,
         name: heading ? heading.textContent : null,
         pos: offset + 1 + childOffset,
-        words: w,
+        words: facts.words,
+        opening: facts.opening,
       });
     });
     chapters.push(entry);
@@ -89,7 +108,7 @@ export function outlineOf(doc: PMNode): Outline {
     const heading = scene.firstChild?.type === schema.nodes.scene_heading ? scene.firstChild : null;
     const origin = scene.attrs.origin as { chapter: string; index: number } | null;
     const chapter = origin ? chapters.find((c) => c.id === origin.chapter) : undefined;
-    const w = wordsIn(scene);
+    const w = factsOf(scene).words;
     parkedWords += w;
     parked.push({
       id: scene.attrs.id,

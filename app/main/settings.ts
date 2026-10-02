@@ -4,7 +4,7 @@
 import { promises as fs, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { atomicWrite } from './save';
-import { DEFAULT_APPEARANCE, DEFAULT_EXPORT, DEFAULT_SPRINT, validSprint, type SprintPrefs, OUTLINE_STATES, validAppearance, validExport, type AppearancePrefs, type ExportPrefs, type OutlineState } from '../shared/bridge';
+import { DEFAULT_APPEARANCE, DEFAULT_EXPORT, DEFAULT_SPRINT, validCorkboardLayout, validSprint, type CorkboardLayout, type SprintPrefs, OUTLINE_STATES, validAppearance, validExport, type AppearancePrefs, type ExportPrefs, type OutlineState } from '../shared/bridge';
 
 export interface Settings extends AppearancePrefs {
   lastFile: string | null;
@@ -15,6 +15,7 @@ export interface Settings extends AppearancePrefs {
   saveDir: string | null;
   export: ExportPrefs;
   sprint: SprintPrefs;
+  corkboardLayout: CorkboardLayout;
   /** Where the last export was saved. */
   exportDir: string | null;
   /** Where the window was (its normal, unzoomed frame) and how. */
@@ -30,6 +31,7 @@ export const DEFAULT_SETTINGS: Settings = {
   saveDir: null,
   export: DEFAULT_EXPORT,
   sprint: DEFAULT_SPRINT,
+  corkboardLayout: 'rows',
   exportDir: null,
   window: null,
 };
@@ -52,6 +54,7 @@ export function validateSettings(raw: unknown): Settings {
   if (isString(r.saveDir)) s.saveDir = r.saveDir;
   s.export = validExport(r.export);
   s.sprint = validSprint(r.sprint);
+  s.corkboardLayout = validCorkboardLayout(r.corkboardLayout);
   if (isString(r.exportDir)) s.exportDir = r.exportDir;
   const w = r.window as Record<string, unknown> | null | undefined;
   if (w && typeof w === 'object' && ['x', 'y', 'width', 'height'].every((k) => Number.isFinite(w[k]))) {

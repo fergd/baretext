@@ -7,8 +7,9 @@ import './clock';
 import { EditorView } from 'prosemirror-view';
 import { TextSelection } from 'prosemirror-state';
 import { createManuscriptState } from '@baretext/editor';
-import { DEFAULT_APPEARANCE, DEFAULT_EXPORT, DEFAULT_SPRINT, THEMES, type BaretextBridge, type Theme } from '../../shared/bridge';
+import { DEFAULT_APPEARANCE, DEFAULT_EXPORT, DEFAULT_SPRINT, THEMES, type BaretextBridge, type CorkboardLayout, type Theme } from '../../shared/bridge';
 import { AppearancePanel } from '../appearance';
+import { Corkboard } from '../corkboard';
 import { ExportPanel } from '../export-panel';
 import { FindPanel } from '../find';
 import { HistoryPanel } from '../history';
@@ -26,6 +27,7 @@ import { SprintSetup } from '../sprint-setup';
 import { SprintTimer } from '../sprint-timer';
 import { SprintsPanel } from '../sprints-panel';
 import { SelectionToolbar } from '../toolbar';
+import { ViewTabs, type View } from '../view-tabs';
 import { book, books, keptSprints, notes, snapshots, sprintText } from './fixtures';
 
 interface Spec {
@@ -44,7 +46,7 @@ const click = (frame: HTMLElement, selector: string) => frame.querySelector<HTML
 
 /** Only what the panels below call; the rest of the bridge is never reached here. */
 const bridge = {
-  initial: { ...DEFAULT_APPEARANCE, outline: 'hidden', hidden: false, export: DEFAULT_EXPORT, sprint: DEFAULT_SPRINT },
+  initial: { ...DEFAULT_APPEARANCE, outline: 'hidden', hidden: false, export: DEFAULT_EXPORT, sprint: DEFAULT_SPRINT, corkboardLayout: 'rows' },
   listSnapshots: () => Promise.resolve(snapshots),
   readSnapshot: () => Promise.resolve(book),
   takeSnapshot: () => Promise.resolve(null),
@@ -186,6 +188,24 @@ async function saveFailure(frame: HTMLElement, reason: 'destructive' | 'io') {
   await new Saver(failing, () => d.view, () => FILE, el('span', 'bt-save-state'), frame).saveNow();
 }
 
+/** The corkboard over the book, the keyboard on `focus`'s card (given last: it lives while focused). */
+function corkboard(frame: HTMLElement, focus: string | null, layout: CorkboardLayout = 'rows'): Finish {
+  const d = desk(frame);
+  frame.dataset.view = 'corkboard';
+  const board = new Corkboard(d.workspace, { open: noop, close: noop, noteCounts: () => new Map([['s1', 2]]), onLayout: noop }, layout);
+  board.open(outlineOf(d.view.state.doc), null);
+  return focus ? () => frame.querySelector<HTMLElement>(`.bt-cork-card[data-id="${focus}"]`)!.focus() : undefined;
+}
+
+/** The top bar's right side: the view chips, `view` chosen. */
+function chips(frame: HTMLElement, view: View) {
+  const bar = el('div', 'bt-chrome g-chrome');
+  const tabs = new ViewTabs(noop);
+  tabs.set(view);
+  bar.append(Object.assign(el('span', 'bt-chrome-title'), { textContent: book.title }), tabs.el);
+  frame.append(bar);
+}
+
 function toast(frame: HTMLElement, kind: 'info' | 'error', message: string) {
   desk(frame);
   const t = el('div', 'bt-toast');
@@ -228,6 +248,11 @@ const SPECS: Spec[] = [
   { component: 'Notes', state: 'In the margin', size: [1200, 560], render: (f) => notesIn(f, 'margin') },
   { component: 'Save notice', state: 'Would gut the book', size: [900, 300], render: (f) => saveFailure(f, 'destructive') },
   { component: 'Save notice', state: 'Couldn’t save', size: [900, 300], render: (f) => saveFailure(f, 'io') },
+  { component: 'Corkboard', state: 'Board', size: [1100, 640], render: (f) => corkboard(f, null) },
+  { component: 'Corkboard', state: 'A card with the keyboard', size: [1100, 640], render: (f) => corkboard(f, 's4') },
+  { component: 'Corkboard', state: 'Columns', size: [1100, 640], render: (f) => corkboard(f, 's4', 'columns') },
+  { component: 'View chips', state: 'Manuscript', size: [600, 60], render: (f) => chips(f, 'manuscript') },
+  { component: 'View chips', state: 'Corkboard', size: [600, 60], render: (f) => chips(f, 'corkboard') },
   { component: 'Toast', state: 'Info', size: [900, 200], render: (f) => toast(f, 'info', 'Sprint added to the end of chapter 2. ⌘Z undoes it.') },
   { component: 'Toast', state: 'Error', size: [900, 200], render: (f) => toast(f, 'error', 'Couldn’t save the sprint: the disk is full.') },
 ];

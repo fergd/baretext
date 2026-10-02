@@ -4,7 +4,7 @@ import { existsSync, promises as fs } from 'node:fs';
 import path from 'node:path';
 import { bookTitle, printManuscript, emptyManuscript, ID_PATTERN, type Block, EXPORT_EXTENSIONS, EXPORT_FORMATS, exportMarkdown, exportText, isExportBook, manuscriptWords, parse, serialize, validate, type ExportFormat, type Manuscript } from '@baretext/format';
 import { buildDocx } from './export-docx';
-import { CHANNELS, OUTLINE_STATES, validAppearance, validExport, validSprint, type ExportResult, type InitialPrefs, type MenuCommand, type OpenedDocument, type OutlineState, type Theme } from '../shared/bridge';
+import { CHANNELS, OUTLINE_STATES, validAppearance, validCorkboardLayout, validExport, validSprint, type ExportResult, type InitialPrefs, type MenuCommand, type OpenedDocument, type OutlineState, type Theme } from '../shared/bridge';
 import { atomicWrite, saveManuscript } from './save';
 import { notesPathFor, validNotes } from '../shared/notes';
 import { SnapshotStore, type SnapshotEntry } from './snapshots';
@@ -281,6 +281,7 @@ function buildMenu() {
         { label: 'Outline', type: 'checkbox', checked: settings.get().outline === 'pinned', ...label('CmdOrCtrl+\\'), click: () => send('outline') },
         { label: 'Move to Outline', ...label('Alt+CmdOrCtrl+\\'), click: () => send('outline-focus') },
         { type: 'separator' },
+        { label: 'Corkboard', ...label('Shift+CmdOrCtrl+C'), enabled: !sprinting, click: () => send('corkboard') },
         { label: 'Notes', ...label('Shift+CmdOrCtrl+N'), click: () => send('notes') },
         { label: 'Typewriter Mode', ...label('Shift+CmdOrCtrl+T'), click: () => send('typewriter') },
         { label: 'Focus Mode', ...label('CmdOrCtrl+.'), click: () => send('focus') },
@@ -306,6 +307,7 @@ function createWindow() {
     theme: s.theme, proseFont: s.proseFont, paragraphSpacing: s.paragraphSpacing, proseWidth: s.proseWidth, fontSize: s.fontSize, outline: s.outline, hidden: HIDDEN,
     export: s.export,
     sprint: s.sprint,
+    corkboardLayout: s.corkboardLayout,
   };
   // Where it was last time (if still on a connected display), else a large
   // centered window. Hidden test windows keep a fixed size unless a test sets one.
@@ -464,6 +466,7 @@ function registerIpc() {
     const next: Record<string, unknown> = { ...validAppearance(patch) };
     if ('export' in patch) next.export = validExport(patch.export);
     if ('sprint' in patch) next.sprint = validSprint(patch.sprint);
+    if ('corkboardLayout' in patch) next.corkboardLayout = validCorkboardLayout(patch.corkboardLayout);
     if (OUTLINE_STATES.includes(patch.outline as OutlineState)) next.outline = patch.outline;
     settings.update(next);
     if ('outline' in next) buildMenu(); // keep the checked item in step

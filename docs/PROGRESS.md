@@ -760,4 +760,10 @@ screenshot test — every panel, the outline, find, the selection toolbar,
 notes (panel and margin), the save notice, toasts, the spine and the timer
 line. Editor-bound parts sit on a real editor in each frame. It found a real bug on day one: two manuscripts with the
 same title *and* file name were labelled identically (now: by folder too).
-**Next (proposed):** corkboard · integrations (§7).
+**Corkboard phase 1 built** (DECISIONS §24): view chips, the board and its
+toolbar, rows/columns layouts, keyboard, opening scenes; E2E `corkboard.test.ts`, gallery (board, focused
+card, chips), bench (open time).
+**Next:** corkboard phase 2 — rename, add, delete (two-step), copy, as
+toolbar actions on the focused card (DECISIONS §25) · phase 3 — reorder
+scenes and chapters (drag, ⌥↑/⌥↓) · book setup · Mark as… and the story
+arc · integrations (§7).

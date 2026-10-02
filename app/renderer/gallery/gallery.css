@@ -50,3 +50,4 @@ html, body { height: auto; min-height: 100%; overflow: auto; background: var(--c
 
 .g-frame.g-app { display: block; height: var(--g-h); }
 .g-workspace { position: absolute; inset: 0; }
+.g-chrome { height: var(--chrome-h); padding-left: var(--space-4); }

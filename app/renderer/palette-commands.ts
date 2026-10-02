@@ -13,7 +13,7 @@ export interface CommandContext {
   navigate(sceneId: string): void;
   /** Switch the palette to another list. */
   open(view: PaletteView): void;
-  isOn(toggle: 'outline' | 'typewriter' | 'focus'): boolean;
+  isOn(toggle: 'outline' | 'corkboard' | 'typewriter' | 'focus'): boolean;
   fileCommand(command: 'new' | 'open'): void;
   reveal(): void;
   /** The parked scene open on the page, if any. */
@@ -81,6 +81,7 @@ export function commandsView(ctx: CommandContext): PaletteView {
         { id: 'sprints', group: 'View', label: 'Sprints…', keywords: 'kept sprints library warm-ups exercises saved', run: () => ctx.run('sprints') },
         { id: 'sprint', group: 'View', label: 'Sprint…', keywords: 'sprinter timer word target pomodoro write session mode', keys: '⌘⇧S', run: () => ctx.run('sprint') },
         { id: 'outline', group: 'View', label: 'Outline', keywords: 'sidebar chapters scenes tree navigator', keys: '⌘\\', state: ctx.isOn('outline') ? 'on' : 'off', run: () => ctx.run('outline') },
+        { id: 'corkboard', group: 'View', label: 'Corkboard', keywords: 'cards scenes board structure overview index cards', keys: '⌘⇧C', state: ctx.isOn('corkboard') ? 'on' : 'off', run: () => ctx.run('corkboard') },
         typewriterItem(ctx),
         focusItem(ctx),
         { id: 'appearance', group: 'View', label: 'Appearance…', keywords: 'settings preferences theme dark light contrast font serif sans mono size spacing width wide narrow style', keys: '⌘,', run: () => ctx.run('appearance') },

@@ -87,6 +87,11 @@ export function validExport(raw: unknown): ExportPrefs {
   };
 }
 
+/** The corkboard's layout: chapters as rows of cards, or as columns. */
+export const CORKBOARD_LAYOUTS = ['rows', 'columns'] as const;
+export type CorkboardLayout = (typeof CORKBOARD_LAYOUTS)[number];
+export const validCorkboardLayout = (v: unknown): CorkboardLayout => (CORKBOARD_LAYOUTS.includes(v as CorkboardLayout) ? (v as CorkboardLayout) : 'rows');
+
 /** Sprint setup choices, remembered between sprints. */
 export const SPRINT_KINDS = ['time', 'words'] as const;
 export type SprintKind = (typeof SPRINT_KINDS)[number];
@@ -160,10 +165,11 @@ export interface InitialPrefs extends AppearancePrefs {
   hidden: boolean;
   export: ExportPrefs;
   sprint: SprintPrefs;
+  corkboardLayout: CorkboardLayout;
 }
 
 export type MenuCommand =
-  | 'undo' | 'redo' | 'typewriter' | 'focus' | 'bold' | 'italic' | 'link' | 'quote' | 'split-scene' | 'split-chapter' | 'pause' | 'name-scene' | 'save' | 'palette' | 'goto' | 'find' | 'find-replace' | 'find-next' | 'find-prev' | 'history' | 'snapshot' | 'outline' | 'outline-focus' | 'new-scene' | 'new-chapter' | 'appearance' | 'park-scene' | 'add-note' | 'notes' | 'export' | 'print' | 'sprint' | 'sprints' | 'mode' | 'sprint-pause' | 'sprint-hide';
+  | 'undo' | 'redo' | 'typewriter' | 'focus' | 'bold' | 'italic' | 'link' | 'quote' | 'split-scene' | 'split-chapter' | 'pause' | 'name-scene' | 'save' | 'palette' | 'goto' | 'find' | 'find-replace' | 'find-next' | 'find-prev' | 'history' | 'snapshot' | 'outline' | 'outline-focus' | 'new-scene' | 'new-chapter' | 'appearance' | 'park-scene' | 'add-note' | 'notes' | 'export' | 'print' | 'corkboard' | 'sprint' | 'sprints' | 'mode' | 'sprint-pause' | 'sprint-hide';
 
 /** A local snapshot of a manuscript (DECISIONS §6). */
 export interface SnapshotInfo {

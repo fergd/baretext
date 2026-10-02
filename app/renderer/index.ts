@@ -45,7 +45,9 @@ import { OutlinePanel, type OutlinePresence } from './outline-panel';
 import { FindPanel } from './find';
 import { HistoryPanel } from './history';
 import { AppearancePanel, readAppearance, sampleFrom, setAppearance } from './appearance';
+import { Corkboard } from './corkboard';
 import { ExportPanel } from './export-panel';
+import { ViewTabs, type View } from './view-tabs';
 import { Sprinter } from './sprinter';
 import { Palette, type PaletteView } from './palette';
 import { commandsView, jumpView, type CommandContext } from './palette-commands';
@@ -118,6 +120,7 @@ function refreshChrome() {
     if (!view) return;
     const state = view.state;
     const outline = outlineOf(state.doc);
+    corkboard.update(outline);
     const parked = parkedKey.getState(state);
     const open = parked ? outline.parked.find((p) => p.id === parked) ?? null : null;
     if (open) { refreshParked(open, outline); return; }
@@ -128,10 +131,12 @@ function refreshChrome() {
     count.textContent = numberFormat.format(outline.words);
     $('words').replaceChildren(count, ` ${outline.words === 1 ? 'word' : 'words'}`);
     $('title').textContent = state.doc.firstChild!.textContent || 'Untitled';
-    $('crumb').textContent = here
-      // Names exactly as the writer typed them (only the book title is set in capitals).
-      ? `Chapter ${here.chapter.number}${here.chapter.title ? ` · ${here.chapter.title}` : ''} · ${sceneDisplayName(here.scene)}`
-      : '';
+    $('crumb').textContent = corkboard.isOpen
+      ? 'Corkboard' // (its toolbar has the totals)
+      : here
+        // Names exactly as the writer typed them (only the book title is set in capitals).
+        ? `Chapter ${here.chapter.number}${here.chapter.title ? ` · ${here.chapter.title}` : ''} · ${sceneDisplayName(here.scene)}`
+        : '';
     spine.update(outline, here?.scene.id ?? null, here?.chapter.id ?? null);
     outlinePanel.update(outline, state.doc.firstChild!.textContent, here?.scene.id ?? null, here?.chapter.id ?? null);
   });
@@ -201,6 +206,7 @@ function restoreScene(id: string, chapterId?: string, index?: number) {
 // ── navigation controller: one path for every "go to scene" ──
 function navigate(sceneId: string): boolean {
   if (!view) return false;
+  if (app.dataset.view === 'corkboard') setView('manuscript');
   leaveParked(false); // going somewhere in the manuscript
   const scene = outlineOf(view.state.doc).chapters.flatMap((c) => c.scenes).find((s) => s.id === sceneId);
   if (!scene) return false; // a deleted target never jumps elsewhere
@@ -270,6 +276,18 @@ scroller.addEventListener('wheel', startReading, { passive: true });
 
 const spine = new Spine($('spine'), (id) => navigate(id));
 
+/** Open notes per scene id (the outline's rows and the corkboard's cards show them). */
+function openNoteCounts(): Map<string, number> {
+  const counts = new Map<string, number>();
+  if (!view) return counts;
+  const anchors = anchorsIn(view.state.doc);
+  for (const n of notes.all) {
+    const scene = !n.resolved && anchors.get(n.id)?.scene;
+    if (scene) counts.set(scene, (counts.get(scene) ?? 0) + 1);
+  }
+  return counts;
+}
+
 // ── outline: a column beside the page, opened deliberately (button, ⌘\, menu) ──
 const outlinePanel = new OutlinePanel($('workspace'), {
   navigate: (id) => navigate(id),
@@ -294,16 +312,7 @@ const outlinePanel = new OutlinePanel($('workspace'), {
   park: (id) => parkScene(id),
   openParked: (id) => openParkedScene(id),
   restore: (id, chapterId, index) => restoreScene(id, chapterId, index),
-  noteCounts: () => {
-    const counts = new Map<string, number>();
-    if (!view) return counts;
-    const anchors = anchorsIn(view.state.doc);
-    for (const n of notes.all) {
-      const scene = !n.resolved && anchors.get(n.id)?.scene;
-      if (scene) counts.set(scene, (counts.get(scene) ?? 0) + 1);
-    }
-    return counts;
-  },
+  noteCounts: () => openNoteCounts(),
   deleteScene: (id) => deleteFromOutline(id, 'scene'),
   deleteChapter: (id) => deleteFromOutline(id, 'chapter'),
   onPresence: (presence: OutlinePresence) => {
@@ -563,6 +572,37 @@ const exporter = new ExportPanel(document.body, {
   },
   onClose: () => focusWriting(),
 });
+
+// ── views of the book: the manuscript, the corkboard (⇧⌘C; DECISIONS §24) ──
+const viewTabs = new ViewTabs((next) => setView(next));
+$('notes-button').before(viewTabs.el);
+const corkboard = new Corkboard($('workspace'), {
+  open: (id) => navigate(id), // (navigation shows the manuscript first)
+  close: () => setView('manuscript'),
+  noteCounts: () => openNoteCounts(),
+  onLayout: (layout) => bridge.setPrefs({ corkboardLayout: layout }),
+}, bridge.initial.corkboardLayout);
+
+/**
+ * Show the manuscript or the corkboard. The board lies over the page, which
+ * stays exactly where it was underneath, so coming back finds it unmoved.
+ */
+function setView(next: View) {
+  if (!view || (app.dataset.view ?? 'manuscript') === next) return;
+  if (next === 'corkboard') {
+    if (sprinter.active) return; // (Sprinter has no other views)
+    palette.close();
+    find.close();
+    app.dataset.view = 'corkboard';
+    corkboard.open(outlineOf(view.state.doc), currentScene(view.state)?.scene.id ?? null);
+  } else {
+    app.dataset.view = 'manuscript';
+    corkboard.close();
+    focusWriting();
+  }
+  viewTabs.set(next);
+  refreshChrome();
+}
 
 // ── Sprinter (⇧⌘S): its own module; the manuscript side is here ──
 const sprinter = new Sprinter({
@@ -860,13 +900,22 @@ function runSprinterCommand(command: MenuCommand) {
   }
 }
 
+/** Commands that act on the page: from the corkboard they go back to it first. */
+const ON_THE_PAGE = new Set<MenuCommand>([
+  'typewriter', 'focus', 'bold', 'italic', 'link', 'quote', 'split-scene', 'split-chapter', 'pause', 'name-scene',
+  'find', 'find-replace', 'find-next', 'find-prev', 'add-note', 'notes', 'outline', 'outline-focus', 'park-scene', 'sprint', 'mode',
+]);
+
 function runCommand(command: MenuCommand) {
   if (!view) return;
   // A panel that covers the window (Appearance, History) keeps every other
   // command out until it closes; saving is always allowed.
   if ((appearance.isOpen || history.isOpen || exporter.isOpen || sprinter.panelOpen) && command !== 'save') return;
   if (sprinter.active) { runSprinterCommand(command); return; }
-  const run = (cmd: (s: EditorState, d?: (tr: Transaction) => void) => boolean) => { cmd(view!.state, view!.dispatch); view!.focus(); };
+  // On the corkboard, commands that act on the page show the page first.
+  if (corkboard.isOpen && ON_THE_PAGE.has(command)) setView('manuscript');
+  // (Undo from the board changes the book without leaving the board.)
+  const run = (cmd: (s: EditorState, d?: (tr: Transaction) => void) => boolean) => { cmd(view!.state, view!.dispatch); if (!corkboard.isOpen) view!.focus(); };
   switch (command) {
     case 'undo': run(undo); break;
     case 'redo': run(redo); break;
@@ -894,6 +943,7 @@ function runCommand(command: MenuCommand) {
     case 'history': palette.close(); find.close(); void history.open(false); break;
     case 'export': palette.close(); find.close(); exporter.open(); break;
     case 'print': palette.close(); void printBook(); break;
+    case 'corkboard': palette.close(); setView(corkboard.isOpen ? 'manuscript' : 'corkboard'); break;
     case 'sprint': palette.close(); find.close(); sprinter.openSetup(); break;
     case 'sprints': palette.close(); find.close(); sprinter.openLibrary(); break;
     // Choosing Sprinter opens setup (ending a sprint is handled above).
@@ -926,7 +976,7 @@ const commands: CommandContext = {
   run: (command) => runCommand(command),
   navigate: (id) => navigate(id),
   open: (next) => palette.open(next),
-  isOn: (toggle) => toggle === 'outline' ? outlinePanel.presence === 'pinned' : toggle === 'typewriter' ? (sprinter.active ? sprinter.page.typewriter.enabled : typewriter.enabled) : app.dataset.focus === 'true',
+  isOn: (toggle) => toggle === 'corkboard' ? corkboard.isOpen : toggle === 'outline' ? outlinePanel.presence === 'pinned' : toggle === 'typewriter' ? (sprinter.active ? sprinter.page.typewriter.enabled : typewriter.enabled) : app.dataset.focus === 'true',
   fileCommand: (command) => bridge.fileCommand(command),
   reveal: () => { if (filePath) bridge.revealInFinder(filePath); },
   parked: () => (view ? parkedKey.getState(view.state) ?? null : null),
@@ -958,6 +1008,7 @@ window.addEventListener('keydown', (e) => {
   else if (k === 'n' && e.shiftKey) { e.preventDefault(); runCommand('notes'); }
   else if (k === 'e' && e.shiftKey) { e.preventDefault(); runCommand('export'); }
   else if (k === 'p' && !e.shiftKey) { e.preventDefault(); runCommand('print'); }
+  else if (k === 'c' && e.shiftKey) { e.preventDefault(); runCommand('corkboard'); }
   else if (k === 's' && e.shiftKey) { e.preventDefault(); runCommand('sprint'); }
   else if (k === 'd' && e.shiftKey) { e.preventDefault(); runCommand('mode'); }
   else if (k === 'h' && e.shiftKey) { e.preventDefault(); runCommand('sprint-hide'); }

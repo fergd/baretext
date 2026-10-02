@@ -848,6 +848,70 @@ print dialog (which also saves a PDF). Layout: `printManuscript` in
 `app/main/print.ts` (hidden window, no scripts, a temporary file — a long
 book is past what a URL can carry).
 
+## 24. Corkboard (2026-10-02, user; phase 1 built) — EXTENDS spec §8.2
+- **Look:** from the current theme and tokens (no Figma frame yet); reviewed
+  in the gallery and the app.
+- **Clicks (spec, user):** a single click on a card does nothing but give it
+  keyboard focus (↑↓, ↵ from there); cards carry their own action buttons;
+  a scene opens only by ↵, double-click, or the card's Open action — which
+  closes the board through the navigation controller.
+- **Card:** number, **title with more weight** (larger, text colour), the
+  opening lines as the quieter second level (~3), words or "Draft" (<~20),
+  note count.
+- **As built (phase 1):** the board lies over the workspace; the page
+  stays put underneath, so leaving finds it unmoved. Commands that act on
+  the page (find, typewriter, notes, formatting, breaks, sprint…) go back
+  to the page first; undo works from the board and the keyboard stays
+  there. Arrow keys follow the cards as laid out (↑/↓: the nearest row,
+  the card closest across); Home/End. Opening shows ~10 ms for a
+  150k-word book (bench).
+- **Board toolbar (user):** a slim second bar under the top bar, only on the
+  board: the **Rows / Columns** layout switch (remembered, settings
+  `corkboardLayout`) and the book's totals; the home for later board
+  controls. The breadcrumb then just says "Corkboard".
+- **Layouts (user):** *Rows* — chapters stacked, cards wrapping; *Columns* —
+  a column per chapter, the board scrolling across, each column down its
+  cards. The arrows follow the layout: along the reading direction (→ in
+  rows, ↓ in columns) the next card in book order; across it, the nearest
+  line of cards.
+- **Scope, in phases:** (1) board, open/close (restoring the manuscript
+  viewport), focus, open-in-manuscript, gallery; (2) rename, add, delete
+  (two-step), copy; (3) reorder by drag and ⌥↑/⌥↓ — scenes, and **chapters by their headers** (user). Later: the outline-list
+  view (§8.3), scene links (§8.4), AI summaries/names (§12, parked).
+- **Entry point (user):** **chip tabs** in the top bar's right cluster,
+  just before the notes button — "Manuscript" and "Corkboard", text only,
+  top-bar button size; the active chip raised (the segmented control's
+  chosen style), the other plain with a hover wash. Not Obsidian-style file
+  tabs: views of the open book, no closing, no icons. ⌘⇧C toggles; returning
+  to Manuscript restores the exact viewport. On the corkboard the notes
+  button and outline toggle hide and the breadcrumb reads "Corkboard ·
+  3 chapters · 24 scenes". Hidden in focus mode and in Sprinter. A tablist
+  (←/→ between chips). Later views become chips. Tabs across several books
+  stay a separate, larger question.
+
+## 25. Card controls, book setup, the story arc — planned (2026-10-02, user)
+- **Card controls live in the board toolbar**, not on cards: when a card has
+  the keyboard (a click gives it that), the toolbar's middle shows its
+  actions **with words** (icons only where unambiguous) — "2.3 Letters:
+  Open · Rename · Mark as… · Copy · Delete", further ones under "More…".
+  Each has a key on the focused card (shown in its tooltip); right-click a
+  card for the same actions as a menu. Cards show state only (title,
+  opening, words/Draft, notes, a beat chip); **Open** stays on the card. (A
+  drawer under the card was considered and dropped: it moves the board.)
+- **Book setup** (new): "New book" asks title, author, **structure** (the arc
+  to compare with), optional **target length**; "Book settings…" (File,
+  palette) later. Stored in the book's own front matter (it travels with the
+  manuscript; a format change with round-trip tests).
+- **The story arc** (user's idea; no AI): the writer **marks beats** on cards
+  ("Mark as…": inciting incident, turning points, midpoint, crisis, climax…,
+  saved per scene in the file); the arc places scenes by their position in
+  the book (share of words) against the chosen structure's conventional beat
+  positions, marking where the writer's beats actually fall. An **Arc**
+  toggle in the board toolbar (deliberate; from ~3 chapters); in Columns a
+  guide-style line across the top, in Rows down the left edge.
+- **Order:** corkboard phase 2 (rename, add, delete, copy — in the toolbar),
+  phase 3 (drag scenes and chapters), book setup, then Mark as… and the arc.
+
 ## 22. Code conventions (2026-10-02, audit)
 - Gates: `npm run typecheck`, `npm run lint` (oxlint, type-aware: floating
   and misused promises, needless assertions), `npx vitest run`, E2E.
