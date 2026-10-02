@@ -19,6 +19,8 @@ export async function launch(options: {
   settings?: object;
   /** Relaunch with an earlier launch's data (settings as that run left them). */
   reuse?: { userData: string; saveDir: string };
+  /** Extra environment for the app (test switches). */
+  env?: Record<string, string>;
 } = {}): Promise<Launched> {
   const root = mkdtempSync(path.join(os.tmpdir(), 'baretext-e2e-'));
   const userData = options.reuse?.userData ?? path.join(root, 'userData');
@@ -37,7 +39,7 @@ export async function launch(options: {
   }
   const app = await electron.launch({
     args: [path.join(here, '../../build/main/main.cjs')],
-    env: { ...process.env, BARETEXT_HIDDEN: '1', BARETEXT_USER_DATA: userData, BARETEXT_SAVE_DIR: saveDir },
+    env: { ...process.env, BARETEXT_HIDDEN: '1', BARETEXT_USER_DATA: userData, BARETEXT_SAVE_DIR: saveDir, ...options.env },
   });
   const page = await app.firstWindow();
   await page.waitForFunction(() => (window as any).__baretext?.model?.());

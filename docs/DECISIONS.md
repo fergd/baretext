@@ -835,6 +835,19 @@ duplicate). Discarded and placed copies are kept 30 days.
 sprints by start time, read in full (bold, italic kept); Add to book… (the
 same chooser, book choices only; Back returns) or Discard (asks twice).
 
+## 23. Print (2026-10-02, user) — the spec's ⌘P
+Print is the manuscript in **standard manuscript format**, laid out exactly
+as the Word export (§18): Letter, 1" margins, Times New Roman 12pt, double
+spaced, ½" first-line indents; a title page (name and word count at the top,
+title and byline centred, no running head); "Surname / TITLE / page" atop
+every later page; each chapter on a new page a third of the way down; "#"
+for breaks; "END". The manuscript alone — no notes, no Cold Storage. The
+name is the Export panel's Author. ⌘P, File → Print…, the palette; the macOS
+print dialog (which also saves a PDF). Layout: `printManuscript` in
+`packages/format` (shares `runningHead` with the Word export); rendering:
+`app/main/print.ts` (hidden window, no scripts, a temporary file — a long
+book is past what a URL can carry).
+
 ## 22. Code conventions (2026-10-02, audit)
 - Gates: `npm run typecheck`, `npm run lint` (oxlint, type-aware: floating
   and misused promises, needless assertions), `npx vitest run`, E2E.

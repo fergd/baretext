@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { approximateWords, exportMarkdown, exportText, isExportBook, type ExportBook } from '../src';
+import { approximateWords, exportMarkdown, exportText, isExportBook, printManuscript, runningHead, type ExportBook } from '../src';
 
 const book = (over: Partial<ExportBook> = {}): ExportBook => ({
   title: 'The Garden',
@@ -87,5 +87,48 @@ describe('a book from the window', () => {
     for (const bad of [null, 'book', {}, { ...book(), title: 1 }, { ...book(), chapters: [{ title: 'x' }] }, { ...book(), notes: [{ n: 'one', body: '' }] }, { ...book(), coldStorage: [{}] }, { ...book(), words: NaN }]) {
       expect(isExportBook(bad), JSON.stringify(bad)).toBe(false);
     }
+  });
+});
+
+describe('print (standard manuscript format)', () => {
+  const html = printManuscript(book({ words: 41_000 }), 'Ada Byron King');
+  const body = html.slice(html.indexOf('<body>'));
+
+  it('has a title page: name and word count at the top, title and byline centred, no running head', () => {
+    expect(body).toMatch(/<div class="title-page">\s*<p class="contact"><span>Ada Byron King<\/span><span>about 41,000 words<\/span><\/p>\s*<p class="title">THE GARDEN<\/p>\s*<p class="byline">by Ada Byron King<\/p>/);
+    expect(html).toContain('@page :first');
+  });
+
+  it('runs "Surname / TITLE / page" atop every later page', () => {
+    expect(runningHead('The Garden', 'Ada Byron King')).toBe('King / THE GARDEN');
+    expect(runningHead('The Garden', '')).toBe('THE GARDEN');
+    expect(html).toContain('content: "King / THE GARDEN / " counter(page)');
+    // A title with quotes can't break out of the page header.
+    expect(printManuscript(book({ title: 'The "Quiet" \\ Book' }), '')).toContain('content: "THE \\"QUIET\\" \\\\ BOOK / " counter(page)');
+  });
+
+  it('starts each chapter on a new page (numbered when untitled), "#" between scenes and for pauses, END last', () => {
+    expect(body.match(/<h2 class="chapter">([^<]*)<\/h2>/g)).toEqual(['<h2 class="chapter">Spring</h2>', '<h2 class="chapter">Chapter 2</h2>']);
+    expect(body.match(/<p class="break">#<\/p>/g)).toHaveLength(2); // the pause, and between the scenes
+    expect(body.trimEnd()).toMatch(/<p class="end">END<\/p>\s*<\/body>\s*<\/html>$/);
+  });
+
+  it('keeps italics and bold, quotes indented; escapes the text; links print as their words; no empty paragraphs or scene names', () => {
+    expect(body).toContain('<p>Plant <em>basil</em> and *thyme*.</p>');
+    expect(body).toContain('<p><strong># not a heading</strong></p>');
+    expect(body).toContain('<p class="quote">A quote.</p>');
+    expect(body).toContain('<p>See here.</p>');
+    expect(body).not.toContain('working label');
+    expect(body).not.toMatch(/<p><\/p>/);
+    expect(printManuscript(book({ title: 'Fish & <Chips>' }), '')).toContain('FISH &amp; &lt;CHIPS&gt;');
+  });
+
+  it('is the manuscript alone: no notes, no Cold Storage', () => {
+    const withExtras = printManuscript(book({
+      notes: [{ n: 1, body: 'A NOTE BODY', quote: 'basil' }],
+      coldStorage: [{ name: 'Parked', blocks: [{ type: 'paragraph', content: [{ text: 'PARKED TEXT' }] }] }],
+    }), 'Ada');
+    expect(withExtras).not.toContain('A NOTE BODY');
+    expect(withExtras).not.toContain('PARKED TEXT');
   });
 });

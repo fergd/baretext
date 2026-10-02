@@ -89,6 +89,7 @@ export function commandsView(ctx: CommandContext): PaletteView {
         saveItem(ctx),
         { id: 'history', group: 'File', label: 'History…', keywords: 'versions snapshots restore backup earlier', run: () => ctx.run('history') },
         { id: 'snapshot', group: 'File', label: 'Save snapshot…', keywords: 'version backup checkpoint', run: () => ctx.run('snapshot') },
+        { id: 'print', group: 'File', label: 'Print…', keywords: 'paper pdf manuscript standard format', keys: '⌘P', run: () => ctx.run('print') },
         { id: 'export', group: 'File', label: 'Export…', keywords: 'word docx markdown text save as share manuscript', keys: '⇧⌘E', run: () => ctx.run('export') },
         { id: 'reveal', group: 'File', label: 'Reveal in Finder', keywords: 'show file folder', run: () => ctx.reveal() },
       );

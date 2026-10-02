@@ -10,7 +10,7 @@ import {
   Packer, PageNumber, Paragraph, TextRun, type ParagraphChild,
 } from 'docx';
 import {
-  approximateWords, bookTitle, chapterHeading, coldSceneLabel, isNoteMark,
+  approximateWords, bookTitle, chapterHeading, coldSceneLabel, isNoteMark, runningHead,
   type ExportBlock, type ExportBook, type ExportItem, type ExportScene,
 } from '@baretext/format';
 
@@ -59,7 +59,6 @@ function scenes(list: readonly ExportScene[], notes: ReadonlySet<number>, out: P
 export async function buildDocx(book: ExportBook, author: string): Promise<Buffer> {
   const title = bookTitle(book);
   const name = author.trim();
-  const surname = name.split(/\s+/).at(-1) ?? '';
   const anchored = book.notes.filter((n) => n.quote !== null);
   const general = book.notes.filter((n) => n.quote === null);
   const notes = new Set(anchored.map((n) => n.n));
@@ -93,7 +92,7 @@ export async function buildDocx(book: ExportBook, author: string): Promise<Buffe
     }
   }
 
-  const head = [surname, title.toUpperCase()].filter(Boolean).join(' / ');
+  const head = runningHead(title, name);
   const doc = new Document({
     title, creator: name || 'Baretext',
     styles: { default: { document: { run: BODY, paragraph: { spacing: DOUBLE } } } },

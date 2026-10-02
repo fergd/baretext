@@ -643,6 +643,13 @@ function syncTypewriterSwitch() {
   $('typewriter').setAttribute('aria-checked', String(sprinter.active ? sprinter.page.typewriter.enabled : typewriter.enabled));
 }
 
+/** Print (⌘P): the manuscript in standard format, named by the Export panel's author. */
+async function printBook() {
+  if (!view) return;
+  const result = await bridge.printBook(docToExport(view.state.doc, { coldStorage: false, notes: null }), exportPrefs.author);
+  if (!result.ok && !result.canceled) toast(`Couldn’t print: ${result.message}`, 'error');
+}
+
 const history = new HistoryPanel(document.body, {
   bridge,
   filePath: () => filePath,
@@ -886,6 +893,7 @@ function runCommand(command: MenuCommand) {
     case 'appearance': palette.close(); find.close(); history.close(); appearance.open(); break;
     case 'history': palette.close(); find.close(); void history.open(false); break;
     case 'export': palette.close(); find.close(); exporter.open(); break;
+    case 'print': palette.close(); void printBook(); break;
     case 'sprint': palette.close(); find.close(); sprinter.openSetup(); break;
     case 'sprints': palette.close(); find.close(); sprinter.openLibrary(); break;
     // Choosing Sprinter opens setup (ending a sprint is handled above).
@@ -949,6 +957,7 @@ window.addEventListener('keydown', (e) => {
   else if (k === 'm' && e.shiftKey) { e.preventDefault(); runCommand('add-note'); }
   else if (k === 'n' && e.shiftKey) { e.preventDefault(); runCommand('notes'); }
   else if (k === 'e' && e.shiftKey) { e.preventDefault(); runCommand('export'); }
+  else if (k === 'p' && !e.shiftKey) { e.preventDefault(); runCommand('print'); }
   else if (k === 's' && e.shiftKey) { e.preventDefault(); runCommand('sprint'); }
   else if (k === 'd' && e.shiftKey) { e.preventDefault(); runCommand('mode'); }
   else if (k === 'h' && e.shiftKey) { e.preventDefault(); runCommand('sprint-hide'); }

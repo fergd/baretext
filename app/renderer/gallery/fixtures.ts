@@ -3,6 +3,7 @@
 
 import type { Block, Manuscript } from '@baretext/format';
 import { DEFAULT_SPRINT, type BookInfo, type SnapshotInfo, type SprintSummary } from '../../shared/bridge';
+import type { Note } from '../../shared/notes';
 import { NOW } from './clock';
 
 const MIN = 60_000;
@@ -49,4 +50,17 @@ export const books: BookInfo[] = [
   { path: '/Writing/The Lighthouse Keeper.md', title: 'The Lighthouse Keeper', current: true },
   { path: '/Writing/Short Stories 2026.md', title: 'Short Stories 2026', current: false },
   { path: '/Writing/Drafts/The Lighthouse Keeper.md', title: 'The Lighthouse Keeper', current: false },
+];
+
+/** A note on `quote`, the first time it appears in scene `scene`'s prose. */
+function noteOn(id: string, scene: string, quote: string, body: string, ago: number): Note {
+  const prose = book.chapters.flatMap((c) => c.scenes).find((sc) => sc.id === scene)!.blocks
+    .map((b) => (b.type === 'paragraph' ? b.content.map((r) => r.text).join('') : '')).join('\n');
+  return { id, body, anchor: { scene, quote, offset: prose.indexOf(quote) }, resolved: false, created: NOW - ago, updated: NOW - ago };
+}
+
+export const notes: Note[] = [
+  noteOn('n1', 's1', 'two cases and a box of books', 'What is in the box? Set it up here; pay it off in the storm.', 40 * MIN),
+  noteOn('n2', 's1', 'paraffin and salt', 'Smell again in chapter 3, when she leaves.', 2 * DAY),
+  { id: 'n3', body: 'Her name: decide between Ada and Wren before the ferry chapter.', anchor: null, resolved: false, created: NOW - 3 * DAY, updated: NOW - 3 * DAY },
 ];

@@ -4,28 +4,39 @@
 // `npm run gallery`; test/e2e/gallery.test.ts screenshots every frame.
 
 import './clock';
+import { EditorView } from 'prosemirror-view';
+import { TextSelection } from 'prosemirror-state';
 import { createManuscriptState } from '@baretext/editor';
 import { DEFAULT_APPEARANCE, DEFAULT_EXPORT, DEFAULT_SPRINT, THEMES, type BaretextBridge, type Theme } from '../../shared/bridge';
 import { AppearancePanel } from '../appearance';
 import { ExportPanel } from '../export-panel';
+import { FindPanel } from '../find';
 import { HistoryPanel } from '../history';
+import { MarginNotes } from '../margin-notes';
+import { NotesPanel } from '../notes-panel';
+import { NotesStore } from '../notes-store';
 import { outlineOf } from '../outline';
+import { OutlinePanel } from '../outline-panel';
 import { Palette } from '../palette';
 import { commandsView, type CommandContext } from '../palette-commands';
+import { Saver } from '../saving';
 import { Spine } from '../spine';
 import { SprintKeep, type KeepRequest } from '../sprint-keep';
 import { SprintSetup } from '../sprint-setup';
 import { SprintTimer } from '../sprint-timer';
 import { SprintsPanel } from '../sprints-panel';
-import { book, books, keptSprints, snapshots, sprintText } from './fixtures';
+import { SelectionToolbar } from '../toolbar';
+import { book, books, keptSprints, notes, snapshots, sprintText } from './fixtures';
 
 interface Spec {
   component: string;
   state: string;
   /** The frame: as large as the component needs (a stand-in window). */
   size: [number, number];
-  render(frame: HTMLElement): void | Promise<void>;
+  /** Build the part and drive it into the state; may return a last step that needs focus (run once the page settles). */
+  render(frame: HTMLElement): Promise<Finish> | Finish;
 }
+type Finish = void | (() => void);
 
 const THEME_NAMES: Record<Theme, string> = { dracula: 'Dracula', dark: 'Dark', light: 'Light', grove: 'Grove', contrast: 'Contrast' };
 const noop = () => {};
@@ -40,6 +51,8 @@ const bridge = {
   keptSprints: () => Promise.resolve(keptSprints),
   readSprint: (id: string) => Promise.resolve(sprintText[id] ?? []),
   writeSprint: () => Promise.resolve({ ok: true }),
+  loadNotes: () => Promise.resolve(notes.map((n) => ({ ...n }))),
+  saveNotes: () => Promise.resolve({ ok: true }),
   setPrefs: noop,
 } as unknown as BaretextBridge;
 
@@ -86,6 +99,102 @@ function spine(frame: HTMLElement, current: string) {
   new Spine(nav, noop).update(outline, current, chapter.id);
 }
 
+// ── the editor-bound parts: each frame is a small app (a workspace, the
+// sample book in a real editor) and the part attaches to it as in the app ──
+
+const FILE = '/Writing/The Lighthouse Keeper.md';
+const el = (tag: string, className: string) => Object.assign(document.createElement(tag), { className });
+const pause = (ms: number) => new Promise<void>((r) => { window.setTimeout(r, ms); });
+
+interface Desk { view: EditorView; workspace: HTMLElement; scroller: HTMLElement; page: HTMLElement }
+
+/** A frame as the app's window: the workspace and the book in an editor (`layout`: the columns open). */
+function desk(frame: HTMLElement, layout: { outline?: boolean; notes?: boolean } = {}): Desk {
+  frame.classList.add('bt-app', 'g-app');
+  frame.dataset.mode = 'manuscript';
+  frame.dataset.outline = layout.outline ? 'pinned' : 'hidden';
+  if (layout.notes) frame.dataset.notes = 'open';
+  const workspace = el('div', 'bt-workspace g-workspace');
+  const scroller = el('div', 'bt-scroller');
+  const page = el('div', 'bt-page');
+  scroller.append(page);
+  workspace.append(scroller);
+  frame.append(workspace);
+  const view = new EditorView(page, { state: createManuscriptState(book), attributes: { spellcheck: 'false' } });
+  return { view, workspace, scroller, page };
+}
+
+/** Select the first occurrence of `text` in the book. */
+function select(view: EditorView, text: string) {
+  let at = -1;
+  view.state.doc.descendants((node, pos) => {
+    if (at < 0 && node.isText && node.text!.includes(text)) at = pos + node.text!.indexOf(text);
+    return at < 0;
+  });
+  view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, at, at + text.length)));
+}
+
+function outline(frame: HTMLElement, then?: (panel: OutlinePanel, frame: HTMLElement) => void) {
+  const d = desk(frame, { outline: true });
+  const panel = new OutlinePanel(d.workspace, {
+    navigate: noop, toEditor: noop, rename: () => false, addScene: noop, moveScene: () => false, moveChapter: () => false,
+    addChapter: () => null, park: noop, openParked: noop, restore: noop, deleteScene: noop, deleteChapter: noop,
+    noteCounts: () => new Map([['s1', 2]]), onPresence: noop,
+  });
+  panel.update(outlineOf(d.view.state.doc), book.title, 's3', 'c2');
+  panel.setPresence('pinned');
+  then?.(panel, frame);
+}
+
+function find(frame: HTMLElement, query: string, replace: string | null) {
+  const d = desk(frame);
+  const panel = new FindPanel(d.workspace, d.scroller, () => d.view);
+  panel.open(replace !== null);
+  const [findInput, replaceInput] = frame.querySelectorAll<HTMLInputElement>('.bt-find-input');
+  findInput!.value = query;
+  findInput!.dispatchEvent(new Event('input', { bubbles: true }));
+  if (replace !== null) { replaceInput!.value = replace; replaceInput!.dispatchEvent(new Event('input', { bubbles: true })); }
+}
+
+async function toolbar(frame: HTMLElement, link: boolean): Promise<Finish> {
+  const d = desk(frame);
+  const bar = new SelectionToolbar(d.workspace, d.scroller, () => d.view);
+  d.view.updateState(d.view.state.reconfigure({ plugins: [...d.view.state.plugins, bar.plugin] }));
+  select(d.view, 'two cases and a box of books');
+  await pause(450); // shows once a keyboard selection pauses
+  // The link field lives while it has the keyboard: opened last.
+  return link ? () => void bar.openLink() : undefined;
+}
+
+async function notesIn(frame: HTMLElement, where: 'panel' | 'margin') {
+  const d = desk(frame, { notes: where === 'panel' });
+  const store = new NotesStore(bridge, () => d.view, noop);
+  await store.load(FILE);
+  if (where === 'panel') {
+    new NotesPanel(d.workspace, { view: () => d.view, store, show: noop, remove: noop, toEditor: noop, onPresence: noop }).setOpen(true);
+  } else {
+    const margin = new MarginNotes(d.page, d.scroller, { view: () => d.view, store, openInPanel: noop, discard: noop, toEditor: noop });
+    margin.refresh();
+    margin.setActive('n1');
+  }
+}
+
+async function saveFailure(frame: HTMLElement, reason: 'destructive' | 'io') {
+  const d = desk(frame);
+  const message = reason === 'io' ? 'The disk is full.' : 'This change removes most of the manuscript.';
+  const failing = { ...bridge, save: () => Promise.resolve({ ok: false, reason, message }) } as unknown as BaretextBridge;
+  await new Saver(failing, () => d.view, () => FILE, el('span', 'bt-save-state'), frame).saveNow();
+}
+
+function toast(frame: HTMLElement, kind: 'info' | 'error', message: string) {
+  desk(frame);
+  const t = el('div', 'bt-toast');
+  t.setAttribute('role', 'status');
+  Object.assign(t.dataset, { kind, visible: 'true' });
+  t.textContent = message;
+  frame.append(t);
+}
+
 const SPECS: Spec[] = [
   { component: 'Command palette', state: 'Commands', size: [680, 600], render: (f) => new Palette(f).open(commandsView(commands)) },
   { component: 'Appearance', state: 'Open', size: [1180, 880], render: (f) => new AppearancePanel(f, { current: () => ({ ...DEFAULT_APPEARANCE, theme: f.dataset.theme as Theme }), sample, save: noop, onClose: noop }).open() },
@@ -107,7 +216,34 @@ const SPECS: Spec[] = [
   { component: 'Timer line', state: 'Done', size: [600, 80], render: (f) => timerLine(f, 1, 'done') },
   { component: 'Spine', state: 'First scene', size: [200, 360], render: (f) => spine(f, 's1') },
   { component: 'Spine', state: 'Later scene', size: [200, 360], render: (f) => spine(f, 's5') },
+  { component: 'Outline', state: 'Open', size: [900, 520], render: (f) => outline(f) },
+  { component: 'Outline', state: 'Renaming', size: [900, 520], render: (f) => outline(f, (p) => p.startRename('s4', 'row')) },
+  { component: 'Outline', state: 'Delete, armed', size: [900, 520], render: (f) => outline(f, (_p, frame) => click(frame, '.bt-outline-row[data-id="s5"] [data-action="delete"]')) },
+  { component: 'Find', state: 'Matches', size: [900, 360], render: (f) => find(f, 'the', null) },
+  { component: 'Find', state: 'Replace', size: [900, 360], render: (f) => find(f, 'keeper', 'warden') },
+  { component: 'Find', state: 'No matches', size: [900, 360], render: (f) => find(f, 'zebra', null) },
+  { component: 'Selection toolbar', state: 'Formatting', size: [900, 360], render: (f) => toolbar(f, false) },
+  { component: 'Selection toolbar', state: 'Link', size: [900, 360], render: (f) => toolbar(f, true) },
+  { component: 'Notes', state: 'Panel', size: [1200, 560], render: (f) => notesIn(f, 'panel') },
+  { component: 'Notes', state: 'In the margin', size: [1200, 560], render: (f) => notesIn(f, 'margin') },
+  { component: 'Save notice', state: 'Would gut the book', size: [900, 300], render: (f) => saveFailure(f, 'destructive') },
+  { component: 'Save notice', state: 'Couldn’t save', size: [900, 300], render: (f) => saveFailure(f, 'io') },
+  { component: 'Toast', state: 'Info', size: [900, 200], render: (f) => toast(f, 'info', 'Sprint added to the end of chapter 2. ⌘Z undoes it.') },
+  { component: 'Toast', state: 'Error', size: [900, 200], render: (f) => toast(f, 'error', 'Couldn’t save the sprint: the disk is full.') },
 ];
+
+/**
+ * Resolves once nothing on the page has scrolled for a moment: the smooth
+ * scrolls parts start (a note's card, the outline's row) have ended.
+ */
+function scrollingSettled(): Promise<void> {
+  return new Promise((resolve) => {
+    const done = () => { window.removeEventListener('scroll', moved, true); resolve(); };
+    let timer = window.setTimeout(done, 150);
+    const moved = () => { clearTimeout(timer); timer = window.setTimeout(done, 150); };
+    window.addEventListener('scroll', moved, true); // (capture: every element's scrolling, not only the page's)
+  });
+}
 
 // ── the page ──
 
@@ -132,7 +268,7 @@ async function render(shown: Theme | 'all') {
   document.documentElement.dataset.theme = shown === 'all' ? 'dracula' : shown;
   const themes = shown === 'all' ? THEMES : [shown];
   const sections = new Map<string, HTMLElement>();
-  const pending: Promise<void>[] = [];
+  const pending: Promise<Finish>[] = [];
   root.replaceChildren();
   for (const spec of SPECS) {
     let row = sections.get(spec.component);
@@ -157,11 +293,17 @@ async function render(shown: Theme | 'all') {
       pending.push(Promise.resolve(spec.render(frame)));
     }
   }
-  await Promise.all(pending);
+  const finishes = await Promise.all(pending);
   await document.fonts.ready;
-  // A still picture: no focus rings left from opening, nothing mid-transition.
+  // A still picture: no focus rings left from opening, nothing mid-transition;
+  // then the few states that need the keyboard take it.
   (document.activeElement as HTMLElement | null)?.blur();
-  window.scrollTo(0, 0); // (opening panels focused into them, scrolling the page)
+  for (const finish of finishes) finish?.();
+  // Opening parts scrolled the page (focus, cards brought into view): once
+  // all of that has stopped, back to the top — on a whole pixel, so every
+  // frame's picture is exact.
+  await scrollingSettled();
+  window.scrollTo(0, 0);
   document.documentElement.dataset.ready = 'true';
 }
 

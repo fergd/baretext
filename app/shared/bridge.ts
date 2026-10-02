@@ -151,6 +151,8 @@ export interface BookInfo {
   current: boolean;
 }
 
+export type PrintResult = { ok: true } | { ok: false; canceled: true } | { ok: false; canceled?: false; message: string };
+
 export type ExportResult = { ok: true; path: string } | { ok: false; canceled: true } | { ok: false; canceled?: false; message: string };
 
 export interface InitialPrefs extends AppearancePrefs {
@@ -161,7 +163,7 @@ export interface InitialPrefs extends AppearancePrefs {
 }
 
 export type MenuCommand =
-  | 'undo' | 'redo' | 'typewriter' | 'focus' | 'bold' | 'italic' | 'link' | 'quote' | 'split-scene' | 'split-chapter' | 'pause' | 'name-scene' | 'save' | 'palette' | 'goto' | 'find' | 'find-replace' | 'find-next' | 'find-prev' | 'history' | 'snapshot' | 'outline' | 'outline-focus' | 'new-scene' | 'new-chapter' | 'appearance' | 'park-scene' | 'add-note' | 'notes' | 'export' | 'sprint' | 'sprints' | 'mode' | 'sprint-pause' | 'sprint-hide';
+  | 'undo' | 'redo' | 'typewriter' | 'focus' | 'bold' | 'italic' | 'link' | 'quote' | 'split-scene' | 'split-chapter' | 'pause' | 'name-scene' | 'save' | 'palette' | 'goto' | 'find' | 'find-replace' | 'find-next' | 'find-prev' | 'history' | 'snapshot' | 'outline' | 'outline-focus' | 'new-scene' | 'new-chapter' | 'appearance' | 'park-scene' | 'add-note' | 'notes' | 'export' | 'print' | 'sprint' | 'sprints' | 'mode' | 'sprint-pause' | 'sprint-hide';
 
 /** A local snapshot of a manuscript (DECISIONS §6). */
 export interface SnapshotInfo {
@@ -179,6 +181,8 @@ export interface BaretextBridge {
   /** `force` overrides the destructive-save guard: only after the writer confirmed (Save anyway). */
   save(filePath: string, manuscript: Manuscript, caret: number, force?: boolean): Promise<SaveResult>;
   setPrefs(patch: Partial<Omit<InitialPrefs, 'hidden'>>): void;
+  /** Print the book in standard manuscript format (the macOS print dialog, which can also save a PDF). */
+  printBook(book: ExportBook, author: string): Promise<PrintResult>;
   /** Export the book: asks where (macOS save dialog), then writes it. */
   exportBook(filePath: string, format: ExportFormat, book: ExportBook, author: string): Promise<ExportResult>;
   revealInFinder(filePath: string): void;
@@ -230,6 +234,7 @@ export const CHANNELS = {
   booksChapters: 'books:chapters',
   booksChoose: 'books:choose',
   booksOpen: 'books:open',
+  print: 'book:print',
   fileCommand: 'file:command',
   snapshotsList: 'snapshots:list',
   snapshotsRead: 'snapshots:read',

@@ -749,7 +749,15 @@ audit's consolidation is in (§22). Gates: `npm run typecheck`, `npm run
 lint`, `npx vitest run`, `npx playwright test` (build first).
 **Open decisions:** break auto-start between rounds (provisional). (The
 time sprint's word goal was cut.)
-**Gallery:** `npm run gallery` (DECISIONS §22); 20 states × 5 themes under
-screenshot test. It found a real bug on day one: two manuscripts with the
+**Print:** ⌘P, standard manuscript format (DECISIONS §23); E2E prints to a
+PDF (test switch `BARETEXT_PRINT_TO`). *Parked (user, low priority), known
+gaps:* the macOS dialog has no preview, takes the printer's paper size (A4
+here) over the layout's Letter, and doesn't know the page count. Planned
+fix: build the PDF (Letter, exact) and show it in an in-app preview window
+with Print / Save PDF.
+**Gallery:** `npm run gallery` (DECISIONS §22); 34 states × 5 themes under
+screenshot test — every panel, the outline, find, the selection toolbar,
+notes (panel and margin), the save notice, toasts, the spine and the timer
+line. Editor-bound parts sit on a real editor in each frame. It found a real bug on day one: two manuscripts with the
 same title *and* file name were labelled identically (now: by folder too).
-**Next (proposed):** corkboard · print · integrations (§7).
+**Next (proposed):** corkboard · integrations (§7).

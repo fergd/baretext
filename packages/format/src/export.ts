@@ -204,3 +204,83 @@ export function exportText(book: ExportBook): string {
   }
   return out.join('\n').replace(/\n+$/, '') + '\n';
 }
+
+// ── Print: standard manuscript format, laid out as the Word export (DECISIONS §18) ──
+
+/** The running head: "Surname / TITLE" (the title alone without a name). */
+export function runningHead(title: string, author: string): string {
+  const surname = author.trim().split(/\s+/).at(-1) ?? '';
+  return [surname, (title.trim() || 'Untitled').toUpperCase()].filter(Boolean).join(' / ');
+}
+
+const HTML_ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' };
+const html = (text: string) => text.replace(/[&<>"]/g, (c) => HTML_ESCAPES[c]!);
+const cssString = (text: string) => `"${text.replace(/[\\"]/g, (c) => `\\${c}`)}"`;
+
+/** Prose as HTML: italic and bold kept, links as their words, notes left out. */
+function htmlInline(items: readonly ExportItem[]): string {
+  return runsOf(items).map((r) => {
+    let t = html(r.text);
+    if (r.italic) t = `<em>${t}</em>`;
+    if (r.bold) t = `<strong>${t}</strong>`;
+    return t;
+  }).join('');
+}
+
+const blank = (items: readonly ExportItem[]) => runsOf(items).every((r) => r.text.trim() === '');
+
+function htmlBlocks(blocks: readonly ExportBlock[], out: string[]): void {
+  for (const b of blocks) {
+    if (b.type === 'pause') out.push('<p class="break">#</p>');
+    else if (b.type === 'paragraph') { if (!blank(b.content)) out.push(`<p>${htmlInline(b.content)}</p>`); }
+    else for (const p of b.paragraphs) if (!blank(p)) out.push(`<p class="quote">${htmlInline(p)}</p>`);
+  }
+}
+
+/**
+ * The manuscript as a printable page (Letter, 1" margins, Times New Roman
+ * 12pt, double spaced, first lines indented ½"): a title page (name and word
+ * count at the top, title and byline centred), "Surname / TITLE / page"
+ * atop every later page, each chapter on a new page a third of the way down,
+ * "#" for breaks, "END". The manuscript alone: no notes, no Cold Storage.
+ */
+export function printManuscript(book: ExportBook, author: string): string {
+  const title = bookTitle(book);
+  const name = author.trim();
+  const out: string[] = [
+    '<div class="title-page">',
+    `<p class="contact"><span>${html(name)}</span><span>${html(approximateWords(book.words))}</span></p>`,
+    `<p class="title">${html(title.toUpperCase())}</p>`,
+    ...(name ? [`<p class="byline">by ${html(name)}</p>`] : []),
+    '</div>',
+  ];
+  book.chapters.forEach((c, i) => {
+    out.push(`<h2 class="chapter">${html(chapterHeading(c, i))}</h2>`);
+    c.scenes.forEach((s, j) => { if (j > 0) out.push('<p class="break">#</p>'); htmlBlocks(s.blocks, out); });
+  });
+  out.push('<p class="end">END</p>');
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>${html(title)}</title>
+<style>
+@page { size: letter; margin: 1in; @top-right { content: ${cssString(`${runningHead(title, name)} / `)} counter(page); font: 12pt 'Times New Roman', Times, serif; } }
+@page :first { @top-right { content: none; } }
+html { font: 12pt/2 'Times New Roman', Times, serif; color: #000; background: #fff; }
+body { margin: 0; }
+p { margin: 0; text-indent: 0.5in; orphans: 2; widows: 2; }
+.contact { display: flex; justify-content: space-between; text-indent: 0; line-height: 1; }
+.title { margin-top: 3.5in; text-align: center; text-indent: 0; }
+.byline, .break, .end { text-align: center; text-indent: 0; }
+.chapter { break-before: page; margin: 0 0 0.5in; padding-top: 2in; font: inherit; text-align: center; }
+.quote { margin: 0 0.5in; text-indent: 0; }
+.end { margin-top: 0.5in; }
+</style>
+</head>
+<body>
+${out.join('\n')}
+</body>
+</html>
+`;
+}

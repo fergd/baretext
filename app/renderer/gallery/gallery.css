@@ -31,7 +31,9 @@ html, body { height: auto; min-height: 100%; overflow: auto; background: var(--c
   position: relative;
   width: var(--g-w);
   height: var(--g-h);
-  overflow: hidden;
+  /* clip, not hidden, as the app's window: a hidden box can still be scrolled
+     by code (a panel scrolling its row into view), which shifts the picture. */
+  overflow: clip;
   transform: translateZ(0);
   border-radius: var(--popover-radius);
   outline: 1px solid var(--color-popover-border);

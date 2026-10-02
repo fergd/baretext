@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, screen, shell, type MenuItem
 import { randomBytes } from 'node:crypto';
 import { existsSync, promises as fs } from 'node:fs';
 import path from 'node:path';
-import { bookTitle, emptyManuscript, ID_PATTERN, type Block, EXPORT_EXTENSIONS, EXPORT_FORMATS, exportMarkdown, exportText, isExportBook, manuscriptWords, parse, serialize, validate, type ExportFormat, type Manuscript } from '@baretext/format';
+import { bookTitle, printManuscript, emptyManuscript, ID_PATTERN, type Block, EXPORT_EXTENSIONS, EXPORT_FORMATS, exportMarkdown, exportText, isExportBook, manuscriptWords, parse, serialize, validate, type ExportFormat, type Manuscript } from '@baretext/format';
 import { buildDocx } from './export-docx';
 import { CHANNELS, OUTLINE_STATES, validAppearance, validExport, validSprint, type ExportResult, type InitialPrefs, type MenuCommand, type OpenedDocument, type OutlineState, type Theme } from '../shared/bridge';
 import { atomicWrite, saveManuscript } from './save';
@@ -10,6 +10,7 @@ import { notesPathFor, validNotes } from '../shared/notes';
 import { SnapshotStore, type SnapshotEntry } from './snapshots';
 import { SprintStore, validRecord } from './sprints';
 import { bookChapters, bookInfo, listBooks } from './books';
+import { printPage } from './print';
 import { SettingsStore } from './settings';
 import { MIN_SIZE, placeWindow } from './window';
 
@@ -226,6 +227,7 @@ function buildMenu() {
         { type: 'separator' },
         { label: 'Save', ...label('CmdOrCtrl+S'), click: () => send('save') },
         { label: 'Export…', ...label('Shift+CmdOrCtrl+E'), click: () => send('export') },
+        { label: 'Print…', ...label('CmdOrCtrl+P'), click: () => send('print') },
         { type: 'separator' },
         { label: 'Reveal in Finder', click: () => currentFile && shell.showItemInFolder(currentFile) },
         { type: 'separator' },
@@ -479,6 +481,10 @@ function registerIpc() {
   ipcMain.handle(CHANNELS.sprintRead, (_e, id: unknown) => (typeof id === 'string' && ID_PATTERN.test(id) ? sprints().read(id) : []));
   ipcMain.handle(CHANNELS.sprintUnfinished, () => sprints().unfinished());
   ipcMain.handle(CHANNELS.sprintKept, () => sprints().kept());
+  ipcMain.handle(CHANNELS.print, (_e, book: unknown, author: unknown) => {
+    if (!isExportBook(book)) return { ok: false, message: 'There is nothing to print.' };
+    return printPage(printManuscript(book, typeof author === 'string' ? author.slice(0, 200) : ''));
+  });
   // Manuscripts a sprint can go to. The window may read or open only what it
   // was offered: the open and recent manuscripts, or one picked in the dialog.
   const offered = new Set<string>();
