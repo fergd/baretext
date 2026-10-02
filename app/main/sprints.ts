@@ -75,12 +75,17 @@ export class SprintStore {
     });
   }
 
+  /**
+   * A sprint's writing: [] if none was ever saved; throws if it is there but
+   * can't be read now (so nothing mistakes it for empty).
+   */
   async read(id: string): Promise<Block[]> {
     let text: string;
     try {
       text = await fs.readFile(this.file(id, 'md'), 'utf8');
-    } catch {
-      return [];
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === 'ENOENT') return [];
+      throw e;
     }
     const blocks = parse(text).manuscript.chapters[0]?.scenes[0]?.blocks ?? [];
     const blank = blocks.every((b) => b.type === 'paragraph' && b.content.every((r) => !r.text.trim()));
@@ -117,7 +122,9 @@ export class SprintStore {
     const out: SprintSummary[] = [];
     const kept = (await this.list()).filter((r) => r.status === 'kept').sort((a, b) => b.started - a.started);
     for (const record of kept) {
-      const first = (await this.read(record.id)).find((b) => b.type === 'paragraph' && b.content.some((r) => r.text.trim()));
+      // Unreadable writing is still listed (its opening blank), never hidden.
+      const blocks = await this.read(record.id).catch(() => []);
+      const first = blocks.find((b) => b.type === 'paragraph' && b.content.some((r) => r.text.trim()));
       const text = first?.type === 'paragraph' ? first.content.map((r) => r.text).join('').trim() : '';
       out.push({ record, opening: text.slice(0, OPENING_CHARS) });
     }

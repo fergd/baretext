@@ -160,7 +160,14 @@ export class SprintsPanel {
     this.head.replaceChildren(info, actions);
 
     const token = ++this.loadToken;
-    const blocks = await this.h.bridge.readSprint(s.record.id);
+    let blocks: Block[];
+    try {
+      blocks = await this.h.bridge.readSprint(s.record.id);
+    } catch {
+      if (token !== this.loadToken) return;
+      this.text.replaceChildren(Object.assign(document.createElement('p'), { className: 'bt-history-empty', textContent: 'This sprint can’t be read right now. It’s kept safe; try again later.' }));
+      return;
+    }
     if (token !== this.loadToken) return; // a newer selection won
     this.blocks = blocks;
     place.disabled = !blocks.length;

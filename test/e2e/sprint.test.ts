@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { launch, model } from './launch.ts';
@@ -682,6 +682,66 @@ test('a book finishing loading never takes the keyboard from an open panel', asy
     await page.keyboard.press('Enter');
     await expect.poll(() => mode(page)).toBe('sprinter');
     expect(await model(page)).toEqual(before);
+  } finally {
+    await app.close();
+  }
+});
+
+// ── never lose a sprint ──
+
+test('an unfinished sprint that can’t be read at launch is left exactly as it is, never discarded', async () => {
+  const first = await launch({ file: { name: 'S.md', content: FILE } });
+  let id = '';
+  try {
+    await startSprint(first.page);
+    await first.page.keyboard.type('Do not lose me.');
+    id = (await sprint(first.page)).record.id;
+  } finally {
+    await first.app.close();
+  }
+  const md = path.join(first.userData, 'Sprints', `${id}.md`);
+  chmodSync(md, 0o000);
+  try {
+    const again = await launch({ reuse: first });
+    try {
+      await expect(again.page.locator('.bt-toast')).toHaveText(/couldn’t be read/);
+      await expect(again.page.locator('.bt-keep')).toHaveAttribute('data-open', 'false');
+      expect(await mode(again.page)).toBe('manuscript');
+      expect(record(first.userData, id)?.status).toBe('active'); // still offered next time
+    } finally {
+      await again.app.close();
+    }
+  } finally {
+    chmodSync(md, 0o644);
+  }
+  const third = await launch({ reuse: first });
+  try {
+    await expect(third.page.locator('.bt-keep')).toHaveAttribute('data-open', 'true');
+    await third.page.keyboard.press('Escape');
+    expect((await sprint(third.page)).blocks).toEqual([{ type: 'paragraph', content: [{ text: 'Do not lose me.' }] }]);
+  } finally {
+    await third.app.close();
+  }
+});
+
+test('a sprint is recorded as placed only once the book holding it is saved', async () => {
+  const { app, page, userData, saveDir } = await launch({ file: { name: 'S.md', content: FILE2 } });
+  try {
+    await startSprint(page);
+    await page.keyboard.type('Only placed once saved.');
+    const id = (await sprint(page)).record.id;
+    await page.keyboard.press('Meta+Shift+D');
+    await page.click('.bt-keep-radio[data-value="end"]');
+    chmodSync(saveDir, 0o555); // the book can't be saved right now
+    try {
+      await page.keyboard.press('Enter');
+      await expect.poll(() => mode(page)).toBe('manuscript');
+      // In the window, but not on disk: so not "placed" — kept in Sprints, where it can't be lost.
+      expect(JSON.stringify(await model(page))).toContain('Only placed once saved.');
+      await expect.poll(() => record(userData, id)?.status).toBe('kept');
+    } finally {
+      chmodSync(saveDir, 0o755);
+    }
   } finally {
     await app.close();
   }

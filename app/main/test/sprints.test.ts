@@ -1,4 +1,4 @@
-import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -32,6 +32,20 @@ describe('sprint storage', () => {
     await s.write(record('blank'), []);
     expect(await s.read('blank')).toEqual([]);
     expect((await s.unfinished())?.id).toBe('blank');
+  });
+
+  it('tells writing it cannot read now apart from writing that was never there', async () => {
+    const { root, s } = store();
+    expect(await s.read('neverwritten')).toEqual([]);
+    await s.write(record('locked'), writing);
+    chmodSync(path.join(root, 'locked.md'), 0o000);
+    try {
+      await expect(s.read('locked')).rejects.toThrow();
+      expect((await s.kept()).length).toBe(0); // (it isn't kept; listing never fails on it)
+    } finally {
+      chmodSync(path.join(root, 'locked.md'), 0o644);
+    }
+    expect(await s.read('locked')).toEqual(writing);
   });
 
   it('finds a sprint that never ended (crash or quit), and not one that did', async () => {

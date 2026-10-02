@@ -718,8 +718,9 @@ async function keepSprint(choice: KeepChoice, target: KeepTarget | null): Promis
   if (!(await sprintPage.flush())) return false;
   if (choice === 'chapter' || choice === 'end' || choice === 'cold') {
     if (!(await placeInBook(sprintPage.blocks(), sprintPage.record!, choice, target!))) return false;
-    // The writing is in the book now; if its record can't be updated, say so (it stays on disk).
-    if (!(await sprintPage.finish('placed'))) toast('The sprint was added, but its record couldn’t be updated.', 'error');
+    // "Placed" only once the book holding it is on disk; until then it stays in Sprints.
+    const status = (await saver.saveNow()) ? 'placed' : 'kept';
+    if (!(await sprintPage.finish(status))) toast('The sprint was added, but its record couldn’t be updated.', 'error');
     leaveSprinter();
     typewriter.recenter(false);
     return true;
@@ -741,8 +742,11 @@ const sprintsPanel = new SprintsPanel(document.body, {
     choose: async (choice, target) => {
       if (choice !== 'chapter' && choice !== 'end' && choice !== 'cold') return false;
       if (!(await placeInBook(blocks, sprint.record, choice, target!))) return false;
-      const recorded = await bridge.writeSprint({ ...sprint.record, status: 'placed' }, null);
-      if (!recorded.ok) toast('The sprint was added, but its record couldn’t be updated.', 'error');
+      // "Placed" only once the book holding it is on disk; until then it stays in Sprints.
+      if (await saver.saveNow()) {
+        const recorded = await bridge.writeSprint({ ...sprint.record, status: 'placed' }, null);
+        if (!recorded.ok) toast('The sprint was added, but its record couldn’t be updated.', 'error');
+      }
       focusWriting();
       return true;
     },
@@ -776,7 +780,14 @@ async function endSprint() {
 async function recoverSprint() {
   const record = await bridge.unfinishedSprint();
   if (!record || sprintPage.isOpen) return;
-  const blocks = await bridge.readSprint(record.id);
+  let blocks: Block[];
+  try {
+    blocks = await bridge.readSprint(record.id);
+  } catch {
+    // Left exactly as it is: offered again next time.
+    toast('An unfinished sprint couldn’t be read just now. It’s kept safe and will be offered again.', 'error');
+    return;
+  }
   // A sprint begun meanwhile is never taken over (an older one waits for the next launch).
   if (sprintPage.isOpen) return;
   sprintPage.resume(record, blocks);
