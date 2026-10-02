@@ -146,6 +146,13 @@
   /* Cold Storage bar (over the page while a parked scene is open) */
   --parked-bar-h: 40px;
 
+  /* margin notes */
+  --note-card-w: 220px;
+  --note-gap: 32px;
+  --note-stack-gap: 8px;
+  --note-marker: 8px;
+  --text-badge: 9px;
+
   /* save notice */
   --notice-w: 640px;
 
@@ -181,6 +188,14 @@
   /* the outline column opening/closing: quick off the mark, long soft settle */
   --dur-sidebar: 420ms;
   --ease-sidebar: cubic-bezier(0.32, 0.72, 0, 1);
+  /* opening, the column's curve: gentle start, catching up as the page
+     slows, soft settle — pulled in behind the page, never paused then flung */
+  --ease-sidebar-follow: cubic-bezier(0.5, 0, 0.1, 1);
+  /* margin notes handing off to the notes panel: fade out, then the panel
+     slides in; the panel slides out, then they fade back in */
+  --dur-notes-out: 140ms;
+  --dur-notes-in: 320ms;
+  --notes-drift: 8px;
 
   /* typewriter */
   --tw-guide-length: 240px;
@@ -204,6 +219,17 @@
   --color-cold-page: color-mix(in srgb, var(--color-cold) 6%, var(--color-page));
   --color-cold-bar: color-mix(in srgb, var(--color-cold) 12%, var(--color-page));
   --color-cold-edge: color-mix(in srgb, var(--color-cold) 28%, var(--color-page));
+  /* notes: a highlighter wash on anchored passages (stronger when active) */
+  /* a noted passage: washed with the theme's reserved note color (a rose
+     from its own palette — warm hues go muddy on dark pages), mixed in OKLab
+     so it keeps its hue; the active note's passage more strongly */
+  --color-note-wash: color-mix(in oklab, var(--color-note) 10%, var(--color-page));
+  --color-note-active: color-mix(in oklab, var(--color-note) 18%, var(--color-page));
+  --color-note-edge: color-mix(in srgb, var(--color-note) 60%, transparent);
+  /* A note's shadow is the page's own color, darkened — never plain black,
+     so it reads as a shadow cast on that surface. */
+  --color-note-shade: color-mix(in srgb, var(--color-page) 35%, black);
+  --shadow-note: 0 1px 2px color-mix(in srgb, var(--color-note-shade) 45%, transparent), 0 6px 16px color-mix(in srgb, var(--color-note-shade) 35%, transparent);
 }
 
 /* Appearance (set on #app and on the Appearance sample). Font size scales
@@ -254,6 +280,7 @@
   --color-popover-hover: rgba(248, 248, 242, 0.08);
   --color-popover-active: rgba(189, 147, 249, 0.24);
   --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.36), 0 2px 4px rgba(0, 0, 0, 0.24);
+  --color-note: #ff79c6;
   --color-cold: #8be9fd;
   color-scheme: dark;
 }
@@ -289,6 +316,7 @@
   --color-popover-hover: rgba(250, 242, 214, 0.08);
   --color-popover-active: rgba(248, 197, 55, 0.2);
   --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.24);
+  --color-note: #e0828f;
   --color-cold: #9cc2d9;
   color-scheme: dark;
 }
@@ -327,6 +355,7 @@
   /* margin numbers wash out on parchment at the dark themes' opacity */
   --number-opacity: 0.4;
   --number-opacity-current: 0.65;
+  --color-note: #a03f55;
   --color-cold: #2c5f86;
   color-scheme: light;
 }
@@ -362,6 +391,7 @@
   --color-popover-hover: rgba(211, 198, 170, 0.08);
   --color-popover-active: rgba(167, 192, 128, 0.2);
   --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.36), 0 2px 4px rgba(0, 0, 0, 0.24);
+  --color-note: #d699b6;
   --color-cold: #85beb6;
   color-scheme: dark;
 }
@@ -401,6 +431,7 @@
   /* margin numbers stay clearly visible */
   --number-opacity: 0.6;
   --number-opacity-current: 0.85;
+  --color-note: #ff8fd8;
   --color-cold: #9fdcff;
   color-scheme: dark;
 }
@@ -415,5 +446,7 @@
     --dur-glide: 0ms;
     --dur-jump: 0ms;
     --dur-sidebar: 0ms;
+    --dur-notes-out: 0ms;
+    --dur-notes-in: 0ms;
   }
 }

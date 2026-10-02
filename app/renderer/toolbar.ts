@@ -31,16 +31,18 @@ const ICONS = {
   italic: '<path d="M7 2.75h5M4 13.25h5M9.5 2.75l-3 10.5"/>',
   link: '<path d="M6.5 9.5l3-3M7.25 4.25l.9-.9a2.83 2.83 0 0 1 4 4l-.9.9M8.75 11.75l-.9.9a2.83 2.83 0 0 1-4-4l.9-.9"/>',
   quote: '<path d="M3 3v10M6.5 4.5H13M6.5 8H13M6.5 11.5H11"/>',
+  note: '<path d="M3 3.5h10v7H8l-3 2.5v-2.5H3z"/>',
 };
 const svg = (paths: string) =>
   `<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
 
-type Action = 'bold' | 'italic' | 'link' | 'quote';
+type Action = 'bold' | 'italic' | 'link' | 'quote' | 'note';
 const BUTTONS: { action: Action; label: string; keys?: string }[] = [
   { action: 'bold', label: 'Bold', keys: '⌘B' },
   { action: 'italic', label: 'Italic', keys: '⌘I' },
   { action: 'link', label: 'Link' },
   { action: 'quote', label: 'Quote' },
+  { action: 'note', label: 'Add note', keys: '⇧⌘M' },
 ];
 
 type Range = { from: number; to: number } | null;
@@ -67,7 +69,13 @@ export class SelectionToolbar {
   private quietOnce = false;
   private frame = 0;
 
-  constructor(private readonly workspace: HTMLElement, private readonly scroller: HTMLElement, private readonly getView: () => EditorView | null) {
+  constructor(
+    private readonly workspace: HTMLElement,
+    private readonly scroller: HTMLElement,
+    private readonly getView: () => EditorView | null,
+    /** Add a note to the selection (the app owns notes). */
+    private readonly addNote: () => void = () => {},
+  ) {
     this.el = document.createElement('div');
     this.el.className = 'bt-toolbar';
     this.el.setAttribute('role', 'toolbar');
@@ -78,7 +86,7 @@ export class SelectionToolbar {
     const group = document.createElement('div');
     group.className = 'bt-toolbar-buttons';
     BUTTONS.forEach(({ action, label, keys }, i) => {
-      if (action === 'quote') group.append(Object.assign(document.createElement('span'), { className: 'bt-toolbar-sep' }));
+      if (action === 'quote' || action === 'note') group.append(Object.assign(document.createElement('span'), { className: 'bt-toolbar-sep' }));
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'bt-toolbar-button';
@@ -250,6 +258,7 @@ export class SelectionToolbar {
       italic: markState(state, schema.marks.italic!),
       link: markState(state, schema.marks.link!),
       quote: quoteState(state),
+      note: 'off',
     };
     for (const [action, b] of this.buttons) {
       const s = pressed[action];
@@ -269,6 +278,7 @@ export class SelectionToolbar {
 
   private act(action: Action) {
     if (action === 'link') { this.openLink(); return; }
+    if (action === 'note') { this.hide(); this.addNote(); return; }
     this.run(action === 'bold' ? toggleBold : action === 'italic' ? toggleItalic : toggleQuote);
     this.refresh();
   }

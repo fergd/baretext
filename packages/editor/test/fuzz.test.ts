@@ -31,6 +31,8 @@ import {
   openParked,
   closeParked,
   parkedKey,
+  addNoteAnchor,
+  removeNoteAnchor,
   addScene,
   BOOK_TITLE,
   setLink,
@@ -58,7 +60,9 @@ type Op =
   | { kind: 'park'; a: number }
   | { kind: 'unpark'; a: number; b: number; index: number; home: boolean }
   | { kind: 'open'; a: number }
-  | { kind: 'close' };
+  | { kind: 'close' }
+  | { kind: 'note'; a: number; b: number; id: string }
+  | { kind: 'unnote'; id: string };
 
 const unit = fc.double({ min: 0, max: 1, noNaN: true });
 const op: fc.Arbitrary<Op> = fc.oneof(
@@ -74,6 +78,8 @@ const op: fc.Arbitrary<Op> = fc.oneof(
   { weight: 1, arbitrary: fc.tuple(unit, unit, fc.integer({ min: 0, max: 5 }), fc.boolean()).map(([a, b, index, home]): Op => ({ kind: 'unpark', a, b, index, home })) },
   { weight: 2, arbitrary: unit.map((a): Op => ({ kind: 'open', a })) },
   { weight: 1, arbitrary: fc.constant<Op>({ kind: 'close' }) },
+  { weight: 2, arbitrary: fc.tuple(unit, unit, fc.constantFrom('n1', 'n2', 'n3')).map(([a, b, id]): Op => ({ kind: 'note', a, b, id })) },
+  { weight: 1, arbitrary: fc.constantFrom('n1', 'n2', 'n3').map((id): Op => ({ kind: 'unnote', id })) },
   { weight: 2, arbitrary: fc.tuple(fc.constantFrom<'scene' | 'chapter'>('scene', 'chapter'), unit, unit, fc.integer({ min: 0, max: 5 })).map(([what, a, b, index]): Op => ({ kind: 'move', what, a, b, index })) },
   { weight: 1, arbitrary: fc.tuple(fc.constantFrom<'scene' | 'chapter' | 'chapter-after'>('scene', 'chapter', 'chapter-after'), unit).map(([what, target]): Op => ({ kind: 'add', what, target })) },
   { weight: 1, arbitrary: fc.tuple(unit, fc.constantFrom('', '  ', 'Dawn', 'Two', 'a\nb', ' x ')).map(([target, name]): Op => ({ kind: 'rename', target, name })) },
@@ -241,6 +247,23 @@ describe('editing fuzzer', () => {
               break;
             }
             case 'close': h.run(closeParked(posAt(h.state, 0.3))); break;
+            case 'note': {
+              // Anchoring a note never changes the manuscript (only bookkeeping marks).
+              const a = Math.min(posAt(h.state, o.a), posAt(h.state, o.b));
+              const b = Math.max(posAt(h.state, o.a), posAt(h.state, o.b));
+              try { h.state = h.state.apply(h.state.tr.setSelection(TextSelection.create(h.state.doc, a, b))); } catch { break; }
+              structural = true; // moving the caret may drop a just-started empty scene name (by design)
+              const before = JSON.stringify(docToModel(h.state.doc));
+              h.run(addNoteAnchor(o.id));
+              expect(JSON.stringify(docToModel(h.state.doc))).toBe(before);
+              break;
+            }
+            case 'unnote': {
+              const before = JSON.stringify(docToModel(h.state.doc));
+              h.run(removeNoteAnchor(o.id));
+              expect(JSON.stringify(docToModel(h.state.doc))).toBe(before);
+              break;
+            }
             case 'raw': {
               // Arbitrary low-level edits: the guard must refuse any that touch structure.
               const a = Math.min(posAt(h.state, o.a), posAt(h.state, o.b));
@@ -268,7 +291,8 @@ describe('editing fuzzer', () => {
         }
 
         while (undoDepth(h.state) > 0) h.run(undo);
-        expect(h.state.doc.eq(original)).toBe(true);
+        // Note anchors are bookkeeping, not undo steps: compare the manuscript itself.
+        expect(docToModel(h.state.doc)).toEqual(docToModel(original));
         expect(structureSignature(h.state.doc)).toBe(structureSignature(original));
       }),
       { numRuns: Number(process.env.FC_RUNS ?? 1500) },

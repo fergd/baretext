@@ -576,3 +576,4 @@ test("deleting a chapter's only scene leaves the chapter with an empty scene", a
     await app.close();
   }
 });
+

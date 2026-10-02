@@ -30,16 +30,23 @@ export interface HookHost {
   history: HistoryPanel;
   appearance(): unknown;
   outline(): unknown;
+  notes(): unknown;
 }
 
-/** Document position of the first occurrence of `text` in the prose, or -1. */
+/**
+ * Document position of the first occurrence of `text` at or after `from`, or
+ * -1. Searches each paragraph's whole text, so a match may span formatting
+ * and note-anchor boundaries (all inline content is text).
+ */
 function find(doc: PMNode, text: string, from = 0): number {
   let at = -1;
   doc.descendants((node, pos) => {
     if (at >= 0) return false;
-    if (!node.isText) return true;
-    const i = node.text!.indexOf(text);
-    if (i >= 0 && pos + i >= from) at = pos + i;
+    if (!node.isTextblock) return true;
+    const content = node.textContent;
+    for (let i = content.indexOf(text); i >= 0; i = content.indexOf(text, i + 1)) {
+      if (pos + 1 + i >= from) { at = pos + 1 + i; break; }
+    }
     return false;
   });
   return at;
@@ -98,6 +105,7 @@ export function installTestHooks(h: HookHost) {
     history: () => ({ open: h.history.isOpen }),
     appearance: h.appearance,
     outline: h.outline,
+    notes: h.notes,
     find: () => ({ open: h.find.isOpen, count: h.find.el.querySelector('.bt-find-count')!.textContent, ms: h.find.lastSearchMs }),
   };
 }

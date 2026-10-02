@@ -31,6 +31,7 @@ export * from './convert';
 export * from './commands';
 export { BOOK_TITLE, rename, addScene, addChapter, moveScene, moveChapter, deleteScene, deleteChapter } from './outline-commands';
 export { parkedKey, openParked, closeParked, moveToColdStorage, restoreFromColdStorage } from './cold';
+export { addNoteAnchor, removeNoteAnchor, anchorsIn, describeAnchor, locateAnchor, applyAnchors, type AnchorRange, type SavedAnchor } from './notes';
 export * from './structure';
 export * from './decorations';
 export * from './format';
@@ -71,7 +72,7 @@ const safeReplace = new Plugin({
         return false;
       },
     },
-    transformPasted: (slice) => flattenPastedSlice(slice),
+    transformPasted: (slice, view) => flattenPastedSlice(slice, view.state),
   } satisfies EditorProps,
 });
 

@@ -1,0 +1,242 @@
+/* Notes: anchored passages carry a highlighter wash; their notes float in
+   the right margin (or shrink to markers when there's no room). */
+
+.bt-note-anchor {
+  /* A fill, square-cornered so it runs seamlessly across italics and other
+     formatting (underlines are left for spelling and grammar). */
+  background: var(--color-note-wash);
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+/* Focus mode is the words alone. */
+.bt-app[data-focus='true'] .bt-note-anchor { background: none; }
+
+.bt-page { position: relative; }
+.bt-margin-notes {
+  position: absolute;
+  top: 0;
+  left: calc(100% + var(--note-gap));
+  width: var(--note-card-w);
+  height: 0;
+}
+
+.bt-note-card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-1) var(--space-2) var(--space-3);
+  border-radius: var(--popover-radius);
+  background: var(--color-popover);
+  box-shadow: var(--shadow-note);
+  font-family: var(--font-ui);
+  font-size: var(--text-palette);
+  line-height: var(--space-5);
+  color: var(--color-text);
+  transition: transform var(--dur-glide) var(--ease-out);
+}
+/* One light source: every card casts the same shadow. A card not in use
+   dims its contents, never itself (that would fade its shadow too). */
+.bt-note-card > * { opacity: 0.72; transition: opacity var(--dur-fast) var(--ease-out); }
+.bt-note-card:hover > *,
+.bt-note-card:focus-within > *,
+.bt-note-card[data-active='true'] > * { opacity: 1; }
+.bt-note-card[data-active='true'] { z-index: 1; }
+
+/* A note's text: written in a box with Cancel and Save, then read as text (note-body.ts). */
+.bt-note-content { grid-column: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.bt-note-text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  letter-spacing: var(--tracking-ui);
+  cursor: text;
+  outline: none;
+}
+.bt-note-input {
+  width: 100%;
+  field-sizing: content; /* grows with its text, at any width */
+  min-height: var(--space-5);
+  padding: 0;
+  border: 0;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  background: transparent;
+  font: inherit;
+  letter-spacing: var(--tracking-ui);
+  color: inherit;
+}
+.bt-note-input::placeholder { color: var(--color-text-dimmer); }
+.bt-note-buttons { display: flex; justify-content: flex-end; gap: var(--space-1); }
+.bt-note-buttons button {
+  height: var(--space-6);
+  padding: 0 var(--space-3);
+  border-radius: var(--toolbar-button-radius);
+  font: inherit;
+  letter-spacing: var(--tracking-ui);
+}
+.bt-note-cancel { color: var(--color-text-dim); }
+.bt-note-cancel:hover { color: var(--color-text); background: var(--color-popover-hover); }
+.bt-note-save { background: var(--color-accent); color: var(--color-switch-knob-on); }
+.bt-note-save:hover:not(:disabled) { filter: brightness(1.08); }
+.bt-note-save:disabled { opacity: 0.4; cursor: default; }
+
+.bt-note-resolve {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-6);
+  height: var(--space-6);
+  margin-top: calc(-1 * var(--space-1) / 2);
+  border-radius: 50%;
+  color: var(--color-text-dimmer);
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+.bt-note-card:hover .bt-note-resolve,
+.bt-note-card:focus-within .bt-note-resolve,
+.bt-note-card[data-active='true'] .bt-note-resolve { opacity: 1; }
+.bt-note-card[data-editing='true'] .bt-note-resolve { display: none; } /* resolve comes once the note is saved */
+.bt-note-card[data-editing='true'] { grid-template-columns: minmax(0, 1fr); padding-right: var(--space-3); }
+.bt-note-resolve:hover { color: var(--color-accent); background: var(--color-popover-hover); }
+
+.bt-note-marker { display: none; }
+
+/* No room for cards: a marker beside the passage opens the note in the panel. */
+.bt-margin-notes[data-compact='true'] { left: calc(100% + var(--space-2)); width: var(--note-marker); }
+.bt-margin-notes[data-compact='true'] .bt-note-card { padding: 0; background: none; border: 0; box-shadow: none; display: block; }
+.bt-margin-notes[data-compact='true'] .bt-note-card > * { opacity: 1; }
+.bt-margin-notes[data-compact='true'] :is(.bt-note-content, .bt-note-resolve) { display: none; }
+.bt-margin-notes[data-compact='true'] .bt-note-marker {
+  display: block;
+  width: var(--note-marker);
+  height: var(--note-marker);
+  margin-top: calc((var(--lh-body) - var(--note-marker)) / 2);
+  border-radius: 50%;
+  background: var(--color-note);
+}
+
+/* Margin notes float in manuscript mode; the notes panel (which shows them),
+   typewriter mode and focus mode put them away. */
+.bt-app[data-focus='true'] .bt-margin-notes,
+.bt-app[data-typewriter='true'] .bt-margin-notes,
+.bt-app[data-notes='open'] .bt-margin-notes:not([data-leaving='true']) { display: none; } /* fading out as the panel comes */
+
+/* ── the notes panel: a column on the right, mirroring the outline ── */
+.bt-notes-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  width: var(--outline-w);
+  background: var(--color-outline-column);
+  border-left: 1px solid var(--color-palette-divider);
+  font-family: var(--font-ui);
+  font-size: var(--text-ui);
+  line-height: var(--lh-ui);
+  letter-spacing: var(--tracking-ui);
+  color: var(--color-text-dim);
+  visibility: hidden;
+}
+.bt-notes-panel[data-open='true'],
+.bt-notes-panel[data-closing='true'] { visibility: visible; }
+.bt-app[data-notes='open'] .bt-scroller { right: var(--outline-w); }
+.bt-app[data-focus='true'] .bt-notes-panel:not([data-closing='true']) { visibility: hidden; }
+.bt-app[data-focus='true'][data-notes='open'] .bt-scroller { right: 0; }
+.bt-app[data-notes='open']:not([data-focus='true']) .bt-parked-bar { right: var(--outline-w); }
+.bt-app[data-notes='open']:not([data-focus='true']) .bt-tw-guide-right { right: var(--outline-w); }
+
+.bt-notes-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--palette-input-h);
+  padding: 0 var(--space-2) 0 var(--space-4);
+  border-bottom: 1px solid var(--color-palette-divider);
+}
+.bt-notes-title { color: var(--color-text-dim); text-transform: uppercase; letter-spacing: 0.1em; }
+.bt-notes-count { font-family: var(--font-num); color: var(--color-text-dimmer); margin-right: auto; }
+.bt-notes-new {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--toolbar-button);
+  padding: 0 var(--space-2);
+  border-radius: var(--toolbar-button-radius);
+  color: var(--color-text-dim);
+}
+.bt-notes-new:hover { color: var(--color-text); background: var(--color-popover-hover); }
+
+.bt-notes-list { flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-2) var(--space-2) var(--space-4); scrollbar-width: thin; }
+.bt-notes-section {
+  margin: var(--space-3) var(--space-2) var(--space-1);
+  font: inherit;
+  color: var(--color-text-dimmer);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.bt-notes-section:first-child { margin-top: var(--space-1); }
+.bt-notes-empty { margin: var(--space-4) var(--space-2); color: var(--color-text-dimmer); }
+
+.bt-notes-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-bottom: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--popover-radius);
+  background: var(--color-popover);
+}
+.bt-notes-card[data-resolved='true'] { opacity: 0.7; }
+.bt-notes-quote {
+  margin: 0;
+  padding-left: var(--space-2);
+  border-left: 2px solid var(--color-note-edge); /* the passage it's about, quoted */
+  color: var(--color-text-dim);
+  font-style: italic;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.bt-notes-card .bt-note-content { font-size: var(--text-palette); line-height: var(--space-5); color: var(--color-text); }
+.bt-notes-card[data-editing='true'] [data-action='resolve'] { display: none; }
+.bt-notes-meta { display: flex; align-items: center; gap: var(--space-1); flex-wrap: wrap; }
+.bt-notes-where { margin-right: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-text-dimmer); }
+.bt-notes-card[data-lost='true'] .bt-notes-where { color: var(--color-danger); }
+.bt-notes-action {
+  height: var(--space-6);
+  padding: 0 var(--space-2);
+  border-radius: var(--toolbar-button-radius);
+  color: var(--color-text-dim);
+}
+.bt-notes-action:hover { color: var(--color-text); background: var(--color-popover-hover); }
+.bt-notes-action[data-action='delete'] { color: var(--color-danger); }
+
+.bt-notes-foot { flex: none; padding: var(--space-2); border-top: 1px solid var(--color-palette-divider); }
+.bt-notes-foot:has(.bt-notes-toggle[hidden]) { display: none; }
+.bt-notes-toggle { width: 100%; height: var(--outline-row-h); padding: 0 var(--space-2); border-radius: var(--toolbar-button-radius); text-align: left; color: var(--color-text-dimmer); }
+.bt-notes-toggle:hover { color: var(--color-text-dim); background: var(--color-popover-hover); }
+
+/* The title bar's notes button: at the right end, with the open-note count. */
+.bt-chrome-notes { position: relative; margin-left: auto; }
+.bt-notes-badge {
+  position: absolute;
+  top: calc(-1 * var(--space-1) / 2);
+  right: calc(-1 * var(--space-1));
+  min-width: var(--space-3);
+  font-family: var(--font-num);
+  font-size: var(--text-badge);
+  line-height: var(--space-3);
+  color: var(--color-note);
+  text-align: center;
+}

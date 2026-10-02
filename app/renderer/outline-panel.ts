@@ -11,12 +11,10 @@ import { BOOK_TITLE } from '@baretext/editor';
 import { sceneDisplayName, type Outline } from './outline';
 import { OutlineDrag } from './outline-drag';
 import { CHEVRON, PLUS, RESTORE, SNOWFLAKE, TRASH } from './icons';
+import { slideColumn, type Motion } from './sidebar-motion';
 
 const numberFormat = new Intl.NumberFormat();
 const REFRESH_MS = 250;
-const CASCADE_SPAN_MS = 160;
-const CASCADE_STEP_MS = 12;
-const CASCADE_OFFSET = 12;
 /** The Cold Storage section's identity in the tree (folding, focus). */
 const COLD = 'cold-storage';
 /** How long an armed delete waits for its confirmation. */
@@ -73,6 +71,8 @@ export class OutlinePanel {
       /** Delete a scene or a chapter (already confirmed). */
       deleteScene: (sceneId: string) => void;
       deleteChapter: (chapterId: string) => void;
+      /** Open notes per scene id (shown beside the scene's word count). */
+      noteCounts: () => Map<string, number>;
       /** Presence changed (the shell lays itself out around it). */
       onPresence: (presence: OutlinePresence) => void;
     },
@@ -162,24 +162,8 @@ export class OutlinePanel {
    * first rows follow in a short cascade. Transforms and opacity only.
    * Closing keeps the column painted until it has slid away.
    */
-  motion(open: boolean, duration: number, easing: string) {
-    for (const a of this.el.getAnimations({ subtree: true })) a.cancel();
-    if (!duration) { delete this.el.dataset.closing; return; }
-    if (!open) this.el.dataset.closing = 'true';
-    const slide = this.el.animate(
-      [{ transform: 'translateX(-100%)', opacity: 0.4 }, { transform: 'translateX(0)', opacity: 1 }],
-      { duration, easing, direction: open ? 'normal' : 'reverse' },
-    );
-    slide.onfinish = slide.oncancel = () => { if (!open) delete this.el.dataset.closing; };
-    if (!open) return;
-    // Every row in view joins the cascade; the whole wave fits a fixed span.
-    const box = this.tree.getBoundingClientRect();
-    const visible = this.rows().filter((r) => { const b = r.getBoundingClientRect(); return b.bottom > box.top && b.top < box.bottom; });
-    const step = Math.min(CASCADE_STEP_MS, CASCADE_SPAN_MS / Math.max(1, visible.length));
-    visible.forEach((row, i) => {
-      row.animate([{ opacity: 0, transform: `translateX(${-CASCADE_OFFSET}px)` }, { opacity: 1, transform: 'none' }],
-        { duration: duration * 0.7, easing, delay: duration * 0.1 + i * step, fill: 'backwards' });
-    });
+  motion(open: boolean, m: Motion) {
+    slideColumn(this.el, 'left', open, m, () => this.rows(), this.tree);
   }
 
   /** New model data. Structure/count changes refresh on a debounce; the current mark at once. */
@@ -197,6 +181,11 @@ export class OutlinePanel {
       this.refreshTimer = window.setTimeout(() => this.render(false), REFRESH_MS);
     }
     if (hereChanged) this.markCurrent(true, true);
+  }
+
+  /** Note counts changed: redraw the rows (if showing). */
+  notesChanged() {
+    if (this.isShowing) this.render(true);
   }
 
   /** Move keyboard focus into the tree, on the current scene. */
@@ -227,6 +216,7 @@ export class OutlinePanel {
 
     const scrollTop = this.tree.scrollTop;
     const hadFocus = this.el.contains(document.activeElement);
+    const noteCounts = this.actions.noteCounts();
     const frag = document.createDocumentFragment();
     for (const chapter of outline.chapters) {
       const open = !this.collapsed.has(chapter.id);
@@ -264,8 +254,9 @@ export class OutlinePanel {
         row.setAttribute('aria-level', '2');
         const name = sceneDisplayName(scene);
         if (!scene.name) row.dataset.unnamed = 'true';
-        row.setAttribute('aria-label', `${scene.label} ${name}, ${words(scene.words)}`);
-        row.append(cell('bt-outline-num', scene.label), cell('bt-outline-name', name), cell('bt-outline-meta', numberFormat.format(scene.words)), rowActions('scene'));
+        const notes = noteCounts.get(scene.id) ?? 0;
+        row.setAttribute('aria-label', `${scene.label} ${name}, ${words(scene.words)}${notes ? `, ${notes} open ${notes === 1 ? 'note' : 'notes'}` : ''}`);
+        row.append(cell('bt-outline-num', scene.label), cell('bt-outline-name', name), meta(scene.words, notes), rowActions('scene'));
         group.append(row);
       }
       frag.append(group);
@@ -315,7 +306,7 @@ export class OutlinePanel {
       const from = p.from ? (p.from.chapter ? `From chapter ${p.from.chapter}` : 'From a chapter that was deleted') : '';
       row.title = from;
       row.setAttribute('aria-label', `${name}, ${words(p.words)}, in Cold Storage${from ? `. ${from}` : ''}`);
-      row.append(cell('bt-outline-num', ''), cell('bt-outline-name', name), cell('bt-outline-meta', numberFormat.format(p.words)), rowActions('parked'));
+      row.append(cell('bt-outline-num', ''), cell('bt-outline-name', name), meta(p.words, this.actions.noteCounts().get(p.id) ?? 0), rowActions('parked'));
       group.append(row);
     }
     return [head, group];
@@ -615,6 +606,13 @@ function rowActions(kind: 'scene' | 'chapter' | 'parked'): HTMLElement {
   if (kind === 'parked') group.append(button('restore', 'Restore to the manuscript', 'Restore (back where it came from)', RESTORE));
   group.append(button('delete', kind === 'chapter' ? 'Delete chapter' : 'Delete scene', kind === 'chapter' ? 'Delete chapter  ⌫' : 'Delete scene  ⌫', TRASH));
   return group;
+}
+
+/** A scene's count cell: its open notes (if any), then its words. */
+function meta(count: number, notes: number): HTMLElement {
+  const m = cell('bt-outline-meta', numberFormat.format(count));
+  if (notes) m.prepend(Object.assign(document.createElement('span'), { className: 'bt-outline-notes', textContent: String(notes), title: `${notes} open ${notes === 1 ? 'note' : 'notes'}` }));
+  return m;
 }
 
 function cell(className: string, text: string): HTMLElement {

@@ -1,5 +1,6 @@
 // The narrow bridge between the UI and the privileged side (spec §14.1).
 import type { Manuscript } from '@baretext/format';
+import type { Note } from './notes';
 
 export interface OpenedDocument {
   filePath: string;
@@ -70,7 +71,7 @@ export interface InitialPrefs extends AppearancePrefs {
 }
 
 export type MenuCommand =
-  | 'undo' | 'redo' | 'typewriter' | 'focus' | 'bold' | 'italic' | 'link' | 'quote' | 'split-scene' | 'pause' | 'name-scene' | 'save' | 'palette' | 'goto' | 'find' | 'find-replace' | 'find-next' | 'find-prev' | 'history' | 'snapshot' | 'outline' | 'outline-focus' | 'new-scene' | 'new-chapter' | 'appearance' | 'park-scene';
+  | 'undo' | 'redo' | 'typewriter' | 'focus' | 'bold' | 'italic' | 'link' | 'quote' | 'split-scene' | 'pause' | 'name-scene' | 'save' | 'palette' | 'goto' | 'find' | 'find-replace' | 'find-next' | 'find-prev' | 'history' | 'snapshot' | 'outline' | 'outline-focus' | 'new-scene' | 'new-chapter' | 'appearance' | 'park-scene' | 'add-note' | 'notes';
 
 /** A local snapshot of a manuscript (DECISIONS §6). */
 export interface SnapshotInfo {
@@ -94,6 +95,9 @@ export interface BaretextBridge {
   /** A snapshot of the manuscript as it is in the window now (before a risky change, or by hand). */
   takeSnapshot(filePath: string, manuscript: Manuscript, kind: 'point' | 'manual', reason: string, label?: string): Promise<SnapshotInfo | null>;
   removeSnapshot(filePath: string, id: string): Promise<void>;
+  /** Notes live beside the manuscript ("<name>.notes.json"); [] when there are none yet. */
+  loadNotes(filePath: string): Promise<Note[]>;
+  saveNotes(filePath: string, notes: Note[]): Promise<{ ok: boolean; message?: string }>;
   /** File commands the main process owns (they may show a dialog or switch documents). */
   fileCommand(command: 'new' | 'open'): void;
   onMenu(cb: (command: MenuCommand) => void): void;
@@ -113,6 +117,8 @@ export const CHANNELS = {
   snapshotsRead: 'snapshots:read',
   snapshotsTake: 'snapshots:take',
   snapshotsRemove: 'snapshots:remove',
+  notesLoad: 'notes:load',
+  notesSave: 'notes:save',
   menu: 'menu:command',
   flush: 'app:flush',
   flushed: 'app:flushed',

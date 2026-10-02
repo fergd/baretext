@@ -616,3 +616,89 @@ Build the main app first. When integrations are built, follow this design.
   "parked scenes are refused" in rename).
 - Known: undoing, after going back, an edit made inside a parked scene
   changes the (hidden) parked text; the outline's counts show it.
+
+## 15. No keyboard reorder (2026-10-01, user) — OVERRIDES spec §8.1
+
+- ⌥↑/⌥↓ to reorder in the outline was built, then removed at the user's
+  request ("I don't need it"). Clicking a row puts the caret in the text,
+  where ⌥↑/⌥↓ keep their macOS meaning (paragraph by paragraph); drag and
+  drop is the way to reorder. The shared row glide (FLIP) stays in
+  `outline-drag.ts`.
+
+## 16. Notes (2026-10-01, user)
+
+- **Two places (user):** a note about a passage **floats in the right margin
+  beside it** (cards stack in passage order without overlapping; the active
+  card sits level with its passage); a **notes panel flies in from the
+  right** for everything, including **general notes** about the book (no
+  passage). When the margin is too narrow for cards (window size, panel
+  open), each note shows as a small marker in the note color that opens it
+  in the panel. **Margin notes float whenever the manuscript is shown, except
+  with the notes panel open, in typewriter mode, or in focus mode (user,
+  2026-10-01)**; then clicking a noted passage opens its note in the panel.
+- **Resolving removes the passage's highlight** (it reads as plain text
+  again).
+- **Cards (user, 2026-10-01):** no border; a shadow made from the page's
+  own color darkened (`--shadow-note`, never plain black), **the same on
+  every card — one light source (user)**; a card not in use dims its
+  contents, never its shadow. **Resolve is a circled check in the
+  top-right corner, like a Google Docs comment**, shown on hover/active —
+  and only once the note is saved.
+- **Writing a note (user, 2026-10-01), as a Google Docs comment:** a text
+  box with **Cancel** and **Save**; **↵ saves, ⇧↵ adds a line, Esc
+  cancels**; Save, ↵ and Esc return the caret to the manuscript. Nothing is
+  stored until saved. A saved note reads as plain text; click it (or ↵ on
+  it) to edit. Clicking away saves what was written; a new note left empty
+  goes with its anchor; an edit emptied keeps the saved text. Revealing a
+  saved note (clicking its passage) never takes the caret out of the
+  manuscript. One component for margin and panel (`note-body.ts`).
+- **Anchors are an invisible `note` mark** on the passage
+  (`packages/editor/src/notes.ts`): they follow the text through edits,
+  moves and Cold Storage; undoing a deletion brings them back; they are not
+  undo steps; notes may overlap; they attach only within one scene's prose.
+  A copy-paste never duplicates one; a cut-paste keeps it (the passage
+  moved). The manuscript file never contains them (`docToModel` ignores the
+  mark; fuzzed).
+- **Storage (user):** `<name>.notes.json` beside the manuscript, written
+  atomically ~0.5s after a change (and on quit); each anchor saved as
+  { scene, quote, offset } and found again on reopening (nearest the old
+  place; anywhere in the book if its scene is gone). No notes, no file. A
+  damaged file is set aside, never overwritten.
+- **Creating:** ⇧⌘M (Format → Add Note), the selection toolbar's note
+  button, or the palette, on a selection; with nothing selected, ⇧⌘M starts
+  a general note in the panel. A new note cancelled or left empty is let go
+  (with its anchor).
+- **Panel motion (user, 2026-10-01): as the outline's** — slides in from
+  the right edge while the page glides, cards in view cascade in, it slides
+  away on close and with focus mode; reduced motion skips it. One helper
+  for both columns (`sidebar-motion.ts`).
+- **Hand-off (user, 2026-10-01):** opening, the floating notes fade out
+  (drifting toward the panel, `--dur-notes-out`), and only then does the
+  page make room and the panel slide in; closing, the panel slides out and
+  the floating notes drift back in over the slide's settle
+  (`--dur-notes-in`, from 60% of the slide). Every way of opening the
+  panel goes through this (button, ⇧⌘N, a marker, revealing a note).
+- **Magnet (user, 2026-10-01):** the page leads both ways. Closing, it
+  pushes the column out; opening, it pulls the column in behind it. The
+  column starts at once on its own curve (`--ease-sidebar-follow`: gentle
+  start, catching up as the page slows, soft settle), ending with the page.
+  A delay was tried and rejected: a pause, then a lurch. Shared, so the
+  outline moves the same way.
+- **Panel (⇧⌘N, View → Notes, the title bar's notes button with the open
+  count):** General, then In the manuscript (in order: quote, body, "2.3
+  Name" / "Cold Storage · Name" / "Passage deleted", **Show in
+  manuscript**, **Resolve**). **Resolve (user): hidden, recoverable** —
+  "Show resolved" lists them with **Reopen** and two-step **Delete**.
+- **A noted passage is washed in the theme's reserved note color (user,
+  2026-10-01)** — not underlined: underlines are kept for spelling and
+  grammar checking. The note color is a rose from each theme's own palette
+  (Dracula pink #ff79c6, Dark rose #e0828f, Light rose #a03f55, Grove
+  Everforest purple #d699b6, High Contrast magenta #ff8fd8): yellows and
+  ambers go olive/brown as a wash on dark pages, and on Dark/Light they
+  matched the selection. Washes mix in OKLab so they keep their hue: 10% at
+  rest, 18% for the active note; square corners, so they run seamlessly
+  across italics. Contrast-tested per theme (prose and epigraph text on
+  both washes, AAA on High Contrast; the outline badge), and the note hue
+  is ≥45° from the selection's. **Focus mode shows no note washes (user).**
+  Clicking a passage brings its note forward. The outline shows each
+  scene's open-note count.

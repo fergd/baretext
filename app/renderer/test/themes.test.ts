@@ -107,6 +107,42 @@ describe.each(THEMES)('theme %s', (theme) => {
     for (const fg of ['color-h1', 'color-h2']) expect(contrast(color(fg), coldPage()), fg).toBeGreaterThanOrEqual(theme === 'contrast' ? 4.5 : 3);
   });
 
+  // Notes (DECISIONS §16): each theme reserves a note color (a rose from its
+  // own palette); a noted passage is washed with it, the active one more.
+  // Mixed in OKLab, as tokens.css does, so the wash keeps its hue.
+  const NOTE_WASH_MIX = 0.1; // must match tokens.css
+  const NOTE_ACTIVE_MIX = 0.18;
+  const toLin = (v: number) => { const s = v / 255; return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; };
+  const fromLin = (v: number) => 255 * (v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055);
+  const toLab = ([r, g, b]: RGBA) => {
+    const [R, G, B] = [toLin(r), toLin(g), toLin(b)];
+    const l = Math.cbrt(0.4122214708 * R + 0.5363325363 * G + 0.0514459929 * B);
+    const m = Math.cbrt(0.2119034982 * R + 0.6806995451 * G + 0.1073969566 * B);
+    const q = Math.cbrt(0.0883024619 * R + 0.2817188376 * G + 0.6299787005 * B);
+    return [0.2104542553 * l + 0.793617785 * m - 0.0040720468 * q, 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * q, 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * q];
+  };
+  const fromLab = ([L, A, B]: number[]): RGBA => {
+    const l = (L! + 0.3963377774 * A! + 0.2158037573 * B!) ** 3;
+    const m = (L! - 0.1055613458 * A! - 0.0638541728 * B!) ** 3;
+    const q = (L! - 0.0894841775 * A! - 1.291485548 * B!) ** 3;
+    return [fromLin(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * q), fromLin(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * q), fromLin(-0.0041960863 * l - 0.7034186147 * m + 1.707614701 * q), 1];
+  };
+  const mixLab = (c: RGBA, pct: number, base: RGBA): RGBA => { const x = toLab(c), y = toLab(base); return fromLab(x.map((v, i) => v * pct + y[i]! * (1 - pct))); };
+  it('notes: prose stays readable on a noted passage, active or not; the wash never looks like the selection', () => {
+    const level = theme === 'contrast' ? 7 : 4.5;
+    const wash = mixLab(color('color-note'), NOTE_WASH_MIX, color('color-page'));
+    const active = mixLab(color('color-note'), NOTE_ACTIVE_MIX, color('color-page'));
+    for (const bg of [wash, active]) for (const fg of ['color-text', 'color-text-dim']) expect(contrast(color(fg), bg), fg).toBeGreaterThanOrEqual(level);
+    // Told apart by hue (OKLab angle), as the eye does.
+    const hue = (c: RGBA) => { const [, a, b] = toLab(c); return (Math.atan2(b!, a!) * 180) / Math.PI; };
+    const apart = (x: number, y: number) => { const d = Math.abs(x - y) % 360; return d > 180 ? 360 - d : d; };
+    const sel = hue(color('color-selection', 'color-page'));
+    expect(apart(hue(color('color-note')), sel), 'note hue vs selection hue').toBeGreaterThanOrEqual(45);
+    // The outline's count badge: the note color on its wash, in the column.
+    const badge = mixLab(color('color-note'), NOTE_WASH_MIX, color('color-outline-column'));
+    expect(contrast(color('color-note'), badge), 'badge').toBeGreaterThanOrEqual(theme === 'contrast' ? 7 : 4.5);
+  });
+
   it('an error ("not saved") reads on the status bar', () => {
     expect(contrast(color('color-danger'), color('color-chrome'))).toBeGreaterThanOrEqual(4.5);
   });

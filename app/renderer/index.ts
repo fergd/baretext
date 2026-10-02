@@ -24,6 +24,10 @@ import {
   openParked,
   parkedKey,
   restoreFromColdStorage,
+  addNoteAnchor,
+  anchorsIn,
+  describeAnchor,
+  removeNoteAnchor,
   restoreManuscript,
   sceneDepth,
   schema,
@@ -45,6 +49,11 @@ import { SelectionToolbar } from './toolbar';
 import { Typewriter } from './typewriter';
 import { Saver } from './saving';
 import { installTestHooks } from './test-hooks';
+import { NotesStore } from './notes-store';
+import { MarginNotes } from './margin-notes';
+import { NotesPanel } from './notes-panel';
+import type { Motion } from './sidebar-motion';
+import { newId } from '@baretext/format';
 import { SNOWFLAKE } from './icons';
 
 declare global {
@@ -282,6 +291,16 @@ const outlinePanel = new OutlinePanel($('workspace'), {
   park: (id) => parkScene(id),
   openParked: (id) => openParkedScene(id),
   restore: (id, chapterId, index) => restoreScene(id, chapterId, index),
+  noteCounts: () => {
+    const counts = new Map<string, number>();
+    if (!view) return counts;
+    const anchors = anchorsIn(view.state.doc);
+    for (const n of notes.all) {
+      const scene = !n.resolved && anchors.get(n.id)?.scene;
+      if (scene) counts.set(scene, (counts.get(scene) ?? 0) + 1);
+    }
+    return counts;
+  },
   deleteScene: (id) => deleteFromOutline(id, 'scene'),
   deleteChapter: (id) => deleteFromOutline(id, 'chapter'),
   onPresence: (presence: OutlinePresence) => {
@@ -354,21 +373,24 @@ function keepCaretLine(change: () => void) {
  * slides and the page glides from where it was to its new center (FLIP),
  * so nothing in the manuscript is laid out again during the motion.
  */
-function sidebarMotion(open: boolean, change: () => void, animate = true) {
+interface SideColumn { motion(open: boolean, m: Motion): void }
+function sidebarMotion(columns: SideColumn[], open: boolean, change: () => void, animate = true) {
   const before = page.getBoundingClientRect().left;
   keepCaretLine(change);
   const root = getComputedStyle(document.documentElement);
   const duration = animate ? parseFloat(root.getPropertyValue('--dur-sidebar')) || 0 : 0;
   const easing = root.getPropertyValue('--ease-sidebar').trim() || 'ease-out';
-  outlinePanel.motion(open, duration, easing);
+  const follow = root.getPropertyValue('--ease-sidebar-follow').trim() || easing;
+  for (const c of columns) c.motion(open, { duration, easing, follow });
   const dx = before - page.getBoundingClientRect().left;
   if (duration && Math.abs(dx) >= 1) {
     page.animate([{ transform: `translateX(${dx}px)` }, { transform: 'translateX(0)' }], { duration, easing, composite: 'add' });
   }
+  return duration;
 }
 
 function setOutlinePinned(pinned: boolean, persist = true, animate = true) {
-  sidebarMotion(pinned, () => {
+  sidebarMotion([outlinePanel], pinned, () => {
     app.dataset.outline = pinned ? 'pinned' : 'hidden';
     outlinePanel.setPresence(pinned ? 'pinned' : 'hidden');
   }, animate && app.dataset.focus !== 'true');
@@ -377,8 +399,134 @@ function setOutlinePinned(pinned: boolean, persist = true, animate = true) {
 // ── surfaces ──
 const typewriter = new Typewriter(app, scroller, page, () => view);
 const saver = new Saver(bridge, () => view, () => filePath, $('save-state'), app);
-const toolbar = new SelectionToolbar($('workspace'), scroller, () => view);
+const toolbar = new SelectionToolbar($('workspace'), scroller, () => view, () => runCommand('add-note'));
 const find = new FindPanel($('workspace'), scroller, () => view, () => snapshotNow('Before Replace All'));
+
+// ── notes: floating beside their passages, and a panel on the right ──
+const notes = new NotesStore(bridge, () => view, (message) => toast(message, 'error'));
+const margin = new MarginNotes(page, scroller, {
+  view: () => view,
+  store: notes,
+  openInPanel: (id) => setNotesPanel(true, () => notesPanel.focusNote(id)),
+  discard: (id) => discardNote(id),
+  toEditor: () => view?.focus(),
+});
+const notesPanel = new NotesPanel($('workspace'), {
+  view: () => view,
+  store: notes,
+  show: (id) => showNote(id),
+  remove: (id) => discardNote(id),
+  toEditor: () => view?.focus(),
+  onPresence: (open) => {
+    $('notes-button').setAttribute('aria-pressed', String(open));
+    $('notes-button').setAttribute('aria-label', open ? 'Hide notes' : 'Show notes');
+  },
+});
+notes.onChange(() => {
+  outlinePanel.notesChanged();
+  const open = notes.all.filter((n) => !n.resolved).length;
+  $('notes-badge').textContent = open ? String(open) : '';
+});
+
+/**
+ * Open or close the notes panel. The floating notes hand off to it: they
+ * fade out (drifting toward the panel) and, as they finish, it slides in;
+ * closing, it slides out and they drift back in as it settles — one
+ * motion, not two. `then` runs once the panel is open (or closed).
+ */
+let notesHandoff: { then: Array<() => void>; cancel(): void } | null = null;
+function setNotesPanel(open: boolean, then?: () => void) {
+  if (notesHandoff) {
+    if (open) { if (then) notesHandoff.then.push(then); return; } // already on its way
+    notesHandoff.cancel(); // changed their mind mid-fade: the cards come back
+    then?.();
+    return;
+  }
+  if (open === notesPanel.isOpen) { then?.(); return; }
+  const root = getComputedStyle(document.documentElement);
+  const out = open && marginShowsNotes() && margin.el.childElementCount > 0 ? parseFloat(root.getPropertyValue('--dur-notes-out')) || 0 : 0;
+  if (out) {
+    // The cards fade where they are; the page makes room only once they've gone.
+    const handoff = { then: then ? [then] : [], cancel: () => { notesHandoff = null; margin.fade(true, 0); } };
+    notesHandoff = handoff;
+    void margin.fade(false, out).then((done) => {
+      if (notesHandoff !== handoff || !done) return;
+      notesHandoff = null;
+      slideNotesPanel(true);
+      for (const f of handoff.then) f();
+    });
+    return;
+  }
+  slideNotesPanel(open);
+  then?.();
+}
+
+function slideNotesPanel(open: boolean) {
+  const slide = sidebarMotion([notesPanel], open, () => {
+    app.dataset.notes = open ? 'open' : 'closed';
+    notesPanel.setOpen(open);
+  }, app.dataset.focus !== 'true');
+  margin.refresh();
+  const root = getComputedStyle(document.documentElement);
+  if (!open && marginShowsNotes()) margin.fade(true, parseFloat(root.getPropertyValue('--dur-notes-in')) || 0, slide * 0.6);
+}
+
+/** The notes panel is open, or on its way. */
+function notesPanelWanted(): boolean {
+  return notesPanel.isOpen || !!notesHandoff;
+}
+
+/** Margin cards are shown in manuscript mode, but not with the panel open, in typewriter or focus mode, or without room. */
+function marginShowsNotes(): boolean {
+  return !notesPanel.isOpen && !typewriter.enabled && app.dataset.focus !== 'true' && !margin.isCompact;
+}
+
+/** Open a note where it can be seen: its card in the margin, or the panel. */
+function revealNote(id: string, focus: boolean) {
+  if (marginShowsNotes()) { margin.setActive(id, focus); return; }
+  setNotesPanel(true, () => notesPanel.focusNote(id));
+}
+
+/**
+ * Add a note: about the selected passage (⇧⌘M, the toolbar, the palette),
+ * or a general one when nothing is selected. It opens ready to type.
+ */
+function addNote() {
+  if (!view) return;
+  if (view.state.selection.empty) {
+    setNotesPanel(true, () => notesPanel.newGeneral());
+    return;
+  }
+  const id = newId();
+  if (!addNoteAnchor(id)(view.state, view.dispatch)) {
+    toast('A note goes on a passage within one scene. Select some text in a scene first.');
+    return;
+  }
+  notes.create(describeAnchor(view.state.doc, anchorsIn(view.state.doc).get(id)!), id);
+  revealNote(id, true);
+}
+
+/** A note and its anchor go (deleted, or left empty). */
+function discardNote(id: string) {
+  if (view) removeNoteAnchor(id)(view.state, view.dispatch);
+  notes.remove(id);
+  margin.setActive(null);
+}
+
+/** Go to a note's passage: on the page (opening its parked scene if need be), its card active. */
+function showNote(id: string) {
+  if (!view) return;
+  const a = anchorsIn(view.state.doc).get(id);
+  if (!a) return;
+  const parked = outlineOf(view.state.doc).parked.some((p) => p.id === a.scene);
+  if (parked) openParkedScene(a.scene); else leaveParked(false);
+  const range = anchorsIn(view.state.doc).get(id)!;
+  view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, range.from)).scrollIntoView());
+  const dom = view.domAtPos(range.from).node as HTMLElement;
+  (dom.nodeType === 1 ? dom : dom.parentElement)?.scrollIntoView({ block: 'center' });
+  view.focus();
+  margin.setActive(id);
+}
 
 /** A point-in-time snapshot of the manuscript as it is now (before a risky change). */
 function snapshotNow(reason: string) {
@@ -433,6 +581,9 @@ function dispatch(this: EditorView, tr: Transaction) {
     });
   }
   if (next.doc !== before.doc) {
+    notes.textChanged();
+    margin.refresh();
+    notesPanel.refresh();
     saver.changed();
     typewriter.recenter(true);
   } else if (!next.selection.eq(before.selection)) {
@@ -473,6 +624,8 @@ function load(doc: OpenedDocument) {
   const name = doc.filePath.split('/').pop() ?? doc.filePath;
   $('filename').textContent = name;
   saver.reset(view.state.doc);
+  margin.setActive(null);
+  void notes.load(doc.filePath);
   if (doc.notice) toast(doc.notice, 'error');
   else if (doc.importedFrom) {
     const original = doc.importedFrom.split('/').pop();
@@ -486,11 +639,25 @@ function load(doc: OpenedDocument) {
   });
 }
 
+// Clicking a note's passage brings its note forward (in the margin, or the panel when there's no room).
+page.addEventListener('click', (e) => {
+  // The innermost open note's passage (notes may overlap; resolved ones read as plain text).
+  const anchor = [...document.elementsFromPoint(e.clientX, e.clientY)].find((el) => el.classList.contains('bt-note-anchor') && !notes.get((el as HTMLElement).dataset.note!)?.resolved) as HTMLElement | undefined;
+  if (!anchor) return;
+  const id = anchor.dataset.note!;
+  const note = notes.get(id);
+  if (!note || note.resolved) return;
+  if (marginShowsNotes()) margin.setActive(id);
+  else revealNote(id, true);
+});
+
 // Clicking any non-text space places the caret on the nearest line (spec §4.4.2).
 scroller.addEventListener('mousedown', (e) => {
   if (!view || e.button !== 0) return;
   // The scrollbar: a hand scroll, never a caret placement.
   if (e.target === scroller && e.offsetX >= scroller.clientWidth) { startReading(); return; }
+  // A margin note's own clicks (its text box, Cancel, Save, Resolve) stay in the note.
+  if ((e.target as HTMLElement).closest('.bt-margin-notes')) return;
   // An unnamed scene's ornament (or an unnamed first scene's number): name that scene.
   const boundary = (e.target as HTMLElement).closest('.bt-scene-boundary, .bt-num-first');
   if (boundary) {
@@ -547,8 +714,12 @@ function applyAppearance(p: AppearancePrefs) {
   keepCaretLine(() => setAppearance(app, p));
 }
 function setFocus(on: boolean) {
-  if (on && outlinePanel.el.contains(document.activeElement)) view?.focus();
-  if (app.dataset.outline === 'pinned' && app.dataset.focus !== String(on)) sidebarMotion(!on, () => { app.dataset.focus = String(on); });
+  if (on && (outlinePanel.el.contains(document.activeElement) || notesPanel.el.contains(document.activeElement))) view?.focus();
+  // The open side columns step aside (or come back) with the rest of the chrome.
+  const columns: SideColumn[] = [];
+  if (app.dataset.outline === 'pinned') columns.push(outlinePanel);
+  if (notesPanel.isOpen) columns.push(notesPanel);
+  if (columns.length && app.dataset.focus !== String(on)) sidebarMotion(columns, !on, () => { app.dataset.focus = String(on); });
   app.dataset.focus = String(on);
   $('focus').setAttribute('aria-checked', String(on));
 }
@@ -576,6 +747,8 @@ function runCommand(command: MenuCommand) {
     case 'goto': togglePalette(jumpView(commands)); break;
     case 'find': palette.close(); leaveParked(); find.open(false); break;
     case 'find-replace': palette.close(); leaveParked(); find.open(true); break;
+    case 'add-note': addNote(); break;
+    case 'notes': setNotesPanel(!notesPanelWanted()); break;
     case 'park-scene': { const here = currentScene(view.state); if (here) parkScene(here.scene.id); break; }
     case 'find-next': find.next(1); break;
     case 'find-prev': find.next(-1); break;
@@ -635,6 +808,8 @@ window.addEventListener('keydown', (e) => {
   else if (e.key === '.' && !e.shiftKey) { e.preventDefault(); runCommand('focus'); }
   else if (k === 'k' && !e.shiftKey) { e.preventDefault(); runCommand('palette'); }
   else if (e.key === ',' && !e.shiftKey) { e.preventDefault(); runCommand('appearance'); }
+  else if (k === 'm' && e.shiftKey) { e.preventDefault(); runCommand('add-note'); }
+  else if (k === 'n' && e.shiftKey) { e.preventDefault(); runCommand('notes'); }
   else if (k === 'o' && e.shiftKey) { e.preventDefault(); runCommand('goto'); }
   else if (k === 'f' && !e.shiftKey) { e.preventDefault(); runCommand('find'); }
   else if (k === 'g') { e.preventDefault(); runCommand(e.shiftKey ? 'find-prev' : 'find-next'); }
@@ -656,6 +831,8 @@ window.addEventListener('keydown', (e) => {
 for (const t of document.querySelectorAll<HTMLElement>('.bt-toggle')) t.addEventListener('mousedown', (e) => e.preventDefault());
 $('sidebar').addEventListener('mousedown', (e) => e.preventDefault());
 $('sidebar').addEventListener('click', () => runCommand('outline'));
+$('notes-button').addEventListener('mousedown', (e) => e.preventDefault());
+$('notes-button').addEventListener('click', () => runCommand('notes'));
 $('typewriter').addEventListener('click', () => runCommand('typewriter'));
 $('focus').addEventListener('click', () => runCommand('focus'));
 $('filename').addEventListener('click', () => filePath && bridge.revealInFinder(filePath));
@@ -666,7 +843,7 @@ $('parked-restore').addEventListener('click', () => { const id = view && parkedK
 
 bridge.onMenu(runCommand);
 bridge.onDocumentOpened(load);
-bridge.onFlushRequest(() => saver.saveNow());
+bridge.onFlushRequest(async () => (await Promise.all([saver.saveNow(), notes.flush()])).every(Boolean));
 
 // ── start ──
 // Every launch starts in the default mode: typewriter and focus mode are
@@ -688,4 +865,5 @@ installTestHooks({
   history,
   appearance: () => ({ open: appearance.isOpen, choices: appearance.choices, applied: readAppearance(app) }),
   outline: () => ({ presence: outlinePanel.presence, focused: outlinePanel.el.contains(document.activeElement) }),
+  notes: () => ({ all: notes.all.map((n) => ({ ...n })), panel: notesPanel.isOpen, compact: margin.isCompact, anchors: view ? [...anchorsIn(view.state.doc).keys()] : [] }),
 });

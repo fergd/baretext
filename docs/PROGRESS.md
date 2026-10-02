@@ -527,3 +527,52 @@ export/print · integrations (DECISIONS §7).
 - Tests: 321 unit, 95 end-to-end.
 - Cold Storage: snowflake mark; a blue per theme for its heading areas
   and the open scene's page (contrast-tested). Tests: 326 unit, 95 e2e.
+
+## 2026-10-01 — Keyboard reorder: built, then dropped
+- ⌥↑/⌥↓ reorder was built, but after a click the caret is in the text,
+  where ⌥↑/⌥↓ move by paragraph; the user chose to skip the feature.
+  Removed (DECISIONS §15). Drag and drop remains the way to reorder.
+
+## 2026-10-01 — Notes
+- Margin notes beside their passages, a notes panel on the right (general
+  notes, all notes in order, resolve/reopen/delete), ⇧⌘M to add, ⇧⌘N for
+  the panel, toolbar button, outline counts. Stored in
+  `<name>.notes.json`; anchors are invisible marks that follow the text.
+- Editor anchors fuzzed (60,000 cases: they never change the manuscript).
+- Found while building: new cards slid in from the page top (now appear in
+  place); the test hook couldn't find text across formatting boundaries
+  (now searches whole paragraphs).
+- 150k words with 20 notes: typing p95 6.8 ms.
+- Tests: 339 unit, 101 end-to-end.
+- Notes fixes (user report): a resolved note left its passage highlighted
+  but unclickable — resolving now removes the highlight, and the card's
+  check mark became a "Resolve" button. Margin notes are put away with the
+  panel open, in typewriter and focus mode (passages open the panel then).
+- Writing a note (user report): the check showed while still writing.
+  Notes are now written like a Google Docs comment — Cancel / Save, ↵
+  saves, ⇧↵ new line, Esc cancels; Resolve appears only once saved; saved
+  text is click-to-edit (`note-body.ts`, shared by margin and panel).
+- Bug (user): Cancel on a margin note saved it. The page's click-to-place-
+  caret handler took the mousedown, the text box blurred and saved before
+  Cancel's click. Margin notes now keep their own clicks (test first).
+- Shadows (user): inactive cards faded their shadow (card opacity) and the
+  active card's was stronger. Now one shadow for every card; dimming
+  applies to the contents only (test first).
+- Notes panel motion matches the outline (slide, cascade, slide away,
+  focus mode); shared `sidebar-motion.ts`.
+- Hand-off motion between floating notes and the panel (fade out, then
+  slide in; slide out, then fade in). Found while building: a note's
+  marker in a narrow window opened the panel without the page making room
+  (test first); the margin's "no room" check read a stale value mid-glide.
+- Opening, the page leads and pulls the column in behind it, mirroring how
+  it pushes it out on close. First tried as a 70ms delay; measured from the
+  user's recording it was a pause then a lurch (~105px/frame), so the
+  column now starts at once on a follow curve (`--ease-sidebar-follow`),
+  peak ~71px/frame, settling with the page. Applies to both columns.
+- Note highlights (user): the yellow wash read olive on dark themes, left
+  seams at italics, and matched the selection on Dark/Light. Tried an
+  underline; dropped (spell/grammar checking will need underlines). Now a
+  reserved rose note color per theme, washed in OKLab (10% / 18% active),
+  square-cornered; none in focus mode. Chosen from a rendered board of
+  hues per theme; contrast-tested.
+- Tests: 344 unit, 110 end-to-end.

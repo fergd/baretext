@@ -24,6 +24,8 @@ const bridge: BaretextBridge = {
   readSnapshot: (filePath, id) => ipcRenderer.invoke(CHANNELS.snapshotsRead, filePath, id),
   takeSnapshot: (filePath, manuscript, kind, reason, label) => ipcRenderer.invoke(CHANNELS.snapshotsTake, filePath, manuscript, kind, reason, label),
   removeSnapshot: (filePath, id) => ipcRenderer.invoke(CHANNELS.snapshotsRemove, filePath, id),
+  loadNotes: (filePath) => ipcRenderer.invoke(CHANNELS.notesLoad, filePath),
+  saveNotes: (filePath, notes) => ipcRenderer.invoke(CHANNELS.notesSave, filePath, notes),
   onMenu: (cb) => { ipcRenderer.on(CHANNELS.menu, (_e, command: MenuCommand) => cb(command)); },
   onDocumentOpened: (cb) => { ipcRenderer.on(CHANNELS.opened, (_e, doc: OpenedDocument) => cb(doc)); },
   onFlushRequest: (cb) => {

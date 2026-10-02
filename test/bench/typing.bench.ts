@@ -119,6 +119,25 @@ test('150k-word manuscript: open time and typing latency', async () => {
     const serif = await measureTyping(page, keys);
     console.log('typing, outline open + serif / extra large / wide:', serif);
 
+    // Notes: 20 cards in the margin, re-placed as the text moves.
+    await page.keyboard.press('Meta+Backslash'); // outline away: room for cards
+    await setAppearance(page, ['mono', 'medium', 'narrow']);
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setContentSize(1400, 800));
+    for (let i = 0; i < 20; i++) {
+      await page.evaluate((n) => {
+        const b = (window as any).__baretext;
+        b.selectText(['quick brown', 'lazy dog', 'evening light', 'quiet fields'][n % 4]);
+      }, i);
+      await page.keyboard.press('Meta+Shift+m');
+      await page.keyboard.type(`Note ${i}`);
+      await page.keyboard.press('Escape');
+    }
+    await page.evaluate((id) => (window as any).__baretext.navigate(id), middle);
+    await page.waitForTimeout(300);
+    const withNotes = await measureTyping(page, keys);
+    console.log(`typing, 20 notes (${await page.locator('.bt-note-card').count()} cards):`, withNotes);
+    expect(withNotes.p95).toBeLessThan(16);
+
     // Save must still verify and complete quickly.
     const s0 = Date.now();
     expect(await page.evaluate(() => (window as any).__baretext.saveNow())).toBe(true);

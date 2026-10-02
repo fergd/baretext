@@ -99,6 +99,15 @@ const marks: Record<string, MarkSpec> = {
     parseDOM: [{ tag: 'em' }, { tag: 'i' }, { style: 'font-style=italic' }],
     toDOM: () => ['em', 0],
   },
+  // A note's anchor (notes.ts): bookkeeping, never saved in the manuscript
+  // (docToModel ignores it). Notes may overlap; typing at an edge doesn't
+  // stretch one; no parseDOM, so pasted HTML can't create one.
+  note: {
+    attrs: { id: { validate: 'string' } },
+    inclusive: false,
+    excludes: '',
+    toDOM: (m) => ['span', { class: 'bt-note-anchor', 'data-note': m.attrs.id }, 0],
+  },
   link: {
     attrs: { href: { validate: 'string' } },
     inclusive: false,

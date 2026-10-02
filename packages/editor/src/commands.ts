@@ -349,20 +349,25 @@ export const toggleItalic: Command = (state, dispatch) => {
 
 // ───────────────────────────── paste ─────────────────────────────
 
-function cleanInline(node: PMNode): PMNode {
-  return node.isText ? node.mark(node.marks.filter((m) => m.type !== schema.marks.link)) : node;
+/** Pasted text keeps bold/italic; links go (spec §4.1); a note's anchor stays only if it moved (cut, not copied). */
+function cleanInline(node: PMNode, present: Set<string>): PMNode {
+  if (!node.isText) return node;
+  return node.mark(node.marks.filter((m) => m.type !== schema.marks.link && !(m.type === schema.marks.note && present.has(m.attrs.id))));
 }
 
 /**
  * Pasted content becomes paragraphs with bold/italic only. Headings,
  * chapters, and scenes in the clipboard never become structure here.
  */
-export function flattenPastedSlice(slice: Slice): Slice {
+export function flattenPastedSlice(slice: Slice, state?: EditorState): Slice {
+  const present = new Set<string>();
+  state?.doc.descendants((n) => { for (const m of n.marks) if (m.type === schema.marks.note) present.add(m.attrs.id); return true; });
+  const clean = (n: PMNode) => cleanInline(n, present);
   let inlineOnly = true;
   slice.content.forEach((n) => { if (!n.isInline) inlineOnly = false; });
   if (inlineOnly) {
     const nodes: PMNode[] = [];
-    slice.content.forEach((n) => nodes.push(cleanInline(n)));
+    slice.content.forEach((n) => nodes.push(clean(n)));
     return new Slice(Fragment.fromArray(nodes), 0, 0);
   }
   const blocks: PMNode[] = [];
@@ -370,7 +375,7 @@ export function flattenPastedSlice(slice: Slice): Slice {
     if (node.type === schema.nodes.section_break) { blocks.push(node); return false; }
     if (node.isTextblock) {
       const inline: PMNode[] = [];
-      node.forEach((c) => inline.push(cleanInline(c)));
+      node.forEach((c) => inline.push(clean(c)));
       blocks.push(schema.nodes.paragraph!.create(null, inline));
       return false;
     }

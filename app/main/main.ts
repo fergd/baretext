@@ -4,7 +4,8 @@ import { existsSync, promises as fs } from 'node:fs';
 import path from 'node:path';
 import { emptyManuscript, manuscriptWords, parse, serialize, validate, type Manuscript } from '@baretext/format';
 import { CHANNELS, OUTLINE_STATES, validAppearance, type InitialPrefs, type MenuCommand, type OpenedDocument, type OutlineState, type Theme } from '../shared/bridge';
-import { saveManuscript } from './save';
+import { atomicWrite, saveManuscript } from './save';
+import { notesPathFor, validNotes } from '../shared/notes';
 import { SnapshotStore, type SnapshotEntry } from './snapshots';
 import { SettingsStore } from './settings';
 import { MIN_SIZE, placeWindow } from './window';
@@ -241,6 +242,7 @@ function buildMenu() {
         { label: 'Italic', ...label('CmdOrCtrl+I'), click: () => send('italic') },
         { label: 'Link…', click: () => send('link') },
         { label: 'Quote', click: () => send('quote') },
+        { label: 'Add Note', ...label('Shift+CmdOrCtrl+M'), click: () => send('add-note') },
         { type: 'separator' },
         { label: 'Insert Scene Break', ...label('CmdOrCtrl+Enter'), click: () => send('split-scene') },
         { label: 'Insert Pause', ...label('Shift+CmdOrCtrl+Enter'), click: () => send('pause') },
@@ -259,6 +261,7 @@ function buildMenu() {
         { label: 'Outline', type: 'checkbox', checked: settings.get().outline === 'pinned', ...label('CmdOrCtrl+\\'), click: () => send('outline') },
         { label: 'Move to Outline', ...label('Alt+CmdOrCtrl+\\'), click: () => send('outline-focus') },
         { type: 'separator' },
+        { label: 'Notes', ...label('Shift+CmdOrCtrl+N'), click: () => send('notes') },
         { label: 'Typewriter Mode', ...label('Shift+CmdOrCtrl+T'), click: () => send('typewriter') },
         { label: 'Focus Mode', ...label('CmdOrCtrl+.'), click: () => send('focus') },
         { type: 'separator' },
@@ -372,6 +375,30 @@ function registerIpc() {
   });
   ipcMain.handle(CHANNELS.snapshotsRemove, async (_e, filePath: unknown, id: unknown) => {
     if (own(filePath) && typeof id === 'string') await snapshots().remove(filePath, id);
+  });
+  // Notes beside the manuscript. A missing file is "no notes"; a damaged one
+  // is set aside (never overwritten) and its notes left out.
+  ipcMain.handle(CHANNELS.notesLoad, async (_e, filePath: unknown) => {
+    if (!own(filePath)) return [];
+    const file = notesPathFor(filePath);
+    let raw: string;
+    try { raw = await fs.readFile(file, 'utf8'); } catch { return []; }
+    try { return validNotes(JSON.parse(raw)); } catch {
+      await fs.rename(file, `${file}.damaged-${Date.now()}`).catch(() => undefined);
+      return [];
+    }
+  });
+  ipcMain.handle(CHANNELS.notesSave, async (_e, filePath: unknown, notes: unknown) => {
+    if (!own(filePath)) return { ok: false, message: 'This window is not editing that file.' };
+    const valid = validNotes({ v: 1, notes });
+    const file = notesPathFor(filePath);
+    if (!valid.length && !existsSync(file)) return { ok: true }; // no notes, no file
+    try {
+      await atomicWrite(file, JSON.stringify({ v: 1, notes: valid }, null, 1) + '\n');
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, message: (e as Error).message };
+    }
   });
   ipcMain.on(CHANNELS.setPrefs, (_e, patch: Record<string, unknown>) => {
     const next: Record<string, unknown> = { ...validAppearance(patch) };

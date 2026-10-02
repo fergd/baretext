@@ -269,3 +269,13 @@
 
 /* With the column open, messages center over the page, not the window. */
 .bt-app[data-outline='pinned']:not([data-focus='true']) :is(.bt-notice, .bt-toast) { left: calc(50% + var(--outline-w) / 2); }
+
+
+/* Open notes in a scene: a small count in the note color, before its words. */
+.bt-outline-notes {
+  margin-right: var(--space-2);
+  padding: 0 var(--space-1);
+  border-radius: var(--toolbar-button-radius);
+  background: var(--color-note-wash);
+  color: var(--color-note);
+}
