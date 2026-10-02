@@ -8,10 +8,12 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { ID_PATTERN, parse, validate, verifyRoundTrip, type Block, type Manuscript } from '@baretext/format';
-import { SPRINT_STATUSES, validSprint, type SprintRecord, type SprintStatus } from '../shared/bridge';
+import { SPRINT_STATUSES, validSprint, type SprintRecord, type SprintStatus, type SprintSummary } from '../shared/bridge';
 import { atomicWrite } from './save';
 
 export const SPRINT_KEEP_DAYS = 30;
+/** How much of a sprint's opening the library shows. */
+const OPENING_CHARS = 160;
 const DAY_MS = 24 * 60 * 60_000;
 
 /** A sprint record from untrusted input, or null. */
@@ -108,6 +110,18 @@ export class SprintStore {
   /** A sprint that never ended (the app quit or crashed during it). */
   async unfinished(): Promise<SprintRecord | null> {
     return (await this.list()).find((r) => r.status === 'active') ?? null;
+  }
+
+  /** The sprints kept in Sprints, most recently written first, each with its opening words. */
+  async kept(): Promise<SprintSummary[]> {
+    const out: SprintSummary[] = [];
+    const kept = (await this.list()).filter((r) => r.status === 'kept').sort((a, b) => b.started - a.started);
+    for (const record of kept) {
+      const first = (await this.read(record.id)).find((b) => b.type === 'paragraph' && b.content.some((r) => r.text.trim()));
+      const text = first?.type === 'paragraph' ? first.content.map((r) => r.text).join('').trim() : '';
+      out.push({ record, opening: text.slice(0, OPENING_CHARS) });
+    }
+    return out;
   }
 
   /** Remove discarded and placed sprints older than the keep period. */

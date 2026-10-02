@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { launch, model } from './launch.ts';
 import { serialize } from '../../packages/format/src/index.ts';
@@ -163,7 +164,7 @@ for (const [choice, label] of [['chapter', 'end of a chapter'], ['end', 'end of 
       const id = (await sprint(page)).record.id;
       await page.keyboard.press('Meta+Shift+D');
       await page.click(`.bt-keep-radio[data-value="${choice}"]`);
-      if (choice === 'chapter') await page.selectOption('.bt-keep-select', before.chapters[0].id);
+      if (choice === 'chapter') await page.selectOption('.bt-keep-chapter-select', '0');
       await page.keyboard.press('Enter');
       await expect(page.locator('.bt-keep')).toHaveAttribute('data-open', 'false');
       expect(await mode(page)).toBe('manuscript');
@@ -442,6 +443,245 @@ test('while the end panel is open the timer waits; Keep writing resumes it', asy
     await page.keyboard.press('Meta+Shift+D');
     await page.keyboard.press('Escape');
     expect((await sprint(page)).paused).toBe(true);
+  } finally {
+    await app.close();
+  }
+});
+
+// ── the Sprints library ──
+
+/** Write a sprint and keep it in Sprints. */
+const keepASprint = async (page: Page, text: string) => {
+  await startSprint(page);
+  await page.keyboard.type(text);
+  await page.keyboard.press('Meta+Shift+D');
+  await page.click('.bt-keep-radio[data-value="sprints"]');
+  await page.keyboard.press('Enter');
+  await expect.poll(() => mode(page)).toBe('manuscript');
+};
+const openLibrary = async (page: Page) => {
+  await page.keyboard.press('Meta+K');
+  await page.keyboard.type('Sprints…');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.bt-sprints')).toHaveAttribute('data-open', 'true');
+};
+const rows = (page: Page) => page.$$eval('.bt-sprints [role="option"] .bt-sprints-opening', (els) => els.map((e) => e.textContent));
+
+test('the library lists kept sprints, newest first, and reads each in full', async () => {
+  const { app, page } = await launch({ file: { name: 'S.md', content: FILE } });
+  try {
+    await openLibrary(page);
+    await expect(page.locator('.bt-sprints .bt-history-empty')).toHaveText('No sprints kept yet.');
+    // The close button sits at the header's right edge.
+    const head = (await page.locator('.bt-sprints .bt-history-head').boundingBox())!;
+    const close = (await page.locator('.bt-sprints .bt-history-close').boundingBox())!;
+    expect(head.x + head.width - (close.x + close.width)).toBeLessThanOrEqual(16);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.bt-sprints')).toHaveAttribute('data-open', 'false');
+
+    await keepASprint(page, 'The first warm-up.');
+    await startSprint(page);
+    await page.keyboard.type('The second ');
+    await page.keyboard.press('Meta+I');
+    await page.keyboard.type('warm-up');
+    await page.keyboard.press('Meta+I');
+    await page.keyboard.type('.');
+    await page.keyboard.press('Meta+Shift+D');
+    await page.click('.bt-keep-radio[data-value="sprints"]');
+    await page.keyboard.press('Enter');
+    await expect.poll(() => mode(page)).toBe('manuscript');
+    await openLibrary(page);
+    await expect.poll(() => rows(page)).toEqual(['The second warm-up.', 'The first warm-up.']);
+    await expect(page.locator('.bt-sprints .bt-history-preview-text')).toHaveText('The second warm-up.');
+    await expect(page.locator('.bt-sprints .bt-history-preview-text em')).toHaveText('warm-up'); // read as written
+    await page.keyboard.press('ArrowDown');
+    await expect(page.locator('.bt-sprints .bt-history-preview-text')).toHaveText('The first warm-up.');
+    await expect(page.locator('.bt-sprints .bt-history-vs')).toHaveText(/· 15 min$/);
+  } finally {
+    await app.close();
+  }
+});
+
+test('from the library into the book: the same chooser (book choices only); Back returns to the library', async () => {
+  const { app, page, userData } = await launch({ file: { name: 'S.md', content: FILE2 } });
+  try {
+    await keepASprint(page, 'Kept, then used.');
+    const before = await model(page);
+    await openLibrary(page);
+    await expect(page.locator('.bt-sprints [data-action="place"]')).toBeEnabled();
+    await page.keyboard.press('Enter'); // Add to book…
+    await expect(page.locator('.bt-sprints')).toHaveAttribute('data-open', 'false');
+    await expect(page.locator('.bt-keep')).toHaveAttribute('data-open', 'true');
+    await expect(page.locator('#bt-keep-title')).toHaveText('Add to book');
+    expect(await page.$$eval('.bt-keep-option:not([hidden])', (els) => els.map((e) => (e as HTMLElement).dataset.value))).toEqual(['chapter', 'end', 'cold']);
+
+    await page.keyboard.press('Escape'); // Back
+    await expect(page.locator('.bt-sprints')).toHaveAttribute('data-open', 'true');
+    await expect.poll(() => rows(page)).toEqual(['Kept, then used.']);
+
+    await page.click('.bt-sprints [data-action="place"]');
+    await page.click('.bt-keep-radio[data-value="end"]');
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.bt-keep')).toHaveAttribute('data-open', 'false');
+    const after = await model(page);
+    expect(after.chapters.at(-1).scenes.length).toBe(before.chapters.at(-1).scenes.length + 1);
+    expect(after.chapters.at(-1).scenes.at(-1).blocks).toEqual([{ type: 'paragraph', content: [{ text: 'Kept, then used.' }] }]);
+    expect(await page.evaluate(() => (window as any).__baretext.hasFocus())).toBe(true);
+
+    // It has left the library.
+    const files = readdirSync(path.join(userData, 'Sprints')).filter((f) => f.endsWith('.json'));
+    await expect.poll(() => files.map((f) => JSON.parse(readFileSync(path.join(userData, 'Sprints', f), 'utf8')).status)).toEqual(['placed']);
+    await openLibrary(page);
+    await expect(page.locator('.bt-sprints .bt-history-empty')).toBeVisible();
+  } finally {
+    await app.close();
+  }
+});
+
+test('discarding from the library asks twice; clicking elsewhere cancels it', async () => {
+  const { app, page } = await launch({ file: { name: 'S.md', content: FILE } });
+  try {
+    await keepASprint(page, 'Keep me.');
+    await keepASprint(page, 'Let me go.');
+    await openLibrary(page);
+    const discard = page.locator('.bt-sprints [data-action="discard"]');
+    await discard.click();
+    await expect(discard).toHaveText('Discard for good');
+    await page.click('.bt-sprints .bt-history-preview-text'); // elsewhere: cancelled
+    await expect(discard).toHaveText('Discard');
+    expect(await rows(page)).toHaveLength(2);
+
+    await page.locator('.bt-sprints .bt-history-list').focus();
+    await page.keyboard.press('Delete');
+    await expect(discard).toHaveText('Discard for good');
+    await page.keyboard.press('Delete');
+    await expect.poll(() => rows(page)).toEqual(['Keep me.']);
+    await expect(page.locator('.bt-sprints .bt-history-preview-text')).toHaveText('Keep me.');
+  } finally {
+    await app.close();
+  }
+});
+
+test('the library is not there during a sprint', async () => {
+  const { app, page } = await launch({ file: { name: 'S.md', content: FILE } });
+  try {
+    await startSprint(page);
+    await page.keyboard.press('Meta+K');
+    await page.keyboard.type('Sprints');
+    expect(await page.$$eval('.bt-palette [role="option"]', (els) => els.map((e) => e.textContent).filter((t) => t?.includes('Sprints…')))).toEqual([]);
+    await page.keyboard.press('Escape');
+    const item = await app.evaluate(({ Menu }) => Menu.getApplicationMenu()!.items.find((i) => i.label === 'View')!.submenu!.items.find((i) => i.label === 'Sprints…')!.enabled);
+    expect(item).toBe(false);
+  } finally {
+    await app.close();
+  }
+});
+
+test('the launch check for an unfinished sprint never takes over a sprint already under way', async () => {
+  const { app, page } = await launch({ file: { name: 'S.md', content: FILE } });
+  try {
+    await startSprint(page);
+    await page.keyboard.type('Started at once.');
+    const id = (await sprint(page)).record.id;
+    await page.evaluate(() => (window as any).__baretext.sprintFlush());
+    // The check (normally at launch) runs late, after this sprint began.
+    await page.evaluate(() => (window as any).__baretext.recoverSprint());
+    const s = await sprint(page);
+    expect(s.open).toBe(true);
+    expect(s.record.id).toBe(id);
+    expect(s.record.status).toBe('active');
+    expect(s.blocks).toEqual([{ type: 'paragraph', content: [{ text: 'Started at once.' }] }]);
+    await expect(page.locator('.bt-keep')).toHaveAttribute('data-open', 'false');
+  } finally {
+    await app.close();
+  }
+});
+
+// ── any of the writer's manuscripts ──
+
+/** A Baretext manuscript file outside the app's folders. */
+const bookFile = (title: string, chapters: string[], name = `${title}.md`) => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'bt-book-'));
+  const file = path.join(dir, name);
+  writeFileSync(file, serialize({ title, coldStorage: [], chapters: chapters.map((t, i) => ({ id: `ch${i}x`, title: t, scenes: [{ id: `sc${i}x`, name: null, link: null, blocks: [{ type: 'paragraph' as const, content: [{ text: `${t} text.` }] }] }] })) }));
+  return file;
+};
+const bookOptions = (page: Page) => page.$$eval('.bt-keep-book-select option', (os) => os.map((o) => o.textContent));
+const chapterOptions = (page: Page) => page.$$eval('.bt-keep-chapter-select option', (os) => os.map((o) => o.textContent));
+
+test('a sprint can go into any of the writer’s manuscripts: that book opens, and the scene lands there', async () => {
+  const other = bookFile('The Other Book', ['Arrival', 'Departure']);
+  const otherBefore = readFileSync(other, 'utf8');
+  const { app, page, userData } = await launch({ file: { name: 'S.md', content: FILE2 }, settings: { recent: [other] } });
+  try {
+    const first = await page.evaluate(() => (window as any).__baretext.filePath());
+    await startSprint(page);
+    await page.keyboard.type('Meant for the other book.');
+    const id = (await sprint(page)).record.id;
+    await page.keyboard.press('Meta+Shift+D');
+    // The open book first, then the recent ones, by title; then Other….
+    await expect.poll(() => bookOptions(page)).toEqual(['Book', 'The Other Book', 'Other…']);
+    expect(await chapterOptions(page)).toEqual(['1 · One', '2 · Two']);
+
+    await page.selectOption('.bt-keep-book-select', other);
+    await expect.poll(() => chapterOptions(page)).toEqual(['1 · Arrival', '2 · Departure']);
+    await expect(page.locator('[data-detail="end"]')).toHaveText('2 · Departure');
+    await page.selectOption('.bt-keep-chapter-select', '0');
+    await page.click('.bt-keep [data-action="done"]');
+
+    await expect.poll(() => page.evaluate(() => (window as any).__baretext.filePath())).toBe(other);
+    await expect.poll(() => mode(page)).toBe('manuscript');
+    const m = await model(page);
+    expect(m.title).toBe('The Other Book');
+    expect(m.chapters[0].scenes.at(-1).blocks).toEqual([{ type: 'paragraph', content: [{ text: 'Meant for the other book.' }] }]);
+    await expect.poll(() => record(userData, id)?.status).toBe('placed');
+    // It saves like any edit; ⌘Z takes it back out.
+    await page.evaluate(() => (window as any).__baretext.saveNow());
+    expect(readFileSync(other, 'utf8')).toContain('Meant for the other book.');
+    await page.keyboard.press('Meta+Z');
+    expect((await model(page)).chapters[0].scenes).toHaveLength(1);
+    // The first book was left as it was.
+    expect(readFileSync(first, 'utf8')).not.toContain('Meant for the other book.');
+    expect(otherBefore).not.toContain('Meant for the other book.');
+  } finally {
+    await app.close();
+  }
+});
+
+test('books with the same title are told apart by file name; Sprints and Discard need no book', async () => {
+  const twin = bookFile('Book', ['Elsewhere'], 'Book draft 2.md');
+  const { app, page } = await launch({ file: { name: 'S.md', content: FILE2 }, settings: { recent: [twin] } });
+  try {
+    await startSprint(page);
+    await page.keyboard.type('Twins.');
+    await page.keyboard.press('Meta+Shift+D');
+    await expect.poll(() => bookOptions(page)).toEqual(['Book — S.md', 'Book — Book draft 2.md', 'Other…']);
+    // The book picker runs to the same right edge as the chapter picker (measured together: the panel may still be scaling in).
+    const [bookRight, chapterRight] = await page.evaluate(() => ['.bt-keep-book-select', '.bt-keep-chapter-select'].map((q) => document.querySelector(q)!.getBoundingClientRect().right));
+    expect(bookRight).toBeCloseTo(chapterRight!, 1);
+    await page.click('.bt-keep-radio[data-value="sprints"]');
+    await expect(page.locator('.bt-keep-book')).toHaveAttribute('data-inactive', 'true');
+    await page.click('.bt-keep-radio[data-value="cold"]');
+    await expect(page.locator('.bt-keep-book')).toHaveAttribute('data-inactive', 'false');
+  } finally {
+    await app.close();
+  }
+});
+
+test('a book finishing loading never takes the keyboard from an open panel', async () => {
+  const { app, page } = await launch({ file: { name: 'S.md', content: FILE2 } });
+  try {
+    const before = await model(page);
+    await page.keyboard.press('Meta+Shift+S');
+    await expect(page.locator('.bt-sprint-setup')).toHaveAttribute('data-open', 'true');
+    // A document arrives (as when one is opened) while setup is open.
+    const doc = await page.evaluate(() => ({ filePath: (window as any).__baretext.filePath(), manuscript: (window as any).__baretext.model(), caret: null }));
+    await app.evaluate(({ BrowserWindow }, d) => BrowserWindow.getAllWindows()[0]!.webContents.send('doc:opened', d), doc);
+    await page.waitForTimeout(100); // past the load's deferred focus
+    expect(await page.evaluate(() => !!document.activeElement?.closest('.bt-sprint-setup'))).toBe(true);
+    await page.keyboard.press('Enter');
+    await expect.poll(() => mode(page)).toBe('sprinter');
+    expect(await model(page)).toEqual(before);
   } finally {
     await app.close();
   }

@@ -44,6 +44,30 @@ describe('sprint storage', () => {
     expect(await s.read('one')).toEqual(writing);
   });
 
+  it('lists kept sprints, newest first, each with its opening words', async () => {
+    let now = 1000 * DAY;
+    const { s } = store(() => now);
+    await s.write(record('old', 'kept'), writing);
+    now += 1000;
+    await s.write(record('new', 'kept'), [{ type: 'section_break' }, { type: 'paragraph', content: [{ text: 'x'.repeat(300) }] }]);
+    await s.write(record('busy', 'active'), writing);
+    await s.write(record('gone', 'discarded'), writing);
+    const kept = await s.kept();
+    expect(kept.map((k) => k.record.id)).toEqual(['new', 'old']);
+    expect(kept[1]!.opening).toBe('She ran fast.');
+    expect(kept[0]!.opening).toBe('x'.repeat(160)); // the first words, not the whole sprint
+  });
+
+  it('orders the library by when each sprint was written, not when its record last changed', async () => {
+    let now = 1000 * DAY;
+    const { s } = store(() => now);
+    await s.write({ ...record('early', 'kept'), started: 10 }, writing);
+    await s.write({ ...record('late', 'kept'), started: 20 }, writing);
+    now += 1000;
+    await s.write({ ...record('early', 'kept'), started: 10 }, null); // touched again later
+    expect((await s.kept()).map((k) => k.record.id)).toEqual(['late', 'early']);
+  });
+
   it('removes discarded and placed sprints after the keep period, never kept or active ones', async () => {
     let now = 1000 * DAY;
     const { s } = store(() => now);

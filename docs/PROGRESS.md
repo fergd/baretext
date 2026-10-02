@@ -681,6 +681,28 @@ manuscript, so typing went into the book invisibly; failing test first,
 fixed (focus goes to the page being written on) plus the manuscript is
 read-only during a sprint. E2E `sprint.test.ts` now 17. Bench unchanged.
 
+## 2026-10-02 — Sprints library
+`sprints-panel.ts` (History's parts; the frame CSS is shared by both
+panels), `SprintStore.kept()` (opening words), the end panel made
+request-based so the library reuses it, and one `placeInBook` for both
+paths. E2E selectors for History are now scoped (two panels share its
+parts). E2E 141, unit 385. (The review before commit `dcc2c13` also found
+the timer running on behind the end panel; fixed there, failing test first.)
+
+## 2026-10-02 — Sprints into any manuscript; three bugs
+Book picker in the keep chooser (`app/main/books.ts`: list by title from
+the file head via `peekTitle`, chapters by read-only parse; `books:*` IPC
+limited to offered paths; `switchTo` now reports success). Library preview
+keeps bold/italic; library ordered by start time (was: last update).
+Bugs found and fixed, each failing test first:
+- the launch check for an unfinished sprint could take over (and discard)
+  a sprint started in its first moments;
+- a document finishing loading moved the keyboard out of an open dialog,
+  so ↵ went into the manuscript behind it (pre-existing; now only open
+  dialogs keep focus, so a stale outline rename still gives way);
+- the chooser's radio dot vanished on a focused row.
+E2E 145 (twice, clean), unit 390.
+
 ## 2026-10-02 — Checkpoint (session handoff; supersedes the 2026-10-01 one)
 **State**
 - This folder (`~/Projects/baretext`) and `main` on github.com/fergd/baretext

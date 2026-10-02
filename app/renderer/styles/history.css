@@ -1,6 +1,8 @@
-/* History: versions on the left, a read-only preview on the right. */
+/* History: versions on the left, a read-only preview on the right. The
+   Sprints library is built from the same parts. */
 
-.bt-history {
+.bt-history,
+.bt-sprints {
   position: fixed;
   top: var(--history-top);
   left: 50%;
@@ -24,7 +26,8 @@
   visibility: hidden;
   transition: opacity var(--dur-fast) var(--ease-out), scale var(--dur-fast) var(--ease-out), visibility 0s linear var(--dur-fast);
 }
-.bt-history[data-open='true'] {
+.bt-history[data-open='true'],
+.bt-sprints[data-open='true'] {
   opacity: 1;
   scale: 1;
   visibility: visible;

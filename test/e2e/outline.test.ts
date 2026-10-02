@@ -509,7 +509,7 @@ test('delete a scene with the mouse: arm, then confirm; a snapshot first, ⌘Z b
     expect(await bt(page).hasFocus()).toBe(true);
     // The manuscript as it was is in History.
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.webContents.send('menu:command', 'history'));
-    await expect(page.locator('.bt-history-row').first()).toContainText('Before deleting 1.2 “Scene 1.2”');
+    await expect(page.locator('.bt-history .bt-history-row').first()).toContainText('Before deleting 1.2 “Scene 1.2”');
     await page.keyboard.press('Escape');
     await page.keyboard.press('Meta+z');
     expect(await model(page)).toEqual(before);

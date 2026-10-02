@@ -272,6 +272,15 @@ function parseFrontMatter(lines: string[]): FrontMatter {
   return { title, version, bodyStart: end + 1 };
 }
 
+/**
+ * A file's title from its front matter alone (null without one): enough to
+ * name a manuscript in a list without reading the whole book.
+ */
+export function peekTitle(source: string): string | null {
+  const lines = source.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').split('\n', 102);
+  return parseFrontMatter(lines).title || null;
+}
+
 const isBlank = (l: string) => /^[ \t]*$/.test(l);
 const IMPORT_HR = /^ {0,3}(?:(?:\*[ \t]*){3,}|(?:-[ \t]*){3,}|(?:_[ \t]*){3,})$/;
 const ATX = /^ {0,3}(#{1,6})(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$/;

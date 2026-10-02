@@ -139,6 +139,21 @@ export interface SprintRecord {
   prefs: SprintPrefs;
 }
 
+/** A kept sprint, as the Sprints library lists it. */
+export interface SprintSummary {
+  record: SprintRecord;
+  /** Its opening words (plain text). */
+  opening: string;
+}
+
+/** A manuscript the writer can send a sprint to. */
+export interface BookInfo {
+  path: string;
+  title: string;
+  /** The one open in the window. */
+  current: boolean;
+}
+
 export type ExportResult = { ok: true; path: string } | { ok: false; canceled: true } | { ok: false; canceled?: false; message: string };
 
 export interface InitialPrefs extends AppearancePrefs {
@@ -149,7 +164,7 @@ export interface InitialPrefs extends AppearancePrefs {
 }
 
 export type MenuCommand =
-  | 'undo' | 'redo' | 'typewriter' | 'focus' | 'bold' | 'italic' | 'link' | 'quote' | 'split-scene' | 'split-chapter' | 'pause' | 'name-scene' | 'save' | 'palette' | 'goto' | 'find' | 'find-replace' | 'find-next' | 'find-prev' | 'history' | 'snapshot' | 'outline' | 'outline-focus' | 'new-scene' | 'new-chapter' | 'appearance' | 'park-scene' | 'add-note' | 'notes' | 'export' | 'sprint' | 'mode' | 'sprint-pause' | 'sprint-hide';
+  | 'undo' | 'redo' | 'typewriter' | 'focus' | 'bold' | 'italic' | 'link' | 'quote' | 'split-scene' | 'split-chapter' | 'pause' | 'name-scene' | 'save' | 'palette' | 'goto' | 'find' | 'find-replace' | 'find-next' | 'find-prev' | 'history' | 'snapshot' | 'outline' | 'outline-focus' | 'new-scene' | 'new-chapter' | 'appearance' | 'park-scene' | 'add-note' | 'notes' | 'export' | 'sprint' | 'sprints' | 'mode' | 'sprint-pause' | 'sprint-hide';
 
 /** A local snapshot of a manuscript (DECISIONS §6). */
 export interface SnapshotInfo {
@@ -175,6 +190,16 @@ export interface BaretextBridge {
   readSprint(id: string): Promise<Block[]>;
   /** A sprint the app quit or crashed during, if any. */
   unfinishedSprint(): Promise<SprintRecord | null>;
+  /** The sprints kept in Sprints, newest first. */
+  keptSprints(): Promise<SprintSummary[]>;
+  /** The writer's manuscripts: the open one first, then recent ones. */
+  listBooks(): Promise<BookInfo[]>;
+  /** A listed (or chosen) manuscript's chapter titles; null if it can't be read. */
+  bookChapters(filePath: string): Promise<string[] | null>;
+  /** Pick another manuscript with the file dialog (it is not opened). */
+  chooseBook(): Promise<BookInfo | null>;
+  /** Open a listed (or chosen) manuscript in the window, saving the current one first. True once it is open. */
+  openBook(filePath: string): Promise<boolean>;
   /** The window's mode, so the menu can say which way the mode item goes. */
   modeChanged(mode: 'manuscript' | 'sprinter'): void;
   listSnapshots(filePath: string): Promise<SnapshotInfo[]>;
@@ -203,6 +228,11 @@ export const CHANNELS = {
   sprintWrite: 'sprint:write',
   sprintRead: 'sprint:read',
   sprintUnfinished: 'sprint:unfinished',
+  sprintKept: 'sprint:kept',
+  booksList: 'books:list',
+  booksChapters: 'books:chapters',
+  booksChoose: 'books:choose',
+  booksOpen: 'books:open',
   fileCommand: 'file:command',
   snapshotsList: 'snapshots:list',
   snapshotsRead: 'snapshots:read',

@@ -832,5 +832,19 @@ exercises and warm-ups as well as the book, so:
   untimed.
 - While a sprint is open the manuscript editor is read-only, and every
   hand-back of focus goes to the sprint page.
-- Open: the Sprints library view (and moving a kept sprint into a book
-  later); provisional: break auto-start, words-sprint rounds.
+- **Sprints library** (palette / View → "Sprints…"; not during a sprint):
+  kept sprints, newest first (opening words, start time, words), each read
+  in full beside the list. **Add to book…** opens the same chooser as a
+  sprint's end, with the book's choices only (Back returns to the library);
+  **Discard** asks twice (disarms after 4 s, on a click elsewhere, or on
+  another key), as the outline's delete does.
+- **Any of the writer's manuscripts** (2026-10-02, user: authors work on
+  several books at once). The chooser has a **Book** picker: the open book
+  first, then recent manuscripts by title (same titles told apart by file
+  name), then **Other…** (file dialog). Chapters follow the chosen book
+  (by position; ids differ between files). Placing into another book
+  **opens it and adds the scene there** — the current book is saved first,
+  and the addition is one ⌘Z step like any other; no file is ever edited
+  behind the writer's back. Sprints/Discard dim the Book row (no book
+  involved). The window may read or open only books it was offered.
+- Provisional: break auto-start, words-sprint rounds.

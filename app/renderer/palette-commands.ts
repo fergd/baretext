@@ -72,6 +72,7 @@ export function commandsView(ctx: CommandContext): PaletteView {
         );
       }
       items.push(
+        { id: 'sprints', group: 'View', label: 'Sprints…', keywords: 'kept sprints library warm-ups exercises saved', run: () => ctx.run('sprints') },
         { id: 'sprint', group: 'View', label: 'Sprint…', keywords: 'sprinter timer word goal pomodoro write session mode', keys: '⌘⇧S', run: () => ctx.run('sprint') },
         { id: 'outline', group: 'View', label: 'Outline', keywords: 'sidebar chapters scenes tree navigator', keys: '⌘\\', state: ctx.isOn('outline') ? 'on' : 'off', run: () => ctx.run('outline') },
         { id: 'typewriter', group: 'View', label: 'Typewriter mode', keywords: 'center line', keys: '⌘⇧T', state: ctx.isOn('typewriter') ? 'on' : 'off', run: () => ctx.run('typewriter') },

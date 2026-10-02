@@ -170,6 +170,20 @@
 .bt-keep-words { margin-left: auto; font-size: var(--text-ui); color: var(--color-text-dimmer); font-variant-numeric: tabular-nums; }
 .bt-keep .bt-sprint-body { padding: var(--space-2); }
 .bt-keep-options { display: flex; flex-direction: column; }
+/* Which book: the writer's manuscripts, the open one first. */
+.bt-keep-book {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--sprint-preset-h);
+  margin-bottom: var(--space-1);
+  padding: 0 var(--space-2) var(--space-1);
+  border-bottom: 1px solid var(--color-popover-border);
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+.bt-keep-book[data-inactive='true'] { opacity: 0.4; }
+.bt-keep-book-label { flex: none; width: var(--space-24); color: var(--color-text-dim); }
+.bt-keep-book .bt-keep-book-select { flex: 1 1 auto; min-width: 0; max-width: none; }
 .bt-keep-option {
   display: flex;
   align-items: center;
@@ -178,6 +192,7 @@
   padding-right: var(--space-2);
   border-radius: var(--toolbar-button-radius);
 }
+.bt-keep-option[hidden] { display: none; }
 .bt-keep-option:hover { background: var(--color-popover-hover); }
 .bt-keep-option:has([aria-checked='true']) { background: var(--color-popover-active); }
 .bt-keep-radio {
@@ -194,7 +209,8 @@
   flex: none;
   width: var(--space-3);
   height: var(--space-3);
-  border: 1px solid var(--color-popover-border);
+  /* visible on a hovered or focused row too */
+  border: 1px solid var(--color-text-dimmer);
   border-radius: 50%;
   transition: border-color var(--dur-fast) var(--ease-out), border-width var(--dur-fast) var(--ease-out);
 }
@@ -249,3 +265,18 @@
 /* The end: the full line glows once, then settles. */
 .bt-sprint-line[data-phase='done'] .bt-sprint-line-bar { animation: bt-sprint-glow var(--dur-sprint-glow) var(--ease-out); }
 @keyframes bt-sprint-glow { 30% { opacity: 1; } }
+
+/* ── The Sprints library: the History panel's parts. ── */
+.bt-sprints-opening {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  color: inherit;
+  text-wrap: pretty;
+}
+.bt-sprints .bt-history-close { margin-left: auto; }
+.bt-sprints-actions { display: flex; gap: var(--space-1); }
+.bt-sprints .bt-history-restore:disabled { opacity: 0.4; cursor: default; filter: none; }
+.bt-sprints-discard[data-armed='true'],
+.bt-sprints-discard[data-armed='true']:hover { background: var(--color-danger); color: var(--color-switch-knob-on); }

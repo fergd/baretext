@@ -42,7 +42,7 @@ import {
   sprintSchema,
 } from '@baretext/editor';
 import { toggleMark } from 'prosemirror-commands';
-import type { AppearancePrefs, BaretextBridge, MenuCommand, OpenedDocument, SprintPrefs } from '../shared/bridge';
+import type { AppearancePrefs, BaretextBridge, MenuCommand, OpenedDocument, SprintPrefs, SprintRecord } from '../shared/bridge';
 import { currentScene, outlineOf, sceneAt, sceneDisplayName } from './outline';
 import { Spine } from './spine';
 import { OutlinePanel, type OutlinePresence } from './outline-panel';
@@ -53,7 +53,8 @@ import { ExportPanel } from './export-panel';
 import { SprintSetup, sprintName } from './sprint-setup';
 import { SprintPage } from './sprint-page';
 import { SprintTimer } from './sprint-timer';
-import { SprintKeep, type KeepChoice } from './sprint-keep';
+import { SprintKeep, type KeepChoice, type KeepTarget } from './sprint-keep';
+import { SprintsPanel } from './sprints-panel';
 import { Palette, type PaletteView } from './palette';
 import { commandsView, jumpView, type CommandContext } from './palette-commands';
 import { SelectionToolbar } from './toolbar';
@@ -64,7 +65,7 @@ import { NotesStore } from './notes-store';
 import { MarginNotes } from './margin-notes';
 import { NotesPanel } from './notes-panel';
 import type { Motion } from './sidebar-motion';
-import { newId } from '@baretext/format';
+import { newId, type Block } from '@baretext/format';
 import { SNOWFLAKE } from './icons';
 
 declare global {
@@ -651,38 +652,76 @@ function endSession() {
 
 /** Ending a sprint: where its writing goes. */
 const sprintKeep = new SprintKeep(document.body, {
-  chapters: () => {
-    const here = view ? currentScene(view.state) : null;
-    const chapters = view ? outlineOf(view.state.doc).chapters : [];
-    return { list: chapters.map((c) => ({ id: c.id, label: `${c.number}${c.title ? ` · ${c.title}` : ''}` })), current: here?.chapter.id ?? chapters.at(-1)?.id ?? null };
-  },
-  choose: (choice, chapterId) => keepSprint(choice, chapterId),
-  keepWriting: () => {
-    if (!sprintPage.isOpen) return;
-    setMode('sprinter');
-    if (timerPausedForKeep) sprintTimer.resume();
-    timerPausedForKeep = false;
-    sprintPage.focus();
+  books: () => bridge.listBooks(),
+  chooseBook: () => bridge.chooseBook(),
+  chapters: async (book) => {
+    // The open book: as it is in the window (unsaved edits included), suggesting the caret's chapter.
+    if (book.path === filePath && view) {
+      const chapters = outlineOf(view.state.doc).chapters;
+      const here = currentScene(view.state);
+      const at = here ? chapters.findIndex((c) => c.id === here.chapter.id) : -1;
+      return { titles: chapters.map((c) => c.title), suggested: at >= 0 ? at : chapters.length - 1 };
+    }
+    const titles = await bridge.bookChapters(book.path);
+    return titles ? { titles, suggested: titles.length - 1 } : null;
   },
 });
 
-async function keepSprint(choice: KeepChoice, chapterId: string | null): Promise<boolean> {
-  if (!view) return false;
+/** The sprint just written: where does it go? (Esc: back to writing.) */
+function askAboutSprint() {
+  void sprintKeep.open({
+    title: 'Keep this sprint?',
+    words: sprintPage.words(),
+    choices: ['chapter', 'end', 'cold', 'sprints', 'discard'],
+    back: 'Keep writing',
+    choose: (choice, target) => keepSprint(choice, target),
+    onBack: () => {
+      if (!sprintPage.isOpen) return;
+      setMode('sprinter');
+      if (timerPausedForKeep) sprintTimer.resume();
+      timerPausedForKeep = false;
+      sprintPage.focus();
+    },
+  });
+}
+
+let onLoaded: ((filePath: string) => void) | null = null;
+
+/** Open `book` in the window (the current one is saved first); true once it is open. */
+async function openBook(book: string): Promise<boolean> {
+  if (book === filePath) return true;
+  const loaded = new Promise<string>((resolve) => { onLoaded = resolve; });
+  if (!(await bridge.openBook(book))) { onLoaded = null; return false; }
+  await loaded;
+  return true;
+}
+
+/**
+ * Put a sprint's writing into a book as a new scene (named for what it was
+ * in Cold Storage), opening that book first if it isn't the one open. One
+ * undoable step; says where it went. False if it could not be placed.
+ */
+async function placeInBook(blocks: Block[], record: SprintRecord, choice: 'chapter' | 'end' | 'cold', target: KeepTarget): Promise<boolean> {
+  if (!(await openBook(target.book)) || !view) return false;
+  const chapters = outlineOf(view.state.doc).chapters;
+  const chapter = choice === 'chapter' ? chapters[target.chapter] : chapters.at(-1);
+  if (!chapter) { toast('That chapter is no longer there; nothing was added.', 'error'); return false; }
+  const where = choice === 'chapter' ? { to: 'chapter' as const, chapterId: chapter.id } : { to: choice };
+  const name = choice === 'cold' ? sprintName(record.prefs, record.started) : null;
+  if (!placeSprint(blocks, where, name)(view.state, view.dispatch)) { toast('Couldn’t add the sprint there.', 'error'); return false; }
+  toast(choice === 'cold' ? 'Sprint moved to Cold Storage. ⌘Z undoes it.' : `Sprint added to the end of chapter ${chapter.number}. ⌘Z undoes it.`);
+  return true;
+}
+
+async function keepSprint(choice: KeepChoice, target: KeepTarget | null): Promise<boolean> {
   // The writing is on disk before anything else happens to it.
   if (!(await sprintPage.flush())) return false;
-  const blocks = sprintPage.blocks();
   if (choice === 'chapter' || choice === 'end' || choice === 'cold') {
-    const where = choice === 'chapter' ? { to: 'chapter' as const, chapterId: chapterId! } : { to: choice };
-    const chapters = outlineOf(view.state.doc).chapters;
-    const chapter = choice === 'chapter' ? chapters.find((c) => c.id === chapterId) : chapters.at(-1);
-    const record = sprintPage.record!;
-    const name = choice === 'cold' ? sprintName(record.prefs, record.started) : null;
-    if (!placeSprint(blocks, where, name)(view.state, view.dispatch)) { toast('Couldn’t add the sprint there.', 'error'); return false; }
+    if (!(await placeInBook(sprintPage.blocks(), sprintPage.record!, choice, target!))) return false;
     // The writing is in the book now; if its record can't be updated, say so (it stays on disk).
     if (!(await sprintPage.finish('placed'))) toast('The sprint was added, but its record couldn’t be updated.', 'error');
     leaveSprinter();
     typewriter.recenter(false);
-    toast(choice === 'cold' ? 'Sprint moved to Cold Storage. ⌘Z undoes it.' : `Sprint added to the end of chapter ${chapter!.number}. ⌘Z undoes it.`);
     return true;
   }
   if (!(await sprintPage.finish(choice === 'sprints' ? 'kept' : 'discarded'))) return false;
@@ -690,6 +729,32 @@ async function keepSprint(choice: KeepChoice, chapterId: string | null): Promise
   toast(choice === 'sprints' ? 'Sprint kept in Sprints.' : 'Sprint discarded.');
   return true;
 }
+
+// The Sprints library: kept sprints, read in full; into the book, or discarded.
+const sprintsPanel = new SprintsPanel(document.body, {
+  bridge,
+  place: (sprint, blocks) => void sprintKeep.open({
+    title: 'Add to book',
+    words: sprint.record.words,
+    choices: ['chapter', 'end', 'cold'],
+    back: 'Back',
+    choose: async (choice, target) => {
+      if (choice !== 'chapter' && choice !== 'end' && choice !== 'cold') return false;
+      if (!(await placeInBook(blocks, sprint.record, choice, target!))) return false;
+      const recorded = await bridge.writeSprint({ ...sprint.record, status: 'placed' }, null);
+      if (!recorded.ok) toast('The sprint was added, but its record couldn’t be updated.', 'error');
+      focusWriting();
+      return true;
+    },
+    onBack: () => void sprintsPanel.open(sprint.record.id),
+  }),
+  discard: async (sprint) => {
+    const result = await bridge.writeSprint({ ...sprint.record, status: 'discarded' }, null);
+    if (!result.ok) toast(`Couldn’t discard the sprint: ${result.message}`, 'error');
+    return result.ok;
+  },
+  onClose: () => focusWriting(),
+});
 
 let timerPausedForKeep = false;
 
@@ -704,19 +769,21 @@ async function endSprint() {
   // No round ends while the writer decides (a timer they paused stays paused).
   timerPausedForKeep = sprintTimer.running && !sprintTimer.paused;
   sprintTimer.pause();
-  sprintKeep.open(sprintPage.words());
+  askAboutSprint();
 }
 
 /** A sprint the app quit or crashed during: ask about it, as if it had just ended. */
 async function recoverSprint() {
   const record = await bridge.unfinishedSprint();
-  if (!record) return;
+  if (!record || sprintPage.isOpen) return;
   const blocks = await bridge.readSprint(record.id);
+  // A sprint begun meanwhile is never taken over (an older one waits for the next launch).
+  if (sprintPage.isOpen) return;
   sprintPage.resume(record, blocks);
   // Nothing was written: nothing to ask about (the app never opens in a sprint).
   if (!blocks.length) { await sprintPage.finish('discarded'); return; }
   setMode('sprinter');
-  sprintKeep.open(sprintPage.words());
+  askAboutSprint();
 }
 
 /** Back to whatever page is being written on: the sprint page in a sprint, else the manuscript. */
@@ -871,10 +938,15 @@ function load(doc: OpenedDocument) {
   }
   refreshChrome();
   requestAnimationFrame(() => {
-    view?.focus();
+    // To the page — unless a dialog opened meanwhile: it keeps the keyboard.
+    // (Anything else, like a half-typed rename in the old book, gives way.)
+    if (!document.activeElement?.closest('[role="dialog"][data-open="true"]')) focusWriting();
     if (typewriter.enabled) typewriter.recenter(false);
     else view?.dispatch(view.state.tr.scrollIntoView());
   });
+  const loaded = onLoaded;
+  onLoaded = null;
+  loaded?.(doc.filePath);
 }
 
 // Clicking a note's passage brings its note forward (in the margin, or the panel when there's no room).
@@ -1001,7 +1073,7 @@ function runCommand(command: MenuCommand) {
   if (!view) return;
   // A panel that covers the window (Appearance, History) keeps every other
   // command out until it closes; saving is always allowed.
-  if ((appearance.isOpen || history.isOpen || exporter.isOpen || sprintSetup.isOpen || sprintKeep.isOpen) && command !== 'save') return;
+  if ((appearance.isOpen || history.isOpen || exporter.isOpen || sprintSetup.isOpen || sprintKeep.isOpen || sprintsPanel.isOpen) && command !== 'save') return;
   if (app.dataset.mode === 'sprinter') { runSprinterCommand(command); return; }
   const run = (cmd: (s: EditorState, d?: (tr: Transaction) => void) => boolean) => { cmd(view!.state, view!.dispatch); view!.focus(); };
   switch (command) {
@@ -1031,6 +1103,7 @@ function runCommand(command: MenuCommand) {
     case 'history': palette.close(); find.close(); void history.open(false); break;
     case 'export': palette.close(); find.close(); exporter.open(); break;
     case 'sprint': palette.close(); find.close(); sprintSetup.open(); break;
+    case 'sprints': palette.close(); find.close(); void sprintsPanel.open(); break;
     // Choosing Sprinter opens setup (ending a sprint is handled above).
     case 'mode': palette.close(); find.close(); sprintSetup.open(); break;
     case 'snapshot': palette.close(); find.close(); void history.open(true); break;
@@ -1141,6 +1214,8 @@ bridge.loadInitial().then((doc) => { load(doc); void recoverSprint(); }, (e: Err
 
 installTestHooks({
   sprintFinishNow: () => sprintTimer.finishNow(),
+  sprintFlush: () => sprintPage.flush(),
+  recoverSprint: () => recoverSprint(),
   view: () => view,
   filePath: () => filePath,
   navigate,
@@ -1153,5 +1228,6 @@ installTestHooks({
   exporting: () => ({ open: exporter.isOpen, prefs: exportPrefs }),
   outline: () => ({ presence: outlinePanel.presence, focused: outlinePanel.el.contains(document.activeElement) }),
   notes: () => ({ all: notes.all.map((n) => ({ ...n })), panel: notesPanel.isOpen, compact: margin.isCompact, anchors: view ? [...anchorsIn(view.state.doc).keys()] : [] }),
+  sprints: () => ({ open: sprintsPanel.isOpen }),
   sprint: () => ({ phase: sprintTimer.phase, paused: sprintTimer.paused, hidden: sprintTimer.hidden, round: session?.round ?? null, open: sprintPage.isOpen, record: sprintPage.record, blocks: sprintPage.blocks(), words: sprintPage.words(), keep: sprintKeep.isOpen, focused: sprintPage.editor?.hasFocus() ?? false }),
 });

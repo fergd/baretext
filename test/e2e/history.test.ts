@@ -3,14 +3,14 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { launch, model } from './launch.ts';
 
 const FILE = '# One\n\n## Harbor\n\nThe original opening line.\nA second line.\n';
-const rows = (page: Page) => page.$$eval('.bt-history-row', (rs) => rs.map((r) => r.querySelector('.bt-history-what')!.textContent));
+const rows = (page: Page) => page.$$eval('.bt-history .bt-history-row', (rs) => rs.map((r) => r.querySelector('.bt-history-what')!.textContent));
 const prose = async (page: Page) => (await model(page)).chapters[0].scenes[0].blocks.map((b: any) => b.content.map((r: any) => r.text).join(''));
 const openHistory = async (page: Page) => {
   await page.keyboard.press('Meta+k');
   await page.keyboard.type('history');
   await page.keyboard.press('Enter');
   await expect(page.locator('.bt-history')).toHaveAttribute('data-open', 'true');
-  await expect(page.locator('.bt-history-row').first()).toBeVisible();
+  await expect(page.locator('.bt-history .bt-history-row').first()).toBeVisible();
 };
 
 test('opening takes a Daily snapshot, stored outside the manuscript folder', async () => {
@@ -35,10 +35,10 @@ test('save a labeled snapshot, write more, preview it, restore it, and undo the 
     await page.keyboard.press('Meta+k');
     await page.keyboard.type('save snapshot');
     await page.keyboard.press('Enter');
-    await expect(page.locator('.bt-history-label')).toBeFocused();
+    await expect(page.locator('.bt-history .bt-history-label')).toBeFocused();
     await page.keyboard.type('Before rewrite');
     await page.keyboard.press('Enter');
-    await expect(page.locator('.bt-history-row').first().locator('.bt-history-what')).toHaveText('Before rewrite');
+    await expect(page.locator('.bt-history .bt-history-row').first().locator('.bt-history-what')).toHaveText('Before rewrite');
     await page.keyboard.press('Escape');
 
     // Rewrite the opening and let it save.
@@ -49,8 +49,8 @@ test('save a labeled snapshot, write more, preview it, restore it, and undo the 
 
     // Preview the labeled version and restore it.
     await openHistory(page);
-    await page.locator('.bt-history-row', { hasText: 'Before rewrite' }).click();
-    await expect(page.locator('.bt-history-preview-text')).toContainText('The original opening line.');
+    await page.locator('.bt-history .bt-history-row', { hasText: 'Before rewrite' }).click();
+    await expect(page.locator('.bt-history .bt-history-preview-text')).toContainText('The original opening line.');
     await page.click('[data-action="restore"]');
     await expect(page.locator('.bt-history')).toHaveAttribute('data-open', 'false');
     expect((await prose(page))[0]).toBe('The original opening line.');
@@ -76,8 +76,8 @@ test('Replace All takes a snapshot first', async () => {
     await page.keyboard.press('Escape');
     await openHistory(page);
     expect((await rows(page))[0]).toBe('Before Replace All');
-    await page.locator('.bt-history-row').first().click();
-    await expect(page.locator('.bt-history-preview-text')).toContainText('The original opening line.');
+    await page.locator('.bt-history .bt-history-row').first().click();
+    await expect(page.locator('.bt-history .bt-history-preview-text')).toContainText('The original opening line.');
   } finally {
     await app.close();
   }
@@ -106,16 +106,16 @@ test('a restore that cannot read its version says so and changes nothing', async
     await page.keyboard.type(' More.');
     await page.evaluate(() => (window as any).__baretext.saveNow());
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.webContents.send('menu:command', 'history'));
-    await expect(page.locator('.bt-history-row').first()).toBeVisible();
+    await expect(page.locator('.bt-history .bt-history-row').first()).toBeVisible();
     const before = await model(page);
     // The stored copies vanish (a damaged data folder).
     const { readdirSync, rmSync } = await import('node:fs');
     for (const d of readdirSync(`${userData}/Snapshots`)) rmSync(`${userData}/Snapshots/${d}/objects`, { recursive: true, force: true });
-    await page.locator('.bt-history-row').last().click(); // the older version (before " More.")
-    await expect(page.locator('.bt-history-vs')).toContainText('vs now');
-    await expect(page.locator('.bt-history-preview-text')).toContainText('This version can’t be read');
+    await page.locator('.bt-history .bt-history-row').last().click(); // the older version (before " More.")
+    await expect(page.locator('.bt-history .bt-history-vs')).toContainText('vs now');
+    await expect(page.locator('.bt-history .bt-history-preview-text')).toContainText('This version can’t be read');
     await page.click('.bt-history [data-action="restore"]');
-    await expect(page.locator('.bt-history-vs')).toContainText('Couldn’t restore this version');
+    await expect(page.locator('.bt-history .bt-history-vs')).toContainText('Couldn’t restore this version');
     expect((await page.evaluate(() => (window as any).__baretext.history())).open).toBe(true);
     expect(await model(page)).toEqual(before);
   } finally {

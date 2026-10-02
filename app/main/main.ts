@@ -9,6 +9,7 @@ import { atomicWrite, saveManuscript } from './save';
 import { notesPathFor, validNotes } from '../shared/notes';
 import { SnapshotStore, type SnapshotEntry } from './snapshots';
 import { SprintStore, validRecord } from './sprints';
+import { bookChapters, bookInfo, listBooks } from './books';
 import { SettingsStore } from './settings';
 import { MIN_SIZE, placeWindow } from './window';
 
@@ -147,18 +148,21 @@ function tell(message: string, detail = '') {
   else dialog.showErrorBox(message, detail);
 }
 
-async function switchTo(load: () => Promise<OpenedDocument>) {
+/** Save the current manuscript, then open another. True once it is open in the window. */
+async function switchTo(load: () => Promise<OpenedDocument>): Promise<boolean> {
   if (!(await requestFlush())) {
     tell('The current manuscript could not be saved, so nothing else was opened.', 'Your text is still in the window. The message at the bottom of the window says what to do.');
-    return;
+    return false;
   }
   try {
     const doc = await load();
     remember(doc.filePath);
     snapshotOpened(doc);
     win?.webContents.send(CHANNELS.opened, doc);
+    return true;
   } catch (e) {
     tell('Could not open the file.', (e as Error).message);
+    return false;
   }
 }
 
@@ -278,6 +282,7 @@ function buildMenu() {
         { label: 'Focus Mode', ...label('CmdOrCtrl+.'), click: () => send('focus') },
         { type: 'separator' },
         { label: 'Sprint…', ...label('Shift+CmdOrCtrl+S'), click: () => send('sprint') },
+        { label: 'Sprints…', enabled: !sprinting, click: () => send('sprints') },
         { label: sprinting ? 'End Sprint…' : 'Switch to Sprinter…', ...label('Shift+CmdOrCtrl+D'), click: () => send('mode') },
         { label: 'Hide Sprint Timer', ...label('Shift+CmdOrCtrl+H'), enabled: sprinting, click: () => send('sprint-hide') },
         { type: 'separator' },
@@ -467,6 +472,28 @@ function registerIpc() {
   });
   ipcMain.handle(CHANNELS.sprintRead, (_e, id: unknown) => (typeof id === 'string' && ID_PATTERN.test(id) ? sprints().read(id) : []));
   ipcMain.handle(CHANNELS.sprintUnfinished, () => sprints().unfinished());
+  ipcMain.handle(CHANNELS.sprintKept, () => sprints().kept());
+  // Manuscripts a sprint can go to. The window may read or open only what it
+  // was offered: the open and recent manuscripts, or one picked in the dialog.
+  const offered = new Set<string>();
+  ipcMain.handle(CHANNELS.booksList, async () => {
+    const books = await listBooks(currentFile, settings.get().recent);
+    for (const b of books) offered.add(b.path);
+    return books;
+  });
+  ipcMain.handle(CHANNELS.booksChapters, (_e, filePath: unknown) => (typeof filePath === 'string' && offered.has(filePath) ? bookChapters(filePath) : null));
+  ipcMain.handle(CHANNELS.booksChoose, async () => {
+    if (!win) return null;
+    const result = await dialog.showOpenDialog(win, { properties: ['openFile'], defaultPath: saveDir(), filters: [{ name: 'Manuscripts', extensions: ['md', 'markdown', 'txt'] }] });
+    const file = result.filePaths[0];
+    if (result.canceled || !file) return null;
+    offered.add(file);
+    return bookInfo(file, file === currentFile);
+  });
+  ipcMain.handle(CHANNELS.booksOpen, (_e, filePath: unknown) => {
+    if (typeof filePath !== 'string' || !offered.has(filePath)) return false;
+    return filePath === currentFile ? true : switchTo(() => readDocument(filePath));
+  });
   ipcMain.on(CHANNELS.mode, (_e, mode: unknown) => {
     const next = mode === 'sprinter';
     if (next !== sprinting) { sprinting = next; buildMenu(); }

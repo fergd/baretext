@@ -32,11 +32,14 @@ export function sprintSummary(p: SprintPrefs, now: Date): string {
 
 const startFormat = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 
+/** What a sprint was: "15 min", or "500 words". */
+export const sprintLength = (p: SprintPrefs) => (p.kind === 'time' ? `${p.minutes} min` : `${numberFormat.format(p.words)} words`);
+
+/** When a sprint started: "Oct 2, 7:58 AM". */
+export const sprintStart = (started: number) => startFormat.format(new Date(started));
+
 /** A sprint's name where it needs one (in Cold Storage): what it was, and when it started. */
-export function sprintName(p: SprintPrefs, started: number): string {
-  const what = p.kind === 'time' ? `${p.minutes} min` : `${numberFormat.format(p.words)} words`;
-  return `Sprint · ${what} · ${startFormat.format(new Date(started))}`;
-}
+export const sprintName = (p: SprintPrefs, started: number) => `Sprint · ${sprintLength(p)} · ${sprintStart(started)}`;
 
 const seg = (group: string, values: number[], label: (v: number) => string) => values.map((v) =>
   `<button type="button" role="radio" class="bt-seg-item" data-group="${group}" data-value="${v}" aria-checked="false">${label(v)}</button>`).join('');
