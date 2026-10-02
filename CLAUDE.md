@@ -14,7 +14,8 @@ Key rules (details in the docs above):
   `packages/format` (serializer/parser).
 - Structure is not text: the caret never enters a boundary; typing never
   damages structure.
-- Visuals follow the user's Figma direction; all appearance from tokens; 4px grid.
+- Visuals follow the user's Figma direction; Linear and Obsidian are the UI and
+  experience influences; all appearance from tokens; 4px grid.
 - Every behavior change needs live verification and automated tests. Bug fix =
   failing test first.
 - Test windows run hidden with throwaway data dirs; never steal focus.

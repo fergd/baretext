@@ -63,6 +63,9 @@ to change a decision, raise it with the user; don't silently diverge.
 ## 3. Visual system and polish
 
 - Quality bar is **Linear**: precise alignment, consistent states, calm.
+- **Obsidian** is a major UI and experience influence alongside Linear
+  (user, 2026-10-02): look to both when a surface or interaction isn't
+  designed yet.
 - **4px grid** for all spacing, sizes, and positions (strokes such as 2px
   ticks are exempt). Figma values off-grid get rounded (e.g. 26→24/28,
   18→16/20, 21→20).

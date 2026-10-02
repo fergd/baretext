@@ -637,3 +637,31 @@ export/print · integrations (DECISIONS §7).
   the Word builder; note ranges by map.
 - Verified: typecheck; 365 unit; fuzz 30,000; 117 e2e; today's e2e ×3
   (81/81, no flakes); bench p95 5.5–6.8 ms on 150k words, save 55 ms.
+
+## 2026-10-02 — Checkpoint (session handoff; supersedes the 2026-10-01 one)
+**State**
+- This folder (`~/Projects/baretext`) and `main` on github.com/fergd/baretext
+  are the rebuild. `main` replaced the old app on 2026-10-01; `origin/rebuild`
+  points at the same commit and is no longer worked on. The old app lives on
+  `legacy` (its other branches are kept on GitHub). Earlier checkpoints that
+  say "branch `rebuild`" or "PR to `main` deferred" predate this.
+- Everything through Export is committed and pushed (`0bee04c`).
+- Untracked leftovers from the old app (`dist/`, `src/`) are not part of the
+  rebuild; leave them or delete them, never commit them.
+- Run: `npm start`. Tests: `npx vitest run`, `npx playwright test`
+  (build first: `npm run build`). Benchmark: `npx playwright test --config
+  playwright.bench.config.ts`. Deep fuzz: `FC_RUNS=60000 npx vitest run
+  packages/editor/test/fuzz.test.ts --testTimeout=1200000`.
+
+**Working agreements** (unchanged)
+- Top-tier paid-app quality bar. User reviews by screenshot and feel.
+- Surfaces open by a deliberate action, never on hover.
+- Bug fix = failing test first; verify live; record decisions.
+- Commit/push only when asked; work on `main` (branch first for anything
+  risky).
+
+**Next (proposed order)**
+Sprinter mode + sprint timer (Figma `2162:805` shows only the hidden
+"Sprinting…" state; Setup / Active / Minimized / Complete need design
+direction, and whether the goal counts net words added or words typed) ·
+corkboard · print · integrations (DECISIONS §7).
