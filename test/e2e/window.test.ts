@@ -56,13 +56,13 @@ test('the breadcrumb keeps the writer’s own capitalization; only the book titl
   }
 });
 
-test('status bar toggles are switches: Typewriter and Focus', async () => {
+test('status bar: Typewriter is a switch; Focus is a button that enters focus mode, with a hint on how to leave', async () => {
   const { app, page } = await launch({ file: { name: 'W.md', content: '# One\n\nText.\n' } });
   try {
     const tw = page.getByRole('switch', { name: 'Typewriter' });
-    const focus = page.getByRole('switch', { name: 'Focus' });
+    const focus = page.getByRole('button', { name: 'Focus' });
     await expect(tw).toHaveAttribute('aria-checked', 'false');
-    await expect(focus).toHaveAttribute('aria-checked', 'false');
+    expect(await focus.getAttribute('aria-checked')).toBeNull(); // an action, not a state
     await expect(tw.locator('.bt-switch')).toBeVisible();
 
     await tw.click();
@@ -77,10 +77,21 @@ test('status bar toggles are switches: Typewriter and Focus', async () => {
     await page.waitForTimeout(300);
     expect(await knobX('[data-ref="typewriter"] .bt-switch-knob')).toBeGreaterThan(off);
 
+    const toast = page.locator('[data-ref="toast"]');
     await focus.click();
     expect(await page.$eval('.bt-app', (e) => (e as HTMLElement).dataset.focus)).toBe('true');
-    await page.keyboard.press('Escape'); // out of focus mode; the switch follows
-    await expect(focus).toHaveAttribute('aria-checked', 'false');
+    await expect(toast).toHaveText('Esc or ⌘. to leave focus');
+    await expect(toast).toHaveAttribute('data-visible', 'true');
+    await expect(toast).toHaveAttribute('data-visible', 'false', { timeout: 5000 }); // it fades by itself
+    await page.keyboard.press('Escape');
+    expect(await page.$eval('.bt-app', (e) => (e as HTMLElement).dataset.focus)).toBe('false');
+    await expect(focus).toBeVisible();
+
+    // Leaving at once takes the hint with it.
+    await page.keyboard.press('Meta+.');
+    await expect(toast).toHaveAttribute('data-visible', 'true');
+    await page.keyboard.press('Meta+.');
+    await expect(toast).toHaveAttribute('data-visible', 'false');
   } finally {
     await app.close();
   }

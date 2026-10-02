@@ -130,13 +130,21 @@ test('150k-word manuscript: open time and typing latency', async () => {
       }, i);
       await page.keyboard.press('Meta+Shift+m');
       await page.keyboard.type(`Note ${i}`);
-      await page.keyboard.press('Escape');
+      await page.keyboard.press('Enter'); // saved
     }
     await page.evaluate((id) => (window as any).__baretext.navigate(id), middle);
     await page.waitForTimeout(300);
     const withNotes = await measureTyping(page, keys);
     console.log(`typing, 20 notes (${await page.locator('.bt-note-card').count()} cards):`, withNotes);
     expect(withNotes.p95).toBeLessThan(16);
+
+    // Focus mode: the vignette and the dissolving edges over the page.
+    await page.keyboard.press('Meta+.');
+    await page.waitForTimeout(800);
+    const focus = await measureTyping(page, keys);
+    console.log('typing, focus mode (vignette + edge fade):', focus);
+    expect(focus.p95).toBeLessThan(16);
+    await page.keyboard.press('Meta+.');
 
     // Save must still verify and complete quickly.
     const s0 = Date.now();

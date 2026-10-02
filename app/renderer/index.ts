@@ -32,6 +32,7 @@ import {
   sceneDepth,
   schema,
   splitScene,
+  splitChapter,
   toggleBold,
   toggleItalic,
   toggleQuote,
@@ -713,6 +714,7 @@ function setTypewriter(on: boolean) {
 function applyAppearance(p: AppearancePrefs) {
   keepCaretLine(() => setAppearance(app, p));
 }
+const FOCUS_HINT = 'Esc or ⌘. to leave focus';
 function setFocus(on: boolean) {
   if (on && (outlinePanel.el.contains(document.activeElement) || notesPanel.el.contains(document.activeElement))) view?.focus();
   // The open side columns step aside (or come back) with the rest of the chrome.
@@ -721,7 +723,13 @@ function setFocus(on: boolean) {
   if (notesPanel.isOpen) columns.push(notesPanel);
   if (columns.length && app.dataset.focus !== String(on)) sidebarMotion(columns, !on, () => { app.dataset.focus = String(on); });
   app.dataset.focus = String(on);
-  $('focus').setAttribute('aria-checked', String(on));
+  // Focus mode is entered (the button goes with the rest of the chrome) and
+  // left by Esc or ⌘. — so say so, briefly, on the way in.
+  // The caret's line is kept clear of the dissolving edges.
+  const m = on ? parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--focus-caret-margin')) || 0 : 5;
+  view?.setProps({ scrollMargin: m, scrollThreshold: on ? m : 0 });
+  if (on) toast(FOCUS_HINT);
+  else if ($('toast').textContent === FOCUS_HINT) $('toast').dataset.visible = 'false';
 }
 
 function runCommand(command: MenuCommand) {
@@ -736,6 +744,7 @@ function runCommand(command: MenuCommand) {
     case 'bold': run(toggleBold); break;
     case 'italic': run(toggleItalic); break;
     case 'split-scene': run(splitScene); break;
+    case 'split-chapter': run(splitChapter); break;
     case 'pause': run(insertSectionBreak); break;
     case 'name-scene': run(nameScene); break;
     case 'quote': run(toggleQuote); break;

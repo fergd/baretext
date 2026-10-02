@@ -246,6 +246,7 @@ function buildMenu() {
         { type: 'separator' },
         { label: 'Insert Scene Break', ...label('CmdOrCtrl+Enter'), click: () => send('split-scene') },
         { label: 'Insert Pause', ...label('Shift+CmdOrCtrl+Enter'), click: () => send('pause') },
+        { label: 'Insert Chapter Break', ...label('Alt+CmdOrCtrl+Enter'), click: () => send('split-chapter') },
         { label: 'Name Scene', click: () => send('name-scene') },
         { label: 'New Scene at End of Chapter', click: () => send('new-scene') },
         { label: 'New Chapter', click: () => send('new-chapter') },

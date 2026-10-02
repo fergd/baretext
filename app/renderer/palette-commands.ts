@@ -36,6 +36,7 @@ export function commandsView(ctx: CommandContext): PaletteView {
         { id: 'scene-break', group: 'Insert', label: 'Scene break', keywords: 'split new scene', keys: '⌘↵', run: () => ctx.run('split-scene') },
         { id: 'new-chapter', group: 'Insert', label: 'New chapter', keywords: 'add create chapter', run: () => ctx.run('new-chapter') },
         { id: 'pause', group: 'Insert', label: 'Pause', keywords: 'section break within scene', keys: '⌘⇧↵', run: () => ctx.run('pause') },
+        { id: 'chapter-break', group: 'Insert', label: 'Chapter break', keywords: 'split new chapter', keys: '⌥⌘↵', run: () => ctx.run('split-chapter') },
       ];
       const here = view ? currentScene(view.state) : null;
       if (here) {

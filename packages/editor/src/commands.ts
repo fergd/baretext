@@ -257,20 +257,15 @@ export const removeEmptySceneName: Command = (state, dispatch) => {
 export const backspace: Command = chainCommands(undoInputRule, safeDeleteSelection, removeEmptySceneName, backspaceAtBoundary, joinBackward, swallowAtEdge(-1));
 export const forwardDelete: Command = chainCommands(safeDeleteSelection, deleteAtBoundary, joinForward, swallowAtEdge(1));
 
+type SceneContext = NonNullable<ReturnType<typeof sceneContext>>;
+
 /**
- * Split the current scene at the caret (⌘↵). The new scene gets a fresh
- * identity; the caret lands on its first line.
+ * Split the scene at the caret in `tr` (⌘↵'s rules: between lines at a
+ * line's start or a scene's end, else mid-line). Returns the position just
+ * inside the new scene.
  */
-export const splitScene: Command = (state, dispatch) => {
-  const $c = cursor(state);
-  if (!$c) return false;
-  const ctx = sceneContext($c);
-  if (!ctx || $c.parent.type !== schema.nodes.paragraph) return true;
-  if ($c.node(ctx.depth - 1).type !== schema.nodes.chapter) return true; // never in cold storage
-  if (!dispatch) return true;
-  const sceneType = schema.nodes.scene!;
-  const newScene = { type: sceneType, attrs: { id: newId(), link: null } };
-  const tr = state.tr;
+function splitSceneAt(tr: Transaction, $c: ResolvedPos, ctx: SceneContext): number {
+  const newScene = { type: schema.nodes.scene!, attrs: { id: newId(), link: null } };
   const firstBody = ctx.scene.firstChild?.type === schema.nodes.scene_heading ? 1 : 0;
   const atStart = $c.parentOffset === 0 && ctx.index > firstBody;
   const atEnd = $c.parentOffset === $c.parent.content.size && ctx.index < ctx.scene.childCount - 1;
@@ -288,11 +283,79 @@ export const splitScene: Command = (state, dispatch) => {
     splitAt = $c.pos;
     tr.split(splitAt, 2, [newScene, { type: schema.nodes.paragraph! }]);
   }
-  const $in = tr.doc.resolve(tr.mapping.map(splitAt, 1));
+  return tr.mapping.map(splitAt, 1);
+}
+
+/** The caret in a scene's prose within a chapter (never a title, never Cold Storage), or null. */
+function proseInChapter(state: EditorState): { $c: ResolvedPos; ctx: SceneContext } | null {
+  const $c = cursor(state);
+  const ctx = $c && sceneContext($c);
+  if (!$c || !ctx || $c.parent.type !== schema.nodes.paragraph) return null;
+  if ($c.node(ctx.depth - 1).type !== schema.nodes.chapter) return null;
+  return { $c, ctx };
+}
+
+/**
+ * Split the current scene at the caret (⌘↵). The new scene gets a fresh
+ * identity; the caret lands on its first line.
+ */
+export const splitScene: Command = (state, dispatch) => {
+  if (!cursor(state)) return false;
+  const at = proseInChapter(state);
+  if (!at || !dispatch) return true;
+  const tr = state.tr;
+  const inside = splitSceneAt(tr, at.$c, at.ctx); // before reading tr.doc: the split changes it
+  const $in = tr.doc.resolve(inside);
   const d = sceneDepth($in);
   const start = d > 0 ? $in.start(d) : $in.pos;
   tr.setSelection(Selection.findFrom(tr.doc.resolve(start), 1, true) ?? Selection.near(tr.doc.resolve(start)));
   dispatch(markStructural(tr).scrollIntoView());
+  return true;
+};
+
+/**
+ * Split the chapter at the caret (⌥⌘↵), as ⌘↵ splits a scene: from the
+ * caret on, the scene and the chapter's later scenes become a new, unnamed
+ * chapter with a fresh identity, and the caret lands in its name. At a
+ * scene's start (or the end of a scene with more after it) the chapter
+ * splits between scenes, which move whole; at the chapter's end it starts
+ * a new chapter with an empty scene. Nothing at the very start of a
+ * chapter, in titles, or in Cold Storage. One undo step.
+ */
+export const splitChapter: Command = (state, dispatch) => {
+  if (!cursor(state)) return false;
+  const at = proseInChapter(state);
+  if (!at) return true;
+  const { $c, ctx } = at;
+  const chapterDepth = ctx.depth - 1;
+  const chapterAt = $c.before(chapterDepth);
+  const sceneIndex = $c.index(chapterDepth); // 0 is the chapter's title
+  const lastScene = $c.node(chapterDepth).childCount - 1;
+  const firstBody = ctx.scene.firstChild?.type === schema.nodes.scene_heading ? 1 : 0;
+  const atSceneStart = ctx.index === firstBody && $c.parentOffset === 0;
+  const atSceneEnd = ctx.index === ctx.scene.childCount - 1 && $c.parentOffset === $c.parent.content.size;
+  if (atSceneStart && sceneIndex === 1) return true; // nothing before it to keep
+  if (!dispatch) return true;
+
+  const tr = state.tr;
+  // The chapter's first scene to move into the new chapter (null: a fresh, empty one).
+  let firstMoved: number | null;
+  if (atSceneStart) firstMoved = sceneIndex;
+  else if (atSceneEnd) firstMoved = sceneIndex < lastScene ? sceneIndex + 1 : null;
+  else { splitSceneAt(tr, $c, ctx); firstMoved = sceneIndex + 1; }
+
+  const chapter = tr.doc.nodeAt(chapterAt)!;
+  let from = chapterAt + 1;
+  for (let i = 0; i < (firstMoved ?? chapter.childCount); i++) from += chapter.child(i).nodeSize;
+  const end = chapterAt + chapter.nodeSize - 1;
+  const scenes = firstMoved === null
+    ? Fragment.from(schema.nodes.scene!.create({ id: newId(), link: null }, schema.nodes.paragraph!.create()))
+    : chapter.content.cut(from - chapterAt - 1, end - chapterAt - 1);
+  if (firstMoved !== null) tr.delete(from, end);
+  const after = chapterAt + tr.doc.nodeAt(chapterAt)!.nodeSize;
+  tr.insert(after, schema.nodes.chapter!.create({ id: newId() }, [schema.nodes.chapter_title!.create(), ...scenes.content]));
+  tr.setSelection(TextSelection.create(tr.doc, after + 2)); // in the new chapter's name
+  dispatch(closeHistory(markStructural(tr)).scrollIntoView());
   return true;
 };
 

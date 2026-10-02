@@ -110,6 +110,17 @@ button {
 
 /* ── switch: every on/off control uses it (status bar, palette) ── */
 .bt-toggle { display: inline-flex; align-items: center; gap: var(--space-2); }
+/* Focus: an action (it goes with the chrome), so a button, not a switch. */
+.bt-focus-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--space-6);
+  padding: 0 var(--space-2);
+  margin-left: calc(-1 * var(--space-2));
+  border-radius: var(--toolbar-button-radius);
+}
+.bt-focus-button:hover { color: var(--color-text-dim); background: var(--color-popover-hover); }
 .bt-toggle[aria-checked='true'] { color: var(--color-text-dim); }
 .bt-switch {
   position: relative;
@@ -139,9 +150,54 @@ button {
 .bt-num-text { font-family: var(--font-num); }
 .bt-save-state[data-state='error'] { color: var(--color-danger); }
 
-/* Focus mode: the page alone. */
+/* Focus mode: the page alone — the bars empty and become page too. */
 .bt-app[data-focus='true'] .bt-chrome > *,
 .bt-app[data-focus='true'] .bt-status > * { visibility: hidden; }
+.bt-chrome,
+.bt-status { transition: background-color var(--dur-fade-out) var(--ease-out); }
+.bt-app[data-focus='true'] :is(.bt-chrome, .bt-status) { background: var(--color-page); transition-duration: var(--dur-fade-in); }
+
+/* …and a vignette: the space around the manuscript dims toward the window's
+   edges (deepest in the corners), stopping well clear of the text and its
+   hanging numbers. Two side panels sized from the column, the window's full
+   height; no room, no vignette. */
+.bt-vignette {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+  width: max(0px, calc((100% - min(var(--measure), 100% - 2 * var(--space-6))) / 2 - var(--vignette-clear)));
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur-fade-out) var(--ease-out);
+}
+.bt-vignette-left { left: 0; --toward: to right; }
+.bt-vignette-right { right: 0; --toward: to left; }
+.bt-vignette,
+.bt-vignette::before {
+  background: linear-gradient(var(--toward),
+    color-mix(in oklab, var(--color-vignette) 70%, transparent),
+    color-mix(in oklab, var(--color-vignette) 44%, transparent) 20%,
+    color-mix(in oklab, var(--color-vignette) 24%, transparent) 40%,
+    color-mix(in oklab, var(--color-vignette) 10%, transparent) 60%,
+    color-mix(in oklab, var(--color-vignette) 3%, transparent) 80%,
+    transparent);
+}
+/* The corners: deeper at the top and bottom of the sides. */
+.bt-vignette::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  -webkit-mask-image: linear-gradient(to bottom, black, transparent 35%, transparent 65%, black);
+  mask-image: linear-gradient(to bottom, black, transparent 35%, transparent 65%, black);
+}
+/* The text dissolves at the window's top and bottom instead of being cut
+   off by the (now empty) bars. A mask: nothing is laid out again. */
+.bt-app[data-focus='true'] .bt-scroller {
+  -webkit-mask-image: linear-gradient(to bottom, transparent, black var(--focus-fade), black calc(100% - var(--focus-fade)), transparent);
+  mask-image: linear-gradient(to bottom, transparent, black var(--focus-fade), black calc(100% - var(--focus-fade)), transparent);
+}
+.bt-app[data-focus='true'] .bt-vignette { opacity: var(--vignette-depth); transition-duration: var(--dur-fade-in); }
 
 /* ── toast ── */
 .bt-toast {

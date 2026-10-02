@@ -67,6 +67,13 @@
   --spine-w: 48px;
   --spine-pad-left: 12px;
   --gutter-gap: 24px;
+  /* focus mode's vignette stays this far clear of the text column on each
+     side — room for the hanging chapter and scene numbers */
+  --vignette-clear: 160px;
+  /* focus mode: the text dissolves this far from the window's top and bottom;
+     the caret is kept clear of it */
+  --focus-fade: 32px;
+  --focus-caret-margin: 48px;
   --page-pad-top: 64px;
 
   /* paragraphs (Format → Paragraph Spacing; set on #app) */
@@ -229,6 +236,11 @@
   /* A note's shadow is the page's own color, darkened — never plain black,
      so it reads as a shadow cast on that surface. */
   --color-note-shade: color-mix(in srgb, var(--color-page) 35%, black);
+  /* focus mode's vignette: the page's own color, deepened (toward black on
+     dark pages; on paper, toward its ink, and lighter — never a grey smear) */
+  --vignette-shade: black;
+  --vignette-depth: 1;
+  --color-vignette: color-mix(in oklab, var(--color-page) 55%, var(--vignette-shade));
   --shadow-note: 0 1px 2px color-mix(in srgb, var(--color-note-shade) 45%, transparent), 0 6px 16px color-mix(in srgb, var(--color-note-shade) 35%, transparent);
 }
 
@@ -323,6 +335,8 @@
 
 /* Light — parchment and ink, amber accent. */
 [data-theme='light'] {
+  --vignette-shade: var(--color-text);
+  --vignette-depth: 0.4;
   --color-chrome: #ebe5d9;
   --color-bg: #fbf8f2;
   --color-page: #f5f0e8;

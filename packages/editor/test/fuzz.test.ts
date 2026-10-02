@@ -37,6 +37,7 @@ import {
   BOOK_TITLE,
   setLink,
   splitScene,
+  splitChapter,
   structureSignature,
   toggleBold,
   toggleItalic,
@@ -49,7 +50,7 @@ type Op =
   | { kind: 'cursor'; at: number }
   | { kind: 'select'; a: number; b: number }
   | { kind: 'type'; text: string }
-  | { kind: 'enter' | 'backspace' | 'delete' | 'bold' | 'italic' | 'quote' | 'link' | 'unlink' | 'pause' | 'name' | 'split' | 'undo' | 'redo' }
+  | { kind: 'enter' | 'backspace' | 'delete' | 'bold' | 'italic' | 'quote' | 'link' | 'unlink' | 'pause' | 'name' | 'split' | 'split-chapter' | 'undo' | 'redo' }
   | { kind: 'paste'; a: number; b: number }
   | { kind: 'raw'; a: number; b: number; text: string }
   | { kind: 'replace'; query: string; text: string }
@@ -70,7 +71,7 @@ const op: fc.Arbitrary<Op> = fc.oneof(
   { weight: 2, arbitrary: fc.tuple(unit, unit).map(([a, b]): Op => ({ kind: 'select', a, b })) },
   { weight: 4, arbitrary: fc.constantFrom('a', 'word ', '*', '#', '-', '\n', '—', '漢').map((text): Op => ({ kind: 'type', text })) },
   { weight: 2, arbitrary: fc.constantFrom<Op>({ kind: 'enter' }, { kind: 'backspace' }, { kind: 'delete' }) },
-  { weight: 1, arbitrary: fc.constantFrom<Op>({ kind: 'bold' }, { kind: 'italic' }, { kind: 'quote' }, { kind: 'link' }, { kind: 'unlink' }, { kind: 'pause' }, { kind: 'name' }, { kind: 'split' }, { kind: 'undo' }, { kind: 'redo' }) },
+  { weight: 1, arbitrary: fc.constantFrom<Op>({ kind: 'bold' }, { kind: 'italic' }, { kind: 'quote' }, { kind: 'link' }, { kind: 'unlink' }, { kind: 'pause' }, { kind: 'name' }, { kind: 'split' }, { kind: 'split-chapter' }, { kind: 'undo' }, { kind: 'redo' }) },
   { weight: 1, arbitrary: fc.tuple(unit, unit).map(([a, b]): Op => ({ kind: 'paste', a, b })) },
   { weight: 1, arbitrary: fc.tuple(unit, unit, fc.constantFrom('', 'x')).map(([a, b, text]): Op => ({ kind: 'raw', a, b, text })) },
   { weight: 1, arbitrary: fc.tuple(fc.constantFrom<'scene' | 'chapter'>('scene', 'chapter'), unit).map(([what, a]): Op => ({ kind: 'remove', what, a })) },
@@ -143,6 +144,7 @@ describe('editing fuzzer', () => {
             case 'pause': h.run(insertSectionBreak); break;
             case 'name': h.run(nameScene); structural = true; break;
             case 'split': h.run(splitScene); structural = true; break;
+            case 'split-chapter': h.run(splitChapter); structural = true; break;
             case 'undo': h.run(undo); structural = true; break;
             case 'redo': h.run(redo); structural = true; break;
             case 'paste': {

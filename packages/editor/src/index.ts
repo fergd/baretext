@@ -14,6 +14,7 @@ import {
   insertSectionBreak,
   pasteIntoTitle,
   splitScene,
+  splitChapter,
   toggleBold,
   toggleItalic,
   withinOneRegion,
@@ -93,6 +94,7 @@ export function manuscriptPlugins(options: EditorOptions = {}): Plugin[] {
       Enter: enter,
       'Mod-Enter': splitScene,
       'Shift-Mod-Enter': insertSectionBreak,
+      'Alt-Mod-Enter': splitChapter,
       // Every delete-type key goes through the structure-safe commands;
       // mid-line they fall through to the browser's native word/line deletes.
       Backspace: backspace,

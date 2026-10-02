@@ -38,7 +38,8 @@ to change a decision, raise it with the user; don't silently diverge.
 
 - **No inline Markdown.** No input rules that convert typed syntax (`**`,
   `#`, `---`, `>`). Only the spec's `--` → em dash remains.
-- Formatting comes from shortcuts (⌘B, ⌘I, ⌘↵ scene break, ⌘⇧↵ pause), a
+- Formatting comes from shortcuts (⌘B, ⌘I, ⌘↵ scene break, ⌘⇧↵ pause, ⌥⌘↵
+  chapter break), a
   **Linear-style selection toolbar**, and the command palette.
 - **Selection toolbar:** appears after a mouse selection settles or a
   keyboard selection pauses; hides on typing, Esc, collapse, or scroll-away;
@@ -129,6 +130,25 @@ Pull exact values from Figma when implementing each component.
   in the editor, so `defaultPrevented` is not a usable signal).
 - **Focus mode hides the spine** (fades out over 220ms; no clicks or hover
   while hidden; fades back when focus mode ends). 2026-09-29.
+- **Focus is a button, not a switch (user, 2026-10-01):** the status
+  bar's "◎ Focus" enters focus mode and goes with the rest of the
+  chrome, so a switch you never see "on" was wrong. Entering shows a quiet
+  hint, "Esc or ⌘. to leave focus" (the toast, ~2.4s); leaving sooner takes
+  it with it.
+- **Focus mode vignette (user, 2026-10-01):** the space around the
+  manuscript dims toward the window's edges, deepest in the corners, the
+  full window height (the emptied title and status bars become page). It
+  stays `--vignette-clear` (160px) clear of the text column on each side —
+  never over the text or its hanging numbers — and vanishes when the window
+  has no room. The page's own color deepened: toward black on dark themes;
+  on Light toward its ink at 40% depth (black made a grey smear). Fades
+  with focus mode; tested in `modes.test.ts`.
+- **Focus mode dissolves the text at the window's top and bottom (user,
+  2026-10-01)** instead of cutting it off at the emptied bars: a 32px mask
+  on the scroller (`--focus-fade`; no layout change). The caret is kept
+  `--focus-caret-margin` (48px) from the edges in focus mode, so the line
+  being written is never in the fade. Full bleed (text under the bars) was
+  considered and declined as not worth the scrolling/typewriter changes.
 - ~~Hovering the spine peeks the outline as glass~~ — **dropped
   (2026-09-30, user):** hover-to-open didn't feel right; the outline opens
   only by a deliberate action. A floating version may return later only as
@@ -702,3 +722,19 @@ Build the main app first. When integrations are built, follow this design.
   is ≥45° from the selection's. **Focus mode shows no note washes (user).**
   Clicking a passage brings its note forward. The outline shows each
   scene's open-note count.
+
+## 17. Breaks: one family on ⌘↵ (2026-10-01, user)
+- **⇧⌘↵ pause, ⌘↵ scene, ⌥⌘↵ chapter** — the modifier sets the size of the
+  break (Shift: the soft break, as Shift+Enter is everywhere; Option: the
+  stronger one, as ⌥ means on macOS). Format menu and palette list all three.
+- **⌥⌘↵ splits the chapter at the caret** (`splitChapter`), as ⌘↵ splits a
+  scene (same rules, shared code): mid-line the scene splits and its rest,
+  with the chapter's later scenes, becomes a new unnamed chapter with a
+  fresh identity; at a scene's start (or the end of a scene with more after
+  it) the chapter splits between scenes, which move whole with their names
+  and identities; at the chapter's end, a new chapter with one empty scene.
+  The caret lands in the new chapter's name (↵ goes on to its text).
+  Nothing at the very start of a chapter, in titles, or in Cold Storage.
+  One undo step; fuzzed (60,000 cases). "New Chapter" (add one at the end)
+  is unchanged.
+

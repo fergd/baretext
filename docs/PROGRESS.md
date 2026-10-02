@@ -576,3 +576,24 @@ export/print · integrations (DECISIONS §7).
   square-cornered; none in focus mode. Chosen from a rendered board of
   hues per theme; contrast-tested.
 - Tests: 344 unit, 110 end-to-end.
+
+## 2026-10-01 — Focus mode vignette
+- The space around the manuscript dims toward the window edges in focus
+  mode (sides, deeper in the corners, full height); never over the text or
+  hanging numbers; none without room; per-theme depth (Light gentler, warm).
+- Focus control (user): a "◎ Focus" button instead of a switch (it
+  disappears with the chrome); a fading "Esc or ⌘. to leave focus" hint on
+  entry.
+- Focus mode text dissolves at the top and bottom edges (mask; caret kept
+  clear). Bench: focus mode typing p95 7.1 ms. The bench's notes step used
+  Esc (which now cancels a new note) and measured 0 cards — fixed (Enter).
+- Tests: 344 unit, 112 end-to-end.
+
+## 2026-10-01 — Chapter break (⌥⌘↵)
+- ⇧⌘↵ pause / ⌘↵ scene / ⌥⌘↵ chapter. ⌥⌘↵ splits the chapter at the
+  caret like ⌘↵ splits a scene (shared split code), caret in the new
+  chapter's name. Format menu + palette. Unit tests (6), e2e, fuzzed
+  (60,000 cases). Caught while sharing ⌘↵'s split code: the caret was
+  resolved in the pre-split document (argument evaluated after `tr.doc`) —
+  the existing ⌘↵ test failed; fixed.
+- Tests: 350 unit, 113 end-to-end.
