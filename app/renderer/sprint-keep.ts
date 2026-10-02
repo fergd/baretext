@@ -6,6 +6,8 @@
 // each asker says which choices apply.
 
 import type { BookInfo } from '../shared/bridge';
+import { arrowStep, Modal } from './modal';
+import { numberFormat } from './dom';
 
 export type KeepChoice = 'chapter' | 'end' | 'cold' | 'sprints' | 'discard';
 
@@ -35,7 +37,6 @@ export interface KeepRequest {
   onBack(): void;
 }
 
-const numberFormat = new Intl.NumberFormat();
 const OTHER = '';
 
 const OPTIONS: [KeepChoice, string][] = [
@@ -47,11 +48,25 @@ const OPTIONS: [KeepChoice, string][] = [
 ];
 const IN_A_BOOK = new Set<KeepChoice>(['chapter', 'end', 'cold']);
 
+/**
+ * How each book is named in the picker: its title; where titles repeat, with
+ * its file name; where those repeat too, with its folder as well.
+ */
+export function bookLabels(books: readonly BookInfo[]): string[] {
+  const tail = (p: string, parts: number) => p.split('/').slice(-parts).join('/');
+  return books.map((b) => {
+    const twins = books.filter((o) => o.title === b.title);
+    if (twins.length === 1) return b.title;
+    const sameName = twins.filter((o) => tail(o.path, 1) === tail(b.path, 1));
+    return `${b.title} — ${tail(b.path, sameName.length > 1 ? 2 : 1)}`;
+  });
+}
+
 const chapterLabel = (title: string, i: number) => (title ? `${i + 1} · ${title}` : `${i + 1}`);
 
 export class SprintKeep {
+  private readonly modal: Modal;
   readonly el: HTMLElement;
-  private readonly scrim: HTMLElement;
   private readonly bookSelect: HTMLSelectElement;
   private readonly chapterSelect: HTMLSelectElement;
   private request: KeepRequest | null = null;
@@ -64,14 +79,8 @@ export class SprintKeep {
   private loading = 0;
 
   constructor(host: HTMLElement, private readonly h: SprintKeepHost) {
-    this.scrim = document.createElement('div');
-    this.scrim.className = 'bt-palette-scrim';
-    this.el = document.createElement('div');
-    this.el.className = 'bt-appearance bt-sprint bt-keep';
-    this.el.setAttribute('role', 'dialog');
-    this.el.setAttribute('aria-modal', 'true');
-    this.el.setAttribute('aria-labelledby', 'bt-keep-title');
-    this.el.dataset.open = 'false';
+    this.modal = new Modal(host, { className: 'bt-appearance bt-sprint bt-keep', labelledBy: 'bt-keep-title', onDismiss: () => this.back() });
+    this.el = this.modal.el;
     this.el.innerHTML = `
       <header class="bt-appearance-head">
         <span class="bt-appearance-title" id="bt-keep-title"></span>
@@ -80,12 +89,12 @@ export class SprintKeep {
       <div class="bt-sprint-body">
         <label class="bt-keep-book">
           <span class="bt-keep-book-label">Book</span>
-          <select class="bt-keep-select bt-keep-book-select" aria-label="Book"></select>
+          <select class="bt-keep-select bt-keep-book-select bt-field" aria-label="Book"></select>
         </label>
         <div role="radiogroup" aria-labelledby="bt-keep-title" class="bt-keep-options">${OPTIONS.map(([value, label]) => `
           <div class="bt-keep-option" data-value="${value}">
             <button type="button" role="radio" class="bt-keep-radio" data-value="${value}" aria-checked="false"><span class="bt-keep-dot" aria-hidden="true"></span>${label}</button>
-            ${value === 'chapter' ? '<select class="bt-keep-select bt-keep-chapter-select" aria-label="Chapter"></select>' : value === 'end' ? '<span class="bt-keep-detail" data-detail="end"></span>' : ''}
+            ${value === 'chapter' ? '<select class="bt-keep-select bt-keep-chapter-select bt-field" aria-label="Chapter"></select>' : value === 'end' ? '<span class="bt-keep-detail" data-detail="end"></span>' : ''}
           </div>`).join('')}
         </div>
       </div>
@@ -93,11 +102,9 @@ export class SprintKeep {
         <button type="button" class="bt-appearance-button bt-sprint-button bt-keep-back" data-action="back"><span class="bt-keep-back-label"></span><kbd>esc</kbd></button>
         <button type="button" class="bt-appearance-button bt-appearance-primary bt-sprint-button" data-action="done" disabled>Done<kbd>↵</kbd></button>
       </footer>`;
-    host.append(this.scrim, this.el);
     this.bookSelect = this.el.querySelector('.bt-keep-book-select')!;
     this.chapterSelect = this.el.querySelector('.bt-keep-chapter-select')!;
 
-    this.scrim.addEventListener('mousedown', (e) => { e.preventDefault(); this.back(); });
     this.bookSelect.addEventListener('change', () => void this.changeBook());
     this.chapterSelect.addEventListener('change', () => this.pick('chapter'));
     this.chapterSelect.addEventListener('mousedown', () => { if (this.choice !== 'chapter') this.pick('chapter'); });
@@ -113,7 +120,7 @@ export class SprintKeep {
   }
 
   get isOpen(): boolean {
-    return this.el.dataset.open === 'true';
+    return this.modal.isOpen;
   }
 
   /** Ask; the panel shows once the writer's books are known (the open one chosen). */
@@ -129,25 +136,22 @@ export class SprintKeep {
     this.renderBooks(this.books.find((b) => b.current) ?? this.books[0] ?? null);
     await this.loadChapters();
     this.reflect();
-    this.el.dataset.open = 'true';
-    this.scrim.dataset.open = 'true';
+    this.modal.show();
     this.radios()[0]!.focus();
   }
 
   close() {
-    this.el.dataset.open = 'false';
-    this.scrim.dataset.open = 'false';
+    this.modal.hide();
   }
 
   // ── the book, and its chapters ──
 
-  /** The book list (titles told apart by file name where they repeat), then Other…. */
+  /** The book list (repeated titles told apart), then Other…. */
   private renderBooks(selected: BookInfo | null) {
     this.book = selected;
-    const repeated = (b: BookInfo) => this.books.some((o) => o !== b && o.title === b.title);
-    const name = (p: string) => p.split('/').pop()!;
+    const labels = bookLabels(this.books);
     this.bookSelect.replaceChildren(
-      ...this.books.map((b) => new Option(repeated(b) ? `${b.title} — ${name(b.path)}` : b.title, b.path, false, b === selected)),
+      ...this.books.map((b, i) => new Option(labels[i], b.path, false, b === selected)),
       new Option('Other…', OTHER),
     );
   }
@@ -237,30 +241,16 @@ export class SprintKeep {
   private onKey(e: KeyboardEvent) {
     if (e.isComposing) return;
     const target = e.target as HTMLElement;
-    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this.back(); return; }
     if (e.key === 'Enter') {
       if (target.closest('[data-action="back"]') || target instanceof HTMLSelectElement) return;
       e.preventDefault();
       void this.done();
       return;
     }
-    if (e.key === 'Tab') { this.trapTab(e); return; }
     const radio = target.closest<HTMLElement>('[role="radio"]');
-    const step = e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? -1 : 0;
-    if (!radio || !step) return;
-    e.preventDefault();
-    const radios = this.radios();
-    const next = radios[(radios.indexOf(radio) + step + radios.length) % radios.length]!;
+    const next = radio && arrowStep(e, this.radios(), radio);
+    if (!next) return;
     this.pick(next.dataset.value as KeepChoice);
     next.focus();
-  }
-
-  private trapTab(e: KeyboardEvent) {
-    const stops = [...this.el.querySelectorAll<HTMLElement>('button, select')].filter((b) => b.tabIndex >= 0 && b.offsetParent !== null && !(b as HTMLButtonElement).disabled);
-    if (!stops.length) return;
-    const i = stops.indexOf(document.activeElement as HTMLElement);
-    const next = e.shiftKey ? (i <= 0 ? stops.length - 1 : i - 1) : (i === stops.length - 1 ? 0 : i + 1);
-    e.preventDefault();
-    stops[next]!.focus();
   }
 }

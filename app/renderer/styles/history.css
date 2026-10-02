@@ -47,17 +47,7 @@
 .bt-history-save { display: flex; align-items: center; gap: var(--space-1); margin-left: auto; }
 .bt-history-label {
   width: var(--history-label-w);
-  height: var(--toolbar-button);
-  padding: 0 var(--space-2);
-  border: 1px solid transparent;
-  border-radius: var(--toolbar-button-radius);
-  background: var(--color-find-field);
-  font: inherit;
-  color: var(--color-text);
-  outline: none;
 }
-.bt-history-label:focus { border-color: var(--color-popover-border); }
-.bt-history-label::placeholder { color: var(--color-text-dimmer); }
 .bt-history-button {
   height: var(--toolbar-button);
   padding: 0 var(--space-3);

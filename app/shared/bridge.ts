@@ -62,7 +62,7 @@ export function validAppearance(raw: Record<string, unknown>): Partial<Appearanc
   for (const [key, choices] of Object.entries(APPEARANCE_CHOICES)) {
     if ((choices as readonly unknown[]).includes(raw[key])) out[key] = raw[key];
   }
-  return out as Partial<AppearancePrefs>;
+  return out;
 }
 
 /** Export choices, remembered between exports (DECISIONS §18). */
@@ -96,16 +96,14 @@ export interface SprintPrefs {
   minutes: number;
   /** The target for a words sprint. */
   words: number;
-  /** A time sprint's word goal; null follows the length (~20 words a minute). */
-  goal: number | null;
   /** Sprints in the session. */
   rounds: number;
   /** Minutes between sprints; 0 for none. */
   breakMinutes: number;
 }
 
-export const DEFAULT_SPRINT: SprintPrefs = { kind: 'time', minutes: 15, words: 500, goal: null, rounds: 1, breakMinutes: 5 };
-export const SPRINT_LIMITS = { minutes: [1, 180], words: [10, 20000], goal: [1, 20000], rounds: [1, 8], breakMinutes: [0, 60] } as const;
+export const DEFAULT_SPRINT: SprintPrefs = { kind: 'time', minutes: 15, words: 500, rounds: 1, breakMinutes: 5 };
+export const SPRINT_LIMITS = { minutes: [1, 180], words: [10, 20000], rounds: [1, 8], breakMinutes: [0, 60] } as const;
 
 /** Sprint choices from untrusted input (anything malformed falls back to the default). */
 export function validSprint(raw: unknown): SprintPrefs {
@@ -119,7 +117,6 @@ export function validSprint(raw: unknown): SprintPrefs {
     kind: SPRINT_KINDS.includes(r.kind as SprintKind) ? (r.kind as SprintKind) : DEFAULT_SPRINT.kind,
     minutes: int('minutes', DEFAULT_SPRINT.minutes),
     words: int('words', DEFAULT_SPRINT.words),
-    goal: int('goal', 0) || null,
     rounds: int('rounds', DEFAULT_SPRINT.rounds),
     breakMinutes: int('breakMinutes', DEFAULT_SPRINT.breakMinutes),
   };

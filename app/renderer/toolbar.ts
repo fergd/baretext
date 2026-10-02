@@ -149,7 +149,6 @@ export class SelectionToolbar {
     scroller.addEventListener('scroll', () => this.schedulePosition(), { passive: true });
     new ResizeObserver(() => this.schedulePosition()).observe(workspace);
 
-    const self = this;
     this.plugin = new Plugin<Range>({
       key: highlightKey,
       state: {
@@ -166,21 +165,21 @@ export class SelectionToolbar {
           return r ? DecorationSet.create(state.doc, [Decoration.inline(r.from, r.to, { class: 'bt-pending-selection' })]) : null;
         },
         handleDOMEvents: {
-          mousedown(_view, e) {
-            if (e.button === 0) { self.pointerSelecting = true; self.hide(); }
+          mousedown: (_view, e) => {
+            if (e.button === 0) { this.pointerSelecting = true; this.hide(); }
             return false;
           },
-          compositionstart() { self.hide(); return false; },
+          compositionstart: () => { this.hide(); return false; },
         },
-        handleKeyDown(_view, e) {
-          self.keyGeneration++;
+        handleKeyDown: (_view, e) => {
+          this.keyGeneration++;
           // Claim Esc (stop it here) so it doesn't also leave focus mode.
-          if (e.key === 'Escape' && self.armed) { e.stopPropagation(); self.hide(); return true; }
-          if (e.key === 'F10' && e.altKey && self.armed) { self.focusButtons(); return true; }
+          if (e.key === 'Escape' && this.armed) { e.stopPropagation(); this.hide(); return true; }
+          if (e.key === 'F10' && e.altKey && this.armed) { this.focusButtons(); return true; }
           return false;
         },
       },
-      view: () => ({ update: (view, prev) => self.onUpdate(view, prev) }),
+      view: () => ({ update: (view, prev) => this.onUpdate(view, prev) }),
     });
   }
 

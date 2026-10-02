@@ -30,11 +30,10 @@ test('⌘⇧S opens setup; Esc cancels and stays in Manuscript, the caret where 
     const caret = await page.evaluate(() => (window as any).__baretext.selection().head);
     await page.keyboard.press('Meta+Shift+S');
     await expect(setup(page)).toHaveAttribute('data-open', 'true');
-    // Defaults: a 15-minute sprint, goal suggested from the length, one round.
+    // Defaults: a 15-minute sprint, one round; no word goal (cut: DECISIONS §21).
     expect(await checked(page, 'kind')).toBe('time');
     expect(await checked(page, 'length')).toBe('15');
-    expect(await page.inputValue('.bt-sprint-goal')).toBe('');
-    expect(await page.getAttribute('.bt-sprint-goal', 'placeholder')).toBe('300');
+    await expect(page.locator('.bt-sprint-setup')).not.toContainText('Goal');
     expect(await checked(page, 'rounds')).toBe('1');
     await expect(page.locator('[data-group="breakMinutes"]').first()).toBeDisabled(); // no breaks in a single sprint
     await expect(page.locator('.bt-sprint-summary')).toHaveText(/^Ends /);
@@ -49,20 +48,18 @@ test('⌘⇧S opens setup; Esc cancels and stays in Manuscript, the caret where 
   }
 });
 
-test('choosing a session: presets, a custom length, rounds and breaks; the goal follows the length until typed', async () => {
+test('choosing a session: presets, a custom length, rounds and breaks', async () => {
   const { app, page } = await launch({ file: { name: 'S.md', content: FILE } });
   try {
     await page.keyboard.press('Meta+Shift+S');
     // Arrow keys move through the presets.
     await page.keyboard.press('ArrowRight');
     expect(await checked(page, 'length')).toBe('20');
-    expect(await page.getAttribute('.bt-sprint-goal', 'placeholder')).toBe('400');
     // A custom length takes over from the presets.
     await page.click('.bt-sprint-custom');
     await page.keyboard.type('40');
     await expect(page.locator('.bt-sprint-custom')).toHaveAttribute('data-active', 'true');
     expect(await page.$$eval('.bt-sprint-presets [aria-checked="true"]', (e) => e.length)).toBe(0);
-    expect(await page.getAttribute('.bt-sprint-goal', 'placeholder')).toBe('800');
     // …and a custom value that matches a preset is that preset.
     await page.fill('.bt-sprint-custom', '25');
     expect(await checked(page, 'length')).toBe('25');
@@ -72,12 +69,10 @@ test('choosing a session: presets, a custom length, rounds and breaks; the goal 
     await expect(page.locator('[data-group="breakMinutes"]').first()).toBeEnabled();
     await page.click('[data-group="breakMinutes"][data-value="10"]');
     await expect(page.locator('.bt-sprint-summary')).toHaveText(/^3 × 40 min · ends /);
-    await page.fill('.bt-sprint-goal', '1000');
 
-    // Words: the target is the length; there is no separate goal.
+    // Words: the target is the length.
     await page.click('[data-group="kind"][data-value="words"]');
     expect(await checked(page, 'length')).toBe('500');
-    await expect(page.locator('[data-row="goal"]')).toBeHidden();
     await expect(page.locator('.bt-sprint-unit')).toHaveText('Words');
     await expect(page.locator('.bt-sprint-summary')).toHaveText('3 × 500 words');
     await page.click('[data-group="kind"][data-value="time"]');

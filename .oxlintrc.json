@@ -1,0 +1,13 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "ignorePatterns": ["build/**", "dist/**", "src/**", "test-results/**", "**/test/**", "test/**"],
+  "categories": { "correctness": "error" },
+  "rules": {
+    "typescript/no-floating-promises": "error",
+    "typescript/no-misused-promises": ["error", { "checksVoidReturn": { "attributes": false } }],
+    "typescript/await-thenable": "error",
+    "typescript/require-await": "error",
+    "typescript/no-unnecessary-type-assertion": "error",
+    "no-console": ["error", { "allow": ["warn", "error"] }]
+  }
+}

@@ -36,7 +36,7 @@ export interface ParseResult {
 
 // ───────────────────────────── inline ─────────────────────────────
 
-const ASCII_PUNCT = /[!-\/:-@\[-`{-~]/;
+const ASCII_PUNCT = /[!-/:-@[-`{-~]/;
 const NAMED_ENTITIES: Record<string, string> = {
   nbsp: ' ', amp: '&', lt: '<', gt: '>', quot: '"', apos: "'",
   mdash: '—', ndash: '–', hellip: '…', lsquo: '‘', rsquo: '’', ldquo: '“', rdquo: '”', copy: '©',

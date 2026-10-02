@@ -7,8 +7,8 @@
 import type { EditorView } from 'prosemirror-view';
 import { TextSelection } from 'prosemirror-state';
 import { FIND_LIMIT, findKey, findMatches, replaceAll, replaceMatch, type FindMatch } from '@baretext/editor';
+import { numberFormat } from './dom';
 
-const numberFormat = new Intl.NumberFormat();
 
 const ICONS = {
   expand: '<path d="M6 4l4 4-4 4"/>',
@@ -53,7 +53,7 @@ export class FindPanel {
       <div class="bt-find-row">
         <button type="button" class="bt-find-icon bt-find-expand" data-action="toggle-replace" aria-expanded="false" aria-label="Show replace" title="Replace  ⌥⌘F">${svg(ICONS.expand)}</button>
         <div class="bt-find-field">
-          <input class="bt-find-input" type="text" placeholder="Find" aria-label="Find" spellcheck="false" autocomplete="off">
+          <input class="bt-find-input bt-field bt-field-quiet" type="text" placeholder="Find" aria-label="Find" spellcheck="false" autocomplete="off">
           <span class="bt-find-count" aria-live="polite"></span>
         </div>
         <div class="bt-find-controls">
@@ -66,7 +66,7 @@ export class FindPanel {
       </div>
       <div class="bt-find-row bt-find-replace-row">
         <span class="bt-find-indent" aria-hidden="true"></span>
-        <input class="bt-find-input" data-ref="replace" type="text" placeholder="Replace with" aria-label="Replace with" spellcheck="false" autocomplete="off">
+        <input class="bt-find-input bt-field bt-field-quiet" data-ref="replace" type="text" placeholder="Replace with" aria-label="Replace with" spellcheck="false" autocomplete="off">
         <div class="bt-find-controls">
           <button type="button" class="bt-find-text" data-action="replace">Replace</button>
           <button type="button" class="bt-find-text" data-action="all">All</button>

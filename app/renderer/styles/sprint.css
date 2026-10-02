@@ -80,42 +80,9 @@
 }
 .bt-sprint-label { color: var(--color-text-dim); }
 .bt-sprint-row[data-disabled='true'] { opacity: 0.4; }
-.bt-sprint[data-kind='words'] [data-row='goal'] { display: none; }
 
 .bt-sprint-row > .bt-seg { width: var(--sprint-control-w); }
 .bt-sprint-row > .bt-seg .bt-seg-item { flex: 1 1 0; min-width: 0; }
-
-/* Goal: a number field with its unit inside, as wide as the controls below. */
-.bt-sprint-field {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  width: var(--sprint-control-w);
-  height: var(--toolbar-button);
-  padding: 0 var(--space-2);
-  border: 1px solid var(--color-popover-border);
-  border-radius: var(--toolbar-button-radius);
-  background: var(--color-find-field);
-  cursor: text;
-  transition: border-color var(--dur-fast) var(--ease-out);
-}
-.bt-sprint-field:focus-within { border-color: var(--color-accent); }
-.bt-sprint-goal {
-  flex: 1 1 auto;
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  font-family: var(--font-num);
-  font-size: var(--text-palette);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: inherit;
-  color: var(--color-text);
-  text-align: right;
-  outline: none;
-}
-.bt-sprint-goal::placeholder { color: var(--color-text-dimmer); }
-.bt-sprint-suffix { font-size: var(--text-ui); color: var(--color-text-dimmer); }
 
 .bt-sprint-summary { margin-right: auto; font-size: var(--text-ui); color: var(--color-text-dimmer); font-variant-numeric: tabular-nums; }
 .bt-sprint-button { display: inline-flex; align-items: center; gap: var(--space-2); padding: 0 var(--space-3); }
@@ -221,18 +188,8 @@
 .bt-keep-detail { max-width: var(--sprint-control-w); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-ui); color: var(--color-text-dimmer); }
 .bt-keep-select {
   max-width: var(--sprint-control-w);
-  height: var(--toolbar-button);
-  padding: 0 var(--space-2);
-  border: 1px solid var(--color-popover-border);
-  border-radius: var(--toolbar-button-radius);
-  background: var(--color-find-field);
-  font: inherit;
   font-size: var(--text-ui);
-  letter-spacing: inherit;
-  color: var(--color-text);
-  outline: none;
 }
-.bt-keep-select:focus { border-color: var(--color-accent); }
 .bt-keep [data-action='done']:disabled { opacity: 0.4; cursor: default; filter: none; }
 .bt-keep [data-action='done'][data-danger='true'] { background: var(--color-danger); border-color: var(--color-danger); }
 .bt-keep-back { margin-right: auto; }

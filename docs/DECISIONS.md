@@ -787,64 +787,73 @@ Build the main app first. When integrations are built, follow this design.
   scroller, panels and lists scroll. (window.test.ts)
 
 
-## 21. Sprints (2026-10-02, user) — OVERRIDES spec §5 Setup presets; EXTENDS §2.1
-**Setup** chooses the sprint and the session. Sprint by **Time**
-(10 / 15 / 20 / 25 / 30 min + custom) or **Words** (250 / 500 / 750 /
-1,000 / 1,500 + custom). A time sprint's word goal is suggested at ~20
-words/min until typed. Session: **Rounds** 1–4, **Break** Off / 5 / 10 min
-(only with 2+ rounds). Footer: when it ends, or rounds × target. No
-explanatory copy. Enter starts, Esc cancels; choices remembered (settings
-`sprint`).
+## 21. Sprints (2026-10-02, user) — REPLACES spec §5; EXTENDS §2.1
+Writers sprint for warm-ups and exercises as well as the book, so a sprint
+is a **clean slate, never the manuscript**.
 
-**A sprint is a clean slate, never the manuscript.** Writers sprint for
-exercises and warm-ups as well as the book, so:
-- Start opens a **truly blank page** (its own editor, prose-only schema)
-  over the manuscript, which is never touched during a sprint (its caret
-  and scroll included). Typewriter on (Sprinter's steeper fade); numbering,
-  spine, outline and notes fade away.
-- The sprint's count is the words on its page (net words: settles §5's
-  open question).
-- The page is saved as it is written (app data `Sprints/<id>.md` + `.json`),
-  so quitting or crashing loses nothing. The app **never launches into a
-  sprint**: the next launch opens the book in Manuscript and asks about the
-  unfinished sprint (Keep writing resumes it).
-- **Ending asks where the writing goes, with nothing preselected:** end of
-  a chapter (chosen), end of the book, Cold Storage — each as one new
-  scene, one undo step; unnamed in the story, named in Cold Storage for
-  what it was ("Sprint · 15 min · Oct 2, 7:58 AM", the start time) — or **Sprints** (kept on its own), or
-  **Discard** (asks twice; kept 30 days, then removed; placed sprints'
-  copies likewise). Esc / Keep writing goes back to the page. A sprint with
-  nothing written just ends.
-- Sprinting is an extra action (⌘⇧S, View menu, palette), never a launch
-  mode. View menu: "Switch to Sprinter…" / "End Sprint…" (⌘⇧D).
-- In Sprinter only writing commands work, and they act on the sprint page.
-- **A sprint is focus mode on top of typewriter mode** (bars hidden, no
-  focus-mode hint, and no vignette: one even page to the window's edges);
-  leaving restores focus mode as it was.
-- **Timer:** a line along the very bottom of the window, drawn like the
-  typewriter guides (guide color, fading at its tail), growing left to right
-  over the sprint; a words sprint fills it as the words come and ends at the
-  target. Between rounds the line drains during the break (dimmer), a pause
-  mark separates the rounds, and the next round starts by itself. At the
-  end the line glows once, then the keep panel opens. ⌘⇧H hides/shows it;
-  the palette pauses/resumes it (paused: dimmer). One compositor animation;
-  the wall clock decides the end. A sprint resumed after a crash continues
-  untimed.
-- While a sprint is open the manuscript editor is read-only, and every
-  hand-back of focus goes to the sprint page.
-- **Sprints library** (palette / View → "Sprints…"; not during a sprint):
-  kept sprints, newest first (opening words, start time, words), each read
-  in full beside the list. **Add to book…** opens the same chooser as a
-  sprint's end, with the book's choices only (Back returns to the library);
-  **Discard** asks twice (disarms after 4 s, on a click elsewhere, or on
-  another key), as the outline's delete does.
-- **Any of the writer's manuscripts** (2026-10-02, user: authors work on
-  several books at once). The chooser has a **Book** picker: the open book
-  first, then recent manuscripts by title (same titles told apart by file
-  name), then **Other…** (file dialog). Chapters follow the chosen book
-  (by position; ids differ between files). Placing into another book
-  **opens it and adds the scene there** — the current book is saved first,
-  and the addition is one ⌘Z step like any other; no file is ever edited
-  behind the writer's back. Sprints/Discard dim the Book row (no book
-  involved). The window may read or open only books it was offered.
-- Provisional: break auto-start, words-sprint rounds.
+**Setup** (⌘⇧S; View menu "Switch to Sprinter…", ⌘⇧D; palette). By **Time**
+(10/15/20/25/30 min + custom) or **Words** (250/500/750/1,000/1,500 +
+custom). (A suggested word goal for time sprints was cut, 2026-10-02:
+nothing used it.) Session: **Rounds** 1–4, **Break** Off/5/10 min (2+
+rounds only). Footer: when it ends, or rounds × target. No explanatory
+copy; Enter starts, Esc cancels; choices remembered (settings `sprint`).
+
+**Sprinting** — the spec's states, as built:
+- *Active:* a truly blank page (own editor, prose-only schema) over the
+  manuscript, in focus mode on typewriter mode (Sprinter's steeper fade; no
+  bars, numbering, spine, outline, notes or vignette). The manuscript is
+  read-only and never moves; focus always returns to the sprint page.
+- *Timer:* a guide-style line along the window's bottom edge (guide color,
+  fading at its tail) growing left to right; a words sprint fills it with
+  the words and ends at the target. Between rounds it drains (dimmer)
+  during the break, a pause mark separates the rounds, and the next round
+  starts by itself (provisional). Pause/resume from the palette (dimmer).
+- *Hidden* (⌘⇧H): the line hides. No *Minimized* state and no
+  "Sprinting…" indicator: with the bars gone, the line is the presence.
+- *Complete:* the line glows once, then the end panel opens (not a return
+  to Manuscript).
+- Count = words on the page (net). Saved as written (app data
+  `Sprints/<id>.md` + `.json`).
+
+**Ending asks where the writing goes**, nothing preselected: a **Book**
+(the open one, recent manuscripts by title — repeats told apart by file
+name — or Other…), then end of a chapter, end of the book, or that book's
+Cold Storage (a new scene, one ⌘Z step; named "Sprint · 15 min · Oct 2,
+7:58 AM" only in Cold Storage); or **Sprints** (kept on its own); or
+**Discard** (asks twice). Another book is opened, the current one saved
+first — no file is edited behind the writer's back; the window may read or
+open only books it was offered. Esc returns to the page; nothing written
+just ends.
+
+**Never lose a sprint.** The app never launches into one: an unfinished
+sprint is offered at the next launch (unless one was begun meanwhile); one
+that can't be read is left as it is and offered again. "Placed" is recorded
+only once the book holding it is saved (else it stays in Sprints: at worst a
+duplicate). Discarded and placed copies are kept 30 days.
+
+**Sprints library** (palette / View "Sprints…"; not during a sprint): kept
+sprints by start time, read in full (bold, italic kept); Add to book… (the
+same chooser, book choices only; Back returns) or Discard (asks twice).
+
+## 22. Code conventions (2026-10-02, audit)
+- Gates: `npm run typecheck`, `npm run lint` (oxlint, type-aware: floating
+  and misused promises, needless assertions), `npx vitest run`, E2E.
+  (typescript-eslint doesn't support TypeScript 7 yet.)
+- Panels that cover the window build on `Modal` (scrim, role=dialog,
+  data-open, Esc claimed, Tab kept inside); radios step with `arrowStep`.
+- Two-step confirmations use `Arming` (disarms after 4 s, on a press
+  elsewhere, or on Esc) — the same everywhere.
+- Design tokens are read with `cssNumber`/`cssValue`; counts with the
+  shared `numberFormat` (`app/renderer/dom.ts`).
+- Text fields share `.bt-field` (bordered, accent focus) and
+  `.bt-field-quiet` (in bars: an edge only on focus).
+- Sprinter is its own module (`app/renderer/sprinter.ts`); `index.ts` keeps
+  the window: the manuscript, mode switching, opening books, focus.
+- **Component gallery** (spec's "hidden component gallery"; dev only, never
+  loaded by the app): `npm run gallery` opens every component × state ×
+  theme, built from the real components with stand-in data
+  (`app/renderer/gallery/`). Time is frozen there and nothing animates, so
+  `test/e2e/gallery.test.ts` compares each frame with a saved picture; a
+  visual change fails until looked at and accepted
+  (`npx playwright test gallery --update-snapshots`). A new component or
+  state gets a gallery entry.

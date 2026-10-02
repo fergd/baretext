@@ -24,6 +24,12 @@ export interface CommandContext {
   restoreParked(): void;
 }
 
+/** Items both lists offer (Manuscript's and Sprinter's), defined once. */
+const typewriterItem = (ctx: CommandContext): PaletteItem => ({ id: 'typewriter', group: 'View', label: 'Typewriter mode', keywords: 'center line', keys: '⌘⇧T', state: ctx.isOn('typewriter') ? 'on' : 'off', run: () => ctx.run('typewriter') });
+const focusItem = (ctx: CommandContext): PaletteItem => ({ id: 'focus', group: 'View', label: 'Focus mode', keywords: 'hide chrome distraction quiet', keys: '⌘.', state: ctx.isOn('focus') ? 'on' : 'off', run: () => ctx.run('focus') });
+const saveItem = (ctx: CommandContext): PaletteItem => ({ id: 'save', group: 'File', label: 'Save', keys: '⌘S', run: () => ctx.run('save') });
+const pauseItem = (ctx: CommandContext): PaletteItem => ({ id: 'pause', group: 'Insert', label: 'Pause', keywords: 'section break within scene', keys: '⌘⇧↵', run: () => ctx.run('pause') });
+
 export function commandsView(ctx: CommandContext): PaletteView {
   return {
     name: 'commands',
@@ -37,7 +43,7 @@ export function commandsView(ctx: CommandContext): PaletteView {
         { id: 'find-replace', group: 'Navigate', label: 'Find and replace…', keywords: 'search substitute change', keys: '⌥⌘F', run: () => ctx.run('find-replace') },
         { id: 'scene-break', group: 'Insert', label: 'Scene break', keywords: 'split new scene', keys: '⌘↵', run: () => ctx.run('split-scene') },
         { id: 'new-chapter', group: 'Insert', label: 'New chapter', keywords: 'add create chapter', run: () => ctx.run('new-chapter') },
-        { id: 'pause', group: 'Insert', label: 'Pause', keywords: 'section break within scene', keys: '⌘⇧↵', run: () => ctx.run('pause') },
+        pauseItem(ctx),
         { id: 'chapter-break', group: 'Insert', label: 'Chapter break', keywords: 'split new chapter', keys: '⌥⌘↵', run: () => ctx.run('split-chapter') },
       ];
       const here = view ? currentScene(view.state) : null;
@@ -51,10 +57,10 @@ export function commandsView(ctx: CommandContext): PaletteView {
           { id: 'end-sprint', group: 'Sprint', label: 'End sprint…', keywords: 'stop finish done keep leave sprinter manuscript', keys: '⌘⇧D', run: () => ctx.run('mode') },
           ...(ctx.timer().running ? [{ id: 'sprint-pause', group: 'Sprint', label: ctx.timer().paused ? 'Resume timer' : 'Pause timer', keywords: 'stop hold break timer clock', run: () => ctx.run('sprint-pause') }] : []),
           { id: 'sprint-hide', group: 'Sprint', label: ctx.timer().hidden ? 'Show timer' : 'Hide timer', keywords: 'timer line progress clock', keys: '⌘⇧H', run: () => ctx.run('sprint-hide') },
-          { id: 'pause', group: 'Insert', label: 'Pause', keywords: 'section break', keys: '⌘⇧↵', run: () => ctx.run('pause') },
-          { id: 'typewriter', group: 'View', label: 'Typewriter mode', keywords: 'center line', keys: '⌘⇧T', state: ctx.isOn('typewriter') ? 'on' : 'off', run: () => ctx.run('typewriter') },
-          { id: 'focus', group: 'View', label: 'Focus mode', keywords: 'hide chrome distraction quiet', keys: '⌘.', state: ctx.isOn('focus') ? 'on' : 'off', run: () => ctx.run('focus') },
-          { id: 'save', group: 'File', label: 'Save', keys: '⌘S', run: () => ctx.run('save') },
+          pauseItem(ctx),
+          typewriterItem(ctx),
+          focusItem(ctx),
+          saveItem(ctx),
         ];
       }
       if (ctx.parked()) {
@@ -73,14 +79,14 @@ export function commandsView(ctx: CommandContext): PaletteView {
       }
       items.push(
         { id: 'sprints', group: 'View', label: 'Sprints…', keywords: 'kept sprints library warm-ups exercises saved', run: () => ctx.run('sprints') },
-        { id: 'sprint', group: 'View', label: 'Sprint…', keywords: 'sprinter timer word goal pomodoro write session mode', keys: '⌘⇧S', run: () => ctx.run('sprint') },
+        { id: 'sprint', group: 'View', label: 'Sprint…', keywords: 'sprinter timer word target pomodoro write session mode', keys: '⌘⇧S', run: () => ctx.run('sprint') },
         { id: 'outline', group: 'View', label: 'Outline', keywords: 'sidebar chapters scenes tree navigator', keys: '⌘\\', state: ctx.isOn('outline') ? 'on' : 'off', run: () => ctx.run('outline') },
-        { id: 'typewriter', group: 'View', label: 'Typewriter mode', keywords: 'center line', keys: '⌘⇧T', state: ctx.isOn('typewriter') ? 'on' : 'off', run: () => ctx.run('typewriter') },
-        { id: 'focus', group: 'View', label: 'Focus mode', keywords: 'hide chrome distraction quiet', keys: '⌘.', state: ctx.isOn('focus') ? 'on' : 'off', run: () => ctx.run('focus') },
+        typewriterItem(ctx),
+        focusItem(ctx),
         { id: 'appearance', group: 'View', label: 'Appearance…', keywords: 'settings preferences theme dark light contrast font serif sans mono size spacing width wide narrow style', keys: '⌘,', run: () => ctx.run('appearance') },
         { id: 'new', group: 'File', label: 'New manuscript', keywords: 'create file', keys: '⌘N', run: () => ctx.fileCommand('new') },
         { id: 'open', group: 'File', label: 'Open…', keywords: 'file', keys: '⌘O', run: () => ctx.fileCommand('open') },
-        { id: 'save', group: 'File', label: 'Save', keys: '⌘S', run: () => ctx.run('save') },
+        saveItem(ctx),
         { id: 'history', group: 'File', label: 'History…', keywords: 'versions snapshots restore backup earlier', run: () => ctx.run('history') },
         { id: 'snapshot', group: 'File', label: 'Save snapshot…', keywords: 'version backup checkpoint', run: () => ctx.run('snapshot') },
         { id: 'export', group: 'File', label: 'Export…', keywords: 'word docx markdown text save as share manuscript', keys: '⇧⌘E', run: () => ctx.run('export') },

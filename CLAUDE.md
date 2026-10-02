@@ -17,7 +17,8 @@ Key rules (details in the docs above):
 - Visuals follow the user's Figma direction; Linear and Obsidian are the UI and
   experience influences; all appearance from tokens; 4px grid.
 - Every behavior change needs live verification and automated tests. Bug fix =
-  failing test first.
+  failing test first. Gates: typecheck, `npm run lint`, unit, E2E (incl. the
+  component gallery's screenshots; see it with `npm run gallery`).
 - Test windows run hidden with throwaway data dirs; never steal focus.
 - Never commit or push unless asked.
 - Integrations (Google sign-in, Drive, Anthropic proxy on Railway) are

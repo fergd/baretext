@@ -20,23 +20,23 @@ declare global {
 }
 
 export interface HookHost {
-  view(): EditorView | null;
-  filePath(): string | null;
-  navigate(sceneId: string): boolean;
+  view: () => EditorView | null;
+  filePath: () => string | null;
+  navigate: (sceneId: string) => boolean;
   saver: Saver;
   toolbar: SelectionToolbar;
   palette: Palette;
   find: FindPanel;
   history: HistoryPanel;
-  appearance(): unknown;
-  exporting(): unknown;
-  outline(): unknown;
-  notes(): unknown;
-  sprint(): unknown;
-  sprints(): unknown;
-  sprintFinishNow(): void;
-  sprintFlush(): Promise<boolean>;
-  recoverSprint(): Promise<void>;
+  appearance: () => unknown;
+  exporting: () => unknown;
+  outline: () => unknown;
+  notes: () => unknown;
+  sprint: () => unknown;
+  sprints: () => unknown;
+  sprintFinishNow: () => void;
+  sprintFlush: () => Promise<boolean>;
+  recoverSprint: () => Promise<void>;
 }
 
 /**

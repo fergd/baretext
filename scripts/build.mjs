@@ -19,8 +19,10 @@ await Promise.all([
   build({ ...common, entryPoints: [`${root}app/main/main.ts`], outfile: `${out}/main/main.cjs`, platform: 'node', format: 'cjs', external: ['electron'] }),
   build({ ...common, entryPoints: [`${root}app/preload/preload.ts`], outfile: `${out}/preload/preload.cjs`, platform: 'node', format: 'cjs', external: ['electron'] }),
   build({ ...common, entryPoints: [`${root}app/renderer/index.ts`], outfile: `${out}/renderer/renderer.js`, platform: 'browser', format: 'iife' }),
+  // The component gallery (dev only; never loaded by the app).
+  build({ ...common, entryPoints: [`${root}app/renderer/gallery/gallery.ts`], outfile: `${out}/renderer/gallery.js`, platform: 'browser', format: 'iife' }),
 ]);
 
-for (const item of ['index.html', 'styles', 'fonts', 'assets']) {
-  cpSync(`${root}app/renderer/${item}`, `${out}/renderer/${item}`, { recursive: true });
+for (const item of ['index.html', 'styles', 'fonts', 'assets', 'gallery/gallery.html', 'gallery/gallery.css']) {
+  cpSync(`${root}app/renderer/${item}`, `${out}/renderer/${item.replace('gallery/', '')}`, { recursive: true });
 }

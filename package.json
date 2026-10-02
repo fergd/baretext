@@ -10,7 +10,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "npm run build && playwright test",
-    "bench": "npm run build && playwright test --config playwright.bench.config.ts"
+    "bench": "npm run build && playwright test --config playwright.bench.config.ts",
+    "lint": "oxlint --type-aware app packages",
+    "gallery": "npm run build && BARETEXT_GALLERY=1 electron ."
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
@@ -19,7 +21,10 @@
     "electron": "^44.4.5",
     "esbuild": "^0.28.2",
     "fast-check": "^4.10.2",
+    "happy-dom": "^20.14.5",
     "jszip": "^3.10.2",
+    "oxlint": "^1.86.0",
+    "oxlint-tsgolint": "^7.0.2003",
     "prosemirror-commands": "^1.7.2",
     "prosemirror-history": "^1.5.0",
     "prosemirror-inputrules": "^1.5.1",

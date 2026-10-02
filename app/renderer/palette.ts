@@ -6,6 +6,7 @@
 // backdrop blur. Follows the dialog / combobox / listbox pattern.
 
 import { prepare, search, type Prepared } from './fuzzy';
+import { Modal } from './modal';
 
 export interface PaletteItem {
   id: string;
@@ -35,8 +36,8 @@ export interface PaletteView {
 }
 
 export class Palette {
+  private readonly modal: Modal;
   readonly el: HTMLElement;
-  private readonly scrim: HTMLElement;
   private readonly input: HTMLInputElement;
   private readonly list: HTMLElement;
   private readonly empty: HTMLElement;
@@ -56,14 +57,8 @@ export class Palette {
   readonly timings = { open: 0, filter: 0 };
 
   constructor(host: HTMLElement) {
-    this.scrim = document.createElement('div');
-    this.scrim.className = 'bt-palette-scrim';
-    this.el = document.createElement('div');
-    this.el.className = 'bt-palette';
-    this.el.setAttribute('role', 'dialog');
-    this.el.setAttribute('aria-modal', 'true');
-    this.el.setAttribute('aria-label', 'Command palette');
-    this.el.dataset.open = 'false';
+    this.modal = new Modal(host, { className: 'bt-palette', label: 'Command palette', onDismiss: () => this.close() });
+    this.el = this.modal.el;
 
     this.input = document.createElement('input');
     this.input.className = 'bt-palette-input';
@@ -85,7 +80,6 @@ export class Palette {
     this.empty.textContent = 'No matches';
 
     this.el.append(this.input, this.list, this.empty);
-    host.append(this.scrim, this.el);
 
     this.input.addEventListener('input', () => this.filter());
     this.input.addEventListener('keydown', (e) => this.onKey(e));
@@ -100,11 +94,10 @@ export class Palette {
       const row = (e.target as HTMLElement).closest<HTMLElement>('[role="option"]');
       if (row) this.setActive(this.shown.indexOf(Number(row.dataset.index)), false);
     });
-    this.scrim.addEventListener('mousedown', (e) => { e.preventDefault(); this.close(); });
   }
 
   get isOpen(): boolean {
-    return this.el.dataset.open === 'true';
+    return this.modal.isOpen;
   }
 
   /** Name of the open view, or null when closed. */
@@ -122,8 +115,7 @@ export class Palette {
     this.build();
     this.input.value = '';
     this.input.placeholder = view.placeholder;
-    this.el.dataset.open = 'true';
-    this.scrim.dataset.open = 'true';
+    this.modal.show();
     this.input.focus();
     this.filter();
     const initial = view.initialId ? this.items.findIndex((i) => i.id === view.initialId) : -1;
@@ -133,8 +125,7 @@ export class Palette {
 
   close() {
     if (!this.isOpen) return;
-    this.el.dataset.open = 'false';
-    this.scrim.dataset.open = 'false';
+    this.modal.hide();
     this.view = null;
     const restore = this.restoreFocus;
     this.restoreFocus = null;
@@ -242,15 +233,6 @@ export class Palette {
       case 'Enter':
         e.preventDefault();
         if (n) this.choose(this.shown[this.active]!);
-        break;
-      case 'Escape':
-        // Claim Esc so it never also leaves focus mode (DECISIONS: Esc layering).
-        e.preventDefault();
-        e.stopPropagation();
-        this.close();
-        break;
-      case 'Tab':
-        e.preventDefault(); // focus stays in the palette
         break;
       case 'Backspace':
         if (!this.input.value && this.view?.back) {

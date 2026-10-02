@@ -703,6 +703,17 @@ Bugs found and fixed, each failing test first:
 - the chooser's radio dot vanished on a focused row.
 E2E 145 (twice, clean), unit 390.
 
+## 2026-10-02 — Audit: cut, combine, standardize (DECISIONS §22)
+Two data hazards found and fixed first (commit `b6330d5`). Then:
+`Sprinter` out of `index.ts` (1,233 → ~1,000 lines); `Modal` base for the
+seven covering panels (History gains the focus trap it lacked); `Arming` for
+the four two-step confirmations (notes and the save notice now also disarm
+on a press elsewhere or Esc, like the outline); `dom.ts` helpers;
+`.bt-field`; shared palette items; dead `SpineTarget` removed. Oxlint
+(type-aware) added as a gate and its 44 findings fixed — notably an
+unhandled window-load failure and a `then`-named object (a latent thenable).
+happy-dom added for DOM unit tests. Unit 400, E2E 147, lint clean.
+
 ## 2026-10-02 — Checkpoint (session handoff; supersedes the 2026-10-01 one)
 **State**
 - This folder (`~/Projects/baretext`) and `main` on github.com/fergd/baretext
@@ -730,3 +741,15 @@ Sprinter mode + sprint timer (Figma `2162:805` shows only the hidden
 "Sprinting…" state; Setup / Active / Minimized / Complete need design
 direction, and whether the goal counts net words added or words typed) ·
 corkboard · print · integrations (DECISIONS §7).
+
+## 2026-10-02 — Checkpoint (session handoff; supersedes the one above)
+**State:** Manuscript and Sprinter are both complete through the Sprints
+library and placing a sprint into any manuscript (DECISIONS §21); the code
+audit's consolidation is in (§22). Gates: `npm run typecheck`, `npm run
+lint`, `npx vitest run`, `npx playwright test` (build first).
+**Open decisions:** break auto-start between rounds (provisional). (The
+time sprint's word goal was cut.)
+**Gallery:** `npm run gallery` (DECISIONS §22); 20 states × 5 themes under
+screenshot test. It found a real bug on day one: two manuscripts with the
+same title *and* file name were labelled identically (now: by folder too).
+**Next (proposed):** corkboard · print · integrations (§7).

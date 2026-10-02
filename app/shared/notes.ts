@@ -40,7 +40,7 @@ export function validNotes(raw: unknown): Note[] {
   if (!Array.isArray(list)) return [];
   const seen = new Set<string>();
   const out: Note[] = [];
-  for (const n of list as Note[]) {
+  for (const n of list) {
     if (!n || typeof n !== 'object' || typeof n.id !== 'string' || !ID.test(n.id) || seen.has(n.id)) continue;
     if (typeof n.body !== 'string' || (n.anchor !== null && !validAnchor(n.anchor))) continue;
     seen.add(n.id);

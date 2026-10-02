@@ -17,7 +17,7 @@ export function lineBreakSanitizer(): Plugin {
       const fixes: Array<[number, number]> = [];
       newState.doc.nodesBetween(start, to, (node, pos) => {
         if (!node.isText) return true;
-        for (const m of node.text!.matchAll(LINE_BREAK)) fixes.push([pos + m.index!, pos + m.index! + 1]);
+        for (const m of node.text!.matchAll(LINE_BREAK)) fixes.push([pos + m.index, pos + m.index + 1]);
         return false;
       });
       if (!fixes.length) return null;

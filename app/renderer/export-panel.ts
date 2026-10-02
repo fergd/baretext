@@ -4,6 +4,8 @@
 
 import type { ExportFormat } from '@baretext/format';
 import type { ExportPrefs, ExportResult } from '../shared/bridge';
+import { arrowStep, Modal } from './modal';
+import { numberFormat } from './dom';
 
 export interface ExportCounts {
   /** The book's title (for the Author field's example). */
@@ -30,26 +32,19 @@ const FORMATS: [ExportFormat, string, string][] = [
   ['text', 'Plain text', 'No formatting at all'],
 ];
 
-const numberFormat = new Intl.NumberFormat();
 const plural = (n: number, one: string, many = `${one}s`) => `${numberFormat.format(n)} ${n === 1 ? one : many}`;
 
 export class ExportPanel {
+  private readonly modal: Modal;
   readonly el: HTMLElement;
-  private readonly scrim: HTMLElement;
   private readonly author: HTMLInputElement;
   private pending: ExportPrefs = { format: 'docx', coldStorage: false, notes: false, author: '' };
   private counts: ExportCounts = { title: '', words: 0, chapters: 0, cold: 0, notes: 0 };
   private busy = false;
 
   constructor(host: HTMLElement, private readonly h: ExportHost) {
-    this.scrim = document.createElement('div');
-    this.scrim.className = 'bt-palette-scrim';
-    this.el = document.createElement('div');
-    this.el.className = 'bt-appearance bt-export';
-    this.el.setAttribute('role', 'dialog');
-    this.el.setAttribute('aria-modal', 'true');
-    this.el.setAttribute('aria-labelledby', 'bt-export-title');
-    this.el.dataset.open = 'false';
+    this.modal = new Modal(host, { className: 'bt-appearance bt-export', labelledBy: 'bt-export-title', onDismiss: () => this.close() });
+    this.el = this.modal.el;
     this.el.innerHTML = `
       <header class="bt-appearance-head"><span class="bt-appearance-title" id="bt-export-title">Export</span></header>
       <div class="bt-export-body">
@@ -63,7 +58,7 @@ export class ExportPanel {
         </div>
         <label class="bt-appearance-group bt-export-author">
           <span class="bt-appearance-label">Author</span>
-          <input type="text" class="bt-export-input" placeholder="Your name, as it should appear" spellcheck="false" autocomplete="name">
+          <input type="text" class="bt-export-input bt-field" placeholder="Your name, as it should appear" spellcheck="false" autocomplete="name">
           <span class="bt-choice-detail bt-export-hint"></span>
         </label>
         <div class="bt-appearance-group">
@@ -79,10 +74,8 @@ export class ExportPanel {
         <button type="button" class="bt-appearance-button" data-action="cancel">Cancel</button>
         <button type="button" class="bt-appearance-button bt-appearance-primary" data-action="export">Export…</button>
       </footer>`;
-    host.append(this.scrim, this.el);
     this.author = this.el.querySelector('.bt-export-input')!;
 
-    this.scrim.addEventListener('mousedown', (e) => { e.preventDefault(); this.close(); });
     this.author.addEventListener('input', () => { this.pending.author = this.author.value; this.reflect(); });
     this.el.addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
@@ -98,7 +91,7 @@ export class ExportPanel {
   }
 
   get isOpen(): boolean {
-    return this.el.dataset.open === 'true';
+    return this.modal.isOpen;
   }
 
   open() {
@@ -107,15 +100,13 @@ export class ExportPanel {
     this.counts = this.h.counts();
     this.author.value = this.pending.author;
     this.reflect();
-    this.el.dataset.open = 'true';
-    this.scrim.dataset.open = 'true';
+    this.modal.show();
     this.el.querySelector<HTMLElement>('[role="radio"][aria-checked="true"]')?.focus();
   }
 
   close() {
     if (!this.isOpen) return;
-    this.el.dataset.open = 'false';
-    this.scrim.dataset.open = 'false';
+    this.modal.hide();
     this.h.onClose();
   }
 
@@ -162,27 +153,13 @@ export class ExportPanel {
 
   private onKey(e: KeyboardEvent) {
     if (e.isComposing) return;
-    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this.close(); return; }
     if (e.key === 'Enter' && (e.metaKey || e.target === this.author)) { e.preventDefault(); void this.export(); return; }
-    if (e.key === 'Tab') { this.trapTab(e); return; }
     const radio = (e.target as HTMLElement).closest<HTMLElement>('[role="radio"]');
-    const step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
-    if (!radio || !step) return;
-    e.preventDefault();
-    const radios = [...this.el.querySelectorAll<HTMLElement>('[role="radio"]')];
-    const next = radios[(radios.indexOf(radio) + step + radios.length) % radios.length]!;
+    const next = radio && arrowStep(e, [...this.el.querySelectorAll<HTMLElement>('[role="radio"]')], radio);
+    if (!next) return;
     this.pending.format = next.dataset.value as ExportFormat;
     this.reflect();
     next.focus();
   }
 
-  /** Keep keyboard focus inside the dialog. */
-  private trapTab(e: KeyboardEvent) {
-    const stops = [...this.el.querySelectorAll<HTMLElement>('button, input')].filter((b) => b.tabIndex >= 0 && b.offsetParent !== null && !(b as HTMLButtonElement).disabled);
-    if (!stops.length) return;
-    const i = stops.indexOf(document.activeElement as HTMLElement);
-    const next = e.shiftKey ? (i <= 0 ? stops.length - 1 : i - 1) : (i === stops.length - 1 ? 0 : i + 1);
-    e.preventDefault();
-    stops[next]!.focus();
-  }
 }

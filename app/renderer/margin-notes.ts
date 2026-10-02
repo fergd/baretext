@@ -9,6 +9,7 @@ import { anchorsIn, parkedKey } from '@baretext/editor';
 import type { Note } from '../shared/notes';
 import type { NotesStore } from './notes-store';
 import { NoteBody } from './note-body';
+import { cssNumber, cssValue } from './dom';
 
 /** Resolve: a check in a circle, as on a comment in Google Docs. */
 const RESOLVE = '<svg viewBox="0 0 20 20" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="7.25"/><path d="M6.75 10.25l2.25 2.25 4.25-4.75"/></svg>';
@@ -52,7 +53,7 @@ export class MarginNotes {
    */
   get isCompact(): boolean {
     const room = (this.scroller.clientWidth - this.page.offsetWidth) / 2;
-    return room < cssPx('--note-card-w') + 2 * cssPx('--note-gap');
+    return room < cssNumber('--note-card-w') + 2 * cssNumber('--note-gap');
   }
 
   private unhighlightResolved() {
@@ -89,14 +90,13 @@ export class MarginNotes {
     for (const a of this.el.getAnimations()) a.cancel();
     delete this.el.dataset.leaving;
     if (!duration) return Promise.resolve(true);
-    const ease = (token: string) => getComputedStyle(document.documentElement).getPropertyValue(token).trim() || 'ease';
-    const frames = [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: `translateX(${cssPx('--notes-drift')}px)` }];
+    const frames = [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: `translateX(${cssNumber('--notes-drift')}px)` }];
     if (show) {
-      this.el.animate(frames.reverse(), { duration, delay, easing: ease('--ease-out'), fill: 'backwards' });
+      this.el.animate(frames.reverse(), { duration, delay, easing: cssValue('--ease-out', 'ease'), fill: 'backwards' });
       return Promise.resolve(true);
     }
     this.el.dataset.leaving = 'true';
-    const anim = this.el.animate(frames, { duration, easing: ease('--ease-in-out'), fill: 'forwards' });
+    const anim = this.el.animate(frames, { duration, easing: cssValue('--ease-in-out', 'ease'), fill: 'forwards' });
     // Gone: the panel takes over this frame (before paint), then the hold is let go.
     return anim.finished.then(() => { requestAnimationFrame(() => { if (anim.playState === 'finished') { anim.cancel(); delete this.el.dataset.leaving; this.refresh(); } }); return true; }, () => false);
   }
@@ -128,7 +128,7 @@ export class MarginNotes {
     for (const { note } of shown) if (!this.cards.has(note.id)) this.cards.set(note.id, this.card(note));
 
     // Each card's passage height on the page; then make room without overlaps.
-    const gap = cssPx('--note-stack-gap');
+    const gap = cssNumber('--note-stack-gap');
     const items = shown.map(({ note, from }) => {
       const card = this.cards.get(note.id)!;
       let want = 0;
@@ -178,8 +178,4 @@ export class MarginNotes {
     return card;
   }
 
-}
-
-function cssPx(token: string): number {
-  return parseFloat(getComputedStyle(document.documentElement).getPropertyValue(token)) || 0;
 }

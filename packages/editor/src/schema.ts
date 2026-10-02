@@ -90,8 +90,8 @@ const marks: Record<string, MarkSpec> = {
     parseDOM: [
       { tag: 'strong' },
       // Google Docs wraps everything in <b style="font-weight:normal">.
-      { tag: 'b', getAttrs: (node) => (node as HTMLElement).style.fontWeight !== 'normal' && null },
-      { style: 'font-weight', getAttrs: (value) => boldWeight(value as string) },
+      { tag: 'b', getAttrs: (node) => node.style.fontWeight !== 'normal' && null },
+      { style: 'font-weight', getAttrs: (value) => boldWeight(value) },
     ],
     toDOM: () => ['strong', 0],
   },

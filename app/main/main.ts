@@ -18,6 +18,8 @@ import { MIN_SIZE, placeWindow } from './window';
 // previous Baretext app, which used the same internal name.
 app.setPath('userData', process.env.BARETEXT_USER_DATA ?? path.join(app.getPath('appData'), 'Baretext Next'));
 const HIDDEN = process.env.BARETEXT_HIDDEN === '1';
+/** The component gallery instead of the app (dev only: `npm run gallery`). */
+const GALLERY = process.env.BARETEXT_GALLERY === '1';
 
 // The window's color before the page paints (each theme's page color), so no theme flashes another.
 const THEME_BACKGROUNDS: Record<Theme, string> = { dark: '#242424', light: '#f5f0e8', grove: '#2f383e', dracula: '#21222c', contrast: '#0a0a0a' };
@@ -59,7 +61,7 @@ async function uniqueUntitledPath(): Promise<string> {
   }
 }
 
-async function uniqueSibling(filePath: string, suffix: string): Promise<string> {
+function uniqueSibling(filePath: string, suffix: string): string {
   const dir = path.dirname(filePath);
   const base = path.basename(filePath, path.extname(filePath));
   for (let i = 1; ; i++) {
@@ -77,7 +79,7 @@ async function readDocument(filePath: string): Promise<OpenedDocument> {
   }
   // Importing never rewrites the original: the converted manuscript is
   // saved as a new file beside it, and that copy is what we edit.
-  const copyPath = await uniqueSibling(filePath, 'Baretext');
+  const copyPath = uniqueSibling(filePath, 'Baretext');
   const saved = await saveManuscript(copyPath, result.manuscript, { recoveryRoot: recoveryRoot() });
   if (!saved.ok) throw new Error(saved.message);
   return { filePath: copyPath, manuscript: result.manuscript, caret: null, importedFrom: filePath };
@@ -213,8 +215,8 @@ function buildMenu() {
     {
       label: 'File',
       submenu: [
-        { label: 'New', accelerator: 'CmdOrCtrl+N', click: () => switchTo(createDocument) },
-        { label: 'Open…', accelerator: 'CmdOrCtrl+O', click: () => openWithDialog() },
+        { label: 'New', accelerator: 'CmdOrCtrl+N', click: () => void switchTo(createDocument) },
+        { label: 'Open…', accelerator: 'CmdOrCtrl+O', click: () => void openWithDialog() },
         {
           label: 'Open Recent',
           submenu: recent.length
@@ -328,7 +330,7 @@ function createWindow() {
       additionalArguments: [`--bt-initial=${encodeURIComponent(JSON.stringify(initial))}`],
     },
   });
-  win.loadFile(path.join(__dirname, '../renderer/index.html'));
+  win.loadFile(path.join(__dirname, `../renderer/${GALLERY ? 'gallery' : 'index'}.html`)).catch((e) => console.error('the window could not load:', e));
   if (s.window?.maximized) win.maximize();
   if (!HIDDEN) win.once('ready-to-show', () => {
     win?.show();
@@ -348,25 +350,29 @@ function createWindow() {
 
   // Links in prose never navigate the app window.
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:|^mailto:/.test(url)) shell.openExternal(url);
+    if (/^https?:|^mailto:/.test(url)) void shell.openExternal(url);
     return { action: 'deny' };
   });
   win.webContents.on('will-navigate', (e) => e.preventDefault());
 
   win.on('close', () => { clearTimeout(boundsTimer); rememberBounds(); });
-  win.on('close', async (e) => {
+  win.on('close', (e) => {
     if (quitting) return;
-    e.preventDefault();
-    const ok = await requestFlush();
-    if (!ok) {
-      tell('Your latest changes are not saved yet, so the window stays open.', 'Your text is safe in the window. The message at the bottom of the window says what to do.');
-      return;
-    }
-    quitting = true;
-    await settings.flush();
-    win?.destroy();
+    e.preventDefault(); // (synchronously: the window waits for the save)
+    void closeOnceSaved();
   });
   win.on('closed', () => { win = null; });
+}
+
+/** Close the window once everything in it is saved; if it can't be, it stays open and says why. */
+async function closeOnceSaved() {
+  if (!GALLERY && !(await requestFlush())) {
+    tell('Your latest changes are not saved yet, so the window stays open.', 'Your text is safe in the window. The message at the bottom of the window says what to do.');
+    return;
+  }
+  quitting = true;
+  await settings.flush();
+  win?.destroy();
 }
 
 function registerIpc() {
@@ -507,7 +513,7 @@ function registerIpc() {
   });
 }
 
-app.whenReady().then(() => {
+void app.whenReady().then(() => {
   settings = new SettingsStore(path.join(app.getPath('userData'), 'settings.json'));
   registerIpc();
   buildMenu();

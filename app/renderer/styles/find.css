@@ -40,17 +40,7 @@
 
 .bt-find-input {
   min-width: 0;
-  height: var(--toolbar-button);
-  padding: 0 var(--space-2);
-  border: 1px solid transparent;
-  border-radius: var(--toolbar-button-radius);
-  background: var(--color-find-field);
-  font: inherit;
-  color: var(--color-text);
-  outline: none;
 }
-.bt-find-input:focus { border-color: var(--color-popover-border); }
-.bt-find-input::placeholder { color: var(--color-text-dimmer); }
 .bt-find[data-empty='true'] .bt-find-field .bt-find-input { border-color: var(--color-danger); }
 
 /* The match count sits inside the Find field, at its right end. */

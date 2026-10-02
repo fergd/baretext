@@ -39,11 +39,12 @@ const bridge: BaretextBridge = {
   onMenu: (cb) => { ipcRenderer.on(CHANNELS.menu, (_e, command: MenuCommand) => cb(command)); },
   onDocumentOpened: (cb) => { ipcRenderer.on(CHANNELS.opened, (_e, doc: OpenedDocument) => cb(doc)); },
   onFlushRequest: (cb) => {
-    ipcRenderer.on(CHANNELS.flush, async (_e, token: string) => {
+    const reply = async (token: string) => {
       let ok = false;
       try { ok = await cb(); } catch { ok = false; }
       ipcRenderer.send(CHANNELS.flushed, token, ok);
-    });
+    };
+    ipcRenderer.on(CHANNELS.flush, (_e, token: string) => void reply(token));
   },
 };
 

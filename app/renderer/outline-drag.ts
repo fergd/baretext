@@ -5,6 +5,7 @@
 // A drag never navigates and never takes focus from the manuscript.
 
 import type { Outline } from './outline';
+import { cssNumber, cssValue } from './dom';
 
 const DRAG_THRESHOLD = 4;
 /** Pointer this close to the list's top or bottom edge scrolls it. */
@@ -271,6 +272,5 @@ export function glide(rows: HTMLElement[], before: Map<string, number>, movedId:
 }
 
 function motion(): { ms: number; easing: string } {
-  const root = getComputedStyle(document.documentElement);
-  return { ms: parseFloat(root.getPropertyValue('--dur-glide')) || 0, easing: root.getPropertyValue('--ease-out').trim() || 'ease-out' };
+  return { ms: cssNumber('--dur-glide'), easing: cssValue('--ease-out', 'ease-out') };
 }

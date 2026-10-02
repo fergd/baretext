@@ -5,12 +5,11 @@
 
 import type { Block, Run } from '@baretext/format';
 import type { BaretextBridge, SprintSummary } from '../shared/bridge';
+import { Arming } from './arming';
+import { Modal } from './modal';
 import { sprintLength, sprintStart } from './sprint-setup';
+import { numberFormat } from './dom';
 
-/** How long an armed Discard waits for its confirmation. */
-const ARM_MS = 4000;
-
-const numberFormat = new Intl.NumberFormat();
 
 export interface SprintsHost {
   bridge: BaretextBridge;
@@ -22,8 +21,8 @@ export interface SprintsHost {
 }
 
 export class SprintsPanel {
+  private readonly modal: Modal;
   readonly el: HTMLElement;
-  private readonly scrim: HTMLElement;
   private readonly list: HTMLElement;
   private readonly head: HTMLElement;
   private readonly text: HTMLElement;
@@ -31,17 +30,17 @@ export class SprintsPanel {
   private selected = -1;
   private blocks: Block[] | null = null;
   private loadToken = 0;
-  private arming: { timer: number; onAway: (e: Event) => void } | null = null;
+  /** Discard waiting for its confirmation (the selected sprint's id). */
+  private readonly arming = new Arming<string>((armed) => {
+    const button = this.head.querySelector<HTMLButtonElement>('[data-action="discard"]');
+    if (!button) return;
+    button.dataset.armed = String(!!armed);
+    button.textContent = armed ? 'Discard for good' : 'Discard';
+  });
 
   constructor(host: HTMLElement, private readonly h: SprintsHost) {
-    this.scrim = document.createElement('div');
-    this.scrim.className = 'bt-palette-scrim';
-    this.el = document.createElement('div');
-    this.el.className = 'bt-sprints';
-    this.el.setAttribute('role', 'dialog');
-    this.el.setAttribute('aria-modal', 'true');
-    this.el.setAttribute('aria-label', 'Sprints');
-    this.el.dataset.open = 'false';
+    this.modal = new Modal(host, { className: 'bt-sprints', label: 'Sprints', onDismiss: () => this.close() });
+    this.el = this.modal.el;
     this.el.innerHTML = `
       <header class="bt-history-head">
         <span class="bt-history-title">Sprints</span>
@@ -54,13 +53,11 @@ export class SprintsPanel {
           <div class="bt-history-preview-text" tabindex="-1"></div>
         </section>
       </div>`;
-    host.append(this.scrim, this.el);
     this.list = this.el.querySelector('.bt-history-list')!;
     this.head = this.el.querySelector('.bt-history-preview-head')!;
     this.text = this.el.querySelector('.bt-history-preview-text')!;
 
     this.el.querySelector('.bt-history-close')!.addEventListener('click', () => this.close());
-    this.scrim.addEventListener('mousedown', (e) => { e.preventDefault(); this.close(); });
     this.list.addEventListener('click', (e) => {
       const row = (e.target as HTMLElement).closest<HTMLElement>('[role="option"]');
       if (row) void this.select(Number(row.dataset.index));
@@ -74,13 +71,12 @@ export class SprintsPanel {
   }
 
   get isOpen(): boolean {
-    return this.el.dataset.open === 'true';
+    return this.modal.isOpen;
   }
 
   /** Open the library, on the sprint `selectId` when given (else the newest). */
   async open(selectId?: string) {
-    this.el.dataset.open = 'true';
-    this.scrim.dataset.open = 'true';
+    this.modal.show();
     this.list.focus();
     this.entries = await this.h.bridge.keptSprints();
     this.renderList();
@@ -97,9 +93,8 @@ export class SprintsPanel {
 
   /** Close without handing focus back (another panel takes over). */
   private hide() {
-    this.disarm();
-    this.el.dataset.open = 'false';
-    this.scrim.dataset.open = 'false';
+    this.arming.disarm();
+    this.modal.hide();
     this.loadToken++;
   }
 
@@ -138,7 +133,7 @@ export class SprintsPanel {
   private async select(i: number) {
     const s = this.entries[i];
     if (!s) return;
-    this.disarm();
+    this.arming.disarm();
     this.list.querySelector('[aria-selected="true"]')?.setAttribute('aria-selected', 'false');
     const row = this.list.children[i] as HTMLElement;
     row.setAttribute('aria-selected', 'true');
@@ -209,9 +204,7 @@ export class SprintsPanel {
 
   private async discard() {
     const s = this.entries[this.selected];
-    if (!s) return;
-    if (!this.arming) { this.arm(); return; }
-    this.disarm();
+    if (!s || !this.arming.press(s.record.id, (t) => !!t.closest('.bt-sprints [data-action="discard"]'))) return;
     if (!(await this.h.discard(s))) return;
     this.entries.splice(this.selected, 1);
     this.renderList();
@@ -220,34 +213,8 @@ export class SprintsPanel {
     this.list.focus();
   }
 
-  private arm() {
-    const button = this.head.querySelector<HTMLButtonElement>('[data-action="discard"]');
-    if (!button) return;
-    button.dataset.armed = 'true';
-    button.textContent = 'Discard for good';
-    // A click anywhere else, or waiting, cancels it.
-    const onAway = (e: Event) => { if (!(e.target as HTMLElement).closest?.('[data-action="discard"]')) this.disarm(); };
-    document.addEventListener('mousedown', onAway, true);
-    this.arming = { timer: window.setTimeout(() => this.disarm(), ARM_MS), onAway };
-  }
-
-  private disarm() {
-    if (!this.arming) return;
-    clearTimeout(this.arming.timer);
-    document.removeEventListener('mousedown', this.arming.onAway, true);
-    this.arming = null;
-    const button = this.head.querySelector<HTMLButtonElement>('[data-action="discard"]');
-    if (button) { delete button.dataset.armed; button.textContent = 'Discard'; }
-  }
-
   private onKey(e: KeyboardEvent) {
     if (e.isComposing) return;
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      e.stopPropagation(); // Esc layering: an armed Discard first, then the panel
-      if (this.arming) this.disarm(); else this.close();
-      return;
-    }
     if ((e.target as HTMLElement).closest('button')) return; // buttons keep their own keys
     const n = this.entries.length;
     if (!n) return;
@@ -257,6 +224,6 @@ export class SprintsPanel {
     else if (e.key === 'End') { e.preventDefault(); void this.select(n - 1); }
     else if (e.key === 'Enter') { e.preventDefault(); this.place(); }
     else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); void this.discard(); }
-    else if (this.arming && !['Shift', 'Meta', 'Alt', 'Control'].includes(e.key)) this.disarm();
+    else if (this.arming.key && !['Shift', 'Meta', 'Alt', 'Control'].includes(e.key)) this.arming.disarm();
   }
 }

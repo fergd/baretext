@@ -8,17 +8,17 @@
 // updates in place, and the list's scroll position is never jumped.
 
 import { BOOK_TITLE } from '@baretext/editor';
+import { Arming } from './arming';
 import { sceneDisplayName, type Outline } from './outline';
 import { OutlineDrag } from './outline-drag';
 import { CHEVRON, PLUS, RESTORE, SNOWFLAKE, TRASH } from './icons';
 import { slideColumn, type Motion } from './sidebar-motion';
+import { cssNumber, numberFormat } from './dom';
 
-const numberFormat = new Intl.NumberFormat();
 const REFRESH_MS = 250;
 /** The Cold Storage section's identity in the tree (folding, focus). */
 const COLD = 'cold-storage';
 /** How long an armed delete waits for its confirmation. */
-const ARM_MS = 4000;
 
 export type OutlinePresence = 'hidden' | 'pinned';
 
@@ -39,7 +39,8 @@ export class OutlinePanel {
   /** The current scene's wash: one element that glides between rows. */
   private readonly highlight: HTMLElement;
   /** A delete waiting for its confirmation (two steps, spec §0.8). */
-  private arming: { id: string; timer: number; onAway: (e: Event) => void } | null = null;
+  /** A delete waiting for its confirmation (the row asks "Delete …?"). */
+  private readonly arming = new Arming<string>((id) => (id ? this.showArmed(id) : this.render(true)));
   /** The inline rename in progress; rows are not rebuilt under it. */
   private editing: { id: string; input: HTMLInputElement; returnTo: 'row' | 'editor' } | null = null;
   private refreshTimer: number | undefined;
@@ -266,7 +267,7 @@ export class OutlinePanel {
     this.tree.scrollTop = scrollTop; // a refresh never moves the list
     if (!this.focusId || !this.rowFor(this.focusId)) this.focusId = this.currentSceneId;
     this.setTabStop(this.focusId ?? '');
-    if (this.arming) this.showArmed(this.arming.id);
+    if (this.arming.key) this.showArmed(this.arming.key);
     if (hadFocus && this.focusId) this.rowFor(this.focusId)?.focus({ preventScroll: true });
     this.markCurrent(false);
   }
@@ -438,38 +439,14 @@ export class OutlinePanel {
 
   /** First step: the row asks "Delete …?" until confirmed, cancelled, or a few seconds pass. */
   private armDelete(id: string) {
-    this.disarm();
-    const onAway = (e: Event) => {
-      if (e.type === 'keydown') {
-        if ((e as KeyboardEvent).key !== 'Escape') return;
-        e.preventDefault();
-        e.stopPropagation(); // Esc cancels the delete, nothing else
-        this.disarm();
-        return;
-      }
-      if (!(e.target as HTMLElement).closest?.(`.bt-outline-row[data-id="${CSS.escape(id)}"] .bt-outline-action`)) this.disarm();
-    };
-    this.arming = { id, timer: window.setTimeout(() => this.disarm(), ARM_MS), onAway };
-    window.addEventListener('pointerdown', onAway, true);
-    window.addEventListener('keydown', onAway, true);
-    this.showArmed(id);
-  }
-
-  private disarm() {
-    const a = this.arming;
-    if (!a) return;
-    this.arming = null;
-    clearTimeout(a.timer);
-    window.removeEventListener('pointerdown', a.onAway, true);
-    window.removeEventListener('keydown', a.onAway, true);
-    this.render(true);
+    this.arming.arm(id, (t) => !!t.closest(`.bt-outline-row[data-id="${CSS.escape(id)}"] .bt-outline-action`));
   }
 
   private confirmDelete() {
-    const id = this.arming?.id;
+    const id = this.arming.key;
     if (!id) return;
     const isChapter = this.rowFor(id)?.dataset.kind === 'chapter';
-    this.disarm();
+    this.arming.disarm();
     if (isChapter) this.actions.deleteChapter(id);
     else this.actions.deleteScene(id);
   }
@@ -502,7 +479,7 @@ export class OutlinePanel {
     if (action === 'add') { this.actions.addScene(row.dataset.id!); return; }
     if (action === 'park') { this.actions.park(row.dataset.id!); return; }
     if (action === 'restore') { this.actions.restore(row.dataset.id!); return; }
-    if (action === 'delete') { if (this.arming?.id === row.dataset.id) this.confirmDelete(); else this.armDelete(row.dataset.id!); return; }
+    if (action === 'delete') { if (this.arming.key === row.dataset.id) this.confirmDelete(); else this.armDelete(row.dataset.id!); return; }
     // The chevron only folds; the chapter's name opens its first scene.
     if (row.dataset.kind === 'chapter' && !(e.target as HTMLElement).closest('.bt-outline-toggle')) {
       const first = this.outline?.chapters.find((c) => c.id === row.dataset.id)?.scenes[0];
@@ -526,7 +503,7 @@ export class OutlinePanel {
       to.scrollIntoView({ block: 'nearest' });
     };
     const chapterOf = (r: HTMLElement) => (r.dataset.chapter ? this.rowFor(r.dataset.chapter) : r);
-    if (this.arming?.id === row.dataset.id && (e.key === 'Enter' || e.key === 'Delete' || e.key === 'Backspace')) {
+    if (this.arming.key === row.dataset.id && (e.key === 'Enter' || e.key === 'Delete' || e.key === 'Backspace')) {
       e.preventDefault();
       e.stopPropagation();
       this.confirmDelete();
@@ -538,11 +515,8 @@ export class OutlinePanel {
       this.armDelete(row.dataset.id!);
       return;
     }
-    if (this.arming && !['Shift', 'Meta', 'Alt', 'Control'].includes(e.key)) {
-      const wasEsc = e.key === 'Escape';
-      this.disarm();
-      if (wasEsc) { e.preventDefault(); e.stopPropagation(); return; } // Esc only cancels the delete
-    }
+    // Any other key cancels the delete (Esc is claimed by the arming itself).
+    if (this.arming.key && !['Shift', 'Meta', 'Alt', 'Control'].includes(e.key)) this.arming.disarm();
     if (e.key === 'Enter' && e.metaKey && row.dataset.kind === 'chapter') {
       e.preventDefault();
       e.stopPropagation();
@@ -627,5 +601,5 @@ function words(n: number): string {
 }
 
 function motionMs(): number {
-  return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dur-glide')) || 0;
+  return cssNumber('--dur-glide');
 }

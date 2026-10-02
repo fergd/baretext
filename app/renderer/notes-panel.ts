@@ -13,8 +13,8 @@ import { outlineOf } from './outline';
 import { PLUS } from './icons';
 import { NoteBody } from './note-body';
 import { slideColumn, type Motion } from './sidebar-motion';
+import { Arming } from './arming';
 
-const ARM_MS = 4000;
 
 export interface NotesPanelHost {
   view(): EditorView | null;
@@ -34,7 +34,8 @@ export class NotesPanel {
   private readonly list: HTMLElement;
   private readonly count: HTMLElement;
   private showResolved = false;
-  private armed: { id: string; timer: number } | null = null;
+  /** A note's Delete waiting for its confirmation. */
+  private readonly arming = new Arming<string>(() => this.render());
   private frame = 0;
   private readonly bodies = new Map<string, NoteBody>();
   isOpen = false;
@@ -191,12 +192,12 @@ export class NotesPanel {
       return b;
     };
     if (note.resolved) {
-      foot.append(action('reopen', 'Reopen'), action('delete', this.armed?.id === note.id ? 'Confirm: delete' : 'Delete'));
+      foot.append(action('reopen', 'Reopen'), action('delete', this.arming.key === note.id ? 'Confirm: delete' : 'Delete'));
     } else {
       if (place && !place.lost) foot.append(action('show', 'Show in manuscript'));
       foot.append(action('resolve', 'Resolve'));
     }
-    if (place?.lost) foot.append(action('delete', this.armed?.id === note.id ? 'Confirm: delete' : 'Delete'));
+    if (place?.lost) foot.append(action('delete', this.arming.key === note.id ? 'Confirm: delete' : 'Delete'));
     card.append(foot);
     return card;
   }
@@ -213,12 +214,7 @@ export class NotesPanel {
       case 'reopen': if (id) this.h.store.update(id, { resolved: false }); break;
       case 'delete':
         if (!id) break;
-        if (this.armed?.id === id) { clearTimeout(this.armed.timer); this.armed = null; this.h.remove(id); }
-        else {
-          if (this.armed) clearTimeout(this.armed.timer);
-          this.armed = { id, timer: window.setTimeout(() => { this.armed = null; this.render(); }, ARM_MS) };
-          this.render();
-        }
+        if (this.arming.press(id, (t) => !!t.closest(`[data-note="${CSS.escape(id)}"] [data-action="delete"]`))) this.h.remove(id);
         break;
     }
   }

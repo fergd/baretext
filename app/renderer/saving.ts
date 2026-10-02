@@ -12,18 +12,24 @@ import type { EditorView } from 'prosemirror-view';
 import { undo } from 'prosemirror-history';
 import { docToModel } from '@baretext/editor';
 import type { BaretextBridge, SaveResult } from '../shared/bridge';
+import { Arming } from './arming';
 
 const AUTOSAVE_MS = 500;
 const CARET_SAVE_MS = 2000;
 /** How long an armed "Save anyway" waits for its confirmation. */
-const ARM_MS = 4000;
 
 export class Saver {
   private saveTimer: number | undefined;
   private caretTimer: number | undefined;
   private chain: Promise<boolean> = Promise.resolve(true);
   private savedDoc: PMNode | null = null;
-  private armTimer: number | undefined;
+  /** "Save anyway" waiting for its confirmation (its label says so while armed). */
+  private readonly arming = new Arming<HTMLButtonElement>((armed) => {
+    for (const b of this.noticeActions.querySelectorAll<HTMLButtonElement>('[data-armed-label]')) {
+      b.dataset.armed = String(b === armed);
+      b.textContent = b === armed ? b.dataset.armedLabel! : b.dataset.label!;
+    }
+  });
   private readonly notice: HTMLElement;
   private readonly noticeText: HTMLElement;
   private readonly noticeActions: HTMLElement;
@@ -113,7 +119,7 @@ export class Saver {
   // ── the notice ──
 
   private showFailure(result: Extract<SaveResult, { ok: false }>) {
-    clearTimeout(this.armTimer);
+    this.arming.disarm();
     if (result.reason === 'destructive') {
       this.noticeText.textContent = 'Not saved: this change removes most of the manuscript. The file still has the earlier text.';
       this.noticeActions.replaceChildren(
@@ -131,7 +137,7 @@ export class Saver {
   }
 
   private hideNotice() {
-    clearTimeout(this.armTimer);
+    this.arming.disarm();
     this.notice.hidden = true;
   }
 
@@ -147,13 +153,8 @@ export class Saver {
 
   /** Two steps (spec §0.8): the first click arms, the second (within a few seconds) acts. */
   private armedButton(label: string, armedLabel: string, run: () => void): HTMLButtonElement {
-    const b = this.button(label, () => {
-      if (b.dataset.armed === 'true') { delete b.dataset.armed; clearTimeout(this.armTimer); run(); return; }
-      b.dataset.armed = 'true';
-      b.textContent = armedLabel;
-      clearTimeout(this.armTimer);
-      this.armTimer = window.setTimeout(() => { delete b.dataset.armed; b.textContent = label; }, ARM_MS);
-    });
+    const b = this.button(label, () => { if (this.arming.press(b, (t) => b.contains(t))) run(); });
+    Object.assign(b.dataset, { label, armedLabel });
     return b;
   }
 }

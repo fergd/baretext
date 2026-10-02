@@ -69,7 +69,7 @@ export function setLink(href: string): Command {
 export const removeLink: Command = (state, dispatch) => {
   if (state.selection.empty) return false;
   const { from, to } = state.selection;
-  if (dispatch) dispatch(state.tr.removeMark(from, to, schema.marks.link!));
+  if (dispatch) dispatch(state.tr.removeMark(from, to, schema.marks.link));
   return true;
 };
 

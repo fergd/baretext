@@ -4,8 +4,9 @@
 
 import type { Manuscript } from '@baretext/format';
 import type { BaretextBridge, SnapshotInfo } from '../shared/bridge';
+import { Modal } from './modal';
+import { numberFormat } from './dom';
 
-const numberFormat = new Intl.NumberFormat();
 const timeFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
 const dateFormat = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
 
@@ -33,8 +34,8 @@ export interface HistoryHost {
 }
 
 export class HistoryPanel {
+  private readonly modal: Modal;
   readonly el: HTMLElement;
-  private readonly scrim: HTMLElement;
   private readonly list: HTMLElement;
   private readonly preview: HTMLElement;
   private readonly previewHead: HTMLElement;
@@ -44,19 +45,13 @@ export class HistoryPanel {
   private loadToken = 0;
 
   constructor(host: HTMLElement, private readonly h: HistoryHost) {
-    this.scrim = document.createElement('div');
-    this.scrim.className = 'bt-palette-scrim';
-    this.el = document.createElement('div');
-    this.el.className = 'bt-history';
-    this.el.setAttribute('role', 'dialog');
-    this.el.setAttribute('aria-modal', 'true');
-    this.el.setAttribute('aria-label', 'History');
-    this.el.dataset.open = 'false';
+    this.modal = new Modal(host, { className: 'bt-history', label: 'History', onDismiss: () => this.close() });
+    this.el = this.modal.el;
     this.el.innerHTML = `
       <header class="bt-history-head">
         <span class="bt-history-title">History</span>
         <form class="bt-history-save">
-          <input class="bt-history-label" type="text" placeholder="Label (optional)" aria-label="Snapshot label" spellcheck="false" autocomplete="off">
+          <input class="bt-history-label bt-field bt-field-quiet" type="text" placeholder="Label (optional)" aria-label="Snapshot label" spellcheck="false" autocomplete="off">
           <button type="submit" class="bt-history-button">Save snapshot</button>
         </form>
         <button type="button" class="bt-history-close" aria-label="Close" title="Close  Esc">×</button>
@@ -68,14 +63,12 @@ export class HistoryPanel {
           <div class="bt-history-preview-text" tabindex="-1"></div>
         </section>
       </div>`;
-    host.append(this.scrim, this.el);
     this.list = this.el.querySelector('.bt-history-list')!;
     this.preview = this.el.querySelector('.bt-history-preview-text')!;
     this.previewHead = this.el.querySelector('.bt-history-preview-head')!;
     this.label = this.el.querySelector('.bt-history-label')!;
 
     this.el.querySelector('.bt-history-close')!.addEventListener('click', () => this.close());
-    this.scrim.addEventListener('mousedown', (e) => { e.preventDefault(); this.close(); });
     this.el.querySelector('form')!.addEventListener('submit', (e) => { e.preventDefault(); void this.saveSnapshot(); });
     this.list.addEventListener('click', (e) => {
       const row = (e.target as HTMLElement).closest<HTMLElement>('[role="option"]');
@@ -88,13 +81,12 @@ export class HistoryPanel {
   }
 
   get isOpen(): boolean {
-    return this.el.dataset.open === 'true';
+    return this.modal.isOpen;
   }
 
   /** Open the panel; with `labelFirst`, the caret goes to the snapshot label field. */
   async open(labelFirst = false) {
-    this.el.dataset.open = 'true';
-    this.scrim.dataset.open = 'true';
+    this.modal.show();
     this.label.value = '';
     if (labelFirst) this.label.focus(); else this.list.focus();
     await this.reload(0);
@@ -102,8 +94,7 @@ export class HistoryPanel {
 
   close() {
     if (!this.isOpen) return;
-    this.el.dataset.open = 'false';
-    this.scrim.dataset.open = 'false';
+    this.modal.hide();
     this.loadToken++;
     this.preview.replaceChildren();
     this.h.onClose();
@@ -245,12 +236,6 @@ export class HistoryPanel {
 
   private onKey(e: KeyboardEvent) {
     if (e.isComposing) return;
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      e.stopPropagation(); // Esc layering
-      this.close();
-      return;
-    }
     if (e.target === this.label) return;
     const n = this.entries.length;
     if (!n) return;

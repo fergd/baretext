@@ -1,0 +1,50 @@
+/* The gallery's own frame: a scrolling page of labelled frames. Each frame is
+   a stand-in window — its transform makes it the containing block for the
+   component's fixed-position parts (scrim, panel), so many can sit side by
+   side. */
+
+html, body { height: auto; min-height: 100%; overflow: auto; background: var(--color-chrome); }
+
+.g-bar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  height: var(--palette-input-h);
+  padding: 0 var(--space-6);
+  background: var(--color-chrome);
+  border-bottom: 1px solid var(--color-popover-border);
+}
+.g-title { font-size: var(--text-palette-input); color: var(--color-text); }
+.g-themes { margin-left: auto; }
+
+.g-root { display: flex; flex-direction: column; gap: var(--space-12); padding: var(--space-8) var(--space-6) var(--space-16); }
+.g-heading { margin: 0 0 var(--space-3); font-size: var(--text-ui); line-height: var(--lh-ui); font-weight: 400; color: var(--color-text-dimmer); text-transform: uppercase; letter-spacing: 0.08em; }
+.g-row { display: flex; flex-wrap: wrap; gap: var(--space-6); }
+.g-figure { margin: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+/* Whole-pixel line heights keep every frame on whole pixels (crisp, exact screenshots). */
+.g-caption { font-size: var(--text-ui); line-height: var(--lh-ui); color: var(--color-text-dim); }
+
+.g-frame {
+  position: relative;
+  width: var(--g-w);
+  height: var(--g-h);
+  overflow: hidden;
+  transform: translateZ(0);
+  border-radius: var(--popover-radius);
+  outline: 1px solid var(--color-popover-border);
+  background: var(--color-page);
+  color: var(--color-text);
+  font-family: var(--font-ui);
+}
+/* Frames that host app-level parts (the timer line) are a .bt-app, without its window layout. */
+/* Still pictures: nothing inside a frame transitions or plays a CSS animation
+   (the timer line's own animation is paused at its state by the gallery). */
+.g-frame *,
+.g-frame *::before,
+.g-frame *::after { transition: none !important; animation: none !important; }
+
+.g-frame.g-app { display: block; height: var(--g-h); }
+.g-workspace { position: absolute; inset: 0; }

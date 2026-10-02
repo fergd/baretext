@@ -45,13 +45,13 @@ function runsToNodes(runs: readonly Run[]): PMNode[] {
 export function sprintDoc(blocks: readonly Block[] = []): PMNode {
   const content = blocks.map((b) => {
     switch (b.type) {
-      case 'paragraph': return s.nodes.paragraph!.create(null, runsToNodes(b.content));
-      case 'section_break': return s.nodes.section_break!.create();
-      case 'quote': return s.nodes.quote!.create(null, (b.paragraphs.length ? b.paragraphs : [[]]).map((p) => s.nodes.paragraph!.create(null, runsToNodes(p))));
+      case 'paragraph': return s.nodes.paragraph.create(null, runsToNodes(b.content));
+      case 'section_break': return s.nodes.section_break.create();
+      case 'quote': return s.nodes.quote.create(null, (b.paragraphs.length ? b.paragraphs : [[]]).map((p) => s.nodes.paragraph.create(null, runsToNodes(p))));
     }
   });
-  if (!content.length || content[content.length - 1]!.type !== s.nodes.paragraph) content.push(s.nodes.paragraph!.create());
-  const doc = s.nodes.doc!.create(null, content);
+  if (!content.length || content[content.length - 1]!.type !== s.nodes.paragraph) content.push(s.nodes.paragraph.create());
+  const doc = s.nodes.doc.create(null, content);
   doc.check();
   return doc;
 }
@@ -83,7 +83,7 @@ export const insertSprintPause: Command = (state, dispatch) => {
   const { $from } = state.selection;
   if (dispatch) {
     const at = $from.after(1);
-    const tr = state.tr.insert(at, [s.nodes.section_break!.create(), s.nodes.paragraph!.create()]);
+    const tr = state.tr.insert(at, [s.nodes.section_break.create(), s.nodes.paragraph.create()]);
     tr.setSelection(TextSelection.create(tr.doc, at + 2));
     dispatch(tr.scrollIntoView());
   }

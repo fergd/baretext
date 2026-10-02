@@ -9,10 +9,6 @@
 import type { ChapterEntry, Outline } from './outline';
 import { sceneDisplayName } from './outline';
 
-export interface SpineTarget {
-  sceneId: string;
-}
-
 const PITCH = 8;
 const CHAPTER_GAP = 16;
 const PADDING = 48;

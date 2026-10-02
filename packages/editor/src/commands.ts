@@ -386,7 +386,7 @@ export const insertSectionBreak: Command = (state, dispatch) => {
   } else if (atEnd) {
     if (next?.type === pause) return true;
     // Continue on the next line; add one only when there isn't a paragraph to continue on.
-    const lineAfter = next?.type === schema.nodes.paragraph ? [] : [schema.nodes.paragraph!.create()];
+    const lineAfter = next?.type === schema.nodes.paragraph ? [] : [schema.nodes.paragraph.create()];
     tr.insert($c.after(), [pause.create(), ...lineAfter]);
     tr.setSelection(TextSelection.create(tr.doc, $c.after() + 2));
   } else {

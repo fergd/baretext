@@ -2,17 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_SPRINT } from '../../shared/bridge';
 
 // sprint-setup.ts builds DOM only when constructed; its helpers are pure.
-const { sprintSummary, suggestedGoal, sprintName } = await import('../sprint-setup');
+const { sprintSummary, sprintName } = await import('../sprint-setup');
 
 const at = new Date(2026, 9, 2, 7, 0);
 const clock = (h: number, m: number) => new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(2026, 9, 2, h, m));
 
 describe('sprint setup', () => {
-  it('suggests about 20 words a minute', () => {
-    expect(suggestedGoal(15)).toBe(300);
-    expect(suggestedGoal(25)).toBe(500);
-  });
-
   it('says when a time sprint ends, counting breaks between rounds (not after the last)', () => {
     expect(sprintSummary({ ...DEFAULT_SPRINT, minutes: 25 }, at)).toBe(`Ends ${clock(7, 25)}`);
     expect(sprintSummary({ ...DEFAULT_SPRINT, minutes: 25, rounds: 4, breakMinutes: 5 }, at)).toBe(`4 × 25 min · ends ${clock(8, 55)}`);

@@ -3,6 +3,8 @@
 // Remembers the last choices. Built from the Appearance panel's parts.
 
 import { SPRINT_LIMITS, type SprintKind, type SprintPrefs } from '../shared/bridge';
+import { arrowStep, Modal } from './modal';
+import { numberFormat } from './dom';
 
 export interface SprintSetupHost {
   current(): SprintPrefs;
@@ -16,10 +18,7 @@ const PRESETS: Record<SprintKind, number[]> = {
 };
 const ROUNDS = [1, 2, 3, 4];
 const BREAKS = [0, 5, 10];
-/** A time sprint's suggested goal: about 20 words a minute. */
-export const suggestedGoal = (minutes: number) => minutes * 20;
 
-const numberFormat = new Intl.NumberFormat();
 const timeFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
 
 /** The footer line: the session at a glance. */
@@ -45,21 +44,14 @@ const seg = (group: string, values: number[], label: (v: number) => string) => v
   `<button type="button" role="radio" class="bt-seg-item" data-group="${group}" data-value="${v}" aria-checked="false">${label(v)}</button>`).join('');
 
 export class SprintSetup {
+  private readonly modal: Modal;
   readonly el: HTMLElement;
-  private readonly scrim: HTMLElement;
   private readonly custom: HTMLInputElement;
-  private readonly goal: HTMLInputElement;
-  private pending: SprintPrefs = { kind: 'time', minutes: 15, words: 500, goal: null, rounds: 1, breakMinutes: 5 };
+  private pending: SprintPrefs = { kind: 'time', minutes: 15, words: 500, rounds: 1, breakMinutes: 5 };
 
   constructor(host: HTMLElement, private readonly h: SprintSetupHost) {
-    this.scrim = document.createElement('div');
-    this.scrim.className = 'bt-palette-scrim';
-    this.el = document.createElement('div');
-    this.el.className = 'bt-appearance bt-sprint bt-sprint-setup';
-    this.el.setAttribute('role', 'dialog');
-    this.el.setAttribute('aria-modal', 'true');
-    this.el.setAttribute('aria-labelledby', 'bt-sprint-title');
-    this.el.dataset.open = 'false';
+    this.modal = new Modal(host, { className: 'bt-appearance bt-sprint bt-sprint-setup', labelledBy: 'bt-sprint-title', onDismiss: () => this.close() });
+    this.el = this.modal.el;
     this.el.innerHTML = `
       <header class="bt-appearance-head">
         <span class="bt-appearance-title" id="bt-sprint-title">Sprint</span>
@@ -74,10 +66,6 @@ export class SprintSetup {
           <input type="text" class="bt-sprint-custom" inputmode="numeric" placeholder="Custom" spellcheck="false" autocomplete="off" aria-label="Custom length">
           <span class="bt-sprint-unit" id="bt-sprint-unit"></span>
         </div>
-        <label class="bt-sprint-row" data-row="goal">
-          <span class="bt-sprint-label">Goal</span>
-          <span class="bt-sprint-field"><input type="text" class="bt-sprint-goal" inputmode="numeric" spellcheck="false" autocomplete="off"><span class="bt-sprint-suffix">words</span></span>
-        </label>
         <div class="bt-sprint-row">
           <span class="bt-sprint-label" id="bt-sprint-rounds">Rounds</span>
           <div role="radiogroup" aria-labelledby="bt-sprint-rounds" class="bt-seg">${seg('rounds', ROUNDS, String)}</div>
@@ -92,19 +80,14 @@ export class SprintSetup {
         <button type="button" class="bt-appearance-button bt-sprint-button" data-action="cancel">Cancel<kbd>esc</kbd></button>
         <button type="button" class="bt-appearance-button bt-appearance-primary bt-sprint-button" data-action="start">Start<kbd>↵</kbd></button>
       </footer>`;
-    host.append(this.scrim, this.el);
     this.custom = this.el.querySelector('.bt-sprint-custom')!;
-    this.goal = this.el.querySelector('.bt-sprint-goal')!;
 
-    this.scrim.addEventListener('mousedown', (e) => { e.preventDefault(); this.close(); });
     this.custom.addEventListener('input', () => {
       const n = this.parse(this.custom, this.pending.kind === 'time' ? 'minutes' : 'words');
       if (n !== null) this.setLength(n);
       this.reflect();
     });
     this.custom.addEventListener('blur', () => this.reflect());
-    this.goal.addEventListener('input', () => { this.pending.goal = this.parse(this.goal, 'goal'); this.reflect(); });
-    this.goal.addEventListener('blur', () => this.reflect());
     this.el.addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
       const radio = target.closest<HTMLButtonElement>('[role="radio"]');
@@ -117,31 +100,27 @@ export class SprintSetup {
   }
 
   get isOpen(): boolean {
-    return this.el.dataset.open === 'true';
+    return this.modal.isOpen;
   }
 
   open() {
     if (this.isOpen) return;
     this.pending = { ...this.h.current() };
     this.custom.value = '';
-    this.goal.value = '';
     this.reflect();
-    this.el.dataset.open = 'true';
-    this.scrim.dataset.open = 'true';
+    this.modal.show();
     (this.el.querySelector<HTMLElement>('.bt-sprint-presets [aria-checked="true"]') ?? this.custom).focus();
   }
 
   close() {
     if (!this.isOpen) return;
-    this.el.dataset.open = 'false';
-    this.scrim.dataset.open = 'false';
+    this.modal.hide();
     this.h.onClose();
   }
 
   private start() {
     const p = { ...this.pending };
-    this.el.dataset.open = 'false';
-    this.scrim.dataset.open = 'false';
+    this.modal.hide();
     this.h.start(p);
   }
 
@@ -155,7 +134,7 @@ export class SprintSetup {
   }
 
   /** A whole number within the field's limits, or null. */
-  private parse(input: HTMLInputElement, key: 'minutes' | 'words' | 'goal'): number | null {
+  private parse(input: HTMLInputElement, key: 'minutes' | 'words'): number | null {
     const n = Number(input.value.replace(/[^\d]/g, ''));
     const [min, max] = SPRINT_LIMITS[key];
     return input.value.trim() && Number.isInteger(n) && n >= min && n <= max ? n : null;
@@ -185,8 +164,6 @@ export class SprintSetup {
     const custom = !presets.includes(this.length);
     this.custom.dataset.active = String(custom);
     if (custom && document.activeElement !== this.custom) this.custom.value = numberFormat.format(this.length);
-    this.goal.placeholder = numberFormat.format(suggestedGoal(p.minutes));
-    if (document.activeElement !== this.goal) this.goal.value = p.goal ? numberFormat.format(p.goal) : '';
 
     const values: Record<string, number | string> = { kind: p.kind, length: custom ? NaN : this.length, rounds: p.rounds, breakMinutes: p.breakMinutes };
     for (const group of this.el.querySelectorAll<HTMLElement>('[role="radiogroup"]')) {
@@ -207,32 +184,17 @@ export class SprintSetup {
   private onKey(e: KeyboardEvent) {
     if (e.isComposing) return;
     const target = e.target as HTMLElement;
-    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this.close(); return; }
     if (e.key === 'Enter') {
       if (target.closest('[data-action="cancel"]')) return;
       e.preventDefault();
       this.start();
       return;
     }
-    if (e.key === 'Tab') { this.trapTab(e); return; }
     const radio = target.closest<HTMLButtonElement>('[role="radio"]');
-    const step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
-    if (!radio || !step) return;
-    e.preventDefault();
-    const radios = [...radio.closest('[role="radiogroup"]')!.querySelectorAll<HTMLButtonElement>('[role="radio"]')];
-    const next = radios[(radios.indexOf(radio) + step + radios.length) % radios.length]!;
+    const next = radio && arrowStep(e, [...radio.closest('[role="radiogroup"]')!.querySelectorAll<HTMLButtonElement>('[role="radio"]')], radio);
+    if (!radio || !next) return;
     this.choose(next);
     // The kind switch rebuilds the presets; focus follows the choice.
     (radio.dataset.group === 'kind' ? this.el.querySelector<HTMLElement>(`[data-group="kind"][data-value="${next.dataset.value}"]`)! : next).focus();
-  }
-
-  /** Keep keyboard focus inside the dialog. */
-  private trapTab(e: KeyboardEvent) {
-    const stops = [...this.el.querySelectorAll<HTMLElement>('button, input')].filter((b) => b.tabIndex >= 0 && b.offsetParent !== null && !(b as HTMLButtonElement).disabled);
-    if (!stops.length) return;
-    const i = stops.indexOf(document.activeElement as HTMLElement);
-    const next = e.shiftKey ? (i <= 0 ? stops.length - 1 : i - 1) : (i === stops.length - 1 ? 0 : i + 1);
-    e.preventDefault();
-    stops[next]!.focus();
   }
 }

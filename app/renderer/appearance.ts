@@ -15,6 +15,8 @@ import {
   type ProseWidth,
   type Theme,
 } from '../shared/bridge';
+import { arrowStep, Modal } from './modal';
+import { numberFormat } from './dom';
 
 /** What the sample window shows: the writer's own scene. */
 export interface SampleText {
@@ -61,24 +63,17 @@ const GROUPS: Group<Key>[] = [
   ] as [ProseWidth, string, string][] },
 ];
 
-const numberFormat = new Intl.NumberFormat();
 const ATTRS: Record<Key, string> = { theme: 'theme', proseFont: 'proseFont', paragraphSpacing: 'paragraphSpacing', proseWidth: 'proseWidth', fontSize: 'fontSize' };
 
 export class AppearancePanel {
+  private readonly modal: Modal;
   readonly el: HTMLElement;
-  private readonly scrim: HTMLElement;
   private readonly sampleEl: HTMLElement;
   private pending: AppearancePrefs = { ...DEFAULT_APPEARANCE };
 
   constructor(host: HTMLElement, private readonly h: AppearanceHost) {
-    this.scrim = document.createElement('div');
-    this.scrim.className = 'bt-palette-scrim';
-    this.el = document.createElement('div');
-    this.el.className = 'bt-appearance';
-    this.el.setAttribute('role', 'dialog');
-    this.el.setAttribute('aria-modal', 'true');
-    this.el.setAttribute('aria-labelledby', 'bt-appearance-title');
-    this.el.dataset.open = 'false';
+    this.modal = new Modal(host, { className: 'bt-appearance', labelledBy: 'bt-appearance-title', onDismiss: () => this.close() });
+    this.el = this.modal.el;
     this.el.innerHTML = `
       <header class="bt-appearance-head">
         <span class="bt-appearance-title" id="bt-appearance-title">Appearance</span>
@@ -94,10 +89,8 @@ export class AppearancePanel {
         <button type="button" class="bt-appearance-button" data-action="cancel">Cancel</button>
         <button type="button" class="bt-appearance-button bt-appearance-primary" data-action="save">Save</button>
       </footer>`;
-    host.append(this.scrim, this.el);
     this.sampleEl = this.el.querySelector('.bt-sample')!;
 
-    this.scrim.addEventListener('mousedown', (e) => { e.preventDefault(); this.close(); });
     this.el.addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
       const option = target.closest<HTMLElement>('[role="radio"]');
@@ -111,7 +104,7 @@ export class AppearancePanel {
   }
 
   get isOpen(): boolean {
-    return this.el.dataset.open === 'true';
+    return this.modal.isOpen;
   }
 
   /** The choices not yet saved (for tests). */
@@ -124,8 +117,7 @@ export class AppearancePanel {
     this.pending = { ...this.h.current() };
     this.buildSample(this.h.sample());
     this.reflect();
-    this.el.dataset.open = 'true';
-    this.scrim.dataset.open = 'true';
+    this.modal.show();
     // Start on the theme that is in use.
     this.el.querySelector<HTMLElement>('[role="radio"][aria-checked="true"]')?.focus();
   }
@@ -133,8 +125,7 @@ export class AppearancePanel {
   /** Close without saving. */
   close() {
     if (!this.isOpen) return;
-    this.el.dataset.open = 'false';
-    this.scrim.dataset.open = 'false';
+    this.modal.hide();
     this.h.onClose();
   }
 
@@ -160,37 +151,16 @@ export class AppearancePanel {
 
   private onKey(e: KeyboardEvent) {
     if (e.isComposing) return;
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      e.stopPropagation(); // Esc closes the panel, nothing else
-      this.close();
-      return;
-    }
     if (e.key === 'Enter' && e.metaKey) { // ⌘↵ saves from anywhere in the panel
       e.preventDefault();
       this.save();
       return;
     }
-    if (e.key === 'Tab') { this.trapTab(e); return; }
     const radio = (e.target as HTMLElement).closest<HTMLElement>('[role="radio"]');
-    if (!radio) return;
-    const step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
-    if (!step) return;
-    e.preventDefault();
-    const radios = [...radio.closest('[role="radiogroup"]')!.querySelectorAll<HTMLElement>('[role="radio"]')];
-    const next = radios[(radios.indexOf(radio) + step + radios.length) % radios.length]!;
+    const next = radio && arrowStep(e, [...radio.closest('[role="radiogroup"]')!.querySelectorAll<HTMLElement>('[role="radio"]')], radio);
+    if (!next) return;
     this.choose(next.dataset.key as Key, next.dataset.value!);
     next.focus();
-  }
-
-  /** Keep keyboard focus inside the dialog. */
-  private trapTab(e: KeyboardEvent) {
-    const stops = [...this.el.querySelectorAll<HTMLElement>('button')].filter((b) => b.tabIndex >= 0 && b.offsetParent !== null);
-    if (!stops.length) return;
-    const i = stops.indexOf(document.activeElement as HTMLElement);
-    const next = e.shiftKey ? (i <= 0 ? stops.length - 1 : i - 1) : (i === stops.length - 1 ? 0 : i + 1);
-    e.preventDefault();
-    stops[next]!.focus();
   }
 
   private groupHTML(g: Group<Key>): string {
