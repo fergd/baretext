@@ -597,3 +597,43 @@ export/print · integrations (DECISIONS §7).
   resolved in the pre-split document (argument evaluated after `tr.doc`) —
   the existing ⌘↵ test failed; fixed.
 - Tests: 350 unit, 113 end-to-end.
+
+## 2026-10-01 — Export
+- Word (standard manuscript format), Markdown and plain text from an
+  Export panel (⇧⌘E); Cold Storage and notes optional; choices remembered.
+  DECISIONS §18.
+- Verified: unit tests for the book builder, Markdown/text renderers and
+  the .docx (its XML: fonts, spacing, indents, page breaks, running head,
+  comments); e2e for the panel, both save-dialog outcomes, relaunch memory.
+  The 120k sample exported in all three formats; macOS's importer
+  (`textutil`) reads the .docx cleanly (115,677 words). Quick Look is not
+  page-accurate, so the layout is pinned by the XML tests; a copy is in
+  `samples/lorem-ipsum-120k (export).docx` to open in Pages or Word.
+- Palette test now checks "no Format group without a selection" instead of
+  a row count (it broke each time a command was added).
+- "Your name" → **Author**, with a live line showing where it appears in
+  the Word manuscript; File → Export… moved beside Save.
+- Tests: 364 unit, 116 end-to-end.
+
+## 2026-10-01 — Title leading
+- Chapter/scene title line height tightened (DECISIONS §19).
+- Found by it: the margin didn't redraw when a Cold Storage scene opened or
+  closed (only on text changes) — it had relied on a scroller resize the
+  taller titles happened to cause. Now refreshed on that change; the
+  existing notes e2e caught it.
+- Bug (user, random, resizing didn't help): the status bar "went big" and
+  the title bar vanished — the whole app had been scrolled up inside the
+  window. html/body were `overflow: hidden` (code can still scroll that:
+  scrollIntoView, focus) and the page row was `1fr` (min = content). Now
+  html, body and the app are `overflow: clip`, the body contains what is
+  positioned against it, and the row is `minmax(0, 1fr)`: nothing can
+  displace the app. Test first (it reproduced the shift).
+- Tests: 364 unit, 117 end-to-end.
+
+## 2026-10-01 — Review before commit
+- The main process validates the book from the window (`isExportBook`)
+  before building anything — a malformed one is a clean error, never a
+  crash. One helper for the notes an export carries; no throwaway runs in
+  the Word builder; note ranges by map.
+- Verified: typecheck; 365 unit; fuzz 30,000; 117 e2e; today's e2e ×3
+  (81/81, no flakes); bench p95 5.5–6.8 ms on 150k words, save 55 ms.

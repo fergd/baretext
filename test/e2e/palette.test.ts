@@ -41,7 +41,7 @@ test('targeted: Format commands appear only with a selection, and act on it', as
   try {
     await page.keyboard.press('Meta+k');
     expect(await labels(page)).not.toContain('Bold');
-    expect((await labels(page)).length).toBeLessThanOrEqual(19); // stays short: no Format rows without a selection (19 with Chapter break)
+    expect(await page.$$eval('.bt-palette-group', (hs) => hs.map((h) => h.textContent))).not.toContain('Format'); // no Format rows without a selection
     await page.keyboard.press('Escape');
     expect((await state(page)).open).toBe(false);
 

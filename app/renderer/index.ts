@@ -33,6 +33,7 @@ import {
   schema,
   splitScene,
   splitChapter,
+  docToExport,
   toggleBold,
   toggleItalic,
   toggleQuote,
@@ -44,6 +45,7 @@ import { OutlinePanel, type OutlinePresence } from './outline-panel';
 import { FindPanel } from './find';
 import { HistoryPanel } from './history';
 import { AppearancePanel, readAppearance, sampleFrom, setAppearance } from './appearance';
+import { ExportPanel } from './export-panel';
 import { Palette, type PaletteView } from './palette';
 import { commandsView, jumpView, type CommandContext } from './palette-commands';
 import { SelectionToolbar } from './toolbar';
@@ -541,6 +543,30 @@ const appearance = new AppearancePanel(document.body, {
   onClose: () => view?.focus(),
 });
 
+// Export (⇧⌘E): the choices are remembered whether or not the export goes ahead.
+let exportPrefs = bridge.initial.export;
+/** The notes an export can carry: open, with something written. */
+const exportableNotes = () => notes.all.filter((n) => !n.resolved && n.body);
+const exporter = new ExportPanel(document.body, {
+  current: () => exportPrefs,
+  counts: () => {
+    const outline = view ? outlineOf(view.state.doc) : null;
+    return { title: view?.state.doc.firstChild!.textContent ?? '', words: outline?.words ?? 0, chapters: outline?.chapters.length ?? 0, cold: outline?.parked.length ?? 0, notes: exportableNotes().length };
+  },
+  run: async (p) => {
+    exportPrefs = p;
+    bridge.setPrefs({ export: p });
+    if (!view || !filePath) return { ok: false, message: 'There is nothing to export yet.' };
+    const included = p.notes ? exportableNotes().map((n) => ({ id: n.id, body: n.body, anchored: !!n.anchor })) : null;
+    const book = docToExport(view.state.doc, { coldStorage: p.coldStorage, notes: included });
+    const result = await bridge.exportBook(filePath, p.format, book, p.author);
+    if (result.ok) toast(`Exported “${result.path.split('/').pop()}”`);
+    else if (!result.canceled) toast(`Couldn’t export: ${result.message}`, 'error');
+    return result;
+  },
+  onClose: () => view?.focus(),
+});
+
 const history = new HistoryPanel(document.body, {
   bridge,
   filePath: () => filePath,
@@ -571,6 +597,7 @@ function dispatch(this: EditorView, tr: Transaction) {
   const parkedNow = parkedKey.getState(next);
   if (parkedNow !== parkedKey.getState(before)) {
     app.dataset.parked = String(!!parkedNow);
+    margin.refresh(); // another page: its notes, not the manuscript's
     // Closed some other way than Back (its scene deleted): return to where the writer was.
     const back = parkedNow ? null : parkedReturn;
     parkedReturn = parkedNow ? parkedReturn : null;
@@ -736,7 +763,7 @@ function runCommand(command: MenuCommand) {
   if (!view) return;
   // A panel that covers the window (Appearance, History) keeps every other
   // command out until it closes; saving is always allowed.
-  if ((appearance.isOpen || history.isOpen) && command !== 'save') return;
+  if ((appearance.isOpen || history.isOpen || exporter.isOpen) && command !== 'save') return;
   const run = (cmd: (s: EditorState, d?: (tr: Transaction) => void) => boolean) => { cmd(view!.state, view!.dispatch); view!.focus(); };
   switch (command) {
     case 'undo': run(undo); break;
@@ -763,6 +790,7 @@ function runCommand(command: MenuCommand) {
     case 'find-prev': find.next(-1); break;
     case 'appearance': palette.close(); find.close(); history.close(); appearance.open(); break;
     case 'history': palette.close(); find.close(); void history.open(false); break;
+    case 'export': palette.close(); find.close(); exporter.open(); break;
     case 'snapshot': palette.close(); find.close(); void history.open(true); break;
     case 'new-scene': { const here = currentScene(view.state); if (here) newSceneIn(here.chapter.id); break; }
     case 'new-chapter': {
@@ -819,6 +847,7 @@ window.addEventListener('keydown', (e) => {
   else if (e.key === ',' && !e.shiftKey) { e.preventDefault(); runCommand('appearance'); }
   else if (k === 'm' && e.shiftKey) { e.preventDefault(); runCommand('add-note'); }
   else if (k === 'n' && e.shiftKey) { e.preventDefault(); runCommand('notes'); }
+  else if (k === 'e' && e.shiftKey) { e.preventDefault(); runCommand('export'); }
   else if (k === 'o' && e.shiftKey) { e.preventDefault(); runCommand('goto'); }
   else if (k === 'f' && !e.shiftKey) { e.preventDefault(); runCommand('find'); }
   else if (k === 'g') { e.preventDefault(); runCommand(e.shiftKey ? 'find-prev' : 'find-next'); }
@@ -873,6 +902,7 @@ installTestHooks({
   find,
   history,
   appearance: () => ({ open: appearance.isOpen, choices: appearance.choices, applied: readAppearance(app) }),
+  exporting: () => ({ open: exporter.isOpen, prefs: exportPrefs }),
   outline: () => ({ presence: outlinePanel.presence, focused: outlinePanel.el.contains(document.activeElement) }),
   notes: () => ({ all: notes.all.map((n) => ({ ...n })), panel: notesPanel.isOpen, compact: margin.isCompact, anchors: view ? [...anchorsIn(view.state.doc).keys()] : [] }),
 });

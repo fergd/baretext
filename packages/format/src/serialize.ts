@@ -111,6 +111,14 @@ function escapeHref(href: string): string {
 /** Serialize one paragraph's runs to a single line (never empty). */
 export function serializeRuns(runs: readonly Run[]): string {
   if (runs.length === 0) return EMPTY_PARAGRAPH;
+  return serializeInline(runs, true, true);
+}
+
+/**
+ * Serialize runs as inline Markdown. `lineStart`/`lineEnd` say whether they
+ * begin/end the physical line (export puts footnote markers between pieces).
+ */
+export function serializeInline(runs: readonly Run[], lineStart: boolean, lineEnd: boolean): string {
   let bold = false;
   let italic = false;
   let link: string | null = null;
@@ -134,8 +142,8 @@ export function serializeRuns(runs: readonly Run[]): string {
       out += '[';
       link = wantLink;
     }
-    const atStart = i === 0 && out === '';
-    out += escapeText(run.text, atStart, i === runs.length - 1);
+    const atStart = lineStart && i === 0 && out === '';
+    out += escapeText(run.text, atStart, lineEnd && i === runs.length - 1);
   });
   // Whitespace at the very end of the line must be encoded even when a
   // closing delimiter follows it; escapeText handled that via atLineEnd.

@@ -1,10 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { Manuscript } from '@baretext/format';
-import { CHANNELS, DEFAULT_APPEARANCE, type BaretextBridge, type InitialPrefs, type MenuCommand, type OpenedDocument } from '../shared/bridge';
+import { CHANNELS, DEFAULT_APPEARANCE, DEFAULT_EXPORT, type BaretextBridge, type InitialPrefs, type MenuCommand, type OpenedDocument } from '../shared/bridge';
 
 function readInitial(): InitialPrefs {
   const arg = process.argv.find((a) => a.startsWith('--bt-initial='));
-  const fallback: InitialPrefs = { ...DEFAULT_APPEARANCE, outline: 'hidden', hidden: false };
+  const fallback: InitialPrefs = { ...DEFAULT_APPEARANCE, outline: 'hidden', hidden: false, export: DEFAULT_EXPORT };
   if (!arg) return fallback;
   try {
     return { ...fallback, ...JSON.parse(decodeURIComponent(arg.slice('--bt-initial='.length))) };
@@ -26,6 +26,7 @@ const bridge: BaretextBridge = {
   removeSnapshot: (filePath, id) => ipcRenderer.invoke(CHANNELS.snapshotsRemove, filePath, id),
   loadNotes: (filePath) => ipcRenderer.invoke(CHANNELS.notesLoad, filePath),
   saveNotes: (filePath, notes) => ipcRenderer.invoke(CHANNELS.notesSave, filePath, notes),
+  exportBook: (filePath, format, book, author) => ipcRenderer.invoke(CHANNELS.exportSave, filePath, format, book, author),
   onMenu: (cb) => { ipcRenderer.on(CHANNELS.menu, (_e, command: MenuCommand) => cb(command)); },
   onDocumentOpened: (cb) => { ipcRenderer.on(CHANNELS.opened, (_e, doc: OpenedDocument) => cb(doc)); },
   onFlushRequest: (cb) => {

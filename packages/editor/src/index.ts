@@ -37,6 +37,7 @@ export * from './structure';
 export * from './decorations';
 export * from './format';
 export * from './find';
+export { docToExport, type ExportNoteInput, type ExportOptions } from './export';
 
 const emDash = new InputRule(/--$/, '—');
 

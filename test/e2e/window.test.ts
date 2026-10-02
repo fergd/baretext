@@ -96,3 +96,33 @@ test('status bar: Typewriter is a switch; Focus is a button that enters focus mo
     await app.close();
   }
 });
+
+test('the app never shifts in its window: nothing can scroll it, even content that overflows and asks to be shown', async () => {
+  const { app, page } = await launch({ file: { name: 'W.md', content: '# One\n\nText.\n' } });
+  try {
+    const layout = () => page.evaluate(() => ({
+      chrome: Math.round(document.querySelector('.bt-chrome')!.getBoundingClientRect().top),
+      status: Math.round(document.querySelector('.bt-status')!.getBoundingClientRect().bottom),
+      height: innerHeight,
+    }));
+    const before = await layout();
+    expect(before.chrome).toBe(0);
+    expect(before.status).toBe(before.height);
+    await page.evaluate(() => {
+      // Something sticks out below the window (in the body, or in the page's middle row) and is scrolled to.
+      const below = Object.assign(document.createElement('div'), { tabIndex: -1 });
+      below.style.cssText = 'position:absolute;top:150vh;height:10px;width:10px';
+      document.body.append(below);
+      below.scrollIntoView();
+      below.focus();
+      const tall = document.createElement('div');
+      tall.style.cssText = 'height:300vh';
+      document.querySelector('.bt-workspace')!.append(tall);
+      tall.scrollIntoView({ block: 'end' });
+      for (const el of [document.documentElement, document.body, document.querySelector('.bt-app')!]) el.scrollTop = 500;
+    });
+    expect(await layout()).toEqual(before);
+  } finally {
+    await app.close();
+  }
+});

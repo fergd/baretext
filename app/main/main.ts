@@ -2,8 +2,9 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, screen, shell, type MenuItem
 import { randomBytes } from 'node:crypto';
 import { existsSync, promises as fs } from 'node:fs';
 import path from 'node:path';
-import { emptyManuscript, manuscriptWords, parse, serialize, validate, type Manuscript } from '@baretext/format';
-import { CHANNELS, OUTLINE_STATES, validAppearance, type InitialPrefs, type MenuCommand, type OpenedDocument, type OutlineState, type Theme } from '../shared/bridge';
+import { bookTitle, emptyManuscript, EXPORT_EXTENSIONS, EXPORT_FORMATS, exportMarkdown, exportText, isExportBook, manuscriptWords, parse, serialize, validate, type ExportFormat, type Manuscript } from '@baretext/format';
+import { buildDocx } from './export-docx';
+import { CHANNELS, OUTLINE_STATES, validAppearance, validExport, type ExportResult, type InitialPrefs, type MenuCommand, type OpenedDocument, type OutlineState, type Theme } from '../shared/bridge';
 import { atomicWrite, saveManuscript } from './save';
 import { notesPathFor, validNotes } from '../shared/notes';
 import { SnapshotStore, type SnapshotEntry } from './snapshots';
@@ -169,6 +170,8 @@ async function openWithDialog() {
   if (!result.canceled && file) await switchTo(() => readDocument(file));
 }
 
+const EXPORT_NAMES: Record<ExportFormat, string> = { docx: 'Word Document', markdown: 'Markdown', text: 'Plain Text' };
+
 // ── menu ──
 
 function send(command: MenuCommand) {
@@ -210,6 +213,8 @@ function buildMenu() {
         },
         { type: 'separator' },
         { label: 'Save', ...label('CmdOrCtrl+S'), click: () => send('save') },
+        { label: 'Export…', ...label('Shift+CmdOrCtrl+E'), click: () => send('export') },
+        { type: 'separator' },
         { label: 'Reveal in Finder', click: () => currentFile && shell.showItemInFolder(currentFile) },
         { type: 'separator' },
         { label: 'History…', click: () => send('history') },
@@ -280,6 +285,7 @@ function createWindow() {
   const s = settings.get();
   const initial: InitialPrefs = {
     theme: s.theme, proseFont: s.proseFont, paragraphSpacing: s.paragraphSpacing, proseWidth: s.proseWidth, fontSize: s.fontSize, outline: s.outline, hidden: HIDDEN,
+    export: s.export,
   };
   // Where it was last time (if still on a connected display), else a large
   // centered window. Hidden test windows keep a fixed size unless a test sets one.
@@ -401,8 +407,34 @@ function registerIpc() {
       return { ok: false, message: (e as Error).message };
     }
   });
+  ipcMain.handle(CHANNELS.exportSave, async (_e, filePath: unknown, format: unknown, book: unknown, author: unknown): Promise<ExportResult> => {
+    if (!own(filePath) || !win) return { ok: false, message: 'This window is not editing that file.' };
+    if (!EXPORT_FORMATS.includes(format as ExportFormat) || !isExportBook(book)) return { ok: false, message: 'The export could not be prepared.' };
+    const f = format as ExportFormat;
+    const ext = EXPORT_EXTENSIONS[f];
+    // Named for the book (else the manuscript), in the folder the last export went to.
+    const title = bookTitle(book);
+    const base = (title === 'Untitled' ? path.basename(filePath, path.extname(filePath)) : title).replace(/[/\\:]/g, '-').trim();
+    const last = settings.get().exportDir;
+    const choice = await dialog.showSaveDialog(win, {
+      title: 'Export',
+      defaultPath: path.join(last && existsSync(last) ? last : path.dirname(filePath), `${base}.${ext}`),
+      filters: [{ name: EXPORT_NAMES[f], extensions: [ext] }],
+    });
+    if (choice.canceled || !choice.filePath) return { ok: false, canceled: true };
+    try {
+      const data = f === 'docx' ? await buildDocx(book, typeof author === 'string' ? author : '')
+        : f === 'markdown' ? exportMarkdown(book) : exportText(book);
+      await atomicWrite(choice.filePath, data);
+      settings.update({ exportDir: path.dirname(choice.filePath) });
+      return { ok: true, path: choice.filePath };
+    } catch (e) {
+      return { ok: false, message: (e as Error).message };
+    }
+  });
   ipcMain.on(CHANNELS.setPrefs, (_e, patch: Record<string, unknown>) => {
     const next: Record<string, unknown> = { ...validAppearance(patch) };
+    if ('export' in patch) next.export = validExport(patch.export);
     if (OUTLINE_STATES.includes(patch.outline as OutlineState)) next.outline = patch.outline;
     settings.update(next);
     if ('outline' in next) buildMenu(); // keep the checked item in step

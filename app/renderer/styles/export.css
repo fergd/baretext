@@ -1,0 +1,30 @@
+/* Export: the Appearance panel's parts, one narrow column. */
+
+.bt-export { width: min(var(--export-w), calc(100vw - 2 * var(--space-4))); }
+.bt-export-body { display: flex; flex-direction: column; gap: var(--space-5); padding: var(--space-4); overflow-y: auto; }
+
+.bt-export-formats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.bt-export-input {
+  height: var(--toolbar-button);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-popover-border);
+  border-radius: var(--toolbar-button-radius);
+  background: var(--color-find-field);
+  font: inherit;
+  letter-spacing: inherit;
+  color: var(--color-text);
+  outline: none;
+}
+.bt-export-input:focus { border-color: var(--color-accent); }
+.bt-export-input::placeholder { color: var(--color-text-dimmer); }
+.bt-export-author[hidden] { display: none; }
+.bt-export-hint { text-wrap: pretty; }
+
+.bt-export-includes { display: flex; flex-direction: column; gap: var(--space-2); }
+.bt-export-include { justify-content: flex-start; height: var(--toolbar-button); text-align: left; color: var(--color-text); }
+.bt-export-include-label { min-width: var(--space-24); }
+.bt-export-include:disabled { color: var(--color-text-dimmer); cursor: default; }
+
+.bt-export-summary { margin-right: auto; font-size: var(--text-ui); color: var(--color-text-dimmer); font-variant-numeric: tabular-nums; }
+.bt-export[data-busy='true'] [data-action='export'] { opacity: 0.6; pointer-events: none; }

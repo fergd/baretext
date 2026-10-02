@@ -29,6 +29,7 @@ export interface HookHost {
   find: FindPanel;
   history: HistoryPanel;
   appearance(): unknown;
+  exporting(): unknown;
   outline(): unknown;
   notes(): unknown;
 }
@@ -104,6 +105,7 @@ export function installTestHooks(h: HookHost) {
     textBetween: (from: number, to: number) => h.view()?.state.doc.textBetween(from, to, '\n') ?? '',
     history: () => ({ open: h.history.isOpen }),
     appearance: h.appearance,
+    exporting: h.exporting,
     outline: h.outline,
     notes: h.notes,
     find: () => ({ open: h.find.isOpen, count: h.find.el.querySelector('.bt-find-count')!.textContent, ms: h.find.lastSearchMs }),

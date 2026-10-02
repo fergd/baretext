@@ -738,3 +738,48 @@ Build the main app first. When integrations are built, follow this design.
   One undo step; fuzzed (60,000 cases). "New Chapter" (add one at the end)
   is unchanged.
 
+## 18. Export (2026-10-01, user) — EXTENDS spec §13
+- **Formats (user): Word (.docx), Markdown, plain text.** PDF not now.
+- **⇧⌘E opens an Export panel** (File → Export…, beside Save as on any
+  Mac app; the palette), built from
+  the Appearance panel's parts: Format (Word / Markdown / Plain text),
+  **Author** (Word only; renamed from "Your name" — user found it unclear;
+  a live line shows where it goes: “by Name” on the title page and
+  “Surname / TITLE / 2” atop each page), Include — **Cold
+  Storage** and **Notes** (user: the only options; each disabled when there
+  are none). Footer: chapters and words. Export… (or ⌘↵) opens the macOS
+  save dialog (the book's title as the name; the last export folder);
+  cancelling it leaves the panel open. Choices are remembered (settings).
+- **What's in it:** the book's title, chapter titles (an untitled chapter
+  is "Chapter N"), prose with bold/italic/links, breaks. **Never** scene
+  names (working labels) or bookkeeping (identities, links). Empty lines
+  are dropped. Scene boundaries and pauses are both a break.
+- **Cold Storage** (opt-in): after the book, under "Cold Storage", each
+  parked scene labelled with its name. **Notes** (opt-in, open and saved
+  ones only): Word — comments on their passages (general notes and notes
+  whose passage was deleted hang on the title); Markdown — footnotes
+  `[^n]` at the end of the passage, general notes under "Notes"; plain
+  text — `[n]` markers and a Notes list quoting each passage. A note about
+  a parked scene goes only with Cold Storage.
+- **Word is standard manuscript format:** Letter, 1" margins, Times New
+  Roman 12pt, double spaced, first lines indented ½"; title page with name
+  (left) and "about N words" (right; nearest 1,000 for a book) and the
+  title and "by Name" centred; running head "Surname / TITLE / page" on
+  every page but the first; each chapter on a new page, a third down; "#"
+  for breaks; "END". Built with the `docx` library in the main process
+  (`app/main/export-docx.ts`); Markdown and text in `packages/format`
+  (`export.ts`, reusing the serializer's escaping); the book itself from
+  the document (`packages/editor/src/export.ts`). Written atomically.
+
+## 19. Title leading (2026-10-01, user)
+- **Chapter and scene titles set tighter** so a title that wraps holds
+  together: chapter 64→52px, scene 48→40px line height (user asked to
+  halve the leading; both now 12px, on the 4px grid). Hanging numbers and
+  the scene-boundary number follow the tokens.
+
+## 20. The window never scrolls (2026-10-01)
+- html, body and `.bt-app` are `overflow: clip` (not `hidden`, which code
+  can still scroll), the body is `position: relative` so it clips what is
+  positioned against it, and the page row is `minmax(0, 1fr)`. Only the
+  scroller, panels and lists scroll. (window.test.ts)
+

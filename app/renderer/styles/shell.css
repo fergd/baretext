@@ -3,7 +3,10 @@
 html, body {
   margin: 0;
   height: 100%;
-  overflow: hidden;
+  /* clip, not hidden: a hidden box can still be scrolled by code (scrollIntoView,
+     focus), which once shifted the whole app up in its window for good. */
+  overflow: clip;
+  position: relative; /* the body clips even what is positioned against it */
   background: var(--color-chrome);
   color: var(--color-text);
   font-family: var(--font-ui);
@@ -24,8 +27,10 @@ button {
 
 .bt-app {
   display: grid;
-  grid-template-rows: var(--chrome-h) 1fr var(--status-h);
+  /* minmax(0, …): the page's row is the window's, never its content's. */
+  grid-template-rows: var(--chrome-h) minmax(0, 1fr) var(--status-h);
   height: 100vh;
+  overflow: clip;
 }
 
 /* ── chrome ── */

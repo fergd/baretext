@@ -47,9 +47,9 @@
   --text-body: 15px;
   --lh-body: 24px;
   --text-chapter: 40px;
-  --lh-chapter: 64px;
+  --lh-chapter: 52px; /* 12px of leading: wrapped titles hold together */
   --text-scene: 28px;
-  --lh-scene: 48px;
+  --lh-scene: 40px;
   --tracking-title: 0.3px;
   --text-ui: 11px;
   --lh-ui: 24px;
@@ -167,6 +167,7 @@
   --appearance-top: 48px;
   --appearance-w: 1120px;
   --appearance-controls-w: 320px;
+  --export-w: 520px;
   --appearance-choice-h: 40px;
   --appearance-card-w: 88px;
   --appearance-swatch-h: 48px;

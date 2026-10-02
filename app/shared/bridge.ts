@@ -1,5 +1,5 @@
 // The narrow bridge between the UI and the privileged side (spec §14.1).
-import type { Manuscript } from '@baretext/format';
+import { EXPORT_FORMATS, type ExportBook, type ExportFormat, type Manuscript } from '@baretext/format';
 import type { Note } from './notes';
 
 export interface OpenedDocument {
@@ -65,13 +65,38 @@ export function validAppearance(raw: Record<string, unknown>): Partial<Appearanc
   return out as Partial<AppearancePrefs>;
 }
 
+/** Export choices, remembered between exports (DECISIONS §18). */
+export interface ExportPrefs {
+  format: ExportFormat;
+  coldStorage: boolean;
+  notes: boolean;
+  /** For Word's title page and running head. */
+  author: string;
+}
+
+export const DEFAULT_EXPORT: ExportPrefs = { format: 'docx', coldStorage: false, notes: false, author: '' };
+
+/** Export choices from untrusted input (anything malformed falls back to the default). */
+export function validExport(raw: unknown): ExportPrefs {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  return {
+    format: EXPORT_FORMATS.includes(r.format as ExportFormat) ? (r.format as ExportFormat) : DEFAULT_EXPORT.format,
+    coldStorage: r.coldStorage === true,
+    notes: r.notes === true,
+    author: typeof r.author === 'string' ? r.author.slice(0, 200) : '',
+  };
+}
+
+export type ExportResult = { ok: true; path: string } | { ok: false; canceled: true } | { ok: false; canceled?: false; message: string };
+
 export interface InitialPrefs extends AppearancePrefs {
   outline: OutlineState;
   hidden: boolean;
+  export: ExportPrefs;
 }
 
 export type MenuCommand =
-  | 'undo' | 'redo' | 'typewriter' | 'focus' | 'bold' | 'italic' | 'link' | 'quote' | 'split-scene' | 'split-chapter' | 'pause' | 'name-scene' | 'save' | 'palette' | 'goto' | 'find' | 'find-replace' | 'find-next' | 'find-prev' | 'history' | 'snapshot' | 'outline' | 'outline-focus' | 'new-scene' | 'new-chapter' | 'appearance' | 'park-scene' | 'add-note' | 'notes';
+  | 'undo' | 'redo' | 'typewriter' | 'focus' | 'bold' | 'italic' | 'link' | 'quote' | 'split-scene' | 'split-chapter' | 'pause' | 'name-scene' | 'save' | 'palette' | 'goto' | 'find' | 'find-replace' | 'find-next' | 'find-prev' | 'history' | 'snapshot' | 'outline' | 'outline-focus' | 'new-scene' | 'new-chapter' | 'appearance' | 'park-scene' | 'add-note' | 'notes' | 'export';
 
 /** A local snapshot of a manuscript (DECISIONS §6). */
 export interface SnapshotInfo {
@@ -89,6 +114,8 @@ export interface BaretextBridge {
   /** `force` overrides the destructive-save guard: only after the writer confirmed (Save anyway). */
   save(filePath: string, manuscript: Manuscript, caret: number, force?: boolean): Promise<SaveResult>;
   setPrefs(patch: Partial<Omit<InitialPrefs, 'hidden'>>): void;
+  /** Export the book: asks where (macOS save dialog), then writes it. */
+  exportBook(filePath: string, format: ExportFormat, book: ExportBook, author: string): Promise<ExportResult>;
   revealInFinder(filePath: string): void;
   listSnapshots(filePath: string): Promise<SnapshotInfo[]>;
   readSnapshot(filePath: string, id: string): Promise<Manuscript>;
@@ -119,6 +146,7 @@ export const CHANNELS = {
   snapshotsRemove: 'snapshots:remove',
   notesLoad: 'notes:load',
   notesSave: 'notes:save',
+  exportSave: 'export:save',
   menu: 'menu:command',
   flush: 'app:flush',
   flushed: 'app:flushed',
