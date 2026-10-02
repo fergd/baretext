@@ -1376,6 +1376,95 @@ describe('Baretext E2E: cursor never rests inside a named scene break\'s hidden 
   });
 });
 
+// Regression: arrowing UP from a named scene's first line jumped backward
+// over the atomic marker/comment chrome and stopped at its near edge -- the
+// "---" line's own first position. The caret then drew alone, centered, in
+// the gap above the scene heading, and typing there wrote onto the marker
+// line, corrupting the scene break. The DOM selection is unreliable in a
+// hidden window, so this reads CodeMirror's own state.
+describe('Baretext E2E: caret never rests at the start of a hidden scene-break marker', () => {
+  let app;
+  const fixture = [
+    '# Chapter One',
+    '',
+    '"No it\'s fine, it\'s a dumb day anyway."',
+    '"That\'s what single people always say."',
+    '',
+    '---',
+    '<!-- Journal: February 14, 2026 -->',
+    '',
+    'Today was an awful, awful day.',
+  ].join('\n');
+
+  before(async () => {
+    app = await launchApp({ fixtureContent: fixture, mode: 'editor' });
+  });
+
+  after(async () => {
+    if (app) await app.close();
+  });
+
+  const cursorProbe = `
+    const findView = () => {
+      for (const sel of ['.cm-content', '.cm-editor']) {
+        const el = document.querySelector(sel);
+        for (const k of Object.keys(el)) {
+          const o = el[k];
+          if (o && o.view && o.view.state) return o.view;
+          if (o && o.root && o.root.view) return o.root.view;
+        }
+      }
+      return null;
+    };
+    const cursor = () => {
+      const v = findView();
+      const head = v.state.selection.main.head;
+      const line = v.state.doc.lineAt(head);
+      return { head, line: line.text, col: head - line.from };
+    };
+    const press = async (key, keyCode) => {
+      document.querySelector('.cm-content').dispatchEvent(new KeyboardEvent('keydown', { key, code: key, keyCode, which: keyCode, bubbles: true, cancelable: true }));
+      await new Promise(r => setTimeout(r, 60));
+    };
+  `;
+
+  test('arrowing up or down through a named scene break skips the marker line', async () => {
+    const steps = await app.client.evaluate(cursorProbe + `
+      const v = findView();
+      v.focus();
+      v.dispatch({ selection: { anchor: v.state.doc.toString().indexOf('Today was') } });
+      await new Promise(r => setTimeout(r, 60));
+      const out = [cursor()];
+      for (let i = 0; i < 4; i++) { await press('ArrowUp', 38); out.push(cursor()); }
+      for (let i = 0; i < 5; i++) { await press('ArrowDown', 40); out.push(cursor()); }
+      return out;
+    `);
+    assert.ok(
+      steps.every((s) => s.line !== '---'),
+      `caret rested on the hidden marker line: ${JSON.stringify(steps)}`
+    );
+    assert.ok(steps.some((s) => s.line.startsWith('"That')), `arrowing up never reached the previous scene: ${JSON.stringify(steps)}`);
+  });
+
+  test('typing after arrowing up from the scene never edits the marker', async () => {
+    await app.client.evaluate(cursorProbe + `
+      const v = findView();
+      v.focus();
+      v.dispatch({ selection: { anchor: v.state.doc.toString().indexOf('Today was') } });
+      await new Promise(r => setTimeout(r, 60));
+      await press('ArrowUp', 38);
+    `);
+    await app.client.insertText('x');
+    const doc = await app.client.evaluate(cursorProbe + `return findView().state.doc.toString();`);
+    assert.match(doc, /\n---\n<!-- Journal: February 14, 2026 -->\n/);
+  });
+
+  test('no console errors in this suite', () => {
+    const bad = app.client.getConsoleMessages().filter((m) => m.type === 'error' || m.type === 'exception');
+    assert.deepEqual(bad, []);
+  });
+});
+
 // Own instance: switches the editor font live, which the stateful suites
 // around it shouldn't inherit.
 describe('Baretext E2E: mono font flattens every heading to regular weight; other fonts keep bold', () => {

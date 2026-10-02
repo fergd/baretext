@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/baretext-design-system-580d2a30-10cc-4906-b5f5-3152dc8dfba8/tokens/typography.css">
+<link rel="stylesheet" href="_ds/baretext-design-system-580d2a30-10cc-4906-b5f5-3152dc8dfba8/tokens/colors.css">
+<link rel="stylesheet" href="_ds/baretext-design-system-580d2a30-10cc-4906-b5f5-3152dc8dfba8/tokens/spacing.css">
+<link rel="stylesheet" href="_ds/baretext-design-system-580d2a30-10cc-4906-b5f5-3152dc8dfba8/tokens/radius.css">
+<link rel="stylesheet" href="_ds/baretext-design-system-580d2a30-10cc-4906-b5f5-3152dc8dfba8/tokens/shadows.css">
+<link rel="stylesheet" href="_ds/baretext-design-system-580d2a30-10cc-4906-b5f5-3152dc8dfba8/tokens/motion.css">
+<link rel="stylesheet" href="_ds/baretext-design-system-580d2a30-10cc-4906-b5f5-3152dc8dfba8/tokens/semantic.css">
+<link rel="stylesheet" href="_ds/baretext-design-system-580d2a30-10cc-4906-b5f5-3152dc8dfba8/styles.css">
+<style>html,body{margin:0}</style>
+</helmet>
+
+<div style="min-height:100vh;background:var(--bg)" data-theme="{{ theme }}" data-mode="editor" data-font="{{ dataFont }}">
+  <div style="max-width:920px;margin:0 auto;padding:64px 24px 0">
+
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:72px;font-family:var(--font-mono)">
+      <span style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-dimmer)">type — rhythm &amp; scale</span>
+      <span style="font-size:11px;color:var(--text-dim)">titles · chapters · scenes · emphasis, tied to one {{ rhythm }}px baseline (body 15px/1.9)</span>
+    </div>
+
+    <div style="margin-bottom:96px">
+      <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-dimmer);font-family:var(--font-mono);margin-bottom:20px">a memoir · draft 2026-08-08</div>
+      <h1 style="margin:0;font-size:84px;line-height:.98;letter-spacing:-.01em;color:var(--h1);font-weight:{{ headWeight }};font-family:{{ proseFont }}">Testing the Spirits</h1>
+      <div style="margin-top:24px;max-width:56ch;font-size:15px;line-height:1.9;color:var(--text-dim);font-family:{{ proseFont }};font-style:italic">a daughter's account of the year her father tried, once more, to be believed</div>
+    </div>
+
+    <div style="margin-bottom:{{ rhythm }}px">
+      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:16px;font-family:var(--font-mono)">
+        <span style="font-size:11px;color:var(--text-dimmer);letter-spacing:.06em">chapter 04</span>
+        <span style="font-size:10px;color:var(--text-dimmer)">7 scenes · 3,256 words</span>
+      </div>
+      <h1 style="margin:0 0 {{ rhythm }}px;font-size:56px;line-height:1.05;letter-spacing:-.01em;color:var(--h1);font-weight:{{ headWeight }};font-family:{{ proseFont }}">A Miracle in Mesa Springs</h1>
+      <div style="max-width:52ch;margin:0 0 {{ rhythm2 }}px;padding-left:{{ rhythm }}px;font-size:14px;line-height:1.7;color:var(--text-dim);font-style:italic;font-family:{{ proseFont }}">"We worship a God who still moves — but moving isn't the same as making sense." — journal, three weeks prior</div>
+    </div>
+
+    <div style="margin-bottom:96px">
+      <div style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-dimmer);font-family:var(--font-mono);margin-bottom:20px">chapter → scene, no epigraph between</div>
+      <div style="display:flex;align-items:baseline;gap:24px;font-family:{{ proseFont }}">
+        <span style="font-size:56px;line-height:1.05;font-weight:{{ headWeight }};color:{{ chapterNumTint }}">1</span>
+        <h1 style="margin:0;font-size:56px;line-height:1.05;letter-spacing:-.01em;color:var(--h1);font-weight:{{ headWeight }}">Maples in Suburbia</h1>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:24px;margin-top:12px;font-family:{{ proseFont }}">
+        <span style="font-size:28px;line-height:1.1;font-weight:{{ headWeight }};color:{{ sceneNumTint }}">1.1</span>
+        <h2 style="margin:0;font-size:28px;line-height:1.1;color:var(--scene);font-weight:{{ headWeight }}">It Begins</h2>
+      </div>
+      <p style="margin:12px 0 0;max-width:75ch;font-size:15px;line-height:1.9;color:var(--text);font-family:{{ proseFont }}">They spray the insecticides. Then pesticides. They don't want them. Aphids on the tomatoes? Plant basil. Or marigolds. Keeps aphids away and it looks good, too. Same with carrots and onions. Onions keep the carrot flies off. Carrots keep the onion flies off. The people who lived here first knew that.</p>
+    </div>
+
+    <div style="position:relative;max-width:75ch">
+      <div style="position:absolute;inset:0;background-image:{{ gridBg }};opacity:{{ gridOpacity }};pointer-events:none"></div>
+      <div style="position:relative;font-family:{{ proseFont }}">
+        <p style="margin:0 0 {{ rhythm }}px;font-size:15px;line-height:1.9;color:var(--text)"><span style="font-variant:small-caps;letter-spacing:.03em;font-weight:700">The waiting room</span> had a rhythm to it. The monitor came in on the one, the vent on the two, and somewhere down the hall a cart with a bad wheel kept time badly. <em>Focus</em>, she thought. <strong>Focus.</strong></p>
+        <p style="margin:0 0 {{ rhythm }}px;font-size:15px;line-height:1.9;color:var(--text)">"Could I sit for a minute?" Was that a yes? His head moved — <em>ish</em>. I sat.</p>
+        <p style="margin:0 0 {{ rhythm }}px;font-size:15px;line-height:1.9;color:var(--text)">"Look," I said, and heard my own voice go thin on the first word, "I rehearsed this. I know it doesn't mean much, and I know it doesn't make a <strong>difference</strong>." That wasn't part of what I'd rehearsed.</p>
+
+        <div style="text-align:center;letter-spacing:.6em;font-size:11px;color:var(--text-dimmer);margin:{{ rhythm2 }}px 0">· · ·</div>
+
+        <h2 style="margin:0 0 {{ rhythm }}px;font-size:28px;line-height:1.1;color:var(--scene);font-weight:{{ headWeight }};font-family:{{ proseFont }}">Meeting the Father</h2>
+        <p style="margin:0 0 {{ rhythm }}px;font-size:15px;line-height:1.9;color:var(--text)">He did not look up. A door opened somewhere behind me and two people laughed at something small, and it was the worst sound I had ever heard.</p>
+        <p style="margin:0 0 {{ rhythm }}px;font-size:15px;line-height:1.9;color:var(--text)">"I'm sorry," I said. "I know I shouldn't have come." <em>I'm too tired to be angry. Too tired.</em></p>
+      </div>
+    </div>
+  </div>
+
+  <div style="max-width:920px;margin:96px auto 0;padding:0 24px 64px;display:flex;flex-wrap:wrap;border-top:1px solid var(--border);border-bottom:1px solid var(--border);font-family:var(--font-mono)">
+    <sc-for list="{{ scale }}" as="item" hint-placeholder-count="6">
+      <div style="flex:1 1 140px;padding:18px 20px 18px 0;border-right:1px solid var(--border)">
+        <div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dimmer);margin-bottom:6px">{{ item.label }}</div>
+        <div style="font-size:12px;color:var(--text-dim)">{{ item.val }}</div>
+      </div>
+    </sc-for>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;,&quot;dracula&quot;,&quot;grove&quot;,&quot;amstrad&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Specimen&quot;},&quot;proseFont&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;serif&quot;,&quot;mono&quot;,&quot;sans&quot;],&quot;default&quot;:&quot;serif&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Specimen&quot;},&quot;showBaseline&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Specimen&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const font = this.props.proseFont ?? 'serif';
+    const fonts = { mono: 'var(--font-mono)', serif: 'var(--font-serif)', sans: 'var(--font-sans)' };
+    const rhythm = 28.5;
+    return {
+      theme: this.props.theme ?? 'dark',
+      dataFont: font,
+      proseFont: fonts[font] || fonts.serif,
+      headWeight: font === 'mono' ? 400 : 700,
+      rhythm,
+      rhythm2: Math.round(rhythm * 2),
+      chapterNumTint: 'color-mix(in srgb, var(--accent) 55%, transparent)',
+      sceneNumTint: 'color-mix(in srgb, var(--scene) 55%, transparent)',
+      gridOpacity: (this.props.showBaseline ?? true) ? 1 : 0,
+      gridBg: `repeating-linear-gradient(to bottom, var(--border) 0, var(--border) 1px, transparent 1px, transparent ${rhythm}px)`,
+      scale: [
+        { label: 'kicker', val: '10px / .14em' },
+        { label: 'epigraph', val: '14px / 1.7 · italic' },
+        { label: 'body', val: '15px / 1.9' },
+        { label: 'scene h2·h3', val: '28px / 1.1' },
+        { label: 'chapter h1', val: '56px / 1.05' },
+        { label: 'title', val: '84px / .98' }
+      ]
+    };
+  }
+}
+
+</script>
+</body>
+</html>

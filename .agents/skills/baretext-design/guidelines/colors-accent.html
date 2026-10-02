@@ -1,0 +1,27 @@
+<!-- @dsCard group="Colors" viewport="700x160" name="Accent & selection" subtitle="Coral primary + tonal active-indicator" -->
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../styles.css">
+<style>
+  html,body{margin:0}
+  body{background:var(--surface-canvas);color:var(--text-title);font-family:var(--font-mono);padding:20px}
+  .row{display:flex;align-items:center;gap:12px}
+  .wrap{display:flex;flex-wrap:wrap;gap:12px}
+  .lbl{font-size:11px;color:var(--text-meta);letter-spacing:.04em}
+  .mono{font-variant-numeric:tabular-nums}
+</style></head><body><div class="wrap" style="gap:16px">
+<div style="display:flex;flex-direction:column;gap:6px">
+  <div style="width:104px;height:56px;border-radius:12px;background:var(--accent);border:1px solid var(--border-subtle)"></div>
+  <div class="lbl">accent</div><div class="lbl mono" style="color:var(--text-faint)">#ec9a63</div></div>
+<div style="display:flex;flex-direction:column;gap:6px">
+  <div style="width:104px;height:56px;border-radius:12px;background:var(--accent-hover);border:1px solid var(--border-subtle)"></div>
+  <div class="lbl">hover</div><div class="lbl mono" style="color:var(--text-faint)">#f2b183</div></div>
+<div style="display:flex;flex-direction:column;gap:6px">
+  <div style="width:104px;height:56px;border-radius:12px;background:var(--selected-surface);border:1px solid var(--border-subtle)"></div>
+  <div class="lbl">selected</div><div class="lbl mono" style="color:var(--text-faint)">#3d322a</div></div>
+<div style="display:flex;flex-direction:column;gap:6px">
+  <div style="width:104px;height:56px;border-radius:12px;background:var(--bt-info);border:1px solid var(--border-subtle)"></div>
+  <div class="lbl">frost</div><div class="lbl mono" style="color:var(--text-faint)">#7fa6c4</div></div>
+<div style="display:flex;flex-direction:column;gap:6px">
+  <div style="width:180px;height:56px;border-radius:12px;background:var(--selected-surface);display:flex;align-items:center;padding:0 14px;color:var(--selected-text);font-weight:600">Selected scene</div>
+  <div class="lbl">active-indicator pill</div></div>
+</div></body></html>

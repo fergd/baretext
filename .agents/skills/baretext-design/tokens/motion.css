@@ -1,0 +1,14 @@
+:root {
+  --ease-standard:   cubic-bezier(.4, 0, .2, 1);
+  --ease-decelerate: cubic-bezier(0, 0, .2, 1);
+  --ease-accelerate: cubic-bezier(.4, 0, 1, 1);
+
+  --dur-1: 120ms;  /* hover/press state layers */
+  --dur-2: 180ms;  /* chevron rotate */
+  --dur-3: 220ms;  /* count <-> controls swap */
+  --dur-4: 320ms;  /* disclosure expand */
+
+  --motion-hover:  background var(--dur-1) var(--ease-standard);
+  --motion-rotate: transform var(--dur-2) var(--ease-standard);
+  --motion-swap:   opacity var(--dur-3) var(--ease-standard), transform var(--dur-3) var(--ease-standard);
+}

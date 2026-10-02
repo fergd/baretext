@@ -1,0 +1,97 @@
+<!-- @dsCard group="Manuscript" viewport="440x900" name="Manuscript rail" subtitle="Chapters, scenes, cold storage" -->
+<!-- @startingPoint section="Manuscript" subtitle="Full chapter/scene rail" viewport="440x900" -->
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="../../styles.css">
+<style>
+  html,body{margin:0}
+  body{background:var(--surface-canvas);font-family:var(--font-mono);padding:32px 20px;display:flex;justify-content:center}
+  .rail{width:100%;max-width:400px;background:var(--surface-panel);border:1px solid var(--border-strong);border-radius:var(--radius-panel);box-shadow:var(--shadow-panel);padding:var(--rail-pad-y) var(--rail-pad-x) 16px;align-self:flex-start}
+  .head{display:flex;align-items:center;justify-content:space-between;padding:4px 12px 0;margin-bottom:8px}
+  .overline{font:var(--type-overline);letter-spacing:var(--tracking-overline);color:var(--text-muted)}
+  .stat{display:flex;align-items:center;gap:6px;color:var(--text-meta);font-size:var(--text-xs)}
+  .chapter{position:relative}
+  .cold{background:var(--surface-raised);border-radius:var(--radius-card);padding:4px 0 6px;margin-top:8px}
+  .coldhead{display:grid;grid-template-columns:16px 24px 1fr 64px;align-items:center;gap:var(--space-2);min-height:var(--row-min-h);padding:var(--row-pad-y) var(--row-pad-x);border-radius:var(--radius-row)}
+</style>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="../../_ds_bundle.js"></script>
+</head><body><div id="root"></div>
+<script type="text/babel">
+const NS = window.Baretext || window.BaretextDesignSystem || window.DS || {};
+const { ChapterHeader, SceneRow, Connector, TextButton, IconButton, Icon, Disclosure } = NS;
+
+const DATA = [
+  { id:'c1', number:1, title:'Warfare Winter', italic:false, scenes:[
+    { id:'c1s1', title:'Scene 1', count:773 },
+    { id:'c1s2', title:'January black ice', count:269 },
+    { id:'c1s3', title:'Morning Coffee', count:995 },
+    { id:'c1s4', title:'Oils & IVs', count:625 },
+    { id:'c1s5', title:'January 22, 2031', count:795 },
+    { id:'c1s6', title:'Gardening cannabis', count:1100 },
+  ]},
+  { id:'c2', number:2, title:'Chapter 2', italic:true, scenes:[
+    { id:'c2s1', title:'January 23, 2031', count:458 },
+    { id:'c2s2', title:'Scene 1', status:'draft' },
+  ]},
+];
+const COLD = [{ id:'cold1', title:'Scene 1', count:485 }];
+const sum = a => a.reduce((n,s)=>n+(s.count||0),0);
+const meta = a => a.length + '/' + sum(a);
+
+function Rail(){
+  const [sel,setSel] = React.useState('c2s2');
+  const [open,setOpen] = React.useState({ c1:true, c2:true, cold:true });
+  const toggle = k => setOpen(o => ({...o, [k]:!o[k]}));
+  return (
+    <div className="rail">
+      <div className="head">
+        <span className="overline">MANUSCRIPT</span>
+        <span className="stat">
+          <IconButton icon="grid" label="Corkboard" size={30} iconSize={16} />
+          <span style={{fontVariantNumeric:'tabular-nums',paddingRight:4}}>2 ch&nbsp;·&nbsp;8</span>
+        </span>
+      </div>
+
+      {DATA.map(ch => {
+        const active = sel && ch.scenes.some(s => s.id === sel);
+        return (
+          <div className="chapter" key={ch.id}>
+            <ChapterHeader number={ch.number} title={ch.title} meta={meta(ch.scenes)} italic={ch.italic}
+              open={open[ch.id]} onToggle={() => toggle(ch.id)} />
+            {open[ch.id] && (
+              <div style={{position:'relative'}}>
+                <Connector active={active} top={2} bottom={40} left={20} />
+                {ch.scenes.map(s => (
+                  <SceneRow key={s.id} title={s.title} count={s.count} status={s.status}
+                    selected={sel === s.id} onSelect={() => setSel(s.id)} />
+                ))}
+                <TextButton icon="plus" style={{marginLeft:56}}>add scene</TextButton>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      <div className="cold">
+        <div className="coldhead" onClick={() => toggle('cold')} style={{cursor:'pointer'}}>
+          <Disclosure open={open.cold} onToggle={() => toggle('cold')} size={16} />
+          <span style={{display:'flex',justifyContent:'center',color:'var(--bt-info)'}}><Icon name="frost" size={16} stroke="var(--bt-info)" /></span>
+          <span style={{font:'var(--type-title)',fontStyle:'italic',color:'#c9d0ce'}}>Cold Storage</span>
+          <span style={{textAlign:'right',color:'var(--text-meta)',fontSize:'var(--text-xs)',fontVariantNumeric:'tabular-nums',paddingRight:4}}>{meta(COLD)}</span>
+        </div>
+        {open.cold && (
+          <div style={{position:'relative'}}>
+            <Connector active={COLD.some(s=>s.id===sel)} top={2} bottom={4} left={20} />
+            {COLD.map(s => (
+              <SceneRow key={s.id} title={s.title} count={s.count} selected={sel === s.id} onSelect={() => setSel(s.id)} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<Rail/>);
+</script></body></html>

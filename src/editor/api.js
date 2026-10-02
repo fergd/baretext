@@ -4,7 +4,7 @@ import { EditorState, Transaction, EditorSelection, ChangeSet } from '@codemirro
 import { theme, injectSelectionFix, injectHeadingColors } from './theme.js';
 import { markdownExtensions } from './markdown-language.js';
 import { livePreviewPlugin, injectLivePreviewStyle } from './live-preview.js';
-import { sceneBreakDecorator, sceneBreakAtomicRanges, sceneBreakClickGuard, injectSceneBreakStyle } from './scene-breaks.js';
+import { sceneBreakDecorator, sceneBreakAtomicRanges, sceneBreakCursorGuard, sceneBreakClickGuard, injectSceneBreakStyle } from './scene-breaks.js';
 import { blockSpacingPlugin, injectBlockSpacingStyle } from './block-spacing.js';
 import { historyAndKeymaps, boldItalicKeymap } from './history-commands.js';
 import { searchExtension, injectSearchMatchStyle } from './search.js';
@@ -85,6 +85,7 @@ export function create(container, initialDoc, onChange, placeholderText) {
         bookTitleClickGuard,
         sceneBreakDecorator,
         sceneBreakAtomicRanges,
+        sceneBreakCursorGuard,
         sceneBreakClickGuard(),
         openingCapsDecorator,
         blockSpacingPlugin,

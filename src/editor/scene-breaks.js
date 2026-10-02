@@ -1,6 +1,6 @@
 import { isLinkMetadata } from '../features/scene-nav/links.js';
 import { Decoration, EditorView, ViewPlugin, WidgetType } from '@codemirror/view';
-import { StateField } from '@codemirror/state';
+import { EditorSelection, EditorState, StateField } from '@codemirror/state';
 import { injectStyle as injectStyleTag } from '../dom.js';
 
 const sceneBreakLine = Decoration.line({ class: 'cm-scene-break' });
@@ -204,6 +204,39 @@ export function safeCaretLine(doc, clickedLineNum) {
   }
   return preambleEndLine; // still empty -- land right after the preamble
 }
+
+// The atomic range above still leaves its own START -- the marker line's
+// first position -- as a legal caret stop, and that spot is invisible
+// chrome: the caret draws alone in the gap before the next scene (centered,
+// since the marker line is text-align:center) and anything typed there lands
+// on the "---" line itself, breaking the scene boundary. Confirmed reachable
+// by arrowing down out of a scene's last paragraph and by clicking the
+// spacing above a named scene's heading (the click resolves inside the
+// atomic comment line and snaps to that near edge). No empty cursor may
+// rest there: moving backward (up/left) lands at the end of the line before
+// the marker; anything else (moving forward, clicks, programmatic jumps)
+// lands where clicking the break would, the next scene's first real line.
+export function relocateMarkerStartCursor(state, previousHead) {
+  const sel = state.selection;
+  let changed = false;
+  const ranges = sel.ranges.map((range) => {
+    if (!range.empty) return range;
+    const line = state.doc.lineAt(range.head);
+    if (range.head !== line.from || !MARKER_RE.test(line.text.trim())) return range;
+    changed = true;
+    const movingBack = previousHead != null && previousHead > range.head && line.from > 0;
+    const target = movingBack ? line.from - 1 : state.doc.line(safeCaretLine(state.doc, line.number)).from;
+    return EditorSelection.cursor(target);
+  });
+  return changed ? EditorSelection.create(ranges, sel.mainIndex) : null;
+}
+
+export const sceneBreakCursorGuard = EditorState.transactionFilter.of((tr) => {
+  if (!tr.selection && !tr.docChanged) return tr;
+  const relocated = relocateMarkerStartCursor(tr.state, tr.startState.selection.main.head);
+  if (!relocated) return tr;
+  return [tr, { selection: relocated, sequential: true }];
+});
 
 export function sceneBreakClickGuard() {
   return EditorView.domEventHandlers({

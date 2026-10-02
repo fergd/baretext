@@ -1,0 +1,8 @@
+:root {
+  /* Dark-first: elevation is carried by tonal surface steps (ink-1..ink-4),
+     not stacked shadows. Shadow is reserved for the floating rail only. */
+  --shadow-0:     none;
+  --shadow-panel: 0 24px 60px -30px rgba(0,0,0,0.80);
+  --shadow-1:     0 1px 2px rgba(0,0,0,0.40);
+  --hairline:     inset 0 0 0 1px var(--border-strong);
+}
