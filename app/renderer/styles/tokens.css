@@ -186,6 +186,7 @@
 
   /* sprint setup */
   --sprint-w: 400px;
+  --book-w: 440px;
   --sprint-preset-h: 40px;
   /* the settings rows' controls share one column */
   --sprint-control-w: 200px;

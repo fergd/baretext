@@ -4,7 +4,11 @@
 import { Schema, type DOMOutputSpec, type MarkSpec, type NodeSpec } from 'prosemirror-model';
 
 const nodes: Record<string, NodeSpec> = {
-  doc: { content: 'book_title chapter+ cold_storage' },
+  // The book's setup (DECISIONS §26) rides on the document: null = not set.
+  doc: {
+    content: 'book_title chapter+ cold_storage',
+    attrs: { author: { default: null }, structure: { default: null }, target: { default: null } },
+  },
 
   book_title: {
     content: 'text*',

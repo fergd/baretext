@@ -38,6 +38,9 @@ import {
   toggleItalic,
   toggleQuote,
   nodeToScene,
+  bookSetupOf,
+  setBookSetup,
+  type BookSetup,
 } from '@baretext/editor';
 import type { AppearancePrefs, BaretextBridge, MenuCommand, OpenedDocument } from '../shared/bridge';
 import { currentScene, outlineOf, sceneAt, sceneDisplayName } from './outline';
@@ -48,6 +51,7 @@ import { HistoryPanel } from './history';
 import { AppearancePanel, readAppearance, sampleFrom, setAppearance } from './appearance';
 import { Corkboard } from './corkboard';
 import { ExportPanel } from './export-panel';
+import { BookSetupPanel } from './book-setup';
 import { ViewTabs, type View } from './view-tabs';
 import { Sprinter } from './sprinter';
 import { Palette, type PaletteView } from './palette';
@@ -127,10 +131,7 @@ function refreshChrome() {
     if (open) { refreshParked(open, outline); return; }
     const here = (reading && readingHere) || currentScene(state);
     // The count in the number face, the word in the interface face.
-    const count = document.createElement('span');
-    count.className = 'bt-num-text';
-    count.textContent = numberFormat.format(outline.words);
-    $('words').replaceChildren(count, ` ${outline.words === 1 ? 'word' : 'words'}`);
+    showWords(outline.words, state.doc.attrs.target);
     $('title').textContent = state.doc.firstChild!.textContent || 'Untitled';
     $('crumb').textContent = corkboard.isOpen
       ? 'Corkboard' // (its toolbar has the totals)
@@ -554,8 +555,11 @@ const appearance = new AppearancePanel(document.body, {
 let exportPrefs = bridge.initial.export;
 /** The notes an export can carry: open, with something written. */
 const exportableNotes = () => notes.all.filter((n) => !n.resolved && n.body);
+/** The book's author (its setup), if it has one. */
+const bookAuthor = (): string => view?.state.doc.attrs.author ?? '';
 const exporter = new ExportPanel(document.body, {
-  current: () => exportPrefs,
+  // The author is the book's; without one, the last used.
+  current: () => ({ ...exportPrefs, author: bookAuthor() || exportPrefs.author }),
   counts: () => {
     const outline = view ? outlineOf(view.state.doc) : null;
     return { title: view?.state.doc.firstChild!.textContent ?? '', words: outline?.words ?? 0, chapters: outline?.chapters.length ?? 0, cold: outline?.parked.length ?? 0, notes: exportableNotes().length };
@@ -564,6 +568,7 @@ const exporter = new ExportPanel(document.body, {
     exportPrefs = p;
     bridge.setPrefs({ export: p });
     if (!view || !filePath) return { ok: false, message: 'There is nothing to export yet.' };
+    if (p.author !== bookAuthor()) setBook({ ...bookSetupOf(view.state.doc), author: p.author }); // (named here, the book keeps it)
     const included = p.notes ? exportableNotes().map((n) => ({ id: n.id, body: n.body, anchored: !!n.anchor })) : null;
     const book = docToExport(view.state.doc, { coldStorage: p.coldStorage, notes: included });
     const result = await bridge.exportBook(filePath, p.format, book, p.author);
@@ -574,6 +579,24 @@ const exporter = new ExportPanel(document.body, {
   onClose: () => focusWriting(),
 });
 
+// Book setup (DECISIONS §26): asked for a new book; File › Book Settings… after.
+const bookSetup = new BookSetupPanel(document.body, {
+  current: () => bookSetupOf(view!.state.doc),
+  lastAuthor: () => exportPrefs.author,
+  apply: (s) => setBook(s),
+  onClose: () => focusWriting(),
+});
+
+/** Change the book's setup (one undoable step); its author is remembered for the next new book. */
+function setBook(s: BookSetup) {
+  if (!outsideChange(setBookSetup(s))) return;
+  const author = s.author.trim();
+  if (author && author !== exportPrefs.author) {
+    exportPrefs = { ...exportPrefs, author };
+    bridge.setPrefs({ export: exportPrefs });
+  }
+}
+
 // ── views of the book: the manuscript, the corkboard (⇧⌘C; DECISIONS §24) ──
 const viewTabs = new ViewTabs((next) => setView(next));
 $('notes-button').before(viewTabs.el);
@@ -583,28 +606,28 @@ const corkboard = new Corkboard($('workspace'), {
   noteCounts: () => openNoteCounts(),
   onLayout: (layout) => bridge.setPrefs({ corkboardLayout: layout }),
   outline: () => outlineOf(view!.state.doc),
-  rename: (id, name) => boardChange(rename(id, name)),
+  rename: (id, name) => outsideChange(rename(id, name)),
   addScene: (chapterId) => {
-    if (!boardChange(addScene(chapterId))) return null;
+    if (!outsideChange(addScene(chapterId))) return null;
     return outlineOf(view!.state.doc).chapters.find((c) => c.id === chapterId)?.scenes.at(-1)?.id ?? null;
   },
   // (Deleting keeps the delete's own care: a snapshot first, and its message.)
   deleteScene: (id) => keepCaretLine(() => deleteFromOutline(id, 'scene')),
   copyScene: (id) => void copyScene(id),
   // (A move carries the caret with its scene: the writer's place travels with it.)
-  moveScene: (id, chapterId, index) => boardChange(moveScene(id, chapterId, index), true),
-  moveChapter: (id, index) => boardChange(moveChapter(id, index), true),
+  moveScene: (id, chapterId, index) => outsideChange(moveScene(id, chapterId, index), true),
+  moveChapter: (id, index) => outsideChange(moveChapter(id, index), true),
   popupMenu: (items) => bridge.popupMenu(items),
 }, bridge.initial.corkboardLayout);
 
 /**
- * A change made on the board: the page underneath keeps the writer's place
- * (the caret stays where it was — not moved to a new scene — and its line
- * stays on screen where it was), so coming back finds it, adjusted only for
- * the change itself. `ownCaret`: the command places the caret itself (a
- * move carries it along with its scene).
+ * A change made away from the page (on the board, in a panel): the page
+ * keeps the writer's place (the caret stays where it was — not moved to a
+ * new scene — and its line stays on screen where it was), so coming back
+ * finds it, adjusted only for the change itself. `ownCaret`: the command
+ * places the caret itself (a move carries it along with its scene).
  */
-function boardChange(command: Command, ownCaret = false): boolean {
+function outsideChange(command: Command, ownCaret = false): boolean {
   if (!view) return false;
   const state = view.state;
   let changed = false;
@@ -680,12 +703,12 @@ function focusWriting() {
   else view?.focus();
 }
 
-function showWords(words: number) {
-  // The count in the number face, the word in the interface face.
-  const count = document.createElement('span');
-  count.className = 'bt-num-text';
-  count.textContent = numberFormat.format(words);
-  $('words').replaceChildren(count, ` ${words === 1 ? 'word' : 'words'}`);
+/** The status bar's count: "12,400 words", or against the book's target, "12,400 of 90,000 words". */
+function showWords(words: number, target: number | null = null) {
+  // The counts in the number face, the words in the interface face.
+  const num = (n: number) => Object.assign(document.createElement('span'), { className: 'bt-num-text', textContent: numberFormat.format(n) });
+  const unit = ` ${words === 1 && !target ? 'word' : 'words'}`;
+  $('words').replaceChildren(...(target ? [num(words), ' of ', num(target), unit] : [num(words), unit]));
 }
 
 /**
@@ -727,10 +750,10 @@ function syncTypewriterSwitch() {
   $('typewriter').setAttribute('aria-checked', String(sprinter.active ? sprinter.page.typewriter.enabled : typewriter.enabled));
 }
 
-/** Print (⌘P): the manuscript in standard format, named by the Export panel's author. */
+/** Print (⌘P): the manuscript in standard format, by the book's author (else the last used). */
 async function printBook() {
   if (!view) return;
-  const result = await bridge.printBook(docToExport(view.state.doc, { coldStorage: false, notes: null }), exportPrefs.author);
+  const result = await bridge.printBook(docToExport(view.state.doc, { coldStorage: false, notes: null }), bookAuthor() || exportPrefs.author);
   if (!result.ok && !result.canceled) toast(`Couldn’t print: ${result.message}`, 'error');
 }
 
@@ -795,6 +818,7 @@ function load(doc: OpenedDocument) {
   find.close();
   history.close();
   appearance.close();
+  bookSetup.close();
   palette.close();
   filePath = doc.filePath;
   let state: EditorState = createManuscriptState(doc.manuscript, {
@@ -830,6 +854,7 @@ function load(doc: OpenedDocument) {
     toast(`Imported “${original}” as a Baretext copy: “${name}”. The original is untouched.`);
   }
   refreshChrome();
+  if (doc.created) bookSetup.open(true); // a new book: what is it?
   requestAnimationFrame(() => {
     // To the page — unless a dialog opened meanwhile: it keeps the keyboard.
     // (Anything else, like a half-typed rename in the old book, gives way.)
@@ -954,7 +979,7 @@ function runCommand(command: MenuCommand) {
   if (!view) return;
   // A panel that covers the window (Appearance, History) keeps every other
   // command out until it closes; saving is always allowed.
-  if ((appearance.isOpen || history.isOpen || exporter.isOpen || sprinter.panelOpen) && command !== 'save') return;
+  if ((appearance.isOpen || history.isOpen || exporter.isOpen || bookSetup.isOpen || sprinter.panelOpen) && command !== 'save') return;
   if (sprinter.active) { runSprinterCommand(command); return; }
   // On the corkboard, commands that act on the page show the page first.
   if (corkboard.isOpen && ON_THE_PAGE.has(command)) setView('manuscript');
@@ -987,6 +1012,7 @@ function runCommand(command: MenuCommand) {
     case 'history': palette.close(); find.close(); void history.open(false); break;
     case 'export': palette.close(); find.close(); exporter.open(); break;
     case 'print': palette.close(); void printBook(); break;
+    case 'book-settings': palette.close(); find.close(); bookSetup.open(); break;
     case 'corkboard': palette.close(); setView(corkboard.isOpen ? 'manuscript' : 'corkboard'); break;
     case 'sprint': palette.close(); find.close(); sprinter.openSetup(); break;
     case 'sprints': palette.close(); find.close(); sprinter.openLibrary(); break;
@@ -1121,6 +1147,7 @@ installTestHooks({
   history,
   appearance: () => ({ open: appearance.isOpen, choices: appearance.choices, applied: readAppearance(app) }),
   exporting: () => ({ open: exporter.isOpen, prefs: exportPrefs }),
+  book: () => ({ open: bookSetup.isOpen, setup: view ? bookSetupOf(view.state.doc) : null }),
   outline: () => ({ presence: outlinePanel.presence, focused: outlinePanel.el.contains(document.activeElement) }),
   notes: () => ({ all: notes.all.map((n) => ({ ...n })), panel: notesPanel.isOpen, compact: margin.isCompact, anchors: view ? [...anchorsIn(view.state.doc).keys()] : [] }),
   sprints: () => ({ open: sprinter.libraryOpen }),

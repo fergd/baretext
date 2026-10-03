@@ -11,6 +11,8 @@ export interface OpenedDocument {
   importedFrom?: string;
   /** Something the writer should be told on opening (e.g. why the last manuscript didn't reopen). */
   notice?: string;
+  /** Just made with File › New: the book's setup is asked for. */
+  created?: true;
 }
 
 export type SaveResult =
@@ -172,7 +174,7 @@ export interface InitialPrefs extends AppearancePrefs {
 }
 
 export type MenuCommand =
-  | 'undo' | 'redo' | 'typewriter' | 'focus' | 'bold' | 'italic' | 'link' | 'quote' | 'split-scene' | 'split-chapter' | 'pause' | 'name-scene' | 'save' | 'palette' | 'goto' | 'find' | 'find-replace' | 'find-next' | 'find-prev' | 'history' | 'snapshot' | 'outline' | 'outline-focus' | 'new-scene' | 'new-chapter' | 'appearance' | 'park-scene' | 'add-note' | 'notes' | 'export' | 'print' | 'corkboard' | 'sprint' | 'sprints' | 'mode' | 'sprint-pause' | 'sprint-hide';
+  | 'undo' | 'redo' | 'typewriter' | 'focus' | 'bold' | 'italic' | 'link' | 'quote' | 'split-scene' | 'split-chapter' | 'pause' | 'name-scene' | 'save' | 'palette' | 'goto' | 'find' | 'find-replace' | 'find-next' | 'find-prev' | 'history' | 'snapshot' | 'outline' | 'outline-focus' | 'new-scene' | 'new-chapter' | 'appearance' | 'park-scene' | 'add-note' | 'notes' | 'export' | 'print' | 'book-settings' | 'corkboard' | 'sprint' | 'sprints' | 'mode' | 'sprint-pause' | 'sprint-hide';
 
 /** A local snapshot of a manuscript (DECISIONS §6). */
 export interface SnapshotInfo {

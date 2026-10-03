@@ -86,6 +86,7 @@ export function commandsView(ctx: CommandContext): PaletteView {
         focusItem(ctx),
         { id: 'appearance', group: 'View', label: 'Appearance…', keywords: 'settings preferences theme dark light contrast font serif sans mono size spacing width wide narrow style', keys: '⌘,', run: () => ctx.run('appearance') },
         { id: 'new', group: 'File', label: 'New manuscript', keywords: 'create file', keys: '⌘N', run: () => ctx.fileCommand('new') },
+        { id: 'book-settings', group: 'File', label: 'Book settings…', keywords: 'setup title author structure arc target length goal words', run: () => ctx.run('book-settings') },
         { id: 'open', group: 'File', label: 'Open…', keywords: 'file', keys: '⌘O', run: () => ctx.fileCommand('open') },
         saveItem(ctx),
         { id: 'history', group: 'File', label: 'History…', keywords: 'versions snapshots restore backup earlier', run: () => ctx.run('history') },

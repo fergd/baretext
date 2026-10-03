@@ -4,6 +4,9 @@
 //
 //   ---
 //   title: "Book title"
+//   author: "Ann Lee"           ← the book's setup, each line only when set
+//   structure: three-act
+//   target: 90000
 //   baretext: 1
 //   ---
 //
@@ -188,7 +191,11 @@ function serializeScenes(scenes: readonly Scene[], out: string[]): void {
 
 export function serialize(input: Manuscript): string {
   const m = canonicalize(input);
-  const out: string[] = ['---', `title: ${JSON.stringify(m.title)}`, `baretext: ${FORMAT_VERSION}`, '---', ''];
+  const out: string[] = ['---', `title: ${JSON.stringify(m.title)}`];
+  if (m.author !== undefined) out.push(`author: ${JSON.stringify(m.author)}`);
+  if (m.structure !== undefined) out.push(`structure: ${m.structure}`);
+  if (m.target !== undefined) out.push(`target: ${m.target}`);
+  out.push(`baretext: ${FORMAT_VERSION}`, '---', '');
 
   for (const c of m.chapters) {
     out.push(serializeTitle('#', c.title), '');

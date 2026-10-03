@@ -11,6 +11,8 @@ import { DEFAULT_APPEARANCE, DEFAULT_EXPORT, DEFAULT_SPRINT, THEMES, type Barete
 import { AppearancePanel } from '../appearance';
 import { Corkboard } from '../corkboard';
 import { ExportPanel } from '../export-panel';
+import { BookSetupPanel } from '../book-setup';
+import type { BookSetup } from '@baretext/editor';
 import { FindPanel } from '../find';
 import { HistoryPanel } from '../history';
 import { MarginNotes } from '../margin-notes';
@@ -225,6 +227,11 @@ function dragging(frame: HTMLElement, layout: CorkboardLayout, from: string, to:
   };
 }
 
+/** Book setup over `setup`; the author last used is Ann Lee's. */
+function bookSetup(frame: HTMLElement, setup: BookSetup): BookSetupPanel {
+  return new BookSetupPanel(frame, { current: () => setup, lastAuthor: () => 'Ann Lee', apply: noop, onClose: noop });
+}
+
 /** The top bar's right side: the view chips, `view` chosen. */
 function chips(frame: HTMLElement, view: View) {
   const bar = el('div', 'bt-chrome g-chrome');
@@ -247,6 +254,15 @@ const SPECS: Spec[] = [
   { component: 'Command palette', state: 'Commands', size: [680, 600], render: (f) => new Palette(f).open(commandsView(commands)) },
   { component: 'Appearance', state: 'Open', size: [1180, 880], render: (f) => new AppearancePanel(f, { current: () => ({ ...DEFAULT_APPEARANCE, theme: f.dataset.theme as Theme }), sample, save: noop, onClose: noop }).open() },
   { component: 'Export', state: 'Word', size: [600, 620], render: (f) => new ExportPanel(f, { current: () => DEFAULT_EXPORT, counts: () => ({ title: book.title, words: 2140, chapters: 3, cold: 1, notes: 2 }), run: () => Promise.resolve({ ok: false, canceled: true }), onClose: noop }).open() },
+  // (A new book's title field has the keyboard, its text selected: a last step.)
+  { component: 'Book setup', state: 'New book', size: [560, 460], render: (f) => { const p = bookSetup(f, { title: 'Untitled', author: '', structure: null, target: null }); return () => p.open(true); } },
+  { component: 'Book setup', state: 'Settings', size: [560, 460], render: (f) => bookSetup(f, { title: book.title, author: 'Ann Lee', structure: 'three-act', target: 90000 }).open() },
+  { component: 'Book setup', state: 'Target, not a number', size: [560, 460], render: (f) => {
+    bookSetup(f, { title: book.title, author: 'Ann Lee', structure: 'save-the-cat', target: null }).open();
+    const target = f.querySelector<HTMLInputElement>('[data-field="target"]')!;
+    target.value = 'about 90k';
+    target.dispatchEvent(new Event('input'));
+  } },
   { component: 'History', state: 'Versions', size: [940, 720], render: (f) => new HistoryPanel(f, { bridge, filePath: () => '/Writing/The Lighthouse Keeper.md', current: () => book, currentWords: () => 2140, restore: noop, onClose: noop }).open() },
   { component: 'Sprint setup', state: 'Time', size: [480, 440], render: (f) => new SprintSetup(f, { current: () => DEFAULT_SPRINT, start: noop, onClose: noop }).open() },
   { component: 'Sprint setup', state: 'Words, custom', size: [480, 440], render: (f) => new SprintSetup(f, { current: () => ({ ...DEFAULT_SPRINT, kind: 'words', words: 800 }), start: noop, onClose: noop }).open() },

@@ -94,6 +94,9 @@ async function createDocument(): Promise<OpenedDocument> {
   return { filePath, manuscript, caret: null };
 }
 
+/** File › New: a new book, whose setup is asked for once it's open. */
+const newBook = async (): Promise<OpenedDocument> => ({ ...(await createDocument()), created: true });
+
 function remember(filePath: string) {
   const recent = [filePath, ...settings.get().recent.filter((p) => p !== filePath)].slice(0, 10);
   settings.update({ lastFile: filePath, recent });
@@ -216,7 +219,7 @@ function buildMenu() {
     {
       label: 'File',
       submenu: [
-        { label: 'New', accelerator: 'CmdOrCtrl+N', click: () => void switchTo(createDocument) },
+        { label: 'New', accelerator: 'CmdOrCtrl+N', click: () => void switchTo(newBook) },
         { label: 'Open…', accelerator: 'CmdOrCtrl+O', click: () => void openWithDialog() },
         {
           label: 'Open Recent',
@@ -224,6 +227,8 @@ function buildMenu() {
             ? recent.map((p) => ({ label: path.basename(p), click: () => switchTo(() => readDocument(p)) }))
             : [{ label: 'No Recent Files', enabled: false }],
         },
+        { type: 'separator' },
+        { label: 'Book Settings…', click: () => send('book-settings') },
         { type: 'separator' },
         { label: 'Save', ...label('CmdOrCtrl+S'), click: () => send('save') },
         { label: 'Export…', ...label('Shift+CmdOrCtrl+E'), click: () => send('export') },
@@ -545,7 +550,7 @@ function registerIpc() {
     if (next !== sprinting) { sprinting = next; buildMenu(); }
   });
   ipcMain.on(CHANNELS.fileCommand, (_e, command: unknown) => {
-    if (command === 'new') void switchTo(createDocument);
+    if (command === 'new') void switchTo(newBook);
     else if (command === 'open') void openWithDialog();
   });
   ipcMain.on(CHANNELS.reveal, (_e, filePath: unknown) => {

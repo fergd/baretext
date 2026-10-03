@@ -30,6 +30,7 @@ export interface HookHost {
   history: HistoryPanel;
   appearance: () => unknown;
   exporting: () => unknown;
+  book: () => unknown;
   outline: () => unknown;
   notes: () => unknown;
   sprint: () => unknown;
@@ -111,6 +112,7 @@ export function installTestHooks(h: HookHost) {
     history: () => ({ open: h.history.isOpen }),
     appearance: h.appearance,
     exporting: h.exporting,
+    book: h.book,
     outline: h.outline,
     notes: h.notes,
     sprint: h.sprint,

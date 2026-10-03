@@ -44,8 +44,30 @@ export interface Chapter {
 
 export interface Manuscript {
   title: string;
+  // The book's setup (DECISIONS §26); each absent until set.
+  /** Who wrote it (trimmed; never blank). */
+  author?: string;
+  /** The story structure it is measured against: an id (kept even when this app doesn't know it). */
+  structure?: string;
+  /** Its target length, in words. */
+  target?: number;
   chapters: Chapter[];
   coldStorage: Scene[];
+}
+
+export const MAX_TARGET = 10_000_000;
+/** A story structure's id: lowercase words joined by hyphens. */
+export const isStructureId = (s: unknown): s is string => typeof s === 'string' && s.length <= 40 && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(s);
+export const isTarget = (n: unknown): n is number => Number.isInteger(n) && (n as number) >= 1 && (n as number) <= MAX_TARGET;
+
+/** The book's setup, only what is set (in the order it is written); an author trimmed, blank meaning none. */
+export function bookSetup(m: Pick<Manuscript, 'author' | 'structure' | 'target'>): Pick<Manuscript, 'author' | 'structure' | 'target'> {
+  const author = typeof m.author === 'string' ? m.author.trim() : m.author;
+  return {
+    ...(author ? { author } : {}),
+    ...(m.structure !== undefined ? { structure: m.structure } : {}),
+    ...(m.target !== undefined ? { target: m.target } : {}),
+  };
 }
 
 const ID_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -137,6 +159,9 @@ export function validate(m: Manuscript): string[] {
     }
   };
   checkLine(m.title, 'book title');
+  if (m.author !== undefined && (typeof m.author !== 'string' || /[\n\r]/.test(m.author))) errors.push('book author is not one line of text');
+  if (m.structure !== undefined && !isStructureId(m.structure)) errors.push(`book structure ${JSON.stringify(m.structure)} is not an id`);
+  if (m.target !== undefined && !isTarget(m.target)) errors.push(`book target ${String(m.target)} is not a whole number of words`);
   if (m.chapters.length === 0) errors.push('manuscript has no chapters');
   for (const c of m.chapters) {
     checkId(c.id, 'chapter');
@@ -157,6 +182,7 @@ export function canonicalize(m: Manuscript): Manuscript {
   if (errors.length) throw new Error(`Invalid manuscript: ${errors.join('; ')}`);
   return {
     title: m.title,
+    ...bookSetup(m),
     chapters: m.chapters.map((c) => ({ id: c.id, title: c.title, scenes: c.scenes.map(canonicalScene) })),
     coldStorage: m.coldStorage.map(canonicalScene),
   };
@@ -174,7 +200,7 @@ export function repair(m: Manuscript): Manuscript {
     ...c,
     scenes: c.scenes.length ? c.scenes.map(fixScene) : [newScene()],
   }));
-  return { title: m.title, chapters: chapters.length ? chapters : [newChapter()], coldStorage: m.coldStorage.map(fixScene) };
+  return { title: m.title, ...bookSetup(m), chapters: chapters.length ? chapters : [newChapter()], coldStorage: m.coldStorage.map(fixScene) };
 }
 
 /** Plain text of a run list (for word counts, AI input, search). */

@@ -9,6 +9,8 @@
 
 import {
   ID_PATTERN,
+  isStructureId,
+  isTarget,
   emptyParagraph,
   isOrigin,
   newId,
@@ -242,10 +244,25 @@ function plainText(src: string, mode: Mode): string {
 
 // ───────────────────────────── blocks ─────────────────────────────
 
-interface FrontMatter { title: string | null; version: number | null; bodyStart: number }
+interface FrontMatter {
+  title: string | null;
+  version: number | null;
+  /** The book's setup: what could be read (a hand edit that can't is left out). */
+  setup: Pick<Manuscript, 'author' | 'structure' | 'target'>;
+  bodyStart: number;
+}
+
+/** A front-matter text value: "JSON-quoted", 'single-quoted', or bare. */
+function frontMatterText(raw: string): string {
+  const v = raw.trim();
+  if (v.startsWith('"')) {
+    try { return JSON.parse(v); } catch { return v.replace(/^"|"$/g, ''); }
+  }
+  return v.replace(/^'(.*)'$/, '$1');
+}
 
 function parseFrontMatter(lines: string[]): FrontMatter {
-  const none = { title: null, version: null, bodyStart: 0 };
+  const none = { title: null, version: null, setup: {}, bodyStart: 0 };
   if (lines[0] !== '---') return none;
   const end = lines.indexOf('---', 1);
   if (end < 0 || end > 100) return none;
@@ -253,23 +270,21 @@ function parseFrontMatter(lines: string[]): FrontMatter {
   if (!body.every((l) => l.trim() === '' || /^[A-Za-z_][\w-]*\s*:/.test(l) || /^\s/.test(l))) return none;
   let title: string | null = null;
   let version: number | null = null;
+  const setup: FrontMatter['setup'] = {};
   for (const l of body) {
     const m = /^([A-Za-z_][\w-]*)\s*:\s*(.*)$/.exec(l);
     if (!m) continue;
     const [, key, raw] = m;
-    if (key === 'title') {
-      const v = raw!.trim();
-      if (v.startsWith('"')) {
-        try { title = JSON.parse(v); } catch { title = v.replace(/^"|"$/g, ''); }
-      } else {
-        title = v.replace(/^'(.*)'$/, '$1');
-      }
-    } else if (key === 'baretext') {
+    if (key === 'title') title = frontMatterText(raw!);
+    else if (key === 'author') { const a = frontMatterText(raw!).trim(); if (a) setup.author = a; }
+    else if (key === 'structure') { const s = raw!.trim(); if (isStructureId(s)) setup.structure = s; }
+    else if (key === 'target') { const n = /^\d[\d,]*$/.test(raw!.trim()) ? Number(raw!.trim().replace(/,/g, '')) : NaN; if (isTarget(n)) setup.target = n; }
+    else if (key === 'baretext') {
       const n = parseInt(raw!, 10);
       if (Number.isFinite(n)) version = n;
     }
   }
-  return { title, version, bodyStart: end + 1 };
+  return { title, version, setup, bodyStart: end + 1 };
 }
 
 /**
@@ -517,6 +532,7 @@ export function parse(source: string, fallbackTitle = ''): ParseResult {
 
   const draft = repair({
     title: fm.title ?? (legacyTitle || fallbackTitle),
+    ...fm.setup,
     chapters: b.chapters.map((c) => ({ id: '', title: c.title, scenes: c.scenes })),
     coldStorage: b.cold,
   });

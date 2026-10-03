@@ -2,7 +2,7 @@
 // valid manuscripts (scenes are normalized to end in a paragraph on load).
 
 import type { Mark, Node as PMNode } from 'prosemirror-model';
-import { normalizeRuns, type Block, type Chapter, type Manuscript, type Run, type Scene } from '@baretext/format';
+import { bookSetup, normalizeRuns, type Block, type Chapter, type Manuscript, type Run, type Scene } from '@baretext/format';
 import { schema } from './schema';
 
 function runsToNodes(runs: readonly Run[]): PMNode[] {
@@ -47,7 +47,8 @@ export function chapterToNode(c: Chapter): PMNode {
 }
 
 export function modelToDoc(m: Manuscript): PMNode {
-  const doc = schema.nodes.doc!.create(null, [
+  const { author = null, structure = null, target = null } = bookSetup(m);
+  const doc = schema.nodes.doc!.create({ author, structure, target }, [
     schema.nodes.book_title!.create(null, plain(m.title)),
     ...m.chapters.map(chapterToNode),
     schema.nodes.cold_storage!.create(null, m.coldStorage.map(sceneToNode)),
@@ -115,5 +116,6 @@ export function docToModel(doc: PMNode): Manuscript {
       child.forEach((s) => coldStorage.push(nodeToScene(s)));
     }
   });
-  return { title, chapters, coldStorage };
+  const { author, structure, target } = doc.attrs;
+  return { title, ...bookSetup({ author: author ?? undefined, structure: structure ?? undefined, target: target ?? undefined }), chapters, coldStorage };
 }

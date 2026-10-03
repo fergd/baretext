@@ -4,6 +4,7 @@ import {
   canonicalize,
   deepEqual,
   emptyManuscript,
+  MAX_TARGET,
   parse,
   serialize,
   validate,
@@ -58,9 +59,16 @@ const manuscript: fc.Arbitrary<Manuscript> = fc
     title: maybeText,
     chapters: fc.array(fc.record({ title: maybeText, scenes: fc.array(scene, { minLength: 1, maxLength: 4 }) }), { minLength: 1, maxLength: 4 }),
     cold: fc.array(fc.tuple(scene, fc.option(fc.tuple(fc.constantFrom('ca', 'cb'), fc.nat(9)), { nil: null })), { maxLength: 3 }),
+    author: fc.option(text, { nil: undefined }),
+    structure: fc.option(fc.constantFrom('three-act', 'save-the-cat', 'some-future-structure'), { nil: undefined }),
+    target: fc.option(fc.integer({ min: 1, max: MAX_TARGET }), { nil: undefined }),
   })
-  .map(({ title, chapters, cold }) => ({
+  .map(({ title, chapters, cold, author, structure, target }) => ({
     title,
+    // The book's setup, when it has one (DECISIONS §26).
+    ...(author !== undefined ? { author } : {}),
+    ...(structure !== undefined ? { structure } : {}),
+    ...(target !== undefined ? { target } : {}),
     chapters: chapters.map((c) => ({ id: id(), title: c.title, scenes: c.scenes.map((s) => ({ id: id(), ...s })) })),
     // Parked scenes may remember where they came from (Restore puts them back).
     coldStorage: cold.map(([s, from]) => ({ id: id(), ...s, ...(from ? { origin: { chapter: from[0], index: from[1] } } : {}) })),
@@ -185,5 +193,53 @@ describe('deepEqual', () => {
   it('ignores undefined keys only', () => {
     expect(deepEqual({ a: 1, b: undefined }, { a: 1 })).toBe(true);
     expect(deepEqual({ a: 1 }, { a: 2 })).toBe(false);
+  });
+});
+
+describe('book setup (front matter)', () => {
+  const book = (extra: Partial<Manuscript>): Manuscript => ({ ...emptyManuscript('The Keeper'), ...extra });
+
+  it('writes the author, structure and target under the title, and reads them back', () => {
+    const m = book({ author: 'Ann "A." Lee', structure: 'three-act', target: 90000 });
+    const text = serialize(m);
+    expect(text.split('\n').slice(0, 7)).toEqual(['---', 'title: "The Keeper"', 'author: "Ann \\"A.\\" Lee"', 'structure: three-act', 'target: 90000', 'baretext: 1', '---']);
+    expect(parse(text).manuscript).toMatchObject({ author: 'Ann "A." Lee', structure: 'three-act', target: 90000 });
+    expect(verifyRoundTrip(m)).toBe(text);
+  });
+
+  it('a book without a setup is written exactly as before (none of the keys)', () => {
+    const text = serialize(book({}));
+    expect(text.split('\n').slice(0, 4)).toEqual(['---', 'title: "The Keeper"', 'baretext: 1', '---']);
+    const back = parse(text).manuscript;
+    expect('author' in back || 'structure' in back || 'target' in back).toBe(false);
+  });
+
+  it('an author is trimmed; a blank one is no author', () => {
+    expect('author' in canonicalize(book({ author: '' }))).toBe(false);
+    expect('author' in canonicalize(book({ author: '  ' }))).toBe(false);
+    expect(canonicalize(book({ author: ' Ann Lee ' })).author).toBe('Ann Lee');
+  });
+
+  it('keeps a structure it does not know (a newer app’s), so saving never drops it', () => {
+    expect(parse(serialize(book({ structure: 'some-future-structure' }))).manuscript.structure).toBe('some-future-structure');
+  });
+
+  it('refuses a setup that could not be written back', () => {
+    expect(validate(book({ author: 'a\nb' })).join()).toMatch(/author/);
+    expect(validate(book({ structure: 'Three Acts' })).join()).toMatch(/structure/);
+    for (const target of [0, -5, 1.5, MAX_TARGET + 1, Number.NaN]) expect(validate(book({ target })).join()).toMatch(/target/);
+  });
+
+  it('reads hand-edited values it can, and ignores the ones it cannot', () => {
+    const edited = serialize(book({})).replace('baretext: 1', "author: 'Ann Lee'\nstructure: Not An Id\ntarget: lots\nbaretext: 1");
+    const m = parse(edited).manuscript;
+    expect(m.author).toBe('Ann Lee');
+    expect(m.structure).toBeUndefined();
+    expect(m.target).toBeUndefined();
+    expect(parse(serialize(book({})).replace('baretext: 1', 'target: 85,000\nbaretext: 1')).manuscript.target).toBe(85000);
+  });
+
+  it('imported Markdown keeps an author from its own front matter', () => {
+    expect(parse('---\ntitle: Notes\nauthor: Ann Lee\n---\n\nSome prose.\n').manuscript.author).toBe('Ann Lee');
   });
 });

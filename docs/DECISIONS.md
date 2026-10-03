@@ -899,10 +899,7 @@ book is past what a URL can carry).
   card for the same actions as a menu. Cards show state only (title,
   opening, words/Draft, notes, a beat chip); **Open** stays on the card. (A
   drawer under the card was considered and dropped: it moves the board.)
-- **Book setup** (new): "New book" asks title, author, **structure** (the arc
-  to compare with), optional **target length**; "Book settings…" (File,
-  palette) later. Stored in the book's own front matter (it travels with the
-  manuscript; a format change with round-trip tests).
+- **Book setup:** built — §26.
 - **The story arc** (user's idea; no AI): the writer **marks beats** on cards
   ("Mark as…": inciting incident, turning points, midpoint, crisis, climax…,
   saved per scene in the file); the arc places scenes by their position in
@@ -935,7 +932,31 @@ book is past what a URL can carry).
   keeps the keyboard. Esc, or dropping where it started, changes nothing; a
   chapter's only scene can't leave it. The caret travels with its scene. A
   drag follows only the pointer that began it.
-- **Order:** book setup, then Mark as… and the arc.
+- **Order:** Mark as… and the arc.
+
+## 26. Book setup (2026-10-02, user; built)
+- **What:** the book's **title, author, story structure, target length**.
+  File › New asks for them ("New book": the title selected, ready to be
+  typed over; the author is the last one used). File › Book Settings… and
+  the palette's "Book settings…" change them later. Done (↵) applies them
+  as **one undoable change**; Esc leaves the book as it was. A target that
+  isn't a whole number of words ("about 90k") is marked and holds Done;
+  "90,000", "90 000" and "90000" all read. No explanations on the panel.
+- **Stored in the book's front matter** (it travels with the manuscript),
+  each key only when set, so a book without a setup is written exactly as
+  before: `author: "Ann Lee"` (JSON-quoted), `structure: three-act` (an id),
+  `target: 90000`. An author is trimmed; blank is none. A structure id this
+  app doesn't know (a newer one's) is kept, shown by its id, and saved back.
+  Hand edits are read where they can be (`author: Ann Lee`, `target:
+  85,000`) and otherwise ignored; imported Markdown keeps an `author:` from
+  its own front matter. In the editor they are attributes of the document.
+- **Structures** (for the arc, §25): None, Three acts, The hero's journey,
+  Save the Cat, Seven-point, Freytag's pyramid, Kishōtenketsu
+  (`app/renderer/structures.ts`).
+- **Used now:** the **author** is the book's for Export and Print (the
+  Export panel shows it; naming one there sets the book's). The old global
+  export author is now only "the last used", a new book's default. A
+  **target** shows in the status bar: "12,400 of 90,000 words".
 
 ## 22. Code conventions (2026-10-02, audit)
 - Gates: `npm run typecheck`, `npm run lint` (oxlint, type-aware: floating

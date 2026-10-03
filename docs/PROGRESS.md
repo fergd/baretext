@@ -755,7 +755,7 @@ gaps:* the macOS dialog has no preview, takes the printer's paper size (A4
 here) over the layout's Letter, and doesn't know the page count. Planned
 fix: build the PDF (Letter, exact) and show it in an in-app preview window
 with Print / Save PDF.
-**Gallery:** `npm run gallery` (DECISIONS §22); 43 states × 5 themes under
+**Gallery:** `npm run gallery` (DECISIONS §22); 46 states × 5 themes under
 screenshot test — every panel, the outline, find, the selection toolbar,
 notes (panel and margin), the save notice, toasts, the spine and the timer
 line. Editor-bound parts sit on a real editor in each frame. It found a real bug on day one: two manuscripts with the
@@ -779,4 +779,10 @@ rows and columns; undoable; the caret travels with its scene. The gallery
 shows both drags. Found on the way: the outline's "Renaming" gallery frame
 never showed its field, and armed confirmations in the gallery were being
 disarmed by other frames' presses (both now last steps, §22).
-**Next:** book setup · Mark as… and the story arc · integrations (§7).
+**Book setup built** (DECISIONS §26): title, author, structure, target —
+asked by File › New, changed in File › Book Settings…; in the front matter
+(only keys that are set; unknown structures kept; round-trip property test
+covers them); one undoable change; the author for export and print; the
+target in the status bar. Tests: format (7), editor (5), target parsing,
+E2E `book-setup.test.ts` (3), gallery (3 states).
+**Next:** Mark as… and the story arc · integrations (§7).
