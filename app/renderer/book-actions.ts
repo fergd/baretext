@@ -10,6 +10,7 @@ import type { BaretextBridge, ExportPrefs } from '../shared/bridge';
 import { BookSetupPanel } from './book-setup';
 import { ExportPanel } from './export-panel';
 import { outlineOf } from './outline';
+import { beatsKept, structureOf } from './structures';
 import type { ToastKind } from './status';
 
 export interface BookActionsHost {
@@ -88,7 +89,13 @@ export class BookActions {
 
   /** Change the book's setup (one undoable step); its author is remembered for the next new book. */
   set(s: BookSetup) {
-    if (!this.h.change(setBookSetup(s))) return;
+    const view = this.h.view();
+    // Another structure: the story beats it doesn't have are cleared (and the writer told).
+    const changing = !!view && bookSetupOf(view.state.doc).structure !== s.structure;
+    const keep = beatsKept(s.structure);
+    const cleared = changing ? outlineOf(view.state.doc).chapters.flatMap((c) => c.scenes).filter((x) => x.beat && !keep(x.beat)).length : 0;
+    if (!this.h.change(setBookSetup(s, keep))) return;
+    if (cleared) this.h.toast(`${cleared} story ${cleared === 1 ? 'beat doesn’t' : 'beats don’t'} exist in ${structureOf(s.structure)?.name ?? 'this book'} and ${cleared === 1 ? 'was' : 'were'} cleared. ⌘Z brings ${cleared === 1 ? 'it' : 'them'} back.`);
     const author = s.author.trim();
     if (author && author !== this.prefs.author) this.remember({ ...this.prefs, author });
   }

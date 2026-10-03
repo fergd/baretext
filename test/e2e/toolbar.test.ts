@@ -17,6 +17,8 @@ const wordRect = (page: Page, word: string) => page.evaluate((word) => {
   throw new Error(`not found: ${word}`);
 }, word);
 
+/** The toolbar's wait for a keyboard selection to pause (KEYBOARD_PAUSE_MS in toolbar.ts). */
+const PAUSE_MS = 400;
 const bar = (page: Page) => page.evaluate(() => (window as any).__baretext.toolbar());
 const selection = (page: Page) => page.evaluate(() => (window as any).__baretext.selection());
 const paragraphs = async (page: Page) => (await model(page)).chapters[0].scenes[0].blocks;
@@ -187,14 +189,16 @@ test('a keyboard selection right after a click still waits for the pause', async
       await page.keyboard.press('Escape');
       // Mouse up and a Shift+Arrow in the same moment (no awaits between).
       await page.evaluate(() => { document.querySelector('[data-ref="scroller"]')!.scrollTop = 0; });
+      const started = Date.now();
       await Promise.all([
         page.mouse.click(r.left + 1, r.top + r.height / 2),
         page.keyboard.press('Shift+ArrowRight'),
       ]);
       await page.keyboard.press('Shift+ArrowRight');
-      await page.waitForTimeout(30);
-      const sel = await selection(page);
-      if (sel.to > sel.from) expect((await bar(page)).visible, `iteration ${i}`).toBe(false);
+      // The selection and the toolbar, read in the same instant.
+      const { sel, visible } = await page.evaluate(() => ({ sel: (window as any).__baretext.selection(), visible: (window as any).__baretext.toolbar().visible }));
+      // (On a busy machine the pause itself may have run out by now: then there is nothing to judge.)
+      if (sel.to > sel.from && Date.now() - started < PAUSE_MS - 100) expect(visible, `iteration ${i}`).toBe(false);
     }
   } finally {
     await app.close();

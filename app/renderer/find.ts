@@ -233,7 +233,9 @@ export class FindPanel {
       this.count.textContent = !this.input.value ? '' : !n ? 'No results'
         : `${numberFormat.format(this.current + 1)} of ${numberFormat.format(n)}${n >= FIND_LIMIT ? '+' : ''}`;
     }
-    this.el.dataset.empty = String(!!this.input.value && !n);
+    // (After Replace All nothing is left to find: that is the action having worked, not "no results".)
+    this.el.dataset.empty = String(!!this.input.value && !n && !keepCount);
+    this.el.dataset.replaced = String(keepCount);
     this.el.dataset.counted = String(!!this.count.textContent);
     if (reveal) this.reveal();
     this.highlight();

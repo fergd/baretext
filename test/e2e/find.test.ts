@@ -78,6 +78,9 @@ test('replace one and replace all keep formatting; all is one undo', async () =>
 
     await page.click('[data-action="all"]');
     expect((await find(page)).count).toBe('Replaced 4');
+    // It worked: green, not the red of "no results".
+    await expect(page.locator('.bt-find')).toHaveAttribute('data-replaced', 'true');
+    await expect(page.locator('.bt-find')).toHaveAttribute('data-empty', 'false');
     expect((await text(page)).join('\n')).not.toMatch(/harbor/i);
     expect((await model(page)).chapters[0].scenes[0].name).toBe('port'); // the scene name too
     await page.keyboard.press('Escape');

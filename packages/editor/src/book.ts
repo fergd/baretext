@@ -25,11 +25,13 @@ export function bookSetupOf(doc: PMNode): BookSetup {
 
 /**
  * Set the book's setup in one undoable step (the caret stays where it was).
- * Names stay on one line and are trimmed. False when nothing differs, or a
+ * Names stay on one line and are trimmed. Choosing another structure clears
+ * the story beats `keepBeat` doesn't keep (§27: those the new structure has
+ * stay; the rest could only mislead). False when nothing differs, or a
  * value couldn't be saved (a target that isn't a whole number of words, a
  * structure that isn't an id).
  */
-export const setBookSetup = (next: BookSetup): Command => (state, dispatch) => {
+export const setBookSetup = (next: BookSetup, keepBeat?: (beat: string) => boolean): Command => (state, dispatch) => {
   if (next.target !== null && !isTarget(next.target)) return false;
   if (next.structure !== null && !isSlug(next.structure)) return false;
   const line = (s: string) => s.replace(/\s+/g, ' ').trim();
@@ -43,6 +45,14 @@ export const setBookSetup = (next: BookSetup): Command => (state, dispatch) => {
     else tr.delete(1, titleNode.nodeSize - 1);
   }
   for (const [key, value] of Object.entries(attrs)) if (doc.attrs[key] !== value) tr.setDocAttribute(key, value);
+  // Another structure: the beats it doesn't have are cleared, in this same step (`keepBeat` says which survive; without it, all do).
+  if (keepBeat && doc.attrs.structure !== next.structure) {
+    doc.descendants((node, pos) => {
+      if (node.type !== schema.nodes.scene) return node.type !== schema.nodes.paragraph;
+      if (node.attrs.beat && !keepBeat(node.attrs.beat)) tr.setNodeAttribute(pos, 'beat', null);
+      return false;
+    });
+  }
   if (!tr.docChanged) return false;
   if (dispatch) dispatch(closeHistory(markStructural(tr)));
   return true;

@@ -333,6 +333,7 @@
   --color-caret: #f8f8f2;
   --color-selection: rgba(189, 147, 249, 0.28);
   --color-danger: #ff5555;
+  --color-success: #50fa7b; /* an action that worked (Replace All) */
   --color-popover: #343746;
   --color-scrim: rgba(0, 0, 0, 0.24);
   --color-switch-knob-on: #21222c;
@@ -370,6 +371,7 @@
   --color-caret: #f8c537;
   --color-selection: rgba(248, 197, 55, 0.22);
   --color-danger: #ff7a66;
+  --color-success: #8bc78a; /* an action that worked (Replace All) */
   --color-popover: #2e2e2e;
   --color-scrim: rgba(0, 0, 0, 0.24);
   --color-switch-knob-on: #191919;
@@ -409,6 +411,7 @@
   --color-caret: #2a2218;
   --color-selection: rgba(184, 130, 10, 0.2);
   --color-danger: #b0281a;
+  --color-success: #2d7a3e; /* an action that worked (Replace All) */
   --color-popover: #fffdf8;
   --color-scrim: rgba(42, 34, 24, 0.12);
   --color-switch-knob-on: #fffdf8;
@@ -450,6 +453,7 @@
   --color-caret: #7fbbb3;
   --color-selection: rgba(127, 187, 179, 0.24);
   --color-danger: #e67e80;
+  --color-success: #83c092; /* an action that worked (Replace All) */
   --color-popover: #374145;
   --color-scrim: rgba(0, 0, 0, 0.24);
   --color-switch-knob-on: #2f383e;
@@ -488,6 +492,7 @@
   --color-caret: #ffffff;
   --color-selection: rgba(127, 219, 255, 0.34);
   --color-danger: #ff9a8f;
+  --color-success: #7dff8f; /* an action that worked (Replace All) */
   --color-popover: #141414;
   --color-scrim: rgba(0, 0, 0, 0.5);
   --color-switch-knob-on: #000000;

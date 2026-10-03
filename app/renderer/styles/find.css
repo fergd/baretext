@@ -42,6 +42,9 @@
   min-width: 0;
 }
 .bt-find[data-empty='true'] .bt-find-field .bt-find-input { border-color: var(--color-danger); }
+/* Replace All just worked: green, not the red of "no results". */
+.bt-find[data-replaced='true'] .bt-find-field .bt-find-input { border-color: var(--color-success); }
+.bt-find[data-replaced='true'] .bt-find-count { color: var(--color-success); }
 
 /* The match count sits inside the Find field, at its right end. */
 .bt-find-field { position: relative; display: grid; min-width: 0; }

@@ -793,5 +793,8 @@ glance beside the board, the structure's curve, where beats usually fall and
 where the writer's are, a band for what's on screen. Found on the way: a
 panel closed over the board sent the keyboard to the hidden page (now back
 to the card).
+**Open for later (DECISIONS §27):** "Suggest beats" — map a finished book
+onto a structure (position-based engine now-ish; AI engine with the
+integrations). Export outline (§28).
 **Next:** integrations (§7) — or polish from use: clicking the arc to
 bring the scene at that place into view.

@@ -981,6 +981,27 @@ book is past what a URL can carry).
   id}`), by identity: a beat survives moves, renames and Cold Storage (a
   parked scene keeps its own); a split leaves it on the first half. A beat
   id this app doesn't know is kept and shown by its id.
+- **Choosing another structure clears the beats it doesn't have** (user):
+  those the new structure also has stay (Midpoint is in several), the rest
+  — including Cold Storage's — are cleared in the same single undo step as
+  the change, and a message says how many ("2 story beats don't exist in
+  Three acts and were cleared. ⌘Z brings them back."). With no structure,
+  none are kept; with one this app doesn't know (a newer app's), all are —
+  what can't be judged is never thrown away. Automatic mapping to "closest"
+  beats was rejected: positions match but meanings often don't, and it
+  would quietly rewrite the writer's own decisions.
+- **TODO when AI is brought in (§12; with the integrations, §7):
+  "Suggest beats".** The writer's finished book mapped onto a structure. A
+  review screen of *proposals* (ghost chips on the cards, each with a
+  one-line reason; accept or dismiss each, or Accept all; one undo step;
+  never overwriting beats already set unless asked), fed by an engine that
+  can be swapped: a **position-based engine** (each beat's usual place in
+  the book → the nearest scene; offline, instant, coarse; buildable any
+  time) and an **AI engine** (reads the scenes, finds the real turning
+  points, says why; only on an explicit click, showing what is sent and
+  where — the manuscript leaves the machine). Changing structure would then
+  offer proposals for the beats it clears. Same proposal list from both, so
+  the review screen is built once.
 - **The ideal arc** stays on the arc only (hollow points), not on cards
   (it would crowd the board and shift with every word). Possible next:
   clicking a point on the arc brings the scene at that place into view.
@@ -1038,6 +1059,10 @@ book is past what a URL can carry).
 - **No outline view** (spec §8.3 dropped, user). Instead **Export outline**:
   the book's chapters, scenes, beats and word counts, as Word, PDF or
   Markdown — from the Export panel.
+- **An action that worked is green, not red** (user): Replace All leaves
+  nothing to find, which read as the red "no results" — it now shows green
+  (the field and "Replaced 4"), from a `--color-success` token in every
+  theme. Red stays for errors and empty searches.
 - Integrations (§7) stay on hold (user: "I want to get it right").
 - **Save As…** (user; File menu, ⌥⇧⌘S — ⇧⌘S is Sprint; palette "Save as…"):
   the book is saved first, then written where the writer chooses through the
@@ -1090,7 +1115,10 @@ book is past what a URL can carry).
   state gets a gallery entry. Pictures compare closely: no pixel may differ
   beyond a colour threshold of 0.08 — above anti-aliasing noise (measured up
   to 12/255 on one channel), below the faintest design change (a border, a
-  dashed curve), which Playwright's default 0.2 let through. A state that
+  dashed curve), which Playwright's default 0.2 let through. The gallery
+  runs with scrollbars hidden: whether macOS shows them depends on whether
+  a mouse is plugged in, which narrowed every panel and failed every
+  picture. A state that
   can't survive the rest of the page — the keyboard (one focus: a rename
   saves on blur), an armed confirmation (a press elsewhere disarms it), a
   held drag — is reached in its last step, run on a freshly drawn frame just

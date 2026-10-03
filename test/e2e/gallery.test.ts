@@ -19,7 +19,8 @@ let page: Page;
 
 test.beforeAll(async () => {
   app = await electron.launch({
-    args: [path.join(here, '../../build/main/main.cjs')],
+    // (No scrollbars in the pictures: whether macOS shows them depends on whether a mouse is plugged in, which narrows every panel.)
+    args: ['--hide-scrollbars', path.join(here, '../../build/main/main.cjs')],
     env: { ...process.env, BARETEXT_HIDDEN: '1', BARETEXT_GALLERY: '1', BARETEXT_USER_DATA: mkdtempSync(path.join(os.tmpdir(), 'bt-gallery-')) },
   });
   page = await app.firstWindow();

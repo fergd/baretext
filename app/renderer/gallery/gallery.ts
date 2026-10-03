@@ -297,6 +297,8 @@ const SPECS: Spec[] = [
   { component: 'Find', state: 'Matches', size: [900, 360], render: (f) => find(f, 'the', null) },
   { component: 'Find', state: 'Replace', size: [900, 360], render: (f) => find(f, 'keeper', 'warden') },
   { component: 'Find', state: 'No matches', size: [900, 360], render: (f) => find(f, 'zebra', null) },
+  // (Replace All has just worked: no matches left, and green rather than red.)
+  { component: 'Find', state: 'Replaced', size: [900, 360], render: (f) => { find(f, 'keeper', 'warden'); click(f, '[data-action="all"]'); } },
   { component: 'Selection toolbar', state: 'Formatting', size: [900, 360], render: (f) => toolbar(f, false) },
   { component: 'Selection toolbar', state: 'Link', size: [900, 360], render: (f) => toolbar(f, true) },
   { component: 'Notes', state: 'Panel', size: [1200, 560], render: (f) => notesIn(f, 'panel') },

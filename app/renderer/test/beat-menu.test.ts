@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { beatMenu, chosenBeat, CHOOSE_STRUCTURE } from '../beat-menu';
+import { beatsKept } from '../structures';
 
 const scene = (id: string, label: string, beat: string | null = null) => ({ id, label, beat });
 const outline = { chapters: [{ scenes: [scene('a', '1.1', 'midpoint'), scene('b', '1.2'), scene('c', '1.3', 'a-newer-beat')] }] } as never;
@@ -27,5 +28,12 @@ describe('the Story beat menu (DECISIONS §27)', () => {
     expect(chosenBeat('beat:midpoint')).toBe('midpoint');
     expect(chosenBeat('beat:')).toBeNull();
     expect(chosenBeat('copy')).toBeUndefined();
+  });
+
+  it('choosing a structure keeps the beats it has and drops the rest; unknown structures drop nothing; none keeps nothing', () => {
+    expect(beatsKept('three-act')('midpoint')).toBe(true);
+    expect(beatsKept('three-act')('catalyst')).toBe(false); // (a Save the Cat beat)
+    expect(beatsKept('some-future-structure')('anything')).toBe(true);
+    expect(beatsKept(null)('midpoint')).toBe(false);
   });
 });

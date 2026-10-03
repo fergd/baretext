@@ -112,3 +112,35 @@ test('a structure this app doesn’t know (a newer one’s) is kept through the 
     await app.close();
   }
 });
+
+test('choosing another structure clears the story beats it doesn’t have (keeps shared ones), says so, and ⌘Z brings them back', async () => {
+  const beat = (id: string, name: string | null, text: string, b: string | null) => ({ id, name, link: null, ...(b ? { beat: b } : {}), blocks: [p(text)] });
+  const marked = serialize({
+    title: 'Keeper', structure: 'save-the-cat', coldStorage: [],
+    chapters: [{ id: 'c1x', title: 'One', scenes: [beat('s1x', null, 'The boat left.', 'catalyst'), beat('s2x', 'The log', 'Wind.', 'midpoint'), beat('s3x', null, 'Dusk.', 'finale')] }],
+  });
+  const { app, page } = await launch({ file: { name: 'B.md', content: marked } });
+  try {
+    const chips = () => page.evaluate(() => (window as any).__baretext.model().chapters[0].scenes.map((s: any) => s.beat ?? null));
+    expect(await chips()).toEqual(['catalyst', 'midpoint', 'finale']);
+    await menu(app, 'File', 'Book Settings…');
+    await page.locator('.bt-book [data-field="structure"]').selectOption('three-act');
+    await page.locator('.bt-book [data-action="done"]').click(); // (not Enter: with the list focused, that opens it)
+    await expect(page.locator('.bt-book')).toBeHidden();
+    expect(await chips()).toEqual([null, 'midpoint', null]); // (Midpoint is in both)
+    await expect(page.locator('[data-ref="toast"]')).toHaveText('2 story beats don’t exist in Three acts and were cleared. ⌘Z brings them back.');
+
+    await page.keyboard.press('Meta+Z');
+    expect(await chips()).toEqual(['catalyst', 'midpoint', 'finale']);
+    expect(await setup(page)).toMatchObject({ structure: 'save-the-cat' });
+
+    // Setting something else about the book touches no beats.
+    await menu(app, 'File', 'Book Settings…');
+    await page.locator('.bt-book [data-field="author"]').fill('Ann Lee');
+    await page.locator('.bt-book [data-action="done"]').click();
+    await expect(page.locator('.bt-book')).toBeHidden();
+    expect(await chips()).toEqual(['catalyst', 'midpoint', 'finale']);
+  } finally {
+    await app.close();
+  }
+});

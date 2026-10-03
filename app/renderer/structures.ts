@@ -96,6 +96,17 @@ export const STRUCTURES: readonly Structure[] = [
   },
 ];
 
+/**
+ * Which story beats survive choosing `structure` (DECISIONS §27): those it
+ * has. With none chosen, none; with one this app doesn't know (a newer
+ * app's), all — what can't be judged is never thrown away.
+ */
+export function beatsKept(structure: string | null): (beat: string) => boolean {
+  if (structure === null) return () => false;
+  const known = structureOf(structure);
+  return known ? (beat) => known.beats.some((b) => b.id === beat) : () => true;
+}
+
 export const structureOf = (id: string | null): Structure | undefined => STRUCTURES.find((s) => s.id === id);
 
 /** A beat's name in a structure; one this app doesn't know reads from its id ("a-newer-beat" → "A newer beat"). */
