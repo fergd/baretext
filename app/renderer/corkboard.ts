@@ -66,7 +66,7 @@ export interface CorkboardHost {
 type CardAction = 'open' | 'mark' | 'rename' | 'copy' | 'new-scene' | 'delete';
 const ACTIONS: { action: Exclude<CardAction, 'new-scene'>; label: string; menuKeys: string }[] = [
   { action: 'open', label: 'Open', menuKeys: 'Enter' },
-  { action: 'mark', label: 'Mark as', menuKeys: 'M' },
+  { action: 'mark', label: 'Story beat', menuKeys: 'B' },
   { action: 'rename', label: 'Rename', menuKeys: 'R' },
   { action: 'copy', label: 'Copy', menuKeys: 'C' },
   { action: 'delete', label: 'Delete', menuKeys: 'Backspace' },
@@ -609,7 +609,7 @@ export class Corkboard {
     const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     const action: CardAction | null = e.key === 'Enter' ? 'open'
       : (plain && key === 'r') || e.key === 'F2' ? 'rename'
-      : plain && key === 'm' ? 'mark'
+      : plain && key === 'b' ? 'mark'
       : (plain && key === 'c') || (e.metaKey && key === 'c') ? 'copy'
       : plain && key === 'n' ? 'new-scene'
       : plain && (e.key === 'Backspace' || e.key === 'Delete') ? 'delete'

@@ -470,18 +470,18 @@ test('drag a chapter by its header, in rows and in columns', async () => {
 
 // ── story beats (DECISIONS §27) ──
 
-test('Mark as… (M, ⋯, or right-click): a beat chip on the card, saved by scene; one scene per beat; undoable', async () => {
+test('Story beat (B, ⋯, or right-click): a beat chip on the card, saved by scene; one scene per beat; undoable', async () => {
   const marked = BOOK.replace('baretext: 1', 'structure: three-act\nbaretext: 1');
   const { app, page } = await launch({ file: { name: 'L.md', content: marked }, env: { BARETEXT_MENU_PICK: 'beat:midpoint' } });
   try {
     await page.keyboard.press('Meta+Shift+C');
     const chip = (id: string) => page.locator(`.bt-cork-card[data-id="${id}"] .bt-cork-card-beat`);
     await page.locator('.bt-cork-card[data-id="s2x"]').focus();
-    await page.keyboard.press('m');
+    await page.keyboard.press('b');
     await expect(chip('s2x')).toHaveText('Midpoint');
     expect(await page.evaluate(() => (window as any).__baretext.model().chapters[0].scenes[1].beat)).toBe('midpoint');
 
-    // The same beat on another card moves it there (right-click: the "Mark as" submenu).
+    // The same beat on another card moves it there (right-click: the "Story beat" submenu).
     await page.click('.bt-cork-card[data-id="s4x"] .bt-cork-card-opening', { button: 'right' });
     await expect(chip('s4x')).toHaveText('Midpoint');
     await expect(page.locator('.bt-cork-card-beat')).toHaveCount(1);
@@ -494,12 +494,12 @@ test('Mark as… (M, ⋯, or right-click): a beat chip on the card, saved by sce
   }
 });
 
-test('Mark as… without a structure offers to choose one: Book Settings, then back to the card', async () => {
+test('Story beat without a structure offers to choose one: Book Settings, then back to the card', async () => {
   const { app, page } = await launch({ file: { name: 'L.md', content: BOOK }, env: { BARETEXT_MENU_PICK: 'choose-structure' } });
   try {
     await page.keyboard.press('Meta+Shift+C');
     await page.locator('.bt-cork-card[data-id="s4x"]').focus();
-    await page.keyboard.press('m');
+    await page.keyboard.press('b');
     const panel = page.locator('.bt-book');
     await expect(panel).toBeVisible();
     await page.keyboard.press('Escape');
@@ -519,7 +519,7 @@ test('the Arc: the whole book’s curve beside the board, each marked scene join
     await page.keyboard.press('Meta+Shift+C');
     await page.click('[role="radio"][data-layout="columns"]');
     await page.locator('.bt-cork-card[data-id="s4x"]').focus();
-    await page.keyboard.press('m');
+    await page.keyboard.press('b');
     await expect(page.locator('.bt-cork-arc')).toBeHidden(); // (off until asked for)
     await page.click('.bt-cork-arc-toggle');
     await expect(page.locator('.bt-cork-arc-toggle')).toHaveAttribute('aria-pressed', 'true');

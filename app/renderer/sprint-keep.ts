@@ -89,12 +89,12 @@ export class SprintKeep {
       <div class="bt-sprint-body">
         <label class="bt-keep-book">
           <span class="bt-keep-book-label">Book</span>
-          <select class="bt-keep-select bt-keep-book-select bt-field" aria-label="Book"></select>
+          <span class="bt-select bt-keep-select"><select class="bt-keep-book-select bt-field" aria-label="Book"></select></span>
         </label>
         <div role="radiogroup" aria-labelledby="bt-keep-title" class="bt-keep-options">${OPTIONS.map(([value, label]) => `
           <div class="bt-keep-option" data-value="${value}">
             <button type="button" role="radio" class="bt-keep-radio" data-value="${value}" aria-checked="false"><span class="bt-keep-dot" aria-hidden="true"></span>${label}</button>
-            ${value === 'chapter' ? '<select class="bt-keep-select bt-keep-chapter-select bt-field" aria-label="Chapter"></select>' : value === 'end' ? '<span class="bt-keep-detail" data-detail="end"></span>' : ''}
+            ${value === 'chapter' ? '<span class="bt-select bt-keep-select"><select class="bt-keep-chapter-select bt-field" aria-label="Chapter"></select></span>' : value === 'end' ? '<span class="bt-keep-detail" data-detail="end"></span>' : ''}
           </div>`).join('')}
         </div>
       </div>

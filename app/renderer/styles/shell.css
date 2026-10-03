@@ -275,6 +275,33 @@ button {
   transition: border-color var(--dur-fast) var(--ease-out);
 }
 .bt-field:is(:focus, :focus-within) { border-color: var(--color-accent); }
+
+/* A dropdown: the plain select under our own chevron, so its right edge has
+   room in every theme (the native arrow ignores padding). Wrap the select in
+   `.bt-select`; the select is still the real control. */
+.bt-select { position: relative; display: block; min-width: 0; }
+.bt-select > select {
+  appearance: none;
+  display: block;
+  width: 100%;
+  padding-right: calc(var(--space-3) + var(--select-chevron) + var(--space-2));
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.bt-select::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: var(--space-3);
+  width: var(--select-chevron);
+  height: var(--select-chevron);
+  translate: 0 -50%;
+  background: var(--color-text-dim);
+  -webkit-mask: url('../assets/icon-chevron-down.svg') center / contain no-repeat;
+  mask: url('../assets/icon-chevron-down.svg') center / contain no-repeat;
+  pointer-events: none;
+}
+.bt-select:has(select:is(:hover, :focus))::after { background: var(--color-text); }
 .bt-field::placeholder { color: var(--color-text-dimmer); }
 .bt-field-quiet { border-color: transparent; }
 .bt-field-quiet:focus { border-color: var(--color-popover-border); }

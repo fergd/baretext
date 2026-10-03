@@ -216,8 +216,8 @@
 .bt-arc-mark:is(:hover, :focus-visible) { stroke: var(--color-beat); stroke-width: 4; }
 .bt-arc-drift { fill: none; stroke: var(--color-beat); stroke-width: 2; stroke-dasharray: 2 3; stroke-linecap: round; }
 /* No structure yet: the way to choose one, where the arc would be. */
-/* No structure yet: a faint dashed example of an arc, and over it the way to
-   choose one — along the strip in Rows (read like a book's spine). */
+/* No structure yet: a faint dashed example of an arc and the way to choose
+   one. In Rows the strip is wider (a sidebar), the button across its top. */
 .bt-arc-example { stroke: var(--color-popover-border); stroke-dasharray: 3 4; }
 .bt-cork-arc-choose {
   display: none;
@@ -234,7 +234,9 @@
   white-space: nowrap;
   pointer-events: all;
 }
-.bt-corkboard[data-layout='rows'] .bt-cork-arc-choose { writing-mode: vertical-rl; padding: var(--space-2) var(--space-1); }
+.bt-corkboard[data-layout='rows'] .bt-cork-arc-choose { inset: var(--space-2) 0 auto; height: var(--toolbar-button); }
+.bt-corkboard[data-layout='rows'] .bt-cork-arc[data-empty='true'] { width: var(--cork-arc-empty); }
+.bt-corkboard[data-arc='true'][data-layout='rows']:has(.bt-cork-arc[data-empty='true']) .bt-cork-board { margin-left: calc(var(--space-4) + var(--cork-arc-empty)); }
 .bt-cork-arc-choose:hover { color: var(--color-text); background: var(--color-popover-hover); }
 .bt-cork-arc[data-empty='true'] .bt-cork-arc-choose { display: block; }
 .bt-cork-arc-toggle[aria-pressed='true'] { color: var(--color-text); background: var(--color-popover-active); }

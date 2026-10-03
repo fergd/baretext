@@ -5,7 +5,7 @@ const scene = (id: string, label: string, beat: string | null = null) => ({ id, 
 const outline = { chapters: [{ scenes: [scene('a', '1.1', 'midpoint'), scene('b', '1.2'), scene('c', '1.3', 'a-newer-beat')] }] } as never;
 const ids = (items: ReturnType<typeof beatMenu>) => items.map((i) => ('id' in i ? i.id : '—'));
 
-describe('the Mark as menu (DECISIONS §27)', () => {
+describe('the Story beat menu (DECISIONS §27)', () => {
   it('lists the structure’s beats in order, a check on the scene’s own, another scene’s by its number, then No beat', () => {
     const items = beatMenu(outline, 'three-act', 'b');
     expect(ids(items)).toEqual(['beat:inciting-incident', 'beat:first-plot-point', 'beat:midpoint', 'beat:second-plot-point', 'beat:climax', 'beat:resolution', '—', 'beat:']);

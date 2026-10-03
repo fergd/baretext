@@ -184,10 +184,13 @@
   --cork-drop-w: 4px;
   /* The story arc's strip: its height across the top (Columns), its width down the left (Rows). */
   --cork-arc: 64px;
+  /* With no structure chosen, the Rows strip is wider, to hold its button. */
+  --cork-arc-empty: 168px;
 
   /* sprint setup */
   --sprint-w: 400px;
   --book-w: 440px;
+  --select-chevron: 16px;
   --sprint-preset-h: 40px;
   /* the settings rows' controls share one column */
   --sprint-control-w: 200px;

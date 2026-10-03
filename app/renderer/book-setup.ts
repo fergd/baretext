@@ -51,7 +51,7 @@ export class BookSetupPanel {
         <div class="bt-book-pair">
           <label class="bt-appearance-group">
             <span class="bt-appearance-label">Structure</span>
-            <select class="bt-field" data-field="structure"></select>
+            <span class="bt-select"><select class="bt-field" data-field="structure"></select></span>
           </label>
           <label class="bt-appearance-group">
             <span class="bt-appearance-label">Target length</span>

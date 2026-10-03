@@ -5,6 +5,7 @@
 // usually falls. Filled: the scene the writer marked as it, joined to where
 // it usually is. A band shows the part of the board on screen.
 
+import { cssNumber } from './dom';
 import type { Outline } from './outline';
 import type { Beat } from './structures';
 
@@ -77,7 +78,7 @@ export class ArcStrip {
   /** What the drawing on show was made from (the same again: nothing to do). */
   private drawn = '';
   /** The strip's run (px along it), its depth (px across), and which way it runs. */
-  private frame = { length: 0, depth: 0, pad: 0, vertical: false };
+  private frame = { length: 0, depth: 0, pad: 0, lead: 0, vertical: false };
 
   /** `onChoose`: choose a structure; `onPick`: a point was chosen — go to that place in the book (a share of it). */
   constructor(onChoose: () => void, onPick: (share: number) => void) {
@@ -101,17 +102,19 @@ export class ArcStrip {
 
   /** Draw the book's arc (`beats`: its structure's; none: the strip offers to choose one); `vertical`: down the left (Rows). */
   draw(outline: Outline, beats: readonly Beat[] | null, vertical: boolean) {
+    this.el.dataset.empty = String(!beats); // (before measuring: with no arc the strip is wider, to hold its button)
     const { width, height } = this.el.getBoundingClientRect();
     const pad = parseFloat(getComputedStyle(this.el).paddingTop) || 0;
     const [length, depth] = vertical ? [height, width] : [width, height];
     const weights = weighBook(outline);
     // Each marked scene, at its middle.
     const marked = new Map(outline.chapters.flatMap((c) => c.scenes).filter((s) => s.beat).map((s) => [s.beat!, { id: s.id, label: s.label, share: middle(weights.scenes.get(s.id) ?? [0, 0]) }]));
+    // With no arc yet (in Rows) its button sits at the top, and the example arc starts below it.
+    const lead = vertical && !beats ? cssNumber('--toolbar-button') + cssNumber('--space-3') : 0;
     const key = JSON.stringify([length, depth, vertical, beats, [...marked], weights.chapters]);
     if (key === this.drawn) return;
     this.drawn = key;
-    this.frame = { length, depth, pad, vertical };
-    this.el.dataset.empty = String(!beats);
+    this.frame = { length, depth, pad, lead, vertical };
     this.el.setAttribute('aria-label', beats ? 'The story arc' : 'The story arc: no structure chosen');
     this.svg.replaceChildren();
     if (length <= 2 * pad) return;
@@ -174,8 +177,8 @@ export class ArcStrip {
 
   /** [share of the book, tension] → the strip's x, y (Columns: along x, tension up; Rows: along y, tension to the right). */
   private at(share: number, t: number): [number, number] {
-    const { length, depth, pad, vertical } = this.frame;
-    const along = pad + share * (length - 2 * pad);
+    const { length, depth, pad, lead, vertical } = this.frame;
+    const along = pad + lead + share * (length - 2 * pad - lead);
     return vertical ? [pad + t * (depth - 2 * pad), along] : [along, depth - pad - t * (depth - 2 * pad)];
   }
 }

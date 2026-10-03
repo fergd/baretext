@@ -786,7 +786,7 @@ covers them); one undoable change; the author for export and print; the
 target in the status bar. Tests: format (7), editor (5), target parsing,
 E2E `book-setup.test.ts` (3), gallery (3 states).
 **Story beats and the arc built** (DECISIONS §27): beats mark scenes
-(Mark as ▸ in the card's ⋯ / right-click menu, or M; a chip on the card),
+(Story beat ▸ in the card's ⋯ / right-click menu, or B; a chip on the card),
 saved by scene in the bookkeeping (chapters were tried and dropped); card actions moved off the toolbar to a ⋯ menu on the card
 (native menus gained checks and submenus); the Arc — the whole book at a
 glance beside the board, the structure's curve, where beats usually fall and

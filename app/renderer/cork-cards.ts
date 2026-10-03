@@ -60,7 +60,7 @@ export function sceneCard(scene: SceneEntry, noteCount: number, structure: strin
   title.dataset.unnamed = String(!scene.name);
   const open = cardButton('bt-cork-action', 'open', 'Open');
   open.setAttribute('aria-label', `Open ${scene.label} in the manuscript`);
-  const more = cardButton('bt-cork-action bt-cork-more', 'menu', '⋯', { title: 'Open, mark as, rename, copy, delete' });
+  const more = cardButton('bt-cork-action bt-cork-more', 'menu', '⋯', { title: 'Open, story beat, rename, copy, delete' });
   more.setAttribute('aria-label', `Actions for ${scene.label}`);
   const card = el('article', 'bt-cork-card', {},
     el('div', 'bt-cork-card-head', {},

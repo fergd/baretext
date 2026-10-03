@@ -932,7 +932,7 @@ book is past what a URL can carry).
   keeps the keyboard. Esc, or dropping where it started, changes nothing; a
   chapter's only scene can't leave it. The caret travels with its scene. A
   drag follows only the pointer that began it.
-- **Mark as… and the arc:** built — §27.
+- **Story beats (first called "Mark as…") and the arc:** built — §27.
 
 ## 26. Book setup (2026-10-02, user; built)
 - **What:** the book's **title, author, story structure, target length**.
@@ -962,8 +962,8 @@ book is past what a URL can carry).
 - **Beats mark scenes** (user; no AI) — as Fictionary, Plottr and Save the
   Cat's own software do: a beat is a moment, and moments happen in scenes.
   (Chapters were tried: too coarse, and a book needs as many chapters as
-  its structure has beats.) A card is marked from its menu — **Mark as ▸**
-  in its ⋯ and right-click menus, or M on the card. The menu lists the
+  its structure has beats.) A card is marked from its menu — **Story beat ▸**
+  in its ⋯ and right-click menus, or B on the card. The menu lists the
   structure's beats in order, a check on the card's own; a beat another
   card has shows its number ("Midpoint · 4.2"), and choosing it **moves**
   it here: a beat belongs to one scene, a scene has one beat. "No beat"
@@ -972,7 +972,7 @@ book is past what a URL can carry).
   footer's end.
 - **Card actions** (user: no controls in the board's toolbar): a ⋯ button on
   the card the pointer is over or the keyboard is on (beside Open) opens the
-  same native menu as right-click — Open, Mark as ▸, Rename, Copy, Delete;
+  same native menu as right-click — Open, Story beat ▸, Rename, Copy, Delete;
   each also on its key (N adds a scene too, as does each chapter's last
   tile — not in the menu, user). An armed delete says so on the card
   ("Delete? ⌫ again"). The toolbar keeps only the layout switch, the totals

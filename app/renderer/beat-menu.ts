@@ -1,4 +1,4 @@
-// The "Mark as" menu for a scene (DECISIONS §27): the book's structure's
+// The "Story beat" menu for a scene (DECISIONS §27): the book's structure's
 // beats, in order — a check on the scene's own; where another scene has one,
 // that scene's number (choosing it moves it here) — then "No beat". Without a
 // structure, the way to choose one. Items: `beat:<id>` (`beat:` clears),
