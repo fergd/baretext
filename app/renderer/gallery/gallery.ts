@@ -35,14 +35,20 @@ interface Spec {
   state: string;
   /** The frame: as large as the component needs (a stand-in window). */
   size: [number, number];
-  /** Build the part and drive it into the state; may return a last step that needs focus (run once the page settles). */
+  /** Build the part and drive it into the state; may return a last step that needs the live page — the keyboard, the pointer (see `finishFrame`). */
   render(frame: HTMLElement): Promise<Finish> | Finish;
 }
 type Finish = void | (() => void);
 
 const THEME_NAMES: Record<Theme, string> = { dracula: 'Dracula', dark: 'Dark', light: 'Light', grove: 'Grove', contrast: 'Contrast' };
 const noop = () => {};
+/** The frames whose state ends with a last step, by name. */
+const finishedFrames = new Map<string, Spec>();
+/** Each drag in a frame has a pointer of its own. */
+let pointers = 1;
 const click = (frame: HTMLElement, selector: string) => frame.querySelector<HTMLElement>(selector)!.click();
+/** Arm a two-step confirmation, as a last step: a press anywhere else on the page disarms it (as it should), so it arms just before its picture. */
+const armed = (frame: HTMLElement, selector: string): Finish => () => click(frame, selector);
 
 /** Only what the panels below call; the rest of the bridge is never reached here. */
 const bridge = {
@@ -136,7 +142,7 @@ function select(view: EditorView, text: string) {
   view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, at, at + text.length)));
 }
 
-function outline(frame: HTMLElement, then?: (panel: OutlinePanel, frame: HTMLElement) => void) {
+function outline(frame: HTMLElement): OutlinePanel {
   const d = desk(frame, { outline: true });
   const panel = new OutlinePanel(d.workspace, {
     navigate: noop, toEditor: noop, rename: () => false, addScene: noop, moveScene: () => false, moveChapter: () => false,
@@ -145,7 +151,7 @@ function outline(frame: HTMLElement, then?: (panel: OutlinePanel, frame: HTMLEle
   });
   panel.update(outlineOf(d.view.state.doc), book.title, 's3', 'c2');
   panel.setPresence('pinned');
-  then?.(panel, frame);
+  return panel;
 }
 
 function find(frame: HTMLElement, query: string, replace: string | null) {
@@ -188,13 +194,35 @@ async function saveFailure(frame: HTMLElement, reason: 'destructive' | 'io') {
   await new Saver(failing, () => d.view, () => FILE, el('span', 'bt-save-state'), frame).saveNow();
 }
 
-/** The corkboard over the book, the keyboard on `focus`'s card (given last: it lives while focused). */
-function corkboard(frame: HTMLElement, focus: string | null, layout: CorkboardLayout = 'rows'): Finish {
+/** The corkboard over the book, the keyboard on `focus`'s card (given last: it lives while focused), then `then` (a key on it). */
+function corkboard(frame: HTMLElement, focus: string | null, layout: CorkboardLayout = 'rows', then?: string): Finish {
   const d = desk(frame);
   frame.dataset.view = 'corkboard';
-  const board = new Corkboard(d.workspace, { open: noop, close: noop, noteCounts: () => new Map([['s1', 2]]), onLayout: noop }, layout);
+  const board = new Corkboard(d.workspace, {
+    open: noop, close: noop, noteCounts: () => new Map([['s1', 2]]), onLayout: noop, outline: () => outlineOf(d.view.state.doc),
+    rename: () => false, addScene: () => null, deleteScene: noop, copyScene: noop, moveScene: () => false, moveChapter: () => false, popupMenu: () => Promise.resolve(null),
+  }, layout);
   board.open(outlineOf(d.view.state.doc), null);
-  return focus ? () => frame.querySelector<HTMLElement>(`.bt-cork-card[data-id="${focus}"]`)!.focus() : undefined;
+  if (!focus) return undefined;
+  return () => {
+    const card = frame.querySelector<HTMLElement>(`.bt-cork-card[data-id="${focus}"]`)!;
+    card.focus();
+    if (then) card.dispatchEvent(new KeyboardEvent('keydown', { key: then, bubbles: true, cancelable: true }));
+  };
+}
+
+/** The corkboard mid-drag: `from` lifted (a card, or a chapter's header) and held over `to` (`at`: where on it, as fractions). */
+function dragging(frame: HTMLElement, layout: CorkboardLayout, from: string, to: string, at: [number, number]): Finish {
+  corkboard(frame, null, layout);
+  return () => {
+    const pointerId = pointers++;
+    const point = (selector: string, [fx, fy]: [number, number]) => {
+      const r = frame.querySelector(selector)!.getBoundingClientRect();
+      return { clientX: r.left + r.width * fx, clientY: r.top + r.height * fy, pointerId, bubbles: true };
+    };
+    frame.querySelector(from)!.dispatchEvent(new PointerEvent('pointerdown', { ...point(from, [0.5, 0.2]), button: 0 }));
+    window.dispatchEvent(new PointerEvent('pointermove', point(to, at)));
+  };
 }
 
 /** The top bar's right side: the view chips, `view` chosen. */
@@ -225,10 +253,10 @@ const SPECS: Spec[] = [
   { component: 'Sprint setup', state: 'A session', size: [480, 440], render: (f) => new SprintSetup(f, { current: () => ({ ...DEFAULT_SPRINT, minutes: 25, rounds: 3, breakMinutes: 5 }), start: noop, onClose: noop }).open() },
   { component: 'Where the sprint goes', state: 'Asked', size: [480, 620], render: (f) => keepHost(f).open(endOfSprint) },
   { component: 'Where the sprint goes', state: 'End of chapter', size: [480, 620], render: async (f) => { await keepHost(f).open(endOfSprint); click(f, '.bt-keep-radio[data-value="chapter"]'); } },
-  { component: 'Where the sprint goes', state: 'Discard, armed', size: [480, 620], render: async (f) => { await keepHost(f).open(endOfSprint); click(f, '.bt-keep-radio[data-value="discard"]'); click(f, '[data-action="done"]'); } },
+  { component: 'Where the sprint goes', state: 'Discard, armed', size: [480, 620], render: async (f) => { await keepHost(f).open(endOfSprint); click(f, '.bt-keep-radio[data-value="discard"]'); return armed(f, '[data-action="done"]'); } },
   { component: 'Where the sprint goes', state: 'From the library', size: [480, 520], render: (f) => keepHost(f).open({ ...endOfSprint, title: 'Add to book', choices: ['chapter', 'end', 'cold'], back: 'Back' }) },
   { component: 'Sprints', state: 'Kept', size: [940, 720], render: (f) => sprints(f).open() },
-  { component: 'Sprints', state: 'Discard, armed', size: [940, 720], render: async (f) => { await sprints(f).open(); click(f, '.bt-sprints [data-action="discard"]'); } },
+  { component: 'Sprints', state: 'Discard, armed', size: [940, 720], render: async (f) => { await sprints(f).open(); return armed(f, '.bt-sprints [data-action="discard"]'); } },
   { component: 'Sprints', state: 'Empty', size: [940, 720], render: (f) => sprints(f, []).open() },
   { component: 'Timer line', state: 'Sprinting', size: [600, 80], render: (f) => timerLine(f, 0.4, 'sprint') },
   { component: 'Timer line', state: 'Paused', size: [600, 80], render: (f) => timerLine(f, 0.4, 'sprint', true) },
@@ -236,9 +264,9 @@ const SPECS: Spec[] = [
   { component: 'Timer line', state: 'Done', size: [600, 80], render: (f) => timerLine(f, 1, 'done') },
   { component: 'Spine', state: 'First scene', size: [200, 360], render: (f) => spine(f, 's1') },
   { component: 'Spine', state: 'Later scene', size: [200, 360], render: (f) => spine(f, 's5') },
-  { component: 'Outline', state: 'Open', size: [900, 520], render: (f) => outline(f) },
-  { component: 'Outline', state: 'Renaming', size: [900, 520], render: (f) => outline(f, (p) => p.startRename('s4', 'row')) },
-  { component: 'Outline', state: 'Delete, armed', size: [900, 520], render: (f) => outline(f, (_p, frame) => click(frame, '.bt-outline-row[data-id="s5"] [data-action="delete"]')) },
+  { component: 'Outline', state: 'Open', size: [900, 520], render: (f) => void outline(f) },
+  { component: 'Outline', state: 'Renaming', size: [900, 520], render: (f) => { const panel = outline(f); return () => panel.startRename('s4', 'row'); } },
+  { component: 'Outline', state: 'Delete, armed', size: [900, 520], render: (f) => { outline(f); return armed(f, '.bt-outline-row[data-id="s5"] [data-action="delete"]'); } },
   { component: 'Find', state: 'Matches', size: [900, 360], render: (f) => find(f, 'the', null) },
   { component: 'Find', state: 'Replace', size: [900, 360], render: (f) => find(f, 'keeper', 'warden') },
   { component: 'Find', state: 'No matches', size: [900, 360], render: (f) => find(f, 'zebra', null) },
@@ -251,6 +279,10 @@ const SPECS: Spec[] = [
   { component: 'Corkboard', state: 'Board', size: [1100, 640], render: (f) => corkboard(f, null) },
   { component: 'Corkboard', state: 'A card with the keyboard', size: [1100, 640], render: (f) => corkboard(f, 's4') },
   { component: 'Corkboard', state: 'Columns', size: [1100, 640], render: (f) => corkboard(f, 's4', 'columns') },
+  { component: 'Corkboard', state: 'Renaming a card', size: [1100, 640], render: (f) => corkboard(f, 's2', 'rows', 'r') },
+  { component: 'Corkboard', state: 'Delete, armed', size: [1100, 640], render: (f) => corkboard(f, 's2', 'rows', 'Backspace') },
+  { component: 'Corkboard', state: 'Dragging a card', size: [1100, 640], render: (f) => dragging(f, 'rows', '.bt-cork-card[data-id="s4"]', '.bt-cork-card[data-id="s2"]', [0.2, 0.6]) },
+  { component: 'Corkboard', state: 'Dragging a chapter', size: [1100, 640], render: (f) => dragging(f, 'columns', '.bt-cork-chapter[data-id] .bt-cork-chapter-title', '.bt-cork-chapter:last-child', [0.7, 0.1]) },
   { component: 'View chips', state: 'Manuscript', size: [600, 60], render: (f) => chips(f, 'manuscript') },
   { component: 'View chips', state: 'Corkboard', size: [600, 60], render: (f) => chips(f, 'corkboard') },
   { component: 'Toast', state: 'Info', size: [900, 200], render: (f) => toast(f, 'info', 'Sprint added to the end of chapter 2. ⌘Z undoes it.') },
@@ -315,13 +347,18 @@ async function render(shown: Theme | 'all') {
       frame.style.setProperty('--g-h', `${spec.size[1]}px`);
       figure.append(frame);
       row.append(figure);
-      pending.push(Promise.resolve(spec.render(frame)));
+      pending.push(Promise.resolve(spec.render(frame)).then((finish) => {
+        if (finish) { finishedFrames.set(frame.dataset.frame!, spec); frame.dataset.finish = ''; }
+        return finish;
+      }));
     }
   }
+  finishedFrames.clear();
   const finishes = await Promise.all(pending);
   await document.fonts.ready;
   // A still picture: no focus rings left from opening, nothing mid-transition;
-  // then the few states that need the keyboard take it.
+  // then the few states with a last step take it, in turn — only the last
+  // keeps the keyboard here; a picture of one asks for it (`finishFrame`).
   (document.activeElement as HTMLElement | null)?.blur();
   for (const finish of finishes) finish?.();
   // Opening parts scrolled the page (focus, cards brought into view): once
@@ -331,6 +368,24 @@ async function render(shown: Theme | 'all') {
   window.scrollTo(0, 0);
   document.documentElement.dataset.ready = 'true';
 }
+
+/**
+ * One frame's last step, for its picture. The page holds one focus, and a
+ * state may not outlive losing it (a rename saves on blur), so the frame is
+ * drawn afresh and its last step run again, once.
+ */
+async function finishFrame(name: string): Promise<void> {
+  const spec = finishedFrames.get(name);
+  const frame = document.querySelector<HTMLElement>(`[data-frame="${name}"]`);
+  if (!spec || !frame) throw new Error(`No frame with a last step: ${name}`);
+  frame.replaceChildren();
+  const finish = await spec.render(frame);
+  await document.fonts.ready;
+  (document.activeElement as HTMLElement | null)?.blur(); // (as when the page settles: no focus left from opening)
+  finish?.();
+  await scrollingSettled();
+}
+Object.assign(window, { finishFrame });
 
 themeChoice.innerHTML = [...THEMES, 'all' as const].map((t) => `<button type="button" role="radio" class="bt-seg-item" data-value="${t}" aria-checked="false">${t === 'all' ? 'All' : THEME_NAMES[t]}</button>`).join('');
 themeChoice.addEventListener('click', (e) => {

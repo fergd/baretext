@@ -237,7 +237,7 @@
   pointer-events: none;
   cursor: grabbing;
   scale: 1.02;
-  opacity: var(--outline-ghost-opacity);
+  opacity: var(--ghost-opacity);
   animation: bt-outline-lift var(--dur-fast) var(--ease-out) both;
 }
 .bt-outline-ghost .bt-outline-actions { display: none; }

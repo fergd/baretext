@@ -28,6 +28,23 @@
   padding: 0 var(--space-8);
   border-bottom: 1px solid var(--color-popover-border);
 }
+/* The card with the keyboard: its name, then its actions, in words. */
+.bt-cork-actions { display: flex; align-items: center; gap: var(--space-1); min-width: 0; margin-left: var(--space-4); padding-left: var(--space-4); border-left: 1px solid var(--color-popover-border); }
+.bt-cork-actions[hidden] { display: none; }
+.bt-cork-current { min-width: 0; max-width: var(--cork-card-min); margin-right: var(--space-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-ui); color: var(--color-text-dim); }
+.bt-cork-tool {
+  flex: none;
+  height: var(--toolbar-button);
+  padding: 0 var(--space-2);
+  border-radius: var(--toolbar-button-radius);
+  font-size: var(--text-ui);
+  color: var(--color-text-dim);
+  transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+}
+.bt-cork-tool:hover { color: var(--color-text); background: var(--color-popover-hover); }
+.bt-cork-tool[data-armed='true'],
+.bt-cork-tool[data-armed='true']:hover { color: var(--color-switch-knob-on); background: var(--color-danger); }
+
 .bt-cork-summary { margin-left: auto; font-size: var(--text-ui); color: var(--color-text-dimmer); font-variant-numeric: tabular-nums; }
 
 /* The cards' area: it scrolls; the toolbar stays. */
@@ -88,11 +105,18 @@
 
 .bt-cork-card-head { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; }
 .bt-cork-card-number { flex: none; font-family: var(--font-num); font-size: var(--text-ui); color: var(--color-text-dimmer); font-variant-numeric: tabular-nums; }
+/* The title: a click renames it (a quiet wash says so on hover). */
+.bt-cork-card-heading { flex: 1 1 auto; min-width: 0; margin: 0; font: inherit; }
 .bt-cork-card-title {
-  flex: 1 1 auto;
-  min-width: 0;
-  margin: 0;
+  display: block;
+  max-width: 100%;
+  margin: 0 calc(-1 * var(--space-1));
+  padding: 0 var(--space-1);
+  border-radius: var(--toolbar-button-radius);
   overflow: hidden;
+  text-align: left;
+  cursor: text;
+  transition: background-color var(--dur-fast) var(--ease-out);
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: var(--text-palette-input);
@@ -101,6 +125,7 @@
   color: var(--color-text);
 }
 .bt-cork-card-title[data-unnamed='true'] { color: var(--color-text-dimmer); }
+.bt-cork-card-title:hover { background: var(--color-popover-hover); }
 
 .bt-cork-card-opening {
   margin: 0;
@@ -118,6 +143,62 @@
 .bt-cork-card-foot { margin-top: auto; display: flex; align-items: center; gap: var(--space-3); font-size: var(--text-ui); color: var(--color-text-dimmer); font-variant-numeric: tabular-nums; }
 .bt-cork-card-notes { color: var(--color-note); }
 .bt-cork-card[data-draft='true'] { border-style: dashed; }
+/* A delete waiting for its confirmation. */
+.bt-cork-card[data-arming='true'],
+.bt-cork-card[data-arming='true']:focus { border-color: var(--color-danger); box-shadow: 0 0 0 1px var(--color-danger); }
+
+/* Naming a card in place: the field sits where the title was. */
+.bt-cork-rename { flex: 1 1 auto; min-width: 0; height: var(--lh-ui); margin: 0 calc(-1 * var(--space-1)); padding: 0 var(--space-1); font-size: var(--text-palette-input); }
+
+/* ── drag to reorder: a card, or a chapter by its header ── */
+.bt-cork-board { user-select: none; }
+.bt-cork-chapter-head { cursor: grab; }
+.bt-corkboard[data-dragging],
+.bt-corkboard[data-dragging] * { cursor: grabbing; }
+.bt-corkboard[data-dragging] .bt-cork-card:hover { border-color: var(--color-popover-border); }
+.bt-corkboard[data-dragging] .bt-cork-card-title:hover { background: none; }
+.bt-cork-card[data-dragging='true'],
+.bt-cork-chapter[data-dragging='true'] { opacity: 0.32; }
+/* The lifted copy follows the pointer. */
+.bt-cork-ghost {
+  position: absolute;
+  z-index: 10;
+  margin: 0;
+  box-shadow: var(--shadow-popover);
+  pointer-events: none;
+  scale: 1.02;
+  opacity: var(--ghost-opacity);
+  animation: bt-cork-lift var(--dur-fast) var(--ease-out) both;
+}
+.bt-cork-ghost.bt-cork-chapter-head { padding-inline: var(--space-2); border-radius: var(--toolbar-button-radius); background: var(--color-popover); }
+@keyframes bt-cork-lift { from { scale: 1; box-shadow: none; } }
+/* Where it will land: an accent bar in the gap. */
+.bt-cork-drop {
+  position: absolute;
+  z-index: 11;
+  border-radius: var(--cork-drop-w);
+  background: var(--color-accent);
+  pointer-events: none;
+  opacity: 0;
+  transition: left var(--dur-fast) var(--ease-out), top var(--dur-fast) var(--ease-out), opacity var(--dur-fast) var(--ease-out);
+}
+.bt-cork-drop[data-visible='true'] { opacity: 1; }
+
+/* The last place in each chapter: add a scene. */
+.bt-cork-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: var(--cork-card-h);
+  border: 1px dashed var(--color-popover-border);
+  border-radius: var(--popover-radius);
+  font-size: var(--text-palette);
+  color: var(--color-text-dimmer);
+  transition: color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+}
+.bt-cork-add:hover { color: var(--color-text-dim); border-color: var(--color-text-dimmer); background: var(--color-popover-hover); }
+.bt-corkboard[data-layout='columns'] .bt-cork-add { height: var(--toolbar-button); }
 .bt-cork-card[data-draft='true'] .bt-cork-card-opening { font-style: italic; }
 
 /* A card's actions show on the card the pointer is over or the keyboard is on. */

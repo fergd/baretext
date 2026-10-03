@@ -5,7 +5,7 @@
 // this module turns it into Markdown or plain text (Word is built in the main
 // process from the same book).
 
-import type { Run } from './model';
+import type { Block, Run } from './model';
 import { escapeText, serializeInline } from './serialize';
 
 export const EXPORT_FORMATS = ['docx', 'markdown', 'text'] as const;
@@ -283,4 +283,45 @@ ${out.join('\n')}
 </body>
 </html>
 `;
+}
+
+// ── Copy: a scene for the clipboard (spec §8.6) ──
+
+/** Runs as HTML for pasting elsewhere: formatting and links kept. */
+function clipboardInline(runs: readonly Run[]): string {
+  return runs.map((r) => {
+    let t = html(r.text);
+    if (r.italic) t = `<em>${t}</em>`;
+    if (r.bold) t = `<strong>${t}</strong>`;
+    if (r.link) t = `<a href="${html(r.link)}">${t}</a>`;
+    return t;
+  }).join('');
+}
+
+const plain = (runs: readonly Run[]) => runs.map((r) => r.text).join('');
+const blankRuns = (runs: readonly Run[]) => runs.every((r) => r.text.trim() === '');
+
+/**
+ * A scene with its title, for pasting into a word processor or an email:
+ * rich text (formatting, breaks and quotes kept) and a plain-text fallback.
+ */
+export function sceneClipboard(title: string, blocks: readonly Block[]): { html: string; text: string } {
+  const htmlParts = [`<h3>${html(title)}</h3>`];
+  const textParts = [title];
+  for (const b of blocks) {
+    if (b.type === 'section_break') {
+      htmlParts.push('<p style="text-align:center">* * *</p>');
+      textParts.push('* * *');
+    } else if (b.type === 'paragraph') {
+      if (blankRuns(b.content)) continue;
+      htmlParts.push(`<p>${clipboardInline(b.content)}</p>`);
+      textParts.push(plain(b.content));
+    } else {
+      const ps = b.paragraphs.filter((p) => !blankRuns(p));
+      if (!ps.length) continue;
+      htmlParts.push(`<blockquote>${ps.map((p) => `<p>${clipboardInline(p)}</p>`).join('')}</blockquote>`);
+      textParts.push(ps.map((p) => `    ${plain(p)}`).join('\n'));
+    }
+  }
+  return { html: htmlParts.join(''), text: textParts.join('\n\n') };
 }

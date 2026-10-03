@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { approximateWords, exportMarkdown, exportText, isExportBook, printManuscript, runningHead, type ExportBook } from '../src';
+import { approximateWords, exportMarkdown, exportText, isExportBook, printManuscript, runningHead, sceneClipboard, type Block, type ExportBook } from '../src';
 
 const book = (over: Partial<ExportBook> = {}): ExportBook => ({
   title: 'The Garden',
@@ -130,5 +130,29 @@ describe('print (standard manuscript format)', () => {
     }), 'Ada');
     expect(withExtras).not.toContain('A NOTE BODY');
     expect(withExtras).not.toContain('PARKED TEXT');
+  });
+});
+
+describe('copying a scene (spec §8.6)', () => {
+  const blocks: Block[] = [
+    { type: 'paragraph', content: [{ text: 'She ran ' }, { text: 'fast', italic: true }, { text: ' & ' }, { text: 'far', bold: true }, { text: '.' }] },
+    { type: 'section_break' },
+    { type: 'quote', paragraphs: [[{ text: 'A quote.' }]] },
+    { type: 'paragraph', content: [{ text: 'See ' }, { text: 'here', link: 'https://example.com/?a=1&b=2' }, { text: '.' }] },
+    { type: 'paragraph', content: [] },
+  ];
+
+  it('as rich text: its title, then the prose with formatting, breaks and quotes kept', () => {
+    expect(sceneClipboard('The <log>', blocks).html).toBe(
+      '<h3>The &lt;log&gt;</h3>'
+      + '<p>She ran <em>fast</em> &amp; <strong>far</strong>.</p>'
+      + '<p style="text-align:center">* * *</p>'
+      + '<blockquote><p>A quote.</p></blockquote>'
+      + '<p>See <a href="https://example.com/?a=1&amp;b=2">here</a>.</p>',
+    );
+  });
+
+  it('as plain text: the title, then paragraphs a blank line apart; no markup', () => {
+    expect(sceneClipboard('The log', blocks).text).toBe('The log\n\nShe ran fast & far.\n\n* * *\n\n    A quote.\n\nSee here.');
   });
 });

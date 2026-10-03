@@ -755,7 +755,7 @@ gaps:* the macOS dialog has no preview, takes the printer's paper size (A4
 here) over the layout's Letter, and doesn't know the page count. Planned
 fix: build the PDF (Letter, exact) and show it in an in-app preview window
 with Print / Save PDF.
-**Gallery:** `npm run gallery` (DECISIONS §22); 34 states × 5 themes under
+**Gallery:** `npm run gallery` (DECISIONS §22); 43 states × 5 themes under
 screenshot test — every panel, the outline, find, the selection toolbar,
 notes (panel and margin), the save notice, toasts, the spine and the timer
 line. Editor-bound parts sit on a real editor in each frame. It found a real bug on day one: two manuscripts with the
@@ -763,7 +763,20 @@ same title *and* file name were labelled identically (now: by folder too).
 **Corkboard phase 1 built** (DECISIONS §24): view chips, the board and its
 toolbar, rows/columns layouts, keyboard, opening scenes; E2E `corkboard.test.ts`, gallery (board, focused
 card, chips), bench (open time).
-**Next:** corkboard phase 2 — rename, add, delete (two-step), copy, as
-toolbar actions on the focused card (DECISIONS §25) · phase 3 — reorder
-scenes and chapters (drag, ⌥↑/⌥↓) · book setup · Mark as… and the story
-arc · integrations (§7).
+**Corkboard phase 2 built** (DECISIONS §25): rename, new scene, delete
+(two-step, undoable), copy — in the board toolbar, on keys, and on the
+right-click menu (test switch `BARETEXT_MENU_PICK`); a click on a card's
+title renames it; the toolbar keeps Open · Copy · Delete (its treatment is
+provisional — the user isn't sold on it). Found and fixed on the
+way: ⌘Z did nothing on the board (only inside the editor) — the old undo
+test passed without its text ever being typed, now it checks; the toolbar
+could act on a stale card when focus arrived without a click; the gallery
+gave focus to every keyboard frame at once, so only the last kept it, and
+its 0.2% pixel allowance hid that (now exact, and each keyboard frame takes
+focus for its own picture).
+**Corkboard phase 3 built** (DECISIONS §24): drag cards and chapters, in
+rows and columns; undoable; the caret travels with its scene. The gallery
+shows both drags. Found on the way: the outline's "Renaming" gallery frame
+never showed its field, and armed confirmations in the gallery were being
+disarmed by other frames' presses (both now last steps, §22).
+**Next:** book setup · Mark as… and the story arc · integrations (§7).

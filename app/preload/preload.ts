@@ -36,6 +36,8 @@ const bridge: BaretextBridge = {
   loadNotes: (filePath) => ipcRenderer.invoke(CHANNELS.notesLoad, filePath),
   saveNotes: (filePath, notes) => ipcRenderer.invoke(CHANNELS.notesSave, filePath, notes),
   printBook: (book, author) => ipcRenderer.invoke(CHANNELS.print, book, author),
+  copyRich: (html, text) => ipcRenderer.invoke(CHANNELS.clipboard, html, text),
+  popupMenu: (items) => ipcRenderer.invoke(CHANNELS.popupMenu, items),
   exportBook: (filePath, format, book, author) => ipcRenderer.invoke(CHANNELS.exportSave, filePath, format, book, author),
   onMenu: (cb) => { ipcRenderer.on(CHANNELS.menu, (_e, command: MenuCommand) => cb(command)); },
   onDocumentOpened: (cb) => { ipcRenderer.on(CHANNELS.opened, (_e, doc: OpenedDocument) => cb(doc)); },

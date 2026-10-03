@@ -4,7 +4,7 @@
 // modules; this file only connects them.
 
 import { redo, undo } from 'prosemirror-history';
-import { Plugin, Selection, TextSelection, type EditorState, type Transaction } from 'prosemirror-state';
+import { Plugin, Selection, TextSelection, type Command, type EditorState, type Transaction } from 'prosemirror-state';
 import { Decoration, DecorationSet, EditorView } from 'prosemirror-view';
 import {
   createManuscriptState,
@@ -37,6 +37,7 @@ import {
   toggleBold,
   toggleItalic,
   toggleQuote,
+  nodeToScene,
 } from '@baretext/editor';
 import type { AppearancePrefs, BaretextBridge, MenuCommand, OpenedDocument } from '../shared/bridge';
 import { currentScene, outlineOf, sceneAt, sceneDisplayName } from './outline';
@@ -59,7 +60,7 @@ import { NotesStore } from './notes-store';
 import { MarginNotes } from './margin-notes';
 import { NotesPanel } from './notes-panel';
 import type { Motion } from './sidebar-motion';
-import { newId } from '@baretext/format';
+import { newId, sceneClipboard } from '@baretext/format';
 import { SNOWFLAKE } from './icons';
 import { cssNumber, cssValue, numberFormat } from './dom';
 
@@ -581,7 +582,50 @@ const corkboard = new Corkboard($('workspace'), {
   close: () => setView('manuscript'),
   noteCounts: () => openNoteCounts(),
   onLayout: (layout) => bridge.setPrefs({ corkboardLayout: layout }),
+  outline: () => outlineOf(view!.state.doc),
+  rename: (id, name) => boardChange(rename(id, name)),
+  addScene: (chapterId) => {
+    if (!boardChange(addScene(chapterId))) return null;
+    return outlineOf(view!.state.doc).chapters.find((c) => c.id === chapterId)?.scenes.at(-1)?.id ?? null;
+  },
+  // (Deleting keeps the delete's own care: a snapshot first, and its message.)
+  deleteScene: (id) => keepCaretLine(() => deleteFromOutline(id, 'scene')),
+  copyScene: (id) => void copyScene(id),
+  // (A move carries the caret with its scene: the writer's place travels with it.)
+  moveScene: (id, chapterId, index) => boardChange(moveScene(id, chapterId, index), true),
+  moveChapter: (id, index) => boardChange(moveChapter(id, index), true),
+  popupMenu: (items) => bridge.popupMenu(items),
 }, bridge.initial.corkboardLayout);
+
+/**
+ * A change made on the board: the page underneath keeps the writer's place
+ * (the caret stays where it was — not moved to a new scene — and its line
+ * stays on screen where it was), so coming back finds it, adjusted only for
+ * the change itself. `ownCaret`: the command places the caret itself (a
+ * move carries it along with its scene).
+ */
+function boardChange(command: Command, ownCaret = false): boolean {
+  if (!view) return false;
+  const state = view.state;
+  let changed = false;
+  keepCaretLine(() => {
+    // The caret is carried through the change itself (one transaction, so undo puts it back too).
+    changed = command(state, (tr) => view!.dispatch(ownCaret ? tr : tr.setSelection(state.selection.map(tr.doc, tr.mapping))));
+  });
+  if (changed) syncOutline();
+  return changed;
+}
+
+/** Copy a scene, with its title, as rich text and plain text (spec §8.6). */
+async function copyScene(id: string) {
+  if (!view) return;
+  const scene = outlineOf(view.state.doc).chapters.flatMap((c) => c.scenes).find((s) => s.id === id);
+  const node = scene && view.state.doc.nodeAt(scene.pos);
+  if (!scene || !node) return;
+  const { html, text } = sceneClipboard(scene.name || `Scene ${scene.label}`, nodeToScene(node).blocks);
+  if (await bridge.copyRich(html, text)) toast(`Copied ${scene.label}${scene.name ? ` “${scene.name}”` : ''}.`);
+  else toast('Couldn’t copy the scene.', 'error');
+}
 
 /**
  * Show the manuscript or the corkboard. The board lies over the page, which
@@ -999,6 +1043,13 @@ window.addEventListener('keydown', (e) => {
   if (e.metaKey && !e.ctrlKey && !e.shiftKey && e.code === 'Backslash') { e.preventDefault(); runCommand(e.altKey ? 'outline-focus' : 'outline'); return; }
   if (!e.metaKey || e.ctrlKey || e.altKey) return;
   const k = e.key.toLowerCase();
+  // Undo and redo wherever the keyboard is (the corkboard, a panel's button);
+  // an editor or a text field keeps its own.
+  if (k === 'z' && !(e.target as Element | null)?.closest?.('.ProseMirror, input, textarea')) {
+    e.preventDefault();
+    runCommand(e.shiftKey ? 'redo' : 'undo');
+    return;
+  }
   if (k === 's' && !e.shiftKey) { e.preventDefault(); runCommand('save'); }
   else if (k === 't' && e.shiftKey) { e.preventDefault(); runCommand('typewriter'); }
   else if (e.key === '.' && !e.shiftKey) { e.preventDefault(); runCommand('focus'); }

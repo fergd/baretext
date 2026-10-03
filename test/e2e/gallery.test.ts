@@ -31,10 +31,12 @@ for (const theme of THEMES) {
   test(`every component, in ${theme}`, async () => {
     await page.click(`.g-themes [data-value="${theme}"]`);
     await page.waitForFunction(() => document.documentElement.dataset.ready === 'true');
-    const frames = await page.$$eval('[data-frame]', (els) => els.map((e) => (e as HTMLElement).dataset.frame!));
+    const frames = await page.$$eval('[data-frame]', (els) => els.map((e) => ({ name: (e as HTMLElement).dataset.frame!, finish: 'finish' in (e as HTMLElement).dataset })));
     expect(frames.length).toBeGreaterThanOrEqual(20);
-    for (const frame of frames) {
-      await expect.soft(page.locator(`[data-frame="${frame}"]`)).toHaveScreenshot(`${frame}.png`, { animations: 'allow', caret: 'hide', maxDiffPixelRatio: 0.002 });
+    for (const { name: frame, finish } of frames) {
+      // A state with a last step (the keyboard, the pointer) takes it just before its picture.
+      if (finish) await page.evaluate((name) => (window as unknown as { finishFrame(n: string): Promise<void> }).finishFrame(name), frame);
+      await expect.soft(page.locator(`[data-frame="${frame}"]`)).toHaveScreenshot(`${frame}.png`, { animations: 'allow', caret: 'hide' });
     }
   });
 }

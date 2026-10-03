@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, screen, shell, type MenuItemConstructorOptions } from 'electron';
+import { app, BrowserWindow, clipboard, ClipboardItem, dialog, ipcMain, Menu, screen, shell, type MenuItemConstructorOptions } from 'electron';
 import { randomBytes } from 'node:crypto';
 import { existsSync, promises as fs } from 'node:fs';
 import path from 'node:path';
@@ -368,6 +368,31 @@ function createWindow() {
   win.on('closed', () => { win = null; });
 }
 
+/** A native context menu at the pointer: the chosen item's id, or null when dismissed. */
+function popupMenu(items: unknown): Promise<string | null> {
+  return new Promise((resolve) => {
+    if (!win || !Array.isArray(items)) { resolve(null); return; }
+    let chosen: string | null = null;
+    const template: MenuItemConstructorOptions[] = [];
+    for (const raw of items as Record<string, unknown>[]) {
+      if (raw?.separator === true) template.push({ type: 'separator' });
+      else if (typeof raw?.id === 'string' && typeof raw.label === 'string') {
+        const id = raw.id;
+        template.push({
+          label: raw.label, enabled: raw.enabled !== false,
+          ...(typeof raw.keys === 'string' ? { accelerator: raw.keys, registerAccelerator: false } : {}),
+          click: () => { chosen = id; },
+        });
+      }
+    }
+    // Tests only: answer as if this item were chosen (a native menu can't be clicked by a test).
+    const pick = process.env.BARETEXT_MENU_PICK;
+    if (pick) { resolve(template.some((t) => t.label && (items as Record<string, unknown>[]).some((i) => i?.id === pick)) ? pick : null); return; }
+    // (The menu closes before its click runs: answer once that has happened.)
+    Menu.buildFromTemplate(template).popup({ window: win, callback: () => setTimeout(() => resolve(chosen), 0) });
+  });
+}
+
 /** Close the window once everything in it is saved; if it can't be, it stays open and says why. */
 async function closeOnceSaved() {
   if (!GALLERY && !(await requestFlush())) {
@@ -484,6 +509,12 @@ function registerIpc() {
   ipcMain.handle(CHANNELS.sprintRead, (_e, id: unknown) => (typeof id === 'string' && ID_PATTERN.test(id) ? sprints().read(id) : []));
   ipcMain.handle(CHANNELS.sprintUnfinished, () => sprints().unfinished());
   ipcMain.handle(CHANNELS.sprintKept, () => sprints().kept());
+  ipcMain.handle(CHANNELS.clipboard, async (_e, html: unknown, text: unknown) => {
+    if (typeof html !== 'string' || typeof text !== 'string') return false;
+    await clipboard.write([new ClipboardItem({ 'text/html': html, 'text/plain': text })]);
+    return true;
+  });
+  ipcMain.handle(CHANNELS.popupMenu, (_e, items: unknown) => popupMenu(items));
   ipcMain.handle(CHANNELS.print, (_e, book: unknown, author: unknown) => {
     if (!isExportBook(book)) return { ok: false, message: 'There is nothing to print.' };
     return printPage(printManuscript(book, typeof author === 'string' ? author.slice(0, 200) : ''));

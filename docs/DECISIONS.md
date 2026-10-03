@@ -848,7 +848,7 @@ print dialog (which also saves a PDF). Layout: `printManuscript` in
 `app/main/print.ts` (hidden window, no scripts, a temporary file — a long
 book is past what a URL can carry).
 
-## 24. Corkboard (2026-10-02, user; phase 1 built) — EXTENDS spec §8.2
+## 24. Corkboard (2026-10-02, user; phases 1–3 built) — EXTENDS spec §8.2
 - **Look:** from the current theme and tokens (no Figma frame yet); reviewed
   in the gallery and the app.
 - **Clicks (spec, user):** a single click on a card does nothing but give it
@@ -876,7 +876,8 @@ book is past what a URL can carry).
   line of cards.
 - **Scope, in phases:** (1) board, open/close (restoring the manuscript
   viewport), focus, open-in-manuscript, gallery; (2) rename, add, delete
-  (two-step), copy; (3) reorder by drag and ⌥↑/⌥↓ — scenes, and **chapters by their headers** (user). Later: the outline-list
+  (two-step), copy; (3) reorder by drag — scenes, and **chapters by their
+  headers** (user); no keyboard reorder (§15). Later: the outline-list
   view (§8.3), scene links (§8.4), AI summaries/names (§12, parked).
 - **Entry point (user):** **chip tabs** in the top bar's right cluster,
   just before the notes button — "Manuscript" and "Corkboard", text only,
@@ -909,8 +910,32 @@ book is past what a URL can carry).
   positions, marking where the writer's beats actually fall. An **Arc**
   toggle in the board toolbar (deliberate; from ~3 chapters); in Columns a
   guide-style line across the top, in Rows down the left edge.
-- **Order:** corkboard phase 2 (rename, add, delete, copy — in the toolbar),
-  phase 3 (drag scenes and chapters), book setup, then Mark as… and the arc.
+- **As built (phase 2):** the toolbar shows "1.2 The log" and Open ·
+  Copy · Delete; with Rename and New scene, each has its key on the card
+  (↵, C or ⌘C, ⌫, R or F2, N); right-click or the menu key (⇧F10) gives
+  all five as a native menu. *Rename* (user): **a click on the title**
+  edits it in place (↵ keeps, Esc leaves, clicking away keeps); a
+  double-click there still opens the scene. Rename and New scene left the
+  toolbar (user): the title and the chapter's last tile already offer them.
+  The toolbar treatment itself is provisional (user: not a fan; no better
+  idea yet). *New scene* adds one at the chapter's end
+  and starts its rename (also the dashed tile closing each chapter).
+  *Delete* arms ("Delete 1.2?"), the second press deletes; the keyboard
+  moves to the next card; ⌘Z brings it back. *Copy* puts the scene on the
+  clipboard as rich text and plain. Board edits leave the page's caret in
+  the same scene and its line where it was. ⌘Z/⇧⌘Z work from the board
+  (any place outside a text field). The toolbar follows the card with the
+  keyboard however it got it.
+- **As built (phase 3):** press on a card (anywhere but Open) or a chapter's
+  header and move: a lifted copy follows, the original dims, and an accent
+  bar marks the landing — between cards along the reading direction (beside
+  them in Rows, above them in Columns; the chapter's last tile is its end),
+  between chapters across it. The board scrolls near its edges. Dropping
+  moves it (undoable) and everything glides into place; the moved card
+  keeps the keyboard. Esc, or dropping where it started, changes nothing; a
+  chapter's only scene can't leave it. The caret travels with its scene. A
+  drag follows only the pointer that began it.
+- **Order:** book setup, then Mark as… and the arc.
 
 ## 22. Code conventions (2026-10-02, audit)
 - Gates: `npm run typecheck`, `npm run lint` (oxlint, type-aware: floating
@@ -933,4 +958,9 @@ book is past what a URL can carry).
   `test/e2e/gallery.test.ts` compares each frame with a saved picture; a
   visual change fails until looked at and accepted
   (`npx playwright test gallery --update-snapshots`). A new component or
-  state gets a gallery entry.
+  state gets a gallery entry. Pictures compare exactly (no allowance for
+  differing pixels: a lost focus ring is ~1,000 of them). A state that
+  can't survive the rest of the page — the keyboard (one focus: a rename
+  saves on blur), an armed confirmation (a press elsewhere disarms it), a
+  held drag — is reached in its last step, run on a freshly drawn frame just
+  before its picture.

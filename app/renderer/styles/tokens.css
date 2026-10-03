@@ -146,7 +146,8 @@
   --outline-num-w: 32px;
   --outline-toggle-w: 16px;
   --outline-drop-h: 2px;
-  --outline-ghost-opacity: 0.88;
+  /* A lifted copy, dragged (outline rows, corkboard cards and chapters). */
+  --ghost-opacity: 0.88;
 
   /* toast */
   --toast-w: 560px;
@@ -180,6 +181,8 @@
   --cork-w: 1280px;
   --cork-bar-h: 40px;
   --cork-column-w: 288px;
+  /* Where a dragged card or chapter will land. */
+  --cork-drop-w: 4px;
 
   /* sprint setup */
   --sprint-w: 400px;

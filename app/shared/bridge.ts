@@ -156,6 +156,9 @@ export interface BookInfo {
   current: boolean;
 }
 
+/** One item of a context menu: an action (with the key that does it on its own, shown), or a separator. */
+export type MenuItem = { id: string; label: string; keys?: string; enabled?: boolean } | { separator: true };
+
 export type PrintResult = { ok: true } | { ok: false; canceled: true } | { ok: false; canceled?: false; message: string };
 
 export type ExportResult = { ok: true; path: string } | { ok: false; canceled: true } | { ok: false; canceled?: false; message: string };
@@ -187,6 +190,10 @@ export interface BaretextBridge {
   /** `force` overrides the destructive-save guard: only after the writer confirmed (Save anyway). */
   save(filePath: string, manuscript: Manuscript, caret: number, force?: boolean): Promise<SaveResult>;
   setPrefs(patch: Partial<Omit<InitialPrefs, 'hidden'>>): void;
+  /** Put rich text (and a plain-text fallback) on the clipboard; true once it's there. */
+  copyRich(html: string, text: string): Promise<boolean>;
+  /** Show a native context menu at the pointer; resolves to the chosen item's id, or null. */
+  popupMenu(items: MenuItem[]): Promise<string | null>;
   /** Print the book in standard manuscript format (the macOS print dialog, which can also save a PDF). */
   printBook(book: ExportBook, author: string): Promise<PrintResult>;
   /** Export the book: asks where (macOS save dialog), then writes it. */
@@ -241,6 +248,8 @@ export const CHANNELS = {
   booksChoose: 'books:choose',
   booksOpen: 'books:open',
   print: 'book:print',
+  clipboard: 'clipboard:write',
+  popupMenu: 'menu:popup',
   fileCommand: 'file:command',
   snapshotsList: 'snapshots:list',
   snapshotsRead: 'snapshots:read',
