@@ -216,18 +216,22 @@ test('the board’s toolbar switches rows and columns (remembered); in columns t
 
 const titleOf = (page: Page, id: string) => page.$eval(`.bt-cork-card[data-id="${id}"] .bt-cork-card-title`, (e) => e.textContent);
 
-test('the toolbar names the card with the keyboard and offers its actions in words', async () => {
-  const { app, page } = await launch({ file: { name: 'L.md', content: BOOK } });
+test('a card’s ⋯ opens its menu (the toolbar has no card actions); asked to confirm a delete, the card says how', async () => {
+  const { app, page } = await launch({ file: { name: 'L.md', content: BOOK }, env: { BARETEXT_MENU_PICK: 'delete' } });
   try {
     await page.keyboard.press('Meta+Shift+C');
-    await page.click('.bt-cork-card[data-id="s3x"] .bt-cork-card-opening');
-    await expect(page.locator('.bt-cork-current')).toHaveText('1.3 Letters');
-    expect(await page.$$eval('.bt-cork-tool', (bs) => bs.map((b) => b.textContent))).toEqual(['Open', 'Copy', 'Delete']);
-    // However a card gets the keyboard (here: directly, as Tab or assistive tech would), the toolbar follows it.
-    await page.locator('.bt-cork-card[data-id="s5x"]').focus();
-    await expect(page.locator('.bt-cork-current')).toHaveText('2.2 Unnamed scene');
-    await page.click('.bt-cork-tool[data-act="delete"]');
-    await expect(page.locator('.bt-cork-tool[data-act="delete"]')).toHaveText('Delete 2.2?');
+    await expect(page.locator('.bt-cork-bar .bt-cork-tool')).toHaveText(['Arc']);
+    await page.hover('.bt-cork-card[data-id="s5x"]');
+    await page.click('.bt-cork-card[data-id="s5x"] [data-action="menu"]');
+    expect(await focusedCard(page)).toBe('s5x');
+    await expect(page.locator('.bt-cork-card[data-id="s5x"]')).toHaveAttribute('data-arming', 'true');
+    await expect(page.locator('.bt-cork-card[data-id="s5x"] .bt-cork-armed')).toHaveText('Delete? ⌫ again');
+    await page.keyboard.press('Backspace');
+    await expect(page.locator('.bt-cork-card[data-id="s5x"]')).toHaveCount(0);
+    // However a card gets the keyboard (here directly, as Tab or assistive tech would), its keys act on it.
+    await page.locator('.bt-cork-card[data-id="s2x"]').focus();
+    await page.keyboard.press('Backspace');
+    await expect(page.locator('.bt-cork-card[data-id="s2x"]')).toHaveAttribute('data-arming', 'true');
   } finally {
     await app.close();
   }
@@ -297,28 +301,24 @@ test('a new scene (the tile, or N) lands at the chapter’s end, ready to be nam
   }
 });
 
-test('delete asks twice (⌫ ⌫, or the toolbar), the keyboard moves on, and ⌘Z brings it back', async () => {
+test('delete asks twice (⌫ ⌫), the keyboard moves on, and ⌘Z brings it back', async () => {
   const { app, page } = await launch({ file: { name: 'L.md', content: BOOK } });
   try {
     await page.keyboard.press('Meta+Shift+C');
     await page.locator('.bt-cork-card[data-id="s2x"]').focus();
     await page.keyboard.press('Backspace');
-    await expect(page.locator('.bt-cork-tool[data-act="delete"]')).toHaveText('Delete 1.2?');
     await expect(page.locator('.bt-cork-card[data-id="s2x"]')).toHaveAttribute('data-arming', 'true');
+    await expect(page.locator('.bt-cork-card[data-id="s2x"] .bt-cork-armed')).toBeVisible();
     await page.keyboard.press('ArrowRight'); // any other key: not deleted
-    await expect(page.locator('.bt-cork-tool[data-act="delete"]')).toHaveText('Delete');
+    await expect(page.locator('.bt-cork-card[data-id="s2x"]')).not.toHaveAttribute('data-arming', 'true');
     await page.keyboard.press('ArrowLeft');
     await page.keyboard.press('Backspace');
     await page.keyboard.press('Backspace');
     await expect(page.locator('.bt-cork-card[data-id="s2x"]')).toHaveCount(0);
     expect(await focusedCard(page)).toBe('s3x');
 
-    await page.click('.bt-cork-tool[data-act="delete"]');
-    await page.click('.bt-cork-tool[data-act="delete"]');
-    await expect(page.locator('.bt-cork-card[data-id="s3x"]')).toHaveCount(0);
-
     await page.keyboard.press('Meta+Z');
-    await expect(page.locator('.bt-cork-card[data-id="s3x"]')).toHaveCount(1);
+    await expect(page.locator('.bt-cork-card[data-id="s2x"]')).toHaveCount(1);
     expect(await viewOf(page)).toBe('corkboard');
   } finally {
     await app.close();
@@ -453,6 +453,110 @@ test('drag a chapter by its header, in rows and in columns', async () => {
     await page.keyboard.press('Meta+Z');
     await page.keyboard.press('Meta+Z');
     await expect.poll(() => order(page)).toEqual(['c2x: s4x s5x', 'c1x: s1x s2x s3x']);
+  } finally {
+    await app.close();
+  }
+});
+
+// ── story beats (DECISIONS §27) ──
+
+test('Mark as… (M, ⋯, or right-click): a beat chip on the card, saved by scene; one scene per beat; undoable', async () => {
+  const marked = BOOK.replace('baretext: 1', 'structure: three-act\nbaretext: 1');
+  const { app, page } = await launch({ file: { name: 'L.md', content: marked }, env: { BARETEXT_MENU_PICK: 'beat:midpoint' } });
+  try {
+    await page.keyboard.press('Meta+Shift+C');
+    const chip = (id: string) => page.locator(`.bt-cork-card[data-id="${id}"] .bt-cork-card-beat`);
+    await page.locator('.bt-cork-card[data-id="s2x"]').focus();
+    await page.keyboard.press('m');
+    await expect(chip('s2x')).toHaveText('Midpoint');
+    expect(await page.evaluate(() => (window as any).__baretext.model().chapters[0].scenes[1].beat)).toBe('midpoint');
+
+    // The same beat on another card moves it there (right-click: the "Mark as" submenu).
+    await page.click('.bt-cork-card[data-id="s4x"] .bt-cork-card-opening', { button: 'right' });
+    await expect(chip('s4x')).toHaveText('Midpoint');
+    await expect(page.locator('.bt-cork-card-beat')).toHaveCount(1);
+
+    await page.keyboard.press('Meta+Z');
+    await expect(chip('s2x')).toHaveText('Midpoint');
+    await expect(page.locator('.bt-cork-card-beat')).toHaveCount(1);
+  } finally {
+    await app.close();
+  }
+});
+
+test('Mark as… without a structure offers to choose one: Book Settings, then back to the card', async () => {
+  const { app, page } = await launch({ file: { name: 'L.md', content: BOOK }, env: { BARETEXT_MENU_PICK: 'choose-structure' } });
+  try {
+    await page.keyboard.press('Meta+Shift+C');
+    await page.locator('.bt-cork-card[data-id="s4x"]').focus();
+    await page.keyboard.press('m');
+    const panel = page.locator('.bt-book');
+    await expect(panel).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(panel).toBeHidden();
+    expect(await viewOf(page)).toBe('corkboard');
+    expect(await focusedCard(page)).toBe('s4x'); // the keyboard back on the board, not the hidden page
+  } finally {
+    await app.close();
+  }
+});
+
+test('the Arc: the whole book’s curve beside the board, each marked scene joined to where its beat usually falls; remembered', async () => {
+  const marked = BOOK.replace('baretext: 1', 'structure: three-act\nbaretext: 1');
+  const first = await launch({ file: { name: 'L.md', content: marked }, env: { BARETEXT_MENU_PICK: 'beat:midpoint' } });
+  try {
+    const { page } = first;
+    await page.keyboard.press('Meta+Shift+C');
+    await page.click('[role="radio"][data-layout="columns"]');
+    await page.locator('.bt-cork-card[data-id="s4x"]').focus();
+    await page.keyboard.press('m');
+    await expect(page.locator('.bt-cork-arc')).toBeHidden(); // (off until asked for)
+    await page.click('.bt-cork-arc-toggle');
+    await expect(page.locator('.bt-cork-arc-toggle')).toHaveAttribute('aria-pressed', 'true');
+    const arc = page.locator('.bt-cork-arc');
+    await expect(arc).toBeVisible();
+    await expect(arc.locator('.bt-arc-curve')).toHaveCount(1);
+    await expect(arc.locator('.bt-arc-ideal')).toHaveCount(6); // three acts: six beats
+    // The whole book at a glance: the marked scene (2.1, late in the book) sits late along the strip, past where its beat usually falls.
+    const mark = arc.locator('.bt-arc-mark[data-scene="s4x"]');
+    await expect(mark).toHaveCount(1);
+    const strip = (await arc.boundingBox())!;
+    const at = (await mark.boundingBox())!;
+    expect((at.x + at.width / 2 - strip.x) / strip.width).toBeGreaterThan(0.7);
+    // The band: the part of the book on screen (all of this short one).
+    await expect(arc.locator('.bt-arc-band')).toHaveAttribute('visibility', 'visible');
+    await expect(mark.locator('title')).toHaveText(/^Midpoint: 2\.1 — at \d+% \(usually about 50%\)$/);
+  } finally {
+    await first.app.close();
+  }
+  // Shown last time: shown again.
+  const again = await launch({ reuse: { userData: first.userData, saveDir: first.saveDir } });
+  try {
+    await again.page.keyboard.press('Meta+Shift+C');
+    await expect(again.page.locator('.bt-cork-arc')).toBeVisible();
+    await expect(again.page.locator('.bt-cork-arc .bt-arc-mark')).toHaveCount(1);
+  } finally {
+    await again.app.close();
+  }
+});
+
+test('the Arc without a structure offers to choose one; in Rows it runs down the left of the chapters', async () => {
+  const { app, page } = await launch({ file: { name: 'L.md', content: BOOK } });
+  try {
+    await page.keyboard.press('Meta+Shift+C');
+    await page.click('.bt-cork-arc-toggle');
+    const arc = page.locator('.bt-cork-arc');
+    await expect(arc).toHaveAttribute('data-empty', 'true');
+    await expect(arc.locator('.bt-arc-curve')).toHaveCount(0);
+    const box = (await arc.boundingBox())!;
+    const chapter = (await page.locator('.bt-cork-chapter[data-id="c1x"]').boundingBox())!;
+    expect(box.x + box.width).toBeLessThanOrEqual(chapter.x);
+    expect(box.height).toBeGreaterThan(box.width);
+    await arc.locator('.bt-cork-arc-choose').click();
+    await expect(page.locator('.bt-book')).toBeVisible();
+    await page.locator('.bt-book [data-field="structure"]').selectOption('freytag');
+    await page.keyboard.press('Enter');
+    await expect(arc.locator('.bt-arc-ideal')).toHaveCount(6); // Freytag: six beats, drawn at once
   } finally {
     await app.close();
   }

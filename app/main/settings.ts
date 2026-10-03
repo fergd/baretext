@@ -16,6 +16,7 @@ export interface Settings extends AppearancePrefs {
   export: ExportPrefs;
   sprint: SprintPrefs;
   corkboardLayout: CorkboardLayout;
+  corkboardArc: boolean;
   /** Where the last export was saved. */
   exportDir: string | null;
   /** Where the window was (its normal, unzoomed frame) and how. */
@@ -32,6 +33,7 @@ export const DEFAULT_SETTINGS: Settings = {
   export: DEFAULT_EXPORT,
   sprint: DEFAULT_SPRINT,
   corkboardLayout: 'rows',
+  corkboardArc: false,
   exportDir: null,
   window: null,
 };
@@ -55,6 +57,7 @@ export function validateSettings(raw: unknown): Settings {
   s.export = validExport(r.export);
   s.sprint = validSprint(r.sprint);
   s.corkboardLayout = validCorkboardLayout(r.corkboardLayout);
+  s.corkboardArc = r.corkboardArc === true;
   if (isString(r.exportDir)) s.exportDir = r.exportDir;
   const w = r.window as Record<string, unknown> | null | undefined;
   if (w && typeof w === 'object' && ['x', 'y', 'width', 'height'].every((k) => Number.isFinite(w[k]))) {

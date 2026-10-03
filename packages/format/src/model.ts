@@ -21,6 +21,8 @@ export interface Scene {
   link: string | null;
   /** Cold Storage only: where the scene was moved from, so Restore can put it back. */
   origin?: SceneOrigin;
+  /** The story beat the writer marked it as (DECISIONS §27): an id within the book's structure. */
+  beat?: string;
   blocks: Block[];
 }
 
@@ -56,8 +58,8 @@ export interface Manuscript {
 }
 
 export const MAX_TARGET = 10_000_000;
-/** A story structure's id: lowercase words joined by hyphens. */
-export const isStructureId = (s: unknown): s is string => typeof s === 'string' && s.length <= 40 && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(s);
+/** An id made of words (a story structure's, a beat's): lowercase, joined by hyphens. */
+export const isSlug = (s: unknown): s is string => typeof s === 'string' && s.length <= 40 && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(s);
 export const isTarget = (n: unknown): n is number => Number.isInteger(n) && (n as number) >= 1 && (n as number) <= MAX_TARGET;
 
 /** The book's setup, only what is set (in the order it is written); an author trimmed, blank meaning none. */
@@ -131,6 +133,7 @@ function canonicalBlock(b: Block): Block {
 function canonicalScene(s: Scene): Scene {
   const out: Scene = { id: s.id, name: s.name, link: s.link, blocks: s.blocks.map(canonicalBlock) };
   if (s.origin) out.origin = { chapter: s.origin.chapter, index: s.origin.index };
+  if (s.beat !== undefined) out.beat = s.beat;
   return out;
 }
 
@@ -152,6 +155,7 @@ export function validate(m: Manuscript): string[] {
     if (s.link !== null && !ID_PATTERN.test(s.link)) errors.push(`scene ${s.id} has invalid link group`);
     if (s.blocks.length === 0) errors.push(`scene ${s.id} has no blocks`);
     if (s.origin !== undefined && (where !== 'cold storage' || !isOrigin(s.origin))) errors.push(`scene ${s.id} has an invalid origin`);
+    if (s.beat !== undefined && !isSlug(s.beat)) errors.push(`scene ${s.id} has an invalid beat`);
     for (const b of s.blocks) {
       if (b.type === 'quote' && b.paragraphs.length === 0) errors.push(`scene ${s.id} has an empty quote`);
       const paras = b.type === 'paragraph' ? [b.content] : b.type === 'quote' ? b.paragraphs : [];
@@ -160,7 +164,7 @@ export function validate(m: Manuscript): string[] {
   };
   checkLine(m.title, 'book title');
   if (m.author !== undefined && (typeof m.author !== 'string' || /[\n\r]/.test(m.author))) errors.push('book author is not one line of text');
-  if (m.structure !== undefined && !isStructureId(m.structure)) errors.push(`book structure ${JSON.stringify(m.structure)} is not an id`);
+  if (m.structure !== undefined && !isSlug(m.structure)) errors.push(`book structure ${JSON.stringify(m.structure)} is not an id`);
   if (m.target !== undefined && !isTarget(m.target)) errors.push(`book target ${String(m.target)} is not a whole number of words`);
   if (m.chapters.length === 0) errors.push('manuscript has no chapters');
   for (const c of m.chapters) {

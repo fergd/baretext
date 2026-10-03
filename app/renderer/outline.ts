@@ -14,6 +14,8 @@ export interface SceneEntry {
   words: number;
   /** Its first prose, a few lines' worth (the corkboard card's lines). */
   opening: string;
+  /** The story beat it is marked as (DECISIONS §27), or null. */
+  beat: string | null;
 }
 
 export interface ChapterEntry {
@@ -96,6 +98,7 @@ export function outlineOf(doc: PMNode): Outline {
         pos: offset + 1 + childOffset,
         words: facts.words,
         opening: facts.opening,
+        beat: child.attrs.beat,
       });
     });
     chapters.push(entry);

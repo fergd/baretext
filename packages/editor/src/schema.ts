@@ -36,7 +36,8 @@ const nodes: Record<string, NodeSpec> = {
     // Every scene ends in a paragraph, so there is always a writable line.
     content: 'scene_heading? block* paragraph',
     // origin: Cold Storage only — { chapter, index } it came from (see SceneOrigin).
-    attrs: { id: { default: '', validate: 'string' }, link: { default: null }, origin: { default: null } },
+    // beat: the story beat it is marked as (an id), or null.
+    attrs: { id: { default: '', validate: 'string' }, link: { default: null }, origin: { default: null }, beat: { default: null } },
     isolating: true,
     defining: true,
     toDOM: (n): DOMOutputSpec => ['section', { class: 'bt-scene', 'data-id': n.attrs.id }, 0],

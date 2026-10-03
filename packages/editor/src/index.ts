@@ -30,7 +30,7 @@ import { findHighlights } from './find';
 export * from './schema';
 export * from './convert';
 export * from './commands';
-export { bookSetupOf, setBookSetup, type BookSetup } from './book';
+export { bookSetupOf, setBeat, setBookSetup, type BookSetup } from './book';
 export { BOOK_TITLE, rename, addScene, addChapter, moveScene, moveChapter, deleteScene, deleteChapter } from './outline-commands';
 export { parkedKey, openParked, closeParked, moveToColdStorage, restoreFromColdStorage } from './cold';
 export { addNoteAnchor, removeNoteAnchor, anchorsIn, describeAnchor, locateAnchor, applyAnchors, type AnchorRange, type SavedAnchor } from './notes';

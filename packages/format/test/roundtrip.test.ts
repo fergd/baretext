@@ -52,7 +52,8 @@ const scene: fc.Arbitrary<Omit<Scene, 'id'>> = fc.record({
   name: fc.option(maybeText, { nil: null }),
   link: fc.option(fc.constantFrom('g1', 'g2'), { nil: null }),
   blocks: fc.array(block, { minLength: 1, maxLength: 5 }),
-});
+  beat: fc.option(fc.constantFrom('midpoint', 'inciting-incident', 'a-newer-beat'), { nil: undefined }),
+}).map(({ beat, ...s }) => (beat ? { ...s, beat } : s));
 
 const manuscript: fc.Arbitrary<Manuscript> = fc
   .record({
@@ -241,5 +242,35 @@ describe('book setup (front matter)', () => {
 
   it('imported Markdown keeps an author from its own front matter', () => {
     expect(parse('---\ntitle: Notes\nauthor: Ann Lee\n---\n\nSome prose.\n').manuscript.author).toBe('Ann Lee');
+  });
+});
+
+describe('story beats (DECISIONS §27)', () => {
+  const marked = (): Manuscript => {
+    const m = emptyManuscript('B');
+    m.chapters[0]!.scenes.push({ ...m.chapters[0]!.scenes[0]!, id: 'second', beat: 'midpoint' });
+    m.coldStorage.push({ id: 'parked', name: 'Old', link: null, blocks: [{ type: 'paragraph', content: [{ text: 'x' }] }], beat: 'climax' });
+    return m;
+  };
+
+  it('are kept per scene in the bookkeeping, by identity — a parked scene keeps its own', () => {
+    const text = serialize(marked());
+    expect(text).toMatch(/"beats":\{"second":"midpoint","parked":"climax"\}/);
+    const back = parse(text).manuscript;
+    expect(back.chapters[0]!.scenes.map((s) => s.beat)).toEqual([undefined, 'midpoint']);
+    expect(back.coldStorage[0]!.beat).toBe('climax');
+  });
+
+  it('a book without beats writes no beats', () => {
+    expect(serialize(emptyManuscript('B'))).not.toMatch(/beats/);
+  });
+
+  it('a beat must be an id; a hand-edited one that isn’t is dropped, the rest kept', () => {
+    const m = marked();
+    m.chapters[0]!.scenes[1]!.beat = 'Mid Point';
+    expect(validate(m).join()).toMatch(/beat/);
+    const back = parse(serialize(marked()).replace('"midpoint"', '"Mid Point"')).manuscript;
+    expect(back.chapters[0]!.scenes[1]!.beat).toBeUndefined();
+    expect(back.coldStorage[0]!.beat).toBe('climax');
   });
 });

@@ -12,6 +12,8 @@ import { Arming } from './arming';
 import { BoardDrag } from './corkboard-drag';
 import { numberFormat } from './dom';
 import { PLUS } from './icons';
+import { beatName, structureOf } from './structures';
+import { ArcStrip, weighBook } from './arc';
 
 /** Below this, a scene is shown as a draft. */
 export const DRAFT_WORDS = 20;
@@ -25,6 +27,8 @@ export interface CorkboardHost {
   noteCounts(): Map<string, number>;
   /** The writer chose a layout (remember it). */
   onLayout(layout: CorkboardLayout): void;
+  /** The writer showed or hid the arc (remember it). */
+  onArc(shown: boolean): void;
   /** The book as it is now (after a change made here). */
   outline(): Outline;
   /** Rename a scene (blank: unnamed); false if nothing changed. */
@@ -41,16 +45,22 @@ export interface CorkboardHost {
   moveChapter(chapterId: string, index: number): boolean;
   /** A native context menu; the chosen item's id. */
   popupMenu(items: MenuItem[]): Promise<string | null>;
+  /** The book's story structure (its id), if it has one. */
+  structure(): string | null;
+  /** Mark a scene as a story beat (null: unmark it); false if nothing changed. */
+  setBeat(sceneId: string, beat: string | null): boolean;
+  /** Open the book's settings (to choose a structure). */
+  bookSettings(): void;
 }
 
-/** What can be done to a card: on its keys and in its context menu; the toolbar has those not on the board already (rename: the title; new scene: the chapter's last tile). */
-type CardAction = 'open' | 'rename' | 'copy' | 'new-scene' | 'delete';
-const ACTIONS: { action: CardAction; label: string; keys: string; menuKeys: string; toolbar: boolean }[] = [
-  { action: 'open', label: 'Open', keys: '↵', menuKeys: 'Enter', toolbar: true },
-  { action: 'rename', label: 'Rename', keys: 'R', menuKeys: 'R', toolbar: false },
-  { action: 'copy', label: 'Copy', keys: 'C', menuKeys: 'C', toolbar: true },
-  { action: 'new-scene', label: 'New scene', keys: 'N', menuKeys: 'N', toolbar: false },
-  { action: 'delete', label: 'Delete', keys: '⌫', menuKeys: 'Backspace', toolbar: true },
+/** What can be done to a card: in its menu (its ⋯ button, or right-click), and on its keys (N, a new scene after it, is a key only: each chapter's last tile adds one too). */
+type CardAction = 'open' | 'mark' | 'rename' | 'copy' | 'new-scene' | 'delete';
+const ACTIONS: { action: Exclude<CardAction, 'new-scene'>; label: string; menuKeys: string }[] = [
+  { action: 'open', label: 'Open', menuKeys: 'Enter' },
+  { action: 'mark', label: 'Mark as', menuKeys: 'M' },
+  { action: 'rename', label: 'Rename', menuKeys: 'R' },
+  { action: 'copy', label: 'Copy', menuKeys: 'C' },
+  { action: 'delete', label: 'Delete', menuKeys: 'Backspace' },
 ];
 
 const LAYOUTS: [CorkboardLayout, string][] = [['rows', 'Rows'], ['columns', 'Columns']];
@@ -62,7 +72,6 @@ export class Corkboard {
   /** The cards' area (the toolbar stays put above it). */
   private readonly board: HTMLElement;
   private readonly summary: HTMLElement;
-  private readonly actions: HTMLElement;
   /** The inline rename in progress (the board isn't redrawn under it). */
   private editing: { id: string; input: HTMLInputElement; byClick: boolean } | null = null;
   /** A delete waiting for its confirmation. */
@@ -72,8 +81,10 @@ export class Corkboard {
   /** The card that holds the board's single tab stop. */
   private focusId: string | null = null;
   private readonly drag: BoardDrag;
+  private readonly arc: ArcStrip;
+  private arcFrame = 0;
 
-  constructor(host: HTMLElement, private readonly h: CorkboardHost, layout: CorkboardLayout = 'rows') {
+  constructor(host: HTMLElement, private readonly h: CorkboardHost, layout: CorkboardLayout = 'rows', arc = false) {
     this.el = document.createElement('div');
     this.el.className = 'bt-corkboard';
     this.el.setAttribute('role', 'region');
@@ -84,18 +95,20 @@ export class Corkboard {
         <div class="bt-seg" role="radiogroup" aria-label="Layout">${LAYOUTS.map(([value, label]) => `
           <button type="button" role="radio" class="bt-seg-item" data-layout="${value}" aria-checked="false">${label}</button>`).join('')}
         </div>
-        <div class="bt-cork-actions" aria-label="Scene">
-          <span class="bt-cork-current"></span>${ACTIONS.filter((a) => a.toolbar).map(({ action, label, keys }) => `
-          <button type="button" class="bt-cork-tool" data-act="${action}" title="${label}  ${keys}">${label}</button>`).join('')}
-        </div>
         <span class="bt-cork-summary"></span>
+        <button type="button" class="bt-cork-tool bt-cork-arc-toggle" aria-pressed="false" title="The story arc, along the board">Arc</button>
       </div>
       <div class="bt-cork-board" tabindex="-1"></div>`; // (a click on its background keeps the keyboard here: Esc closes it)
     host.append(this.el);
     this.board = this.el.querySelector('.bt-cork-board')!;
     this.summary = this.el.querySelector('.bt-cork-summary')!;
-    this.actions = this.el.querySelector('.bt-cork-actions')!;
     this.setLayout(layout);
+    this.arc = new ArcStrip(() => this.h.bookSettings());
+    this.board.before(this.arc.el);
+    this.showArc(arc);
+    // The arc fits its strip (drawn again when the window resizes); its band follows the scrolling.
+    new ResizeObserver(() => this.drawArcSoon()).observe(this.arc.el);
+    this.board.addEventListener('scroll', () => this.drawArcSoon(), { passive: true });
     this.drag = new BoardDrag({
       root: this.el,
       board: this.board,
@@ -111,13 +124,13 @@ export class Corkboard {
       const target = e.target as HTMLElement;
       const layoutChoice = target.closest<HTMLElement>('[role="radio"][data-layout]'); // (not the board, which carries its layout too)
       if (layoutChoice) { this.chooseLayout(layoutChoice.dataset.layout as CorkboardLayout); return; }
-      const tool = target.closest<HTMLElement>('[data-act]');
-      if (tool && this.focusId) { this.act(tool.dataset.act as CardAction, this.focusId); return; }
+      if (target.closest('.bt-cork-arc-toggle')) { this.showArc(this.el.dataset.arc !== 'true'); this.h.onArc(this.el.dataset.arc === 'true'); return; }
       const add = target.closest<HTMLElement>('[data-add-scene]');
       if (add) { this.newScene(add.dataset.addScene!); return; }
       const card = target.closest<HTMLElement>('.bt-cork-card');
       if (!card || target.closest('input')) return;
       if (target.closest('[data-action="open"]')) this.h.open(card.dataset.id!);
+      else if (target.closest('[data-action="menu"]')) { this.focusCard(card.dataset.id!); void this.menu(card.dataset.id!); }
       else if (target.closest('[data-action="rename"]') && e.detail === 1) { this.focusCard(card.dataset.id!); this.startRename(card.dataset.id!, true); }
       else this.focusCard(card.dataset.id!); // a click only gives the card the keyboard
     });
@@ -150,6 +163,11 @@ export class Corkboard {
     return this.el.dataset.open === 'true';
   }
 
+  /** The keyboard back on the board: its card. */
+  focus() {
+    (this.card(this.focusId) ?? this.board).focus();
+  }
+
   /** Show the board, the keyboard on `sceneId`'s card (the scene the writer was in). */
   open(outline: Outline, sceneId: string | null) {
     this.outline = outline;
@@ -157,6 +175,7 @@ export class Corkboard {
     this.rendered = null; // (note counts may have changed while it was closed)
     this.render();
     this.el.dataset.open = 'true';
+    this.drawArc();
     const card = this.card(this.focusId) ?? this.cards()[0];
     if (card) {
       this.focusCard(card.dataset.id!);
@@ -189,7 +208,42 @@ export class Corkboard {
     if (layout === this.layout) return;
     this.setLayout(layout);
     this.h.onLayout(layout);
+    this.drawArc();
     this.card(this.focusId)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+
+  // ── the story arc (DECISIONS §27) ──
+
+  private showArc(shown: boolean) {
+    this.el.dataset.arc = String(shown);
+    this.el.querySelector('.bt-cork-arc-toggle')!.setAttribute('aria-pressed', String(shown));
+    this.drawArc();
+  }
+
+  /** Draw the arc (only while it shows; unchanged, it isn't redrawn), its band over the cards on screen. */
+  private drawArc() {
+    if (!this.outline || !this.isOpen || this.el.dataset.arc !== 'true') return;
+    this.arc.draw(this.outline, structureOf(this.h.structure())?.beats ?? null, this.layout === 'rows');
+    this.arc.showView(this.inView());
+  }
+
+  /** The stretch of the book whose cards are on screen (shares of it), or null. */
+  private inView(): [number, number] | null {
+    const shares = weighBook(this.outline!).scenes;
+    const box = this.board.getBoundingClientRect();
+    let view: [number, number] | null = null;
+    for (const card of this.cards()) {
+      const r = card.getBoundingClientRect();
+      if (r.right <= box.left || r.left >= box.right || r.bottom <= box.top || r.top >= box.bottom) continue;
+      const [start, end] = shares.get(card.dataset.id!) ?? [0, 0];
+      view = view ? [Math.min(view[0], start), Math.max(view[1], end)] : [start, end];
+    }
+    return view;
+  }
+
+  private drawArcSoon() {
+    cancelAnimationFrame(this.arcFrame);
+    this.arcFrame = requestAnimationFrame(() => this.drawArc());
   }
 
   /** The book changed: redraw (keeping the scroll and the focused card). */
@@ -226,8 +280,9 @@ export class Corkboard {
       return section;
     });
     this.board.replaceChildren(...sections);
+    this.drawArc();
     [this.board.scrollTop, this.board.scrollLeft] = [scrollTop, scrollLeft]; // a refresh never moves the board
-    this.showCurrent();
+    this.showArming();
     const scenes = outline.chapters.reduce((n, c) => n + c.scenes.length, 0);
     this.summary.textContent = `${outline.chapters.length} ${outline.chapters.length === 1 ? 'chapter' : 'chapters'} · ${scenes} ${scenes === 1 ? 'scene' : 'scenes'} · ${words(outline.words)}`;
     if (!this.card(this.focusId)) this.focusId = this.cards()[0]?.dataset.id ?? null;
@@ -264,7 +319,17 @@ export class Corkboard {
     open.tabIndex = -1; // the card is the tab stop; ↵ opens
     open.textContent = 'Open';
     open.setAttribute('aria-label', `Open ${scene.label} in the manuscript`);
-    head.append(Object.assign(document.createElement('span'), { className: 'bt-cork-card-number', textContent: scene.label }), heading, open);
+    const more = document.createElement('button');
+    more.type = 'button';
+    more.className = 'bt-cork-action bt-cork-more';
+    more.dataset.action = 'menu';
+    more.tabIndex = -1; // (the menu key, or right-click, from the keyboard)
+    more.textContent = '⋯';
+    more.title = 'Open, mark as, rename, copy, delete';
+    more.setAttribute('aria-label', `Actions for ${scene.label}`);
+    // Asked to confirm a delete: the card says how.
+    const armed = Object.assign(document.createElement('span'), { className: 'bt-cork-armed', textContent: 'Delete? ⌫ again' });
+    head.append(Object.assign(document.createElement('span'), { className: 'bt-cork-card-number', textContent: scene.label }), heading, armed, open, more);
 
     const opening = document.createElement('p');
     opening.className = 'bt-cork-card-opening';
@@ -274,6 +339,11 @@ export class Corkboard {
     foot.className = 'bt-cork-card-foot';
     foot.append(Object.assign(document.createElement('span'), { className: 'bt-cork-card-words', textContent: draft ? 'Draft' : words(scene.words) }));
     if (noteCount) foot.append(Object.assign(document.createElement('span'), { className: 'bt-cork-card-notes', textContent: `${noteCount} ${noteCount === 1 ? 'note' : 'notes'}` }));
+    if (scene.beat) {
+      const beat = beatName(this.h.structure(), scene.beat);
+      foot.append(Object.assign(document.createElement('span'), { className: 'bt-cork-card-beat', textContent: beat }));
+      card.setAttribute('aria-label', `${card.getAttribute('aria-label')}, ${beat}`);
+    }
 
     card.append(head, opening, foot);
     return card;
@@ -296,6 +366,7 @@ export class Corkboard {
   private act(action: CardAction, id: string) {
     switch (action) {
       case 'open': this.h.open(id); break;
+      case 'mark': void this.h.popupMenu(this.beatItems(id)).then((choice) => this.chosen(id, choice)); break;
       case 'rename': this.startRename(id); break;
       case 'copy': this.h.copyScene(id); break;
       case 'new-scene': { const chapter = this.chapterOf(id); if (chapter) this.newScene(chapter.id); break; }
@@ -326,17 +397,9 @@ export class Corkboard {
     this.render();
   }
 
-  /** The toolbar's middle names the card with the keyboard, before its actions. */
-  private showCurrent() {
-    const scene = this.focusId ? this.sceneOf(this.focusId) : undefined;
-    this.actions.hidden = !scene;
-    if (scene) this.actions.querySelector('.bt-cork-current')!.textContent = `${scene.label} ${sceneDisplayName(scene)}`;
-    this.showArming();
-  }
-
-  /** Delete: the first press arms it (the card and the button ask); a second, within a few seconds, deletes. */
+  /** Delete: the first press arms it (the card asks); a second, within a few seconds, deletes. */
   private deleteScene(id: string) {
-    const owns = (t: Element) => !!t.closest(`[data-act="delete"], .bt-cork-card[data-id="${CSS.escape(id)}"]`);
+    const owns = (t: Element) => !!t.closest(`.bt-cork-card[data-id="${CSS.escape(id)}"]`);
     if (!this.arming.press(id, owns)) return;
     const cards = this.cards();
     const i = cards.findIndex((c) => c.dataset.id === id);
@@ -351,10 +414,6 @@ export class Corkboard {
     const armed = this.arming.key;
     for (const c of this.el.querySelectorAll<HTMLElement>('.bt-cork-card[data-arming]')) delete c.dataset.arming;
     if (armed) this.card(armed)?.setAttribute('data-arming', 'true');
-    const button = this.actions.querySelector<HTMLElement>('[data-act="delete"]')!;
-    const scene = armed ? this.sceneOf(armed) : undefined;
-    button.dataset.armed = String(!!scene);
-    button.textContent = scene ? `Delete ${scene.label}?` : 'Delete';
   }
 
   private newScene(chapterId: string) {
@@ -408,12 +467,45 @@ export class Corkboard {
   // ── the context menu (right-click, or the menu key) ──
 
   private async menu(id: string) {
-    const items: MenuItem[] = ACTIONS.flatMap(({ action, label, menuKeys }) => [
+    const armed = this.arming.key === id;
+    const items: MenuItem[] = ACTIONS.flatMap(({ action, label, menuKeys }): MenuItem[] => [
       ...(action === 'delete' ? [{ separator: true as const }] : []),
-      { id: action, label, keys: menuKeys },
+      action === 'mark' ? { id: action, label, submenu: this.beatItems(id) }
+        : { id: action, label: action === 'delete' && armed ? 'Delete — confirm' : label, keys: menuKeys },
     ]);
-    const chosen = await this.h.popupMenu(items);
-    if (chosen && this.isOpen) this.act(chosen as CardAction, id);
+    this.chosen(id, await this.h.popupMenu(items));
+  }
+
+  // ── story beats (DECISIONS §27) ──
+
+  /**
+   * The beats a card can be marked as: the book's structure's, in order (a
+   * check on its own; where another card has one, that card's number), then
+   * "No beat". Without a structure, the way to choose one.
+   */
+  private beatItems(id: string): MenuItem[] {
+    const scene = this.sceneOf(id);
+    if (!scene) return [];
+    const structure = this.h.structure();
+    const known = structureOf(structure);
+    if (!known && !scene.beat) return [{ id: 'choose-structure', label: 'Choose a structure…' }];
+    const holders = new Map(this.outline!.chapters.flatMap((c) => c.scenes).filter((s) => s.beat && s.id !== id).map((s) => [s.beat!, s.label]));
+    const beats: MenuItem[] = (known?.beats ?? []).map((b) => ({
+      id: `beat:${b.id}`,
+      label: holders.has(b.id) ? `${b.name} · ${holders.get(b.id)}` : b.name,
+      checked: scene.beat === b.id,
+    }));
+    // A beat the structure doesn't have (a newer app's, or from another structure) still shows, checked.
+    if (scene.beat && !known?.beats.some((b) => b.id === scene.beat)) beats.push({ id: `beat:${scene.beat}`, label: beatName(structure, scene.beat), checked: true });
+    return [...beats, { separator: true }, { id: 'beat:', label: 'No beat', enabled: !!scene.beat }, ...(known ? [] : [{ id: 'choose-structure', label: 'Choose a structure…' }])];
+  }
+
+  /** What was chosen in a card's menu (an action, or a beat). */
+  private chosen(id: string, choice: string | null) {
+    if (!choice || !this.isOpen) return;
+    if (choice === 'choose-structure') this.h.bookSettings();
+    else if (choice.startsWith('beat:')) this.h.setBeat(id, choice.slice(5) || null);
+    else this.act(choice as CardAction, id);
   }
 
   // ── the keyboard ──
@@ -434,7 +526,6 @@ export class Corkboard {
     if (this.focusId !== id) this.arming.disarm();
     this.focusId = id;
     this.setTabStop();
-    this.showCurrent();
     const card = this.card(id);
     card?.focus({ preventScroll: true });
     card?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
@@ -487,6 +578,7 @@ export class Corkboard {
     const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     const action: CardAction | null = e.key === 'Enter' ? 'open'
       : (plain && key === 'r') || e.key === 'F2' ? 'rename'
+      : plain && key === 'm' ? 'mark'
       : (plain && key === 'c') || (e.metaKey && key === 'c') ? 'copy'
       : plain && key === 'n' ? 'new-scene'
       : plain && (e.key === 'Backspace' || e.key === 'Delete') ? 'delete'

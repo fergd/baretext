@@ -12,15 +12,16 @@ const p = (text: string): Block => ({ type: 'paragraph', content: [{ text }] });
 
 export const book: Manuscript = {
   title: 'The Lighthouse Keeper',
+  structure: 'three-act',
   coldStorage: [{ id: 'k1', name: 'The storm, first try', link: null, blocks: [p('Too much weather.')] }],
   chapters: [
     { id: 'c1', title: 'Arrival', scenes: [
       { id: 's1', name: null, link: null, blocks: [p('The boat left her on the jetty with two cases and a box of books, and did not wait to see her up the steps.'), p('The keeper’s cottage smelled of paraffin and salt.')] },
-      { id: 's2', name: 'The log', link: null, blocks: [p('Wind, sea, ships. Three lines, every day, for forty years.')] },
+      { id: 's2', name: 'The log', link: null, beat: 'inciting-incident', blocks: [p('Wind, sea, ships. Three lines, every day, for forty years.')] },
     ] },
     { id: 'c2', title: 'Weather', scenes: [
       { id: 's3', name: null, link: null, blocks: [p('By October the light came late and left early.')] },
-      { id: 's4', name: 'Letters', link: null, blocks: [p('The first letter came in a tin, wrapped in oilcloth.')] },
+      { id: 's4', name: 'Letters', link: null, beat: 'midpoint', blocks: [p('The first letter came in a tin, wrapped in oilcloth.')] },
       { id: 's5', name: null, link: null, blocks: [p('She read it twice and put it back.')] },
     ] },
     { id: 'c3', title: 'The Ferry', scenes: [{ id: 's6', name: null, link: null, blocks: [p('Nobody had crossed since spring.')] }] },

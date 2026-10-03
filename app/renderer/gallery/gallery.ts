@@ -54,7 +54,7 @@ const armed = (frame: HTMLElement, selector: string): Finish => () => click(fram
 
 /** Only what the panels below call; the rest of the bridge is never reached here. */
 const bridge = {
-  initial: { ...DEFAULT_APPEARANCE, outline: 'hidden', hidden: false, export: DEFAULT_EXPORT, sprint: DEFAULT_SPRINT, corkboardLayout: 'rows' },
+  initial: { ...DEFAULT_APPEARANCE, outline: 'hidden', hidden: false, export: DEFAULT_EXPORT, sprint: DEFAULT_SPRINT, corkboardLayout: 'rows', corkboardArc: false },
   listSnapshots: () => Promise.resolve(snapshots),
   readSnapshot: () => Promise.resolve(book),
   takeSnapshot: () => Promise.resolve(null),
@@ -196,14 +196,19 @@ async function saveFailure(frame: HTMLElement, reason: 'destructive' | 'io') {
   await new Saver(failing, () => d.view, () => FILE, el('span', 'bt-save-state'), frame).saveNow();
 }
 
-/** The corkboard over the book, the keyboard on `focus`'s card (given last: it lives while focused), then `then` (a key on it). */
-function corkboard(frame: HTMLElement, focus: string | null, layout: CorkboardLayout = 'rows', then?: string): Finish {
+/**
+ * The corkboard over the book, the keyboard on `focus`'s card (given last:
+ * it lives while focused), then `then` (a key on it); `arc`: with the story
+ * arc shown, over the book's structure (or none).
+ */
+function corkboard(frame: HTMLElement, focus: string | null, layout: CorkboardLayout = 'rows', then?: string, arc?: { structure: string | null }): Finish {
   const d = desk(frame);
   frame.dataset.view = 'corkboard';
   const board = new Corkboard(d.workspace, {
     open: noop, close: noop, noteCounts: () => new Map([['s1', 2]]), onLayout: noop, outline: () => outlineOf(d.view.state.doc),
     rename: () => false, addScene: () => null, deleteScene: noop, copyScene: noop, moveScene: () => false, moveChapter: () => false, popupMenu: () => Promise.resolve(null),
-  }, layout);
+    structure: () => (arc ? arc.structure : 'three-act'), setBeat: () => false, bookSettings: noop, onArc: noop,
+  }, layout, !!arc);
   board.open(outlineOf(d.view.state.doc), null);
   if (!focus) return undefined;
   return () => {
@@ -297,8 +302,11 @@ const SPECS: Spec[] = [
   { component: 'Corkboard', state: 'Columns', size: [1100, 640], render: (f) => corkboard(f, 's4', 'columns') },
   { component: 'Corkboard', state: 'Renaming a card', size: [1100, 640], render: (f) => corkboard(f, 's2', 'rows', 'r') },
   { component: 'Corkboard', state: 'Delete, armed', size: [1100, 640], render: (f) => corkboard(f, 's2', 'rows', 'Backspace') },
+  { component: 'Corkboard', state: 'Arc, rows', size: [1100, 640], render: (f) => corkboard(f, null, 'rows', undefined, { structure: 'three-act' }) },
+  { component: 'Corkboard', state: 'Arc, columns', size: [1100, 640], render: (f) => corkboard(f, null, 'columns', undefined, { structure: 'three-act' }) },
+  { component: 'Corkboard', state: 'Arc, no structure', size: [1100, 640], render: (f) => corkboard(f, null, 'columns', undefined, { structure: null }) },
   { component: 'Corkboard', state: 'Dragging a card', size: [1100, 640], render: (f) => dragging(f, 'rows', '.bt-cork-card[data-id="s4"]', '.bt-cork-card[data-id="s2"]', [0.2, 0.6]) },
-  { component: 'Corkboard', state: 'Dragging a chapter', size: [1100, 640], render: (f) => dragging(f, 'columns', '.bt-cork-chapter[data-id] .bt-cork-chapter-title', '.bt-cork-chapter:last-child', [0.7, 0.1]) },
+  { component: 'Corkboard', state: 'Dragging a chapter', size: [1100, 640], render: (f) => dragging(f, 'columns', '.bt-cork-chapter[data-id] .bt-cork-chapter-title', '.bt-cork-chapter[data-id="c3"]', [0.7, 0.1]) },
   { component: 'View chips', state: 'Manuscript', size: [600, 60], render: (f) => chips(f, 'manuscript') },
   { component: 'View chips', state: 'Corkboard', size: [600, 60], render: (f) => chips(f, 'corkboard') },
   { component: 'Toast', state: 'Info', size: [900, 200], render: (f) => toast(f, 'info', 'Sprint added to the end of chapter 2. ⌘Z undoes it.') },

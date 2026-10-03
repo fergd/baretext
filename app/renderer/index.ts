@@ -39,6 +39,7 @@ import {
   toggleQuote,
   nodeToScene,
   bookSetupOf,
+  setBeat,
   setBookSetup,
   type BookSetup,
 } from '@baretext/editor';
@@ -605,6 +606,7 @@ const corkboard = new Corkboard($('workspace'), {
   close: () => setView('manuscript'),
   noteCounts: () => openNoteCounts(),
   onLayout: (layout) => bridge.setPrefs({ corkboardLayout: layout }),
+  onArc: (shown) => bridge.setPrefs({ corkboardArc: shown }),
   outline: () => outlineOf(view!.state.doc),
   rename: (id, name) => outsideChange(rename(id, name)),
   addScene: (chapterId) => {
@@ -618,7 +620,10 @@ const corkboard = new Corkboard($('workspace'), {
   moveScene: (id, chapterId, index) => outsideChange(moveScene(id, chapterId, index), true),
   moveChapter: (id, index) => outsideChange(moveChapter(id, index), true),
   popupMenu: (items) => bridge.popupMenu(items),
-}, bridge.initial.corkboardLayout);
+  structure: () => view?.state.doc.attrs.structure ?? null,
+  setBeat: (id, beat) => outsideChange(setBeat(id, beat)),
+  bookSettings: () => bookSetup.open(),
+}, bridge.initial.corkboardLayout, bridge.initial.corkboardArc);
 
 /**
  * A change made away from the page (on the board, in a panel): the page
@@ -700,6 +705,7 @@ async function openBook(book: string): Promise<boolean> {
 /** Back to whatever page is being written on: the sprint page in a sprint, else the manuscript. */
 function focusWriting() {
   if (sprinter.active && sprinter.page.isOpen) sprinter.focus();
+  else if (corkboard.isOpen) corkboard.focus(); // (a panel closed over the board: back to its card)
   else view?.focus();
 }
 

@@ -36,7 +36,7 @@ export function sceneToNode(s: Scene): PMNode {
   if (content.length === 0 || content[content.length - 1]!.type !== schema.nodes.paragraph) {
     content.push(paragraph([]));
   }
-  return schema.nodes.scene!.create({ id: s.id, link: s.link, origin: s.origin ?? null }, content);
+  return schema.nodes.scene!.create({ id: s.id, link: s.link, origin: s.origin ?? null, beat: s.beat ?? null }, content);
 }
 
 export function chapterToNode(c: Chapter): PMNode {
@@ -95,6 +95,7 @@ export function nodeToScene(node: PMNode): Scene {
   });
   const scene: Scene = { id: node.attrs.id, name, link: node.attrs.link ?? null, blocks };
   if (node.attrs.origin) scene.origin = { ...node.attrs.origin };
+  if (node.attrs.beat) scene.beat = node.attrs.beat;
   return scene;
 }
 

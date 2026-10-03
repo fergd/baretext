@@ -9,7 +9,7 @@
 
 import {
   ID_PATTERN,
-  isStructureId,
+  isSlug,
   isTarget,
   emptyParagraph,
   isOrigin,
@@ -277,7 +277,7 @@ function parseFrontMatter(lines: string[]): FrontMatter {
     const [, key, raw] = m;
     if (key === 'title') title = frontMatterText(raw!);
     else if (key === 'author') { const a = frontMatterText(raw!).trim(); if (a) setup.author = a; }
-    else if (key === 'structure') { const s = raw!.trim(); if (isStructureId(s)) setup.structure = s; }
+    else if (key === 'structure') { const s = raw!.trim(); if (isSlug(s)) setup.structure = s; }
     else if (key === 'target') { const n = /^\d[\d,]*$/.test(raw!.trim()) ? Number(raw!.trim().replace(/,/g, '')) : NaN; if (isTarget(n)) setup.target = n; }
     else if (key === 'baretext') {
       const n = parseInt(raw!, 10);
@@ -556,6 +556,13 @@ export function parse(source: string, fallbackTitle = ''): ParseResult {
       const o = (book!.origins as Record<string, unknown>)[s.id];
       const origin = Array.isArray(o) ? { chapter: o[0], index: o[1] } : null;
       if (isOrigin(origin)) s.origin = origin;
+    }
+  }
+  // Story beats, by scene (each only when well formed).
+  if (restorable && book!.beats && typeof book!.beats === 'object') {
+    for (const s of scenes) {
+      const beat = (book!.beats as Record<string, unknown>)[s.id];
+      if (isSlug(beat)) s.beat = beat;
     }
   }
 

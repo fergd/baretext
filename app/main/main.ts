@@ -313,6 +313,7 @@ function createWindow() {
     export: s.export,
     sprint: s.sprint,
     corkboardLayout: s.corkboardLayout,
+    corkboardArc: s.corkboardArc,
   };
   // Where it was last time (if still on a connected display), else a large
   // centered window. Hidden test windows keep a fixed size unless a test sets one.
@@ -378,21 +379,25 @@ function popupMenu(items: unknown): Promise<string | null> {
   return new Promise((resolve) => {
     if (!win || !Array.isArray(items)) { resolve(null); return; }
     let chosen: string | null = null;
-    const template: MenuItemConstructorOptions[] = [];
-    for (const raw of items as Record<string, unknown>[]) {
-      if (raw?.separator === true) template.push({ type: 'separator' });
-      else if (typeof raw?.id === 'string' && typeof raw.label === 'string') {
-        const id = raw.id;
-        template.push({
-          label: raw.label, enabled: raw.enabled !== false,
-          ...(typeof raw.keys === 'string' ? { accelerator: raw.keys, registerAccelerator: false } : {}),
-          click: () => { chosen = id; },
-        });
-      }
-    }
+    /** What can be chosen (enabled, at any level). */
+    const choosable = new Set<string>();
+    const build = (list: unknown[], depth: number): MenuItemConstructorOptions[] => (list as Record<string, unknown>[]).flatMap((raw): MenuItemConstructorOptions[] => {
+      if (raw?.separator === true) return [{ type: 'separator' }];
+      if (typeof raw?.id !== 'string' || typeof raw.label !== 'string') return [];
+      const [id, label, enabled] = [raw.id, raw.label, raw.enabled !== false];
+      if (Array.isArray(raw.submenu) && depth < 2) return [{ label, enabled, submenu: build(raw.submenu, depth + 1) }];
+      if (enabled) choosable.add(id);
+      return [{
+        label, enabled,
+        ...(typeof raw.checked === 'boolean' ? { type: 'checkbox', checked: raw.checked } : {}),
+        ...(typeof raw.keys === 'string' ? { accelerator: raw.keys, registerAccelerator: false } : {}),
+        click: () => { chosen = id; },
+      }];
+    });
+    const template = build(items, 0);
     // Tests only: answer as if this item were chosen (a native menu can't be clicked by a test).
     const pick = process.env.BARETEXT_MENU_PICK;
-    if (pick) { resolve(template.some((t) => t.label && (items as Record<string, unknown>[]).some((i) => i?.id === pick)) ? pick : null); return; }
+    if (pick) { resolve(choosable.has(pick) ? pick : null); return; }
     // (The menu closes before its click runs: answer once that has happened.)
     Menu.buildFromTemplate(template).popup({ window: win, callback: () => setTimeout(() => resolve(chosen), 0) });
   });
@@ -497,6 +502,7 @@ function registerIpc() {
     if ('export' in patch) next.export = validExport(patch.export);
     if ('sprint' in patch) next.sprint = validSprint(patch.sprint);
     if ('corkboardLayout' in patch) next.corkboardLayout = validCorkboardLayout(patch.corkboardLayout);
+    if ('corkboardArc' in patch) next.corkboardArc = patch.corkboardArc === true;
     if (OUTLINE_STATES.includes(patch.outline as OutlineState)) next.outline = patch.outline;
     settings.update(next);
     if ('outline' in next) buildMenu(); // keep the checked item in step

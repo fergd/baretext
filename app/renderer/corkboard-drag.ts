@@ -82,7 +82,7 @@ export class BoardDrag {
   private onPointerDown(e: PointerEvent) {
     if (e.button !== 0 || !this.h.canDrag()) return;
     const target = e.target as HTMLElement;
-    if (target.closest('input, [data-action="open"], .bt-cork-add')) return;
+    if (target.closest('input, [data-action="open"], [data-action="menu"], .bt-cork-add')) return;
     const card = target.closest<HTMLElement>('.bt-cork-card');
     const head = card ? null : target.closest<HTMLElement>('.bt-cork-chapter-head');
     const what = card ?? head;

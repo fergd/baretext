@@ -4,7 +4,7 @@ import { CHANNELS, DEFAULT_APPEARANCE, DEFAULT_EXPORT, DEFAULT_SPRINT, type Bare
 
 function readInitial(): InitialPrefs {
   const arg = process.argv.find((a) => a.startsWith('--bt-initial='));
-  const fallback: InitialPrefs = { ...DEFAULT_APPEARANCE, outline: 'hidden', hidden: false, export: DEFAULT_EXPORT, sprint: DEFAULT_SPRINT, corkboardLayout: 'rows' };
+  const fallback: InitialPrefs = { ...DEFAULT_APPEARANCE, outline: 'hidden', hidden: false, export: DEFAULT_EXPORT, sprint: DEFAULT_SPRINT, corkboardLayout: 'rows', corkboardArc: false };
   if (!arg) return fallback;
   try {
     return { ...fallback, ...JSON.parse(decodeURIComponent(arg.slice('--bt-initial='.length))) };

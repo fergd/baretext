@@ -183,6 +183,8 @@
   --cork-column-w: 288px;
   /* Where a dragged card or chapter will land. */
   --cork-drop-w: 4px;
+  /* The story arc's strip: its height across the top (Columns), its width down the left (Rows). */
+  --cork-arc: 64px;
 
   /* sprint setup */
   --sprint-w: 400px;
@@ -270,6 +272,8 @@
      from its own palette — warm hues go muddy on dark pages), mixed in OKLab
      so it keeps its hue; the active note's passage more strongly */
   --color-note-wash: color-mix(in oklab, var(--color-note) 10%, var(--color-page));
+  /* A story beat on a card (DECISIONS §27): the accent, quietly. */
+  --color-beat-wash: color-mix(in oklab, var(--color-accent) 14%, transparent);
   --color-note-active: color-mix(in oklab, var(--color-note) 18%, var(--color-page));
   --color-note-edge: color-mix(in srgb, var(--color-note) 60%, transparent);
   /* A note's shadow is the page's own color, darkened — never plain black,

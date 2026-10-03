@@ -755,7 +755,7 @@ gaps:* the macOS dialog has no preview, takes the printer's paper size (A4
 here) over the layout's Letter, and doesn't know the page count. Planned
 fix: build the PDF (Letter, exact) and show it in an in-app preview window
 with Print / Save PDF.
-**Gallery:** `npm run gallery` (DECISIONS §22); 46 states × 5 themes under
+**Gallery:** `npm run gallery` (DECISIONS §22); 49 states × 5 themes under
 screenshot test — every panel, the outline, find, the selection toolbar,
 notes (panel and margin), the save notice, toasts, the spine and the timer
 line. Editor-bound parts sit on a real editor in each frame. It found a real bug on day one: two manuscripts with the
@@ -785,4 +785,13 @@ asked by File › New, changed in File › Book Settings…; in the front matter
 covers them); one undoable change; the author for export and print; the
 target in the status bar. Tests: format (7), editor (5), target parsing,
 E2E `book-setup.test.ts` (3), gallery (3 states).
-**Next:** Mark as… and the story arc · integrations (§7).
+**Story beats and the arc built** (DECISIONS §27): beats mark scenes
+(Mark as ▸ in the card's ⋯ / right-click menu, or M; a chip on the card),
+saved by scene in the bookkeeping (chapters were tried and dropped); card actions moved off the toolbar to a ⋯ menu on the card
+(native menus gained checks and submenus); the Arc — the whole book at a
+glance beside the board, the structure's curve, where beats usually fall and
+where the writer's are, a band for what's on screen. Found on the way: a
+panel closed over the board sent the keyboard to the hidden page (now back
+to the card).
+**Next:** integrations (§7) — or polish from use: clicking the arc to
+bring the scene at that place into view.

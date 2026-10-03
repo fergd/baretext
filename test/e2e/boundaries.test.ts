@@ -82,17 +82,16 @@ test.describe('structure is safe from the keyboard', () => {
     await goTo(page, 3, 1);
     await page.keyboard.press('Meta+Shift+T');
     await page.waitForTimeout(100);
-    const offsets: number[] = [];
+    const offset = () => page.evaluate(() => {
+      const sc = document.querySelector('[data-ref="scroller"]')!.getBoundingClientRect();
+      const r = window.getSelection()!.getRangeAt(0).getBoundingClientRect();
+      return Math.abs(Math.round((r.top + r.bottom) / 2 - (sc.top + sc.height / 2)));
+    });
     for (let i = 0; i < 4; i++) {
       await page.keyboard.press('Enter');
       await page.keyboard.type('line');
-      await page.waitForTimeout(250); // let the line-advance motion finish
-      offsets.push(await page.evaluate(() => {
-        const sc = document.querySelector('[data-ref="scroller"]')!.getBoundingClientRect();
-        const r = window.getSelection()!.getRangeAt(0).getBoundingClientRect();
-        return Math.round((r.top + r.bottom) / 2 - (sc.top + sc.height / 2));
-      }));
+      // Once the line-advance motion settles (however long a busy machine takes), the line is centred.
+      await expect.poll(offset, { timeout: 3000 }).toBeLessThanOrEqual(2);
     }
-    for (const o of offsets) expect(Math.abs(o)).toBeLessThanOrEqual(2);
   });
 });

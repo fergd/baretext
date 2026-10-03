@@ -159,7 +159,8 @@ export interface BookInfo {
 }
 
 /** One item of a context menu: an action (with the key that does it on its own, shown), or a separator. */
-export type MenuItem = { id: string; label: string; keys?: string; enabled?: boolean } | { separator: true };
+/** A native menu's item: chosen by id; `checked` shows a check; `submenu` opens one more level. */
+export type MenuItem = { id: string; label: string; keys?: string; enabled?: boolean; checked?: boolean; submenu?: MenuItem[] } | { separator: true };
 
 export type PrintResult = { ok: true } | { ok: false; canceled: true } | { ok: false; canceled?: false; message: string };
 
@@ -171,6 +172,8 @@ export interface InitialPrefs extends AppearancePrefs {
   export: ExportPrefs;
   sprint: SprintPrefs;
   corkboardLayout: CorkboardLayout;
+  /** The corkboard shows the story arc. */
+  corkboardArc: boolean;
 }
 
 export type MenuCommand =
