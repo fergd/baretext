@@ -183,6 +183,45 @@ async function openWithDialog() {
   if (!result.canceled && file) await switchTo(() => readDocument(file));
 }
 
+/**
+ * File › Save As…: the book — saved first — written where the writer
+ * chooses, through the same verified save as every save (a file it replaces
+ * gets a recovery copy first), its notes and caret with it. The window then
+ * carries on with the new file; the original stays as it was last saved.
+ */
+async function saveAs() {
+  if (!win || !currentFile) return;
+  if (!(await requestFlush())) {
+    tell('The manuscript could not be saved, so it was not saved anywhere else either.', 'Your text is still in the window. The message at the bottom of the window says what to do.');
+    return;
+  }
+  const from = currentFile;
+  const choice = await dialog.showSaveDialog(win, {
+    title: 'Save As',
+    defaultPath: from,
+    filters: [{ name: 'Manuscript', extensions: ['md'] }],
+    properties: ['createDirectory', 'showOverwriteConfirmation'],
+  });
+  if (choice.canceled || !choice.filePath) return;
+  const to = path.extname(choice.filePath) ? choice.filePath : `${choice.filePath}.md`;
+  if (path.resolve(to) === path.resolve(from)) return; // (it is already saved there)
+  try {
+    const { manuscript } = parse(await fs.readFile(from, 'utf8'), path.basename(from, path.extname(from)));
+    // (The writer chose to replace whatever is there: the guard against a sudden gutting doesn't apply.)
+    const saved = await saveManuscript(to, manuscript, { recoveryRoot: recoveryRoot(), force: true });
+    if (!saved.ok) throw new Error(saved.message);
+    const [notesFrom, notesTo] = [notesPathFor(from), notesPathFor(to)];
+    if (existsSync(notesFrom)) await fs.copyFile(notesFrom, notesTo);
+    else await fs.rm(notesTo, { force: true }); // (a replaced manuscript's notes don't belong to this one)
+    const carets = settings.get().carets;
+    if (carets[from] !== undefined) settings.update({ carets: { ...carets, [to]: carets[from] } });
+  } catch (e) {
+    tell('Could not save the manuscript there.', (e as Error).message);
+    return;
+  }
+  await switchTo(() => readDocument(to));
+}
+
 const EXPORT_NAMES: Record<ExportFormat, string> = { docx: 'Word Document', markdown: 'Markdown', text: 'Plain Text' };
 
 // ── menu ──
@@ -231,6 +270,7 @@ function buildMenu() {
         { label: 'Book Settings…', click: () => send('book-settings') },
         { type: 'separator' },
         { label: 'Save', ...label('CmdOrCtrl+S'), click: () => send('save') },
+        { label: 'Save As…', accelerator: 'Alt+Shift+CmdOrCtrl+S', click: () => void saveAs() },
         { label: 'Export…', ...label('Shift+CmdOrCtrl+E'), click: () => send('export') },
         { label: 'Print…', ...label('CmdOrCtrl+P'), click: () => send('print') },
         { type: 'separator' },
@@ -560,6 +600,7 @@ function registerIpc() {
   ipcMain.on(CHANNELS.fileCommand, (_e, command: unknown) => {
     if (command === 'new') void switchTo(newBook);
     else if (command === 'open') void openWithDialog();
+    else if (command === 'save-as') void saveAs();
   });
   ipcMain.on(CHANNELS.reveal, (_e, filePath: unknown) => {
     if (typeof filePath === 'string' && filePath === currentFile) shell.showItemInFolder(filePath);

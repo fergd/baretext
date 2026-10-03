@@ -14,7 +14,7 @@ export interface CommandContext {
   /** Switch the palette to another list. */
   open(view: PaletteView): void;
   isOn(toggle: 'outline' | 'corkboard' | 'typewriter' | 'focus'): boolean;
-  fileCommand(command: 'new' | 'open'): void;
+  fileCommand(command: 'new' | 'open' | 'save-as'): void;
   reveal(): void;
   /** The parked scene open on the page, if any. */
   parked(): string | null;
@@ -61,6 +61,7 @@ export function commandsView(ctx: CommandContext): PaletteView {
           typewriterItem(ctx),
           focusItem(ctx),
           saveItem(ctx),
+        { id: 'save-as', group: 'File', label: 'Save as…', keywords: 'copy duplicate rename file elsewhere', keys: '⌥⇧⌘S', run: () => ctx.fileCommand('save-as') },
         ];
       }
       if (ctx.parked()) {

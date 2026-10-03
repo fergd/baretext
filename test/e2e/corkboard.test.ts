@@ -564,7 +564,9 @@ test('the Arc without a structure offers to choose one; in Rows it runs down the
     await page.click('.bt-cork-arc-toggle');
     const arc = page.locator('.bt-cork-arc');
     await expect(arc).toHaveAttribute('data-empty', 'true');
-    await expect(arc.locator('.bt-arc-curve')).toHaveCount(0);
+    await expect(arc.locator('.bt-arc-curve:not(.bt-arc-example)')).toHaveCount(0); // (no arc yet: only a faint example of one)
+    await expect(arc.locator('.bt-arc-example')).toHaveCount(1);
+    await expect(arc.locator('.bt-arc-band')).not.toHaveAttribute('visibility', 'visible');
     await page.waitForFunction(() => document.getAnimations().length === 0); // (it slides in)
     const box = (await arc.boundingBox())!;
     const chapter = (await page.locator('.bt-cork-chapter[data-id="c1x"]').boundingBox())!;

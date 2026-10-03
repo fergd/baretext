@@ -1039,6 +1039,14 @@ book is past what a URL can carry).
   the book's chapters, scenes, beats and word counts, as Word, PDF or
   Markdown — from the Export panel.
 - Integrations (§7) stay on hold (user: "I want to get it right").
+- **Save As…** (user; File menu, ⌥⇧⌘S — ⇧⌘S is Sprint; palette "Save as…"):
+  the book is saved first, then written where the writer chooses through the
+  same verified save (a replaced file gets a recovery copy), its notes and
+  caret with it; the window carries on with the new file, the original stays
+  as last saved.
+- **The Arc with no structure** (user: make it intentional): a faint dashed
+  example of an arc, and over it "Choose a structure…" — along the strip in
+  Rows, like a book's spine; no band.
 
 ## 22. Code conventions (2026-10-02, audit)
 - Gates: `npm run typecheck`, `npm run lint` (oxlint, type-aware: floating
@@ -1079,8 +1087,10 @@ book is past what a URL can carry).
   `test/e2e/gallery.test.ts` compares each frame with a saved picture; a
   visual change fails until looked at and accepted
   (`npx playwright test gallery --update-snapshots`). A new component or
-  state gets a gallery entry. Pictures compare exactly (no allowance for
-  differing pixels: a lost focus ring is ~1,000 of them). A state that
+  state gets a gallery entry. Pictures compare closely: no pixel may differ
+  beyond a colour threshold of 0.08 — above anti-aliasing noise (measured up
+  to 12/255 on one channel), below the faintest design change (a border, a
+  dashed curve), which Playwright's default 0.2 let through. A state that
   can't survive the rest of the page — the keyboard (one focus: a rename
   saves on blur), an armed confirmation (a press elsewhere disarms it), a
   held drag — is reached in its last step, run on a freshly drawn frame just

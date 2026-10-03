@@ -311,6 +311,7 @@ const SPECS: Spec[] = [
   { component: 'Corkboard', state: 'Arc, rows', size: [1100, 640], render: (f) => corkboard(f, null, 'rows', undefined, { structure: 'three-act' }) },
   { component: 'Corkboard', state: 'Arc, columns', size: [1100, 640], render: (f) => corkboard(f, null, 'columns', undefined, { structure: 'three-act' }) },
   { component: 'Corkboard', state: 'Arc, no structure', size: [1100, 640], render: (f) => corkboard(f, null, 'columns', undefined, { structure: null }) },
+  { component: 'Corkboard', state: 'Arc, no structure, rows', size: [1100, 640], render: (f) => corkboard(f, null, 'rows', undefined, { structure: null }) },
   { component: 'Corkboard', state: 'Dragging a card', size: [1100, 640], render: (f) => dragging(f, 'rows', '.bt-cork-card[data-id="s4"]', '.bt-cork-card[data-id="s2"]', [0.2, 0.6]) },
   { component: 'Corkboard', state: 'Dragging a card into a group', size: [1100, 640], render: (f) => dragging(f, 'rows', '.bt-cork-card[data-id="s1"]', '.bt-cork-card[data-id="s5"]', [0.9, 0.5]) },
   { component: 'Corkboard', state: 'Dropping a card on a card', size: [1100, 640], render: (f) => dragging(f, 'rows', '.bt-cork-card[data-id="s1"]', '.bt-cork-card[data-id="s3"]', [0.5, 0.5]) },

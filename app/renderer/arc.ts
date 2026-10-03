@@ -64,6 +64,8 @@ export function tensionAt(beats: readonly Beat[], share: number): number {
 }
 
 const SVG = 'http://www.w3.org/2000/svg';
+/** The example arc an empty strip shows: a rise to a late climax, then a fall. */
+const EXAMPLE: readonly Beat[] = [{ id: 'climax', name: '', at: 0.82, t: 1 }];
 const percent = (share: number) => `${Math.round(share * 100)}%`;
 
 /** The arc's strip beside the board: drawn afresh when the book changes; its band follows the scrolling. */
@@ -112,7 +114,7 @@ export class ArcStrip {
     this.el.dataset.empty = String(!beats);
     this.el.setAttribute('aria-label', beats ? 'The story arc' : 'The story arc: no structure chosen');
     this.svg.replaceChildren();
-    if (!beats || length <= 2 * pad) return;
+    if (length <= 2 * pad) return;
     this.svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
     const add = <K extends keyof SVGElementTagNameMap>(tag: K, cls: string, attrs: Record<string, string | number>, title?: string) => {
       const el = document.createElementNS(SVG, tag);
@@ -136,9 +138,11 @@ export class ArcStrip {
       const [dx, dy] = vertical ? [-pad / 2, 0] : [0, pad / 2];
       add('line', 'bt-arc-tick', { x1: x, y1: y, x2: x + dx, y2: y + dy });
     }
+    // No structure yet: a faint example of an arc, behind the way to choose one.
     const n = Math.max(2, Math.ceil((length - 2 * pad) / 3));
-    const curve = Array.from({ length: n + 1 }, (_, i) => this.at(i / n, tensionAt(beats, i / n)).map((v) => v.toFixed(1)).join(' '));
-    add('path', 'bt-arc-curve', { d: `M${curve.join('L')}` });
+    const curve = Array.from({ length: n + 1 }, (_, i) => this.at(i / n, tensionAt(beats ?? EXAMPLE, i / n)).map((v) => v.toFixed(1)).join(' '));
+    add('path', beats ? 'bt-arc-curve' : 'bt-arc-curve bt-arc-example', { d: `M${curve.join('L')}` });
+    if (!beats) return;
     // Where each beat usually falls; and the scene marked as it, joined to that place.
     for (const b of beats) {
       const t = tensionAt(beats, b.at); // (on the arc)
@@ -160,7 +164,7 @@ export class ArcStrip {
   /** Show which stretch of the book is on screen (shares; null: none). */
   showView(view: [number, number] | null) {
     const { length, depth, pad, vertical } = this.frame;
-    if (!view || !length) { this.band.setAttribute('visibility', 'hidden'); return; }
+    if (!view || !length || this.el.dataset.empty === 'true') { this.band.setAttribute('visibility', 'hidden'); return; } // (no arc yet: no band)
     const run = length - 2 * pad;
     const [from, to] = [pad + view[0] * run, pad + view[1] * run];
     const box = vertical ? { x: 0, y: from, width: depth, height: to - from } : { x: from, y: 0, width: to - from, height: depth };

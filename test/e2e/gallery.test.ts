@@ -1,7 +1,10 @@
 // The component gallery, frame by frame: every component × state × theme
 // against a saved picture. (The gallery holds everything still itself:
 // frozen clock, no transitions, the timer line paused where it is.) A visual change fails here until it is looked at
-// and accepted (`npx playwright test gallery --update-snapshots`).
+// and accepted (`npx playwright test gallery --update-snapshots`). Colours
+// compare closely (threshold 0.08: above anti-aliasing noise, measured up to
+// 12/255 on one channel; below the faintest design change, a border or a
+// dashed curve), and no pixel may differ beyond that.
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from '@playwright/test';
 import { mkdtempSync } from 'node:fs';
 import os from 'node:os';
@@ -36,7 +39,7 @@ for (const theme of THEMES) {
     for (const { name: frame, finish } of frames) {
       // A state with a last step (the keyboard, the pointer) takes it just before its picture.
       if (finish) await page.evaluate((name) => (window as unknown as { finishFrame(n: string): Promise<void> }).finishFrame(name), frame);
-      await expect.soft(page.locator(`[data-frame="${frame}"]`)).toHaveScreenshot(`${frame}.png`, { animations: 'allow', caret: 'hide' });
+      await expect.soft(page.locator(`[data-frame="${frame}"]`)).toHaveScreenshot(`${frame}.png`, { animations: 'allow', caret: 'hide', threshold: 0.08 });
     }
   });
 }

@@ -230,7 +230,7 @@ export interface BaretextBridge {
   loadNotes(filePath: string): Promise<Note[]>;
   saveNotes(filePath: string, notes: Note[]): Promise<{ ok: boolean; message?: string }>;
   /** File commands the main process owns (they may show a dialog or switch documents). */
-  fileCommand(command: 'new' | 'open'): void;
+  fileCommand(command: 'new' | 'open' | 'save-as'): void;
   onMenu(cb: (command: MenuCommand) => void): void;
   onDocumentOpened(cb: (doc: OpenedDocument) => void): void;
   /** Main asks the UI to save everything now (before quit or switching files). */
