@@ -13,7 +13,17 @@ import type { Beat } from './structures';
  * (so an empty book still spreads out). Where each scene starts and ends, and
  * where each chapter starts, as shares of the book (0 to 1).
  */
-export function weighBook(outline: Pick<Outline, 'chapters'>): { scenes: Map<string, [number, number]>; chapters: number[] } {
+export interface BookWeights { scenes: Map<string, [number, number]>; chapters: number[] }
+/** Weighed once per outline (an outline is the book as it is at one moment: it never changes). */
+const weighed = new WeakMap<object, BookWeights>();
+
+export function weighBook(outline: Pick<Outline, 'chapters'>): BookWeights {
+  let w = weighed.get(outline);
+  if (!w) weighed.set(outline, (w = weigh(outline)));
+  return w;
+}
+
+function weigh(outline: Pick<Outline, 'chapters'>): BookWeights {
   const words = outline.chapters.reduce((n, c) => n + c.scenes.reduce((m, s) => m + s.words, 0), 0);
   const weight = (w: number) => (words > 0 ? w : 1);
   const total = outline.chapters.reduce((n, c) => n + c.scenes.reduce((m, s) => m + weight(s.words), 0), 0) || 1;
@@ -34,46 +44,24 @@ export function weighBook(outline: Pick<Outline, 'chapters'>): { scenes: Map<str
 /** The middle of a scene's stretch of the book. */
 export const middle = ([start, end]: [number, number]) => (start + end) / 2;
 
-/**
- * A smooth curve through points (x ascending) that never overshoots them:
- * monotone between neighbours, flat at a peak or a valley (Fritsch–Carlson).
- * Beyond the ends it holds the end values.
- */
-export function monotone(points: readonly (readonly [number, number])[]): (x: number) => number {
-  const pts = points.filter((p, i) => i === 0 || p[0] > points[i - 1]![0]); // (one value per x)
-  const n = pts.length;
-  if (n === 0) return () => 0;
-  if (n === 1) return () => pts[0]![1];
-  const slope = (j: number) => (pts[j + 1]![1] - pts[j]![1]) / (pts[j + 1]![0] - pts[j]![0]);
-  const tangents = pts.map((_, j) => {
-    if (j === 0) return slope(0);
-    if (j === n - 1) return slope(j - 1);
-    const [a, b] = [slope(j - 1), slope(j)];
-    return a * b <= 0 ? 0 : (2 * a * b) / (a + b);
-  });
-  return (x) => {
-    if (x <= pts[0]![0]) return pts[0]![1];
-    if (x >= pts[n - 1]![0]) return pts[n - 1]![1];
-    let i = 0;
-    while (x > pts[i + 1]![0]) i++;
-    const [[x0, y0], [x1, y1]] = [pts[i]!, pts[i + 1]!];
-    const h = x1 - x0;
-    const u = (x - x0) / h;
-    return (2 * u ** 3 - 3 * u ** 2 + 1) * y0 + (u ** 3 - 2 * u ** 2 + u) * h * tangents[i]!
-      + (-2 * u ** 3 + 3 * u ** 2) * y1 + (u ** 3 - u ** 2) * h * tangents[i + 1]!;
-  };
-}
-
-/** The tension (0 to 1) at a share of the book: through the structure's beats, from a quiet start to a quiet end. */
-export function tensionAt(beats: readonly Beat[], share: number): number {
-  const pts: [number, number][] = beats.map((b) => [b.at, b.t]);
-  if (!pts.length || pts[0]![0] > 0) pts.unshift([0, QUIET]);
-  if (pts.at(-1)![0] < 1) pts.push([1, QUIET]);
-  return Math.max(0, Math.min(1, monotone(pts)(share)));
-}
-
 /** A book's arc opens and closes quietly. */
 const QUIET = 0.08;
+
+/** 0 → 1, easing in and out (flat at both ends). */
+const ease = (u: number) => u * u * (3 - 2 * u);
+
+/**
+ * The tension (0 to 1) at a share of the book: one smooth arc — rising from
+ * a quiet start to the structure's climax (its most tense beat), then
+ * falling to a quiet end; level at the top, with no corners anywhere.
+ */
+export function tensionAt(beats: readonly Beat[], share: number): number {
+  const climax = beats.reduce<Beat | null>((top, b) => (!top || b.t > top.t ? b : top), null);
+  const peak = Math.max(0.05, Math.min(0.97, climax?.at ?? 0.85));
+  const x = Math.max(0, Math.min(1, share));
+  const u = x <= peak ? x / peak : 1 - (x - peak) / (1 - peak);
+  return QUIET + (1 - QUIET) * ease(u);
+}
 
 const SVG = 'http://www.w3.org/2000/svg';
 const percent = (share: number) => `${Math.round(share * 100)}%`;
@@ -89,7 +77,8 @@ export class ArcStrip {
   /** The strip's run (px along it), its depth (px across), and which way it runs. */
   private frame = { length: 0, depth: 0, pad: 0, vertical: false };
 
-  constructor(onChoose: () => void) {
+  /** `onChoose`: choose a structure; `onPick`: a point was chosen — go to that place in the book (a share of it). */
+  constructor(onChoose: () => void, onPick: (share: number) => void) {
     this.el = document.createElement('div');
     this.el.className = 'bt-cork-arc';
     this.el.setAttribute('role', 'img');
@@ -99,6 +88,13 @@ export class ArcStrip {
     this.choose = Object.assign(document.createElement('button'), { type: 'button', className: 'bt-cork-arc-choose', textContent: 'Choose a structure…' });
     this.choose.addEventListener('click', onChoose);
     this.el.append(this.svg, this.choose);
+    // A point on the arc is a way to its place on the board (a click, or ↵ / space with the keyboard on it).
+    const pick = (e: Event) => {
+      const point = (e.target as Element).closest<SVGElement>('[data-share]');
+      if (point) onPick(Number(point.dataset.share));
+    };
+    this.svg.addEventListener('click', pick);
+    this.svg.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(e); } });
   }
 
   /** Draw the book's arc (`beats`: its structure's; none: the strip offers to choose one); `vertical`: down the left (Rows). */
@@ -122,7 +118,12 @@ export class ArcStrip {
       const el = document.createElementNS(SVG, tag);
       el.setAttribute('class', cls);
       for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v));
-      if (title) el.append(Object.assign(document.createElementNS(SVG, 'title'), { textContent: title }));
+      if (title) {
+        el.append(Object.assign(document.createElementNS(SVG, 'title'), { textContent: title }));
+        el.setAttribute('role', 'button');
+        el.setAttribute('tabindex', '0');
+        el.setAttribute('aria-label', `${title}. Go there`);
+      }
       this.svg.append(el);
       return el;
     };
@@ -140,14 +141,19 @@ export class ArcStrip {
     add('path', 'bt-arc-curve', { d: `M${curve.join('L')}` });
     // Where each beat usually falls; and the scene marked as it, joined to that place.
     for (const b of beats) {
-      const [ix, iy] = this.at(b.at, b.t);
+      const t = tensionAt(beats, b.at); // (on the arc)
+      const [ix, iy] = this.at(b.at, t);
       const scene = marked.get(b.id);
       const usually = `usually about ${percent(b.at)}`;
-      if (!scene) { add('circle', 'bt-arc-ideal', { cx: ix, cy: iy, r: 3, 'data-beat': b.id }, `${b.name} — ${usually}`); continue; }
-      const [mx, my] = this.at(scene.share, b.t);
-      add('line', 'bt-arc-drift', { x1: ix, y1: iy, x2: mx, y2: my });
-      add('circle', 'bt-arc-ideal', { cx: ix, cy: iy, r: 3 }, `${b.name} — ${usually}`);
-      add('circle', 'bt-arc-mark', { cx: mx, cy: my, r: 4.5, 'data-beat': b.id, 'data-scene': scene.id }, `${b.name}: ${scene.label} — at ${percent(scene.share)} (${usually})`);
+      if (!scene) { add('circle', 'bt-arc-ideal', { cx: ix, cy: iy, r: 3, 'data-beat': b.id, 'data-share': b.at }, `${b.name} — ${usually}`); continue; }
+      // On the arc at its own place; the stretch of arc between it and where the beat usually falls, dashed.
+      const [mx, my] = this.at(scene.share, tensionAt(beats, scene.share));
+      const [from, to] = [Math.min(b.at, scene.share), Math.max(b.at, scene.share)];
+      const steps = Math.max(1, Math.ceil(((to - from) * (length - 2 * pad)) / 3));
+      const stretch = Array.from({ length: steps + 1 }, (_, i) => from + ((to - from) * i) / steps).map((p) => this.at(p, tensionAt(beats, p)).map((v) => v.toFixed(1)).join(' '));
+      add('path', 'bt-arc-drift', { d: `M${stretch.join('L')}` });
+      add('circle', 'bt-arc-ideal', { cx: ix, cy: iy, r: 3, 'data-share': b.at }, `${b.name} — ${usually}`);
+      add('circle', 'bt-arc-mark', { cx: mx, cy: my, r: 4.5, 'data-beat': b.id, 'data-scene': scene.id, 'data-share': scene.share }, `${b.name}: ${scene.label} — at ${percent(scene.share)} (${usually})`);
     }
   }
 

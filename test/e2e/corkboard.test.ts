@@ -40,14 +40,14 @@ test('⌘⇧C shows the board in place of the page; Esc returns to the page exac
     expect(await viewOf(page)).toBe('corkboard');
     await expect(page.locator('.bt-corkboard')).toHaveAttribute('data-open', 'true');
     await expect(page.locator('.bt-view-tab[data-view="corkboard"]')).toHaveAttribute('aria-selected', 'true');
-    await expect(page.locator('[data-ref="crumb"]')).toHaveText('Corkboard');
+    await expect(page.locator('[data-ref="crumb"]')).toHaveText(''); // (the chip says where)
+    await expect(page.locator('.bt-status .bt-cork-summary')).toBeVisible();
+    await expect(page.locator('[data-ref="words"]')).toBeHidden();
     await expect(page.locator('.bt-cork-summary')).toHaveText('2 chapters · 5 scenes · 2,171 words');
     // The keyboard is on the card of the scene being written.
     expect(await focusedCard(page)).toBe('s3x');
     // What acts on the page steps aside.
-    for (const ref of ['sidebar', 'notes-button', 'typewriter', 'focus']) {
-      expect(await page.$eval(`[data-ref="${ref}"]`, (e) => getComputedStyle(e).visibility)).toBe('hidden');
-    }
+    for (const ref of ['sidebar', 'notes-button', 'typewriter', 'focus']) await expect(page.locator(`[data-ref="${ref}"]`)).toBeHidden();
     // The cards: number, title (or "Unnamed scene"), opening lines, words or Draft.
     const cards = await page.$$eval('.bt-cork-card', (cs) => cs.map((c) => ({
       number: c.querySelector('.bt-cork-card-number')!.textContent,
@@ -184,7 +184,7 @@ test('the board’s toolbar switches rows and columns (remembered); in columns t
     const { page } = first;
     await page.keyboard.press('Meta+Shift+C');
     await expect(page.locator('.bt-corkboard')).toHaveAttribute('data-layout', 'rows');
-    await page.click('.bt-cork-bar [data-layout="columns"]');
+    await page.click('.bt-cork-controls [data-layout="columns"]');
     await expect(page.locator('.bt-corkboard')).toHaveAttribute('data-layout', 'columns');
     // Each chapter a column: chapter 2's cards sit beside chapter 1's.
     const [a, b] = await page.$$eval('.bt-cork-chapter', (cs) => cs.map((c) => c.getBoundingClientRect().left));
@@ -220,7 +220,8 @@ test('a card’s ⋯ opens its menu (the toolbar has no card actions); asked to 
   const { app, page } = await launch({ file: { name: 'L.md', content: BOOK }, env: { BARETEXT_MENU_PICK: 'delete' } });
   try {
     await page.keyboard.press('Meta+Shift+C');
-    await expect(page.locator('.bt-cork-bar .bt-cork-tool')).toHaveText(['Arc']);
+    // The top bar holds the board's view controls (no card actions); the status bar, its totals.
+    expect(await page.$$eval('.bt-cork-controls button', (bs) => bs.map((b) => b.getAttribute('aria-label') ?? b.textContent))).toEqual(['Rows', 'Columns', 'Arc']);
     await page.hover('.bt-cork-card[data-id="s5x"]');
     await page.click('.bt-cork-card[data-id="s5x"] [data-action="menu"]');
     expect(await focusedCard(page)).toBe('s5x');
@@ -259,6 +260,15 @@ test('rename in place (a click on the title, R or F2): ↵ keeps it, Esc leaves 
     await page.keyboard.press('Escape'); // leaves it as it was; the board stays open
     expect(await titleOf(page, 's3x')).toBe('Letters, unopened');
     expect(await viewOf(page)).toBe('corkboard');
+
+    // Clicking away keeps the name, and the keyboard stays where the click put it (not pulled back to the card).
+    await page.keyboard.press('r');
+    await page.keyboard.press('End');
+    await page.keyboard.type(' kept');
+    await page.click('.bt-cork-arc-toggle');
+    expect(await titleOf(page, 's3x')).toBe('Letters, unopened kept');
+    await expect(page.locator('.bt-cork-arc-toggle')).toBeFocused();
+    await page.click('.bt-cork-arc-toggle'); // (the arc away again)
 
     await page.click('.bt-cork-card[data-id="s3x"] .bt-cork-card-title');
     await expect(page.locator('.bt-cork-rename')).toBeFocused();
@@ -517,6 +527,7 @@ test('the Arc: the whole book’s curve beside the board, each marked scene join
     await expect(arc).toBeVisible();
     await expect(arc.locator('.bt-arc-curve')).toHaveCount(1);
     await expect(arc.locator('.bt-arc-ideal')).toHaveCount(6); // three acts: six beats
+    await page.waitForFunction(() => document.getAnimations().length === 0); // (it slides in)
     // The whole book at a glance: the marked scene (2.1, late in the book) sits late along the strip, past where its beat usually falls.
     const mark = arc.locator('.bt-arc-mark[data-scene="s4x"]');
     await expect(mark).toHaveCount(1);
@@ -526,6 +537,12 @@ test('the Arc: the whole book’s curve beside the board, each marked scene join
     // The band: the part of the book on screen (all of this short one).
     await expect(arc.locator('.bt-arc-band')).toHaveAttribute('visibility', 'visible');
     await expect(mark.locator('title')).toHaveText(/^Midpoint: 2\.1 — at \d+% \(usually about 50%\)$/);
+    // A point is a way to its place: the marked one to its scene; a hollow one to the scene where its beat usually falls.
+    await page.locator('.bt-cork-card[data-id="s1x"]').focus();
+    await mark.click();
+    expect(await focusedCard(page)).toBe('s4x');
+    await arc.locator('.bt-arc-ideal[data-beat="inciting-incident"]').click(); // (12%: in 1.1)
+    expect(await focusedCard(page)).toBe('s1x');
   } finally {
     await first.app.close();
   }
@@ -548,6 +565,7 @@ test('the Arc without a structure offers to choose one; in Rows it runs down the
     const arc = page.locator('.bt-cork-arc');
     await expect(arc).toHaveAttribute('data-empty', 'true');
     await expect(arc.locator('.bt-arc-curve')).toHaveCount(0);
+    await page.waitForFunction(() => document.getAnimations().length === 0); // (it slides in)
     const box = (await arc.boundingBox())!;
     const chapter = (await page.locator('.bt-cork-chapter[data-id="c1x"]').boundingBox())!;
     expect(box.x + box.width).toBeLessThanOrEqual(chapter.x);

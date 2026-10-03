@@ -1018,6 +1018,17 @@ book is past what a URL can carry).
   `.bt-field-quiet` (in bars: an edge only on focus).
 - Sprinter is its own module (`app/renderer/sprinter.ts`); `index.ts` keeps
   the window: the manuscript, mode switching, opening books, focus.
+- `index.ts` is the composition root: it builds the parts and wires them
+  through small host interfaces; a concern with its own state lives in its
+  own module — `BookActions` (setup, export, print), `BookViews` (the view
+  chips, the corkboard and its wiring), `PageEdits` (changes that keep the
+  writer's place), `Status` (toasts, the word count).
+- Shared primitives, one each: `motion.ts` (FLIP: `measure`, `glideFrom`,
+  `flash`, `glideMotion` from the tokens) for everything that moves into
+  place; `InlineEdit` for a name edited in place (outline rows, cards);
+  `Arming` for two-step confirmations; `Modal` for panels. Pure logic sits
+  apart from the DOM so it is unit-tested (`beat-menu.ts`, `arc.ts`'s
+  geometry).
 - **Component gallery** (spec's "hidden component gallery"; dev only, never
   loaded by the app): `npm run gallery` opens every component × state ×
   theme, built from the real components with stand-in data

@@ -11,9 +11,12 @@ import { sceneDisplayName } from './outline';
 import { Arming } from './arming';
 import { BoardDrag } from './corkboard-drag';
 import { numberFormat } from './dom';
+import { glideFrom, glideMotion, measure } from './motion';
 import { PLUS } from './icons';
 import { beatName, structureOf } from './structures';
+import { beatMenu, chosenBeat, CHOOSE_STRUCTURE } from './beat-menu';
 import { ArcStrip, weighBook } from './arc';
+import { InlineEdit } from './inline-edit';
 
 /** Below this, a scene is shown as a draft. */
 export const DRAFT_WORDS = 20;
@@ -63,7 +66,13 @@ const ACTIONS: { action: Exclude<CardAction, 'new-scene'>; label: string; menuKe
   { action: 'delete', label: 'Delete', menuKeys: 'Backspace' },
 ];
 
-const LAYOUTS: [CorkboardLayout, string][] = [['rows', 'Rows'], ['columns', 'Columns']];
+// The view's controls, Finder-style: the layouts as icons (named in their tooltips), the arc with its word.
+const ICON = (body: string) => `<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+const LAYOUTS: [CorkboardLayout, string, string][] = [
+  ['rows', 'Rows', ICON('<rect x="2" y="3" width="5" height="4" rx="1"/><rect x="9" y="3" width="5" height="4" rx="1"/><rect x="2" y="9" width="5" height="4" rx="1"/><rect x="9" y="9" width="5" height="4" rx="1"/>')],
+  ['columns', 'Columns', ICON('<rect x="2" y="2.5" width="3" height="11" rx="1"/><rect x="6.5" y="2.5" width="3" height="7" rx="1"/><rect x="11" y="2.5" width="3" height="9" rx="1"/>')],
+];
+const ARC_ICON = ICON('<path d="M1.5 12.5C5 12.5 7 4 10.5 4S13.5 10 14.5 12.5" stroke-linecap="round"/>');
 
 const words = (n: number) => `${numberFormat.format(n)} ${n === 1 ? 'word' : 'words'}`;
 
@@ -71,9 +80,11 @@ export class Corkboard {
   readonly el: HTMLElement;
   /** The cards' area (the toolbar stays put above it). */
   private readonly board: HTMLElement;
-  private readonly summary: HTMLElement;
+  /** The view's controls, for the top bar (layout, arc); and its totals, for the status bar. */
+  readonly controls: HTMLElement;
+  readonly summary: HTMLElement;
   /** The inline rename in progress (the board isn't redrawn under it). */
-  private editing: { id: string; input: HTMLInputElement; byClick: boolean } | null = null;
+  private editing: { id: string; edit: InlineEdit; byClick: boolean } | null = null;
   /** A delete waiting for its confirmation. */
   private readonly arming = new Arming<string>(() => this.showArming());
   private outline: Outline | null = null;
@@ -90,20 +101,34 @@ export class Corkboard {
     this.el.setAttribute('role', 'region');
     this.el.setAttribute('aria-label', 'Corkboard');
     this.el.dataset.open = 'false';
-    this.el.innerHTML = `
-      <div class="bt-cork-bar" role="toolbar" aria-label="Corkboard">
-        <div class="bt-seg" role="radiogroup" aria-label="Layout">${LAYOUTS.map(([value, label]) => `
-          <button type="button" role="radio" class="bt-seg-item" data-layout="${value}" aria-checked="false">${label}</button>`).join('')}
-        </div>
-        <span class="bt-cork-summary"></span>
-        <button type="button" class="bt-cork-tool bt-cork-arc-toggle" aria-pressed="false" title="The story arc, along the board">Arc</button>
-      </div>
-      <div class="bt-cork-board" tabindex="-1"></div>`; // (a click on its background keeps the keyboard here: Esc closes it)
+    this.el.innerHTML = `<div class="bt-cork-board" tabindex="-1"></div>`; // (a click on its background keeps the keyboard here: Esc closes it)
     host.append(this.el);
+    this.controls = document.createElement('div');
+    this.controls.className = 'bt-cork-controls';
+    this.controls.setAttribute('role', 'toolbar');
+    this.controls.setAttribute('aria-label', 'Corkboard view');
+    this.controls.hidden = true;
+    this.controls.innerHTML = `
+      <div class="bt-seg bt-cork-layouts" role="radiogroup" aria-label="Layout">${LAYOUTS.map(([value, label, icon]) => `
+        <button type="button" role="radio" class="bt-seg-item" data-layout="${value}" aria-checked="false" aria-label="${label}" title="${label}">${icon}</button>`).join('')}
+      </div>
+      <button type="button" class="bt-chrome-button bt-cork-arc-toggle" aria-pressed="false" title="The story arc">${ARC_ICON}<span>Arc</span></button>`;
+    this.summary = Object.assign(document.createElement('span'), { className: 'bt-cork-summary', hidden: true });
+    this.controls.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      const layoutChoice = target.closest<HTMLElement>('[role="radio"][data-layout]');
+      if (layoutChoice) this.chooseLayout(layoutChoice.dataset.layout as CorkboardLayout);
+      else if (target.closest('.bt-cork-arc-toggle')) { this.showArc(this.el.dataset.arc !== 'true', true); this.h.onArc(this.el.dataset.arc === 'true'); }
+    });
+    this.controls.addEventListener('keydown', (e) => {
+      if (!(e.target as HTMLElement).closest('[role="radio"][data-layout]') || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
+      e.preventDefault();
+      this.chooseLayout(this.layout === 'rows' ? 'columns' : 'rows');
+      this.controls.querySelector<HTMLElement>(`[role="radio"][data-layout="${this.layout}"]`)!.focus();
+    });
     this.board = this.el.querySelector('.bt-cork-board')!;
-    this.summary = this.el.querySelector('.bt-cork-summary')!;
     this.setLayout(layout);
-    this.arc = new ArcStrip(() => this.h.bookSettings());
+    this.arc = new ArcStrip(() => this.h.bookSettings(), (share) => this.goTo(share));
     this.board.before(this.arc.el);
     this.showArc(arc);
     // The arc fits its strip (drawn again when the window resizes); its band follows the scrolling.
@@ -122,9 +147,6 @@ export class Corkboard {
     this.el.addEventListener('click', (e) => {
       if (this.drag.consumeClick()) return; // the click that ends a drag
       const target = e.target as HTMLElement;
-      const layoutChoice = target.closest<HTMLElement>('[role="radio"][data-layout]'); // (not the board, which carries its layout too)
-      if (layoutChoice) { this.chooseLayout(layoutChoice.dataset.layout as CorkboardLayout); return; }
-      if (target.closest('.bt-cork-arc-toggle')) { this.showArc(this.el.dataset.arc !== 'true'); this.h.onArc(this.el.dataset.arc === 'true'); return; }
       const add = target.closest<HTMLElement>('[data-add-scene]');
       if (add) { this.newScene(add.dataset.addScene!); return; }
       const card = target.closest<HTMLElement>('.bt-cork-card');
@@ -147,7 +169,7 @@ export class Corkboard {
       if ((e.target as HTMLElement).closest('input')) {
         // A double-click on the title: its first click started the rename; together they open.
         if (!this.editing?.byClick) return;
-        this.finishRename(false);
+        this.editing.edit.finish(false);
       }
       this.h.open(card.dataset.id!);
     });
@@ -175,6 +197,7 @@ export class Corkboard {
     this.rendered = null; // (note counts may have changed while it was closed)
     this.render();
     this.el.dataset.open = 'true';
+    this.controls.hidden = this.summary.hidden = false;
     this.drawArc();
     const card = this.card(this.focusId) ?? this.cards()[0];
     if (card) {
@@ -185,9 +208,10 @@ export class Corkboard {
 
   close() {
     this.drag.cancel();
-    this.finishRename(false);
+    this.editing?.edit.finish(false);
     this.arming.disarm();
     this.el.dataset.open = 'false';
+    this.controls.hidden = this.summary.hidden = true;
   }
 
   get layout(): CorkboardLayout {
@@ -196,7 +220,7 @@ export class Corkboard {
 
   private setLayout(layout: CorkboardLayout) {
     this.el.dataset.layout = layout;
-    for (const r of this.el.querySelectorAll<HTMLElement>('[role="radio"][data-layout]')) {
+    for (const r of this.controls.querySelectorAll<HTMLElement>('[role="radio"][data-layout]')) {
       const on = r.dataset.layout === layout;
       r.setAttribute('aria-checked', String(on));
       r.tabIndex = on ? 0 : -1;
@@ -214,10 +238,28 @@ export class Corkboard {
 
   // ── the story arc (DECISIONS §27) ──
 
-  private showArc(shown: boolean) {
+  /**
+   * Show or hide the arc. `animate` (the writer's toggle): like the side
+   * panels, the layout changes at once, then everything on screen glides
+   * from where it was — each card and chapter header by its own travel (in
+   * Rows the chapters are centred and may rewrap, so they don't all move
+   * alike) — while the strip fades in.
+   */
+  private showArc(shown: boolean, animate = false) {
+    const before = animate && this.isOpen ? measure(this.onScreen()) : null;
     this.el.dataset.arc = String(shown);
-    this.el.querySelector('.bt-cork-arc-toggle')!.setAttribute('aria-pressed', String(shown));
+    this.controls.querySelector('.bt-cork-arc-toggle')!.setAttribute('aria-pressed', String(shown));
     this.drawArc();
+    if (before) glideFrom(before, [...before.keys()].map((el) => [el, el] as const), glideMotion('sidebar'));
+  }
+
+  /** The cards and chapter headers on screen now (each its own key). */
+  private onScreen(): [HTMLElement, HTMLElement][] {
+    const box = this.board.getBoundingClientRect();
+    return [...this.board.querySelectorAll<HTMLElement>('.bt-cork-card, .bt-cork-add, .bt-cork-chapter-head')].filter((el) => {
+      const r = el.getBoundingClientRect();
+      return r.bottom > box.top && r.top < box.bottom && r.right > box.left && r.left < box.right;
+    }).map((el) => [el, el]);
   }
 
   /** Draw the arc (only while it shows; unchanged, it isn't redrawn), its band over the cards on screen. */
@@ -225,6 +267,19 @@ export class Corkboard {
     if (!this.outline || !this.isOpen || this.el.dataset.arc !== 'true') return;
     this.arc.draw(this.outline, structureOf(this.h.structure())?.beats ?? null, this.layout === 'rows');
     this.arc.showView(this.inView());
+  }
+
+  /** To a place in the book (a share of it): the board brings its scene's card to the middle, the keyboard on it. */
+  private goTo(share: number) {
+    const shares = weighBook(this.outline!).scenes;
+    const id = [...shares].find(([, [start, end]]) => share >= start && share <= end)?.[0] ?? [...shares.keys()].at(-1);
+    const card = this.card(id ?? null);
+    if (!card) return;
+    if (this.focusId !== id) this.arming.disarm();
+    this.focusId = id!;
+    this.setTabStop();
+    card.focus({ preventScroll: true });
+    card.scrollIntoView({ block: 'center', inline: 'center', behavior: glideMotion().ms ? 'smooth' : 'auto' });
   }
 
   /** The stretch of the book whose cards are on screen (shares of it), or null. */
@@ -366,7 +421,7 @@ export class Corkboard {
   private act(action: CardAction, id: string) {
     switch (action) {
       case 'open': this.h.open(id); break;
-      case 'mark': void this.h.popupMenu(this.beatItems(id)).then((choice) => this.chosen(id, choice)); break;
+      case 'mark': void this.h.popupMenu(this.beats(id)).then((choice) => this.chosen(id, choice)); break;
       case 'rename': this.startRename(id); break;
       case 'copy': this.h.copyScene(id); break;
       case 'new-scene': { const chapter = this.chapterOf(id); if (chapter) this.newScene(chapter.id); break; }
@@ -432,36 +487,24 @@ export class Corkboard {
     const title = this.card(id)?.querySelector<HTMLElement>('.bt-cork-card-heading');
     if (!scene || !title || this.editing) return;
     this.arming.disarm();
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.className = 'bt-cork-rename bt-field';
-    input.value = scene.name ?? '';
-    input.placeholder = 'Unnamed scene';
-    input.spellcheck = false;
-    input.setAttribute('aria-label', `Name of scene ${scene.label}`);
-    title.replaceWith(input);
-    this.editing = { id, input, byClick };
-    input.addEventListener('mousedown', (e) => { if (e.detail === 1 && this.editing) this.editing.byClick = false; }); // a press of its own: double-clicks select words
-    input.addEventListener('keydown', (e) => {
-      if (e.isComposing) return;
-      e.stopPropagation(); // the card's own keys wait
-      if (e.key === 'Enter') { e.preventDefault(); this.finishRename(true); }
-      else if (e.key === 'Escape') { e.preventDefault(); this.finishRename(false); }
+    const edit = new InlineEdit({
+      value: scene.name ?? '',
+      placeholder: 'Unnamed scene',
+      label: `Name of scene ${scene.label}`,
+      className: 'bt-cork-rename bt-field',
+      onDone: (save, value, refocus) => {
+        this.editing = null;
+        if (save) this.h.rename(id, value.trim());
+        this.rendered = null; // the card's title comes back
+        this.refresh();
+        if (refocus && this.isOpen) this.focusCard(id);
+      },
     });
-    input.addEventListener('blur', () => this.finishRename(true));
-    input.focus();
-    input.select();
-  }
-
-  /** End the rename: keep the name (`save`) or leave it as it was; the keyboard back on the card. */
-  private finishRename(save: boolean) {
-    const editing = this.editing;
-    if (!editing) return;
-    this.editing = null;
-    if (save) this.h.rename(editing.id, editing.input.value.trim());
-    this.rendered = null; // the card's title comes back
-    this.refresh();
-    if (this.isOpen) this.focusCard(editing.id);
+    this.editing = { id, edit, byClick };
+    // A press of its own in the field: a double-click there selects words (it no longer opens the scene).
+    edit.input.addEventListener('mousedown', (e) => { if (e.detail === 1 && this.editing) this.editing.byClick = false; });
+    title.replaceWith(edit.input);
+    edit.focus();
   }
 
   // ── the context menu (right-click, or the menu key) ──
@@ -470,41 +513,22 @@ export class Corkboard {
     const armed = this.arming.key === id;
     const items: MenuItem[] = ACTIONS.flatMap(({ action, label, menuKeys }): MenuItem[] => [
       ...(action === 'delete' ? [{ separator: true as const }] : []),
-      action === 'mark' ? { id: action, label, submenu: this.beatItems(id) }
+      action === 'mark' ? { id: action, label, submenu: this.beats(id) }
         : { id: action, label: action === 'delete' && armed ? 'Delete — confirm' : label, keys: menuKeys },
     ]);
     this.chosen(id, await this.h.popupMenu(items));
   }
 
-  // ── story beats (DECISIONS §27) ──
-
-  /**
-   * The beats a card can be marked as: the book's structure's, in order (a
-   * check on its own; where another card has one, that card's number), then
-   * "No beat". Without a structure, the way to choose one.
-   */
-  private beatItems(id: string): MenuItem[] {
-    const scene = this.sceneOf(id);
-    if (!scene) return [];
-    const structure = this.h.structure();
-    const known = structureOf(structure);
-    if (!known && !scene.beat) return [{ id: 'choose-structure', label: 'Choose a structure…' }];
-    const holders = new Map(this.outline!.chapters.flatMap((c) => c.scenes).filter((s) => s.beat && s.id !== id).map((s) => [s.beat!, s.label]));
-    const beats: MenuItem[] = (known?.beats ?? []).map((b) => ({
-      id: `beat:${b.id}`,
-      label: holders.has(b.id) ? `${b.name} · ${holders.get(b.id)}` : b.name,
-      checked: scene.beat === b.id,
-    }));
-    // A beat the structure doesn't have (a newer app's, or from another structure) still shows, checked.
-    if (scene.beat && !known?.beats.some((b) => b.id === scene.beat)) beats.push({ id: `beat:${scene.beat}`, label: beatName(structure, scene.beat), checked: true });
-    return [...beats, { separator: true }, { id: 'beat:', label: 'No beat', enabled: !!scene.beat }, ...(known ? [] : [{ id: 'choose-structure', label: 'Choose a structure…' }])];
+  private beats(id: string): MenuItem[] {
+    return beatMenu(this.outline!, this.h.structure(), id);
   }
 
-  /** What was chosen in a card's menu (an action, or a beat). */
+  /** What was chosen in a card's menu: an action, a beat (DECISIONS §27), or the way to choose a structure. */
   private chosen(id: string, choice: string | null) {
     if (!choice || !this.isOpen) return;
-    if (choice === 'choose-structure') this.h.bookSettings();
-    else if (choice.startsWith('beat:')) this.h.setBeat(id, choice.slice(5) || null);
+    const beat = chosenBeat(choice);
+    if (choice === CHOOSE_STRUCTURE) this.h.bookSettings();
+    else if (beat !== undefined) this.h.setBeat(id, beat);
     else this.act(choice as CardAction, id);
   }
 
@@ -563,13 +587,6 @@ export class Corkboard {
   private onKey(e: KeyboardEvent) {
     if (e.isComposing) return;
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this.h.close(); return; }
-    const radio = (e.target as HTMLElement).closest<HTMLElement>('[role="radio"][data-layout]');
-    if (radio && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
-      e.preventDefault();
-      this.chooseLayout(this.layout === 'rows' ? 'columns' : 'rows');
-      this.el.querySelector<HTMLElement>(`[role="radio"][data-layout="${this.layout}"]`)!.focus();
-      return;
-    }
     const card = (e.target as HTMLElement).closest<HTMLElement>('.bt-cork-card');
     if (!card || (e.target as HTMLElement).closest('button, input')) return;
     const id = card.dataset.id!;

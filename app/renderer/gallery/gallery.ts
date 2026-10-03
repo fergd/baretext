@@ -209,6 +209,12 @@ function corkboard(frame: HTMLElement, focus: string | null, layout: CorkboardLa
     rename: () => false, addScene: () => null, deleteScene: noop, copyScene: noop, moveScene: () => false, moveChapter: () => false, popupMenu: () => Promise.resolve(null),
     structure: () => (arc ? arc.structure : 'three-act'), setBeat: () => false, bookSettings: noop, onArc: noop,
   }, layout, !!arc);
+  // The top bar as the board has it: the title, the board's view controls, the view chips.
+  const bar = el('div', 'bt-chrome g-chrome');
+  const tabs = new ViewTabs(noop);
+  tabs.set('corkboard');
+  bar.append(Object.assign(el('span', 'bt-chrome-title'), { textContent: book.title }), board.controls, tabs.el);
+  frame.prepend(bar);
   board.open(outlineOf(d.view.state.doc), null);
   if (!focus) return undefined;
   return () => {

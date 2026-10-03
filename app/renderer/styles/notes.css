@@ -228,7 +228,7 @@
 .bt-notes-toggle:hover { color: var(--color-text-dim); background: var(--color-popover-hover); }
 
 /* The title bar's notes button: at the right end, with the open-note count. */
-.bt-chrome-notes { position: relative; } /* (the view chips before it take the free space) */
+.bt-chrome-notes { position: relative; margin-left: auto; } /* (the right cluster starts here on the page) */
 .bt-notes-badge {
   position: absolute;
   top: calc(-1 * var(--space-1) / 2);

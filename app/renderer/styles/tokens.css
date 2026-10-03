@@ -179,7 +179,6 @@
   --cork-card-min: 248px;
   --cork-card-h: 152px;
   --cork-w: 1280px;
-  --cork-bar-h: 40px;
   --cork-column-w: 288px;
   /* Where a dragged card or chapter will land. */
   --cork-drop-w: 4px;
@@ -272,8 +271,8 @@
      from its own palette — warm hues go muddy on dark pages), mixed in OKLab
      so it keeps its hue; the active note's passage more strongly */
   --color-note-wash: color-mix(in oklab, var(--color-note) 10%, var(--color-page));
-  /* A story beat on a card (DECISIONS §27): the accent, quietly. */
-  --color-beat-wash: color-mix(in oklab, var(--color-accent) 14%, transparent);
+  /* A story beat's chip on a card (DECISIONS §27): its own hue, quietly. */
+  --color-beat-wash: color-mix(in oklab, var(--color-beat) 16%, transparent);
   --color-note-active: color-mix(in oklab, var(--color-note) 18%, var(--color-page));
   --color-note-edge: color-mix(in srgb, var(--color-note) 60%, transparent);
   /* A note's shadow is the page's own color, darkened — never plain black,
@@ -344,6 +343,7 @@
   --color-popover-active: rgba(189, 147, 249, 0.24);
   --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.36), 0 2px 4px rgba(0, 0, 0, 0.24);
   --color-note: #ff79c6;
+  --color-beat: #8be9fd; /* story beats: the arc's marks and their chips (DECISIONS §27) */
   --color-cold: #8be9fd;
   color-scheme: dark;
 }
@@ -380,6 +380,7 @@
   --color-popover-active: rgba(248, 197, 55, 0.2);
   --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.24);
   --color-note: #e0828f;
+  --color-beat: #6cb6c9; /* story beats: the arc's marks and their chips (DECISIONS §27) */
   --color-cold: #9cc2d9;
   color-scheme: dark;
 }
@@ -422,6 +423,7 @@
   --number-opacity-current: 0.65;
   --glass-sheen-mix: 60%;
   --color-note: #a03f55;
+  --color-beat: #1f6f78; /* story beats: the arc's marks and their chips (DECISIONS §27) */
   --color-cold: #2c5f86;
   color-scheme: light;
 }
@@ -458,6 +460,7 @@
   --color-popover-active: rgba(167, 192, 128, 0.2);
   --shadow-popover: 0 8px 24px rgba(0, 0, 0, 0.36), 0 2px 4px rgba(0, 0, 0, 0.24);
   --color-note: #d699b6;
+  --color-beat: #83c092; /* story beats: the arc's marks and their chips (DECISIONS §27) */
   --color-cold: #85beb6;
   color-scheme: dark;
 }
@@ -500,6 +503,7 @@
   /* no see-through surfaces: full contrast behind every label */
   --glass-fill-mix: 100%;
   --color-note: #ff8fd8;
+  --color-beat: #5fd7ff; /* story beats: the arc's marks and their chips (DECISIONS §27) */
   --color-cold: #9fdcff;
   color-scheme: dark;
 }

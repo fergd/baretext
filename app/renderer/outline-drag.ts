@@ -5,7 +5,7 @@
 // A drag never navigates and never takes focus from the manuscript.
 
 import type { Outline } from './outline';
-import { cssNumber, cssValue } from './dom';
+import { flash, glideFrom, glideMotion, measure } from './motion';
 
 const DRAG_THRESHOLD = 4;
 /** Pointer this close to the list's top or bottom edge scrolls it. */
@@ -228,7 +228,7 @@ export class OutlineDrag {
     this.indicator.remove();
     this.swallowClick = true;
     setTimeout(() => { this.swallowClick = false; }, 0);
-    const { ms, easing } = motion();
+    const { ms, easing } = glideMotion();
     const drop = commit && d.drop && !d.drop.noop ? d.drop : null;
     if (!drop) {
       // Nothing moves: the lifted row settles back where it came from.
@@ -239,38 +239,16 @@ export class OutlineDrag {
       return;
     }
     // FLIP: remember where every row was, move, then let each glide to its new place.
-    const before = rowTops(this.h.rows());
-    const ghostTop = d.ghost.getBoundingClientRect().top;
+    const rows = () => this.h.rows().map((r) => [r.dataset.id!, r] as const);
+    const before = measure(rows()).set(d.id, d.ghost.getBoundingClientRect()); // (the moved row glides from where it was let go)
     d.ghost.remove();
     let moved = true;
     if (drop.cold) this.h.park(d.id);
     else if (this.h.outline()?.parked.some((p) => p.id === d.id)) this.h.restore(d.id, drop.chapterId, drop.index);
     else moved = d.kind === 'scene' ? this.h.moveScene(d.id, drop.chapterId, drop.index) : this.h.moveChapter(d.id, drop.index);
     this.h.render(true);
-    if (moved) glide(this.h.rows(), before.set(d.id, ghostTop), d.id);
+    if (!moved) return;
+    glideFrom(before, rows());
+    flash(this.h.rowFor(d.id));
   }
-}
-
-/** Where every row is now (viewport y), to glide from after a move. */
-export function rowTops(rows: HTMLElement[]): Map<string, number> {
-  return new Map(rows.map((r) => [r.dataset.id!, r.getBoundingClientRect().top]));
-}
-
-/**
- * FLIP: each row glides from where it was (`before`) to where it is now;
- * the moved row flashes so the eye finds where it landed.
- */
-export function glide(rows: HTMLElement[], before: Map<string, number>, movedId: string) {
-  const { ms, easing } = motion();
-  if (!ms) return;
-  for (const row of rows) {
-    const was = before.get(row.dataset.id!);
-    const dy = was === undefined ? 0 : was - row.getBoundingClientRect().top;
-    if (Math.abs(dy) >= 1) row.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: ms, easing });
-  }
-  rows.find((r) => r.dataset.id === movedId)?.animate([{ backgroundColor: 'var(--color-popover-active)' }, { backgroundColor: 'transparent' }], { duration: ms * 3, easing: 'ease-out' });
-}
-
-function motion(): { ms: number; easing: string } {
-  return { ms: cssNumber('--dur-glide'), easing: cssValue('--ease-out', 'ease-out') };
 }

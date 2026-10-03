@@ -7,7 +7,8 @@
 
 import type { CorkboardLayout } from '../shared/bridge';
 import type { Outline } from './outline';
-import { cssNumber, cssValue } from './dom';
+import { cssNumber } from './dom';
+import { flash, glideFrom, glideMotion, measure } from './motion';
 
 const DRAG_THRESHOLD = 4;
 /** Pointer this close to the board's edges scrolls it. */
@@ -243,7 +244,7 @@ export class BoardDrag {
     this.bar.remove();
     this.swallowClick = true;
     setTimeout(() => { this.swallowClick = false; }, 0);
-    const { ms, easing } = motion();
+    const { ms, easing } = glideMotion();
     const drop = commit && d.drop && !d.drop.noop ? d.drop : null;
     if (!drop) {
       // Nothing moves: the lifted copy settles back where it came from.
@@ -254,46 +255,35 @@ export class BoardDrag {
       return;
     }
     // FLIP: remember where everything was, move, then let each glide to its new place.
-    const before = this.positions();
+    const before = measure(this.items());
     before.set(d.kind === 'scene' ? d.id : `chapter:${d.id}`, d.ghost.getBoundingClientRect());
     d.ghost.remove();
     const moved = d.kind === 'scene' ? this.h.moveScene(d.id, drop.chapterId, drop.index) : this.h.moveChapter(d.id, drop.index);
     if (moved) this.glide(before, d.kind, d.id);
   }
 
-  /** Where every card and chapter header is now: cards by id, headers as `chapter:<id>`. */
-  private positions(): Map<string, DOMRect> {
-    const at = new Map<string, DOMRect>();
-    for (const card of this.h.board.querySelectorAll<HTMLElement>('.bt-cork-card')) at.set(card.dataset.id!, card.getBoundingClientRect());
-    for (const s of this.sections()) at.set(`chapter:${s.dataset.id}`, head(s).getBoundingClientRect());
-    return at;
+  /** The cards (by id) and chapter headers (`chapter:<id>`) as laid out now. */
+  private items(): [string, HTMLElement][] {
+    return [
+      ...[...this.h.board.querySelectorAll<HTMLElement>('.bt-cork-card')].map((c): [string, HTMLElement] => [c.dataset.id!, c]),
+      ...this.sections().map((s): [string, HTMLElement] => [`chapter:${s.dataset.id}`, head(s)]),
+    ];
   }
 
   /**
-   * Everything glides from where it was (`before`) to where it is now; the
-   * moved one flashes, so the eye finds where it landed. A chapter moves as
-   * one (its section, by its header's travel); after a card, the cards and
-   * the headers each glide.
+   * Everything glides from where it was; the moved one flashes, so the eye
+   * finds where it landed. A chapter moves as one (its section, by its
+   * header's travel); after a card, the cards and the headers each glide.
    */
   private glide(before: Map<string, DOMRect>, kind: Drag['kind'], movedId: string) {
-    const { ms, easing } = motion();
-    if (!ms) return;
-    const travel = (el: HTMLElement, was: DOMRect | undefined, by: HTMLElement = el) => {
-      if (!was) return;
-      const is = by.getBoundingClientRect();
-      const [dx, dy] = [was.left - is.left, was.top - is.top];
-      if (Math.abs(dx) >= 1 || Math.abs(dy) >= 1) el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: ms, easing });
-    };
-    for (const s of this.sections()) {
-      if (kind === 'chapter') travel(s, before.get(`chapter:${s.dataset.id}`), head(s));
-      else travel(head(s), before.get(`chapter:${s.dataset.id}`));
+    if (kind === 'chapter') {
+      glideFrom(before, this.sections().map((s) => [`chapter:${s.dataset.id}`, s, head(s)] as const));
+      const landed = this.sections().find((s) => s.dataset.id === movedId);
+      flash(landed && head(landed));
+    } else {
+      glideFrom(before, this.items());
+      flash(this.h.board.querySelector<HTMLElement>(`.bt-cork-card[data-id="${CSS.escape(movedId)}"]`));
     }
-    if (kind === 'scene') for (const card of this.h.board.querySelectorAll<HTMLElement>('.bt-cork-card')) travel(card, before.get(card.dataset.id!));
-    const landed = kind === 'scene'
-      ? this.h.board.querySelector<HTMLElement>(`.bt-cork-card[data-id="${CSS.escape(movedId)}"]`)
-      : this.sections().find((s) => s.dataset.id === movedId);
-    const flash = landed && (kind === 'scene' ? landed : head(landed));
-    flash?.animate([{ backgroundColor: 'var(--color-popover-active)' }, {}], { duration: ms * 3, easing: 'ease-out' });
   }
 }
 
@@ -308,8 +298,4 @@ function place(el: HTMLElement, root: HTMLElement, x: number, y: number) {
 
 function gapOf(el: HTMLElement, axis: 'row' | 'column'): number {
   return parseFloat(getComputedStyle(el)[axis === 'row' ? 'rowGap' : 'columnGap']) || 0;
-}
-
-function motion(): { ms: number; easing: string } {
-  return { ms: cssNumber('--dur-glide'), easing: cssValue('--ease-out', 'ease-out') };
 }

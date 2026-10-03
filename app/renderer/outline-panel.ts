@@ -11,9 +11,11 @@ import { BOOK_TITLE } from '@baretext/editor';
 import { Arming } from './arming';
 import { sceneDisplayName, type Outline } from './outline';
 import { OutlineDrag } from './outline-drag';
+import { InlineEdit } from './inline-edit';
 import { CHEVRON, PLUS, RESTORE, SNOWFLAKE, TRASH } from './icons';
 import { slideColumn, type Motion } from './sidebar-motion';
-import { cssNumber, numberFormat } from './dom';
+import { numberFormat } from './dom';
+import { glideMotion } from './motion';
 
 const REFRESH_MS = 250;
 /** The Cold Storage section's identity in the tree (folding, focus). */
@@ -42,7 +44,7 @@ export class OutlinePanel {
   /** A delete waiting for its confirmation (the row asks "Delete …?"). */
   private readonly arming = new Arming<string>((id) => (id ? this.showArmed(id) : this.render(true)));
   /** The inline rename in progress; rows are not rebuilt under it. */
-  private editing: { id: string; input: HTMLInputElement; returnTo: 'row' | 'editor' } | null = null;
+  private editing: { id: string; edit: InlineEdit; returnTo: 'row' | 'editor' } | null = null;
   private refreshTimer: number | undefined;
   /** The row that holds the tree's single tab stop. */
   private focusId: string | null = null;
@@ -330,7 +332,7 @@ export class OutlinePanel {
     if (!reveal || !row || this.el.contains(document.activeElement)) return;
     const top = row.offsetTop; // the tree is the rows' offset parent
     if (top < this.tree.scrollTop || top + row.offsetHeight > this.tree.scrollTop + this.tree.clientHeight) {
-      this.tree.scrollTo({ top: top - this.tree.clientHeight / 2, behavior: glide && motionMs() ? 'smooth' : 'auto' });
+      this.tree.scrollTo({ top: top - this.tree.clientHeight / 2, behavior: glide && glideMotion().ms ? 'smooth' : 'auto' });
     }
   }
 
@@ -384,40 +386,34 @@ export class OutlinePanel {
 
   /** Swap a name for a field. Enter or leaving it renames; Esc keeps the old name. */
   startRename(id: string, returnTo: 'row' | 'editor') {
-    if (this.editing) this.finishRename(true);
+    this.editing?.edit.finish(true);
     const isBook = id === BOOK_TITLE;
     const row = isBook ? null : this.rowFor(id);
     if (!isBook && !row) return;
     const cellEl = isBook ? this.title : row!.querySelector<HTMLElement>('.bt-outline-name')!;
-    const input = document.createElement('input');
-    input.className = 'bt-outline-input';
-    input.spellcheck = false;
-    input.value = isBook ? this.bookTitle : row!.dataset.kind === 'chapter' ? this.chapterTitle(id) : this.sceneName(id);
-    input.placeholder = isBook ? 'Book title' : row!.dataset.kind === 'chapter' ? 'Chapter title' : 'Scene name';
-    input.setAttribute('aria-label', input.placeholder);
-    this.editing = { id, input, returnTo };
+    const placeholder = isBook ? 'Book title' : row!.dataset.kind === 'chapter' ? 'Chapter title' : 'Scene name';
+    const edit = new InlineEdit({
+      value: isBook ? this.bookTitle : row!.dataset.kind === 'chapter' ? this.chapterTitle(id) : this.sceneName(id),
+      placeholder,
+      label: placeholder,
+      className: 'bt-outline-input',
+      onDone: (save, value, refocus) => this.finishRename(save, value, refocus),
+    });
+    this.editing = { id, edit, returnTo };
     if (isBook) this.el.querySelector<HTMLElement>('.bt-outline-head')!.dataset.editing = 'true';
     cellEl.hidden = true;
-    cellEl.after(input);
-    input.focus();
-    input.select();
-    input.addEventListener('keydown', (e) => {
-      e.stopPropagation(); // the tree's keys and Esc-leaves-focus-mode stay out of it
-      if (e.isComposing) return;
-      if (e.key === 'Enter') { e.preventDefault(); this.finishRename(true); }
-      else if (e.key === 'Escape') { e.preventDefault(); this.finishRename(false); }
-    });
-    input.addEventListener('blur', () => { if (this.editing?.input === input) this.finishRename(true, false); });
-    input.addEventListener('click', (e) => e.stopPropagation()); // never navigates
+    cellEl.after(edit.input);
+    edit.input.addEventListener('click', (e) => e.stopPropagation()); // never navigates
+    edit.focus();
   }
 
-  private finishRename(commit: boolean, refocus = true) {
+  private finishRename(commit: boolean, value: string, refocus: boolean) {
     const editing = this.editing;
     if (!editing) return;
     this.editing = null;
     delete (this.el.querySelector('.bt-outline-head') as HTMLElement).dataset.editing;
-    if (commit) this.actions.rename(editing.id, editing.input.value);
-    editing.input.remove();
+    if (commit) this.actions.rename(editing.id, value);
+    editing.edit.input.remove();
     this.title.hidden = false;
     this.render(true);
     if (!refocus) return;
@@ -425,6 +421,7 @@ export class OutlinePanel {
     const target = editing.id === BOOK_TITLE ? this.title : this.rowFor(editing.id);
     if (target) { if (target !== this.title) this.setTabStop(editing.id); target.focus(); }
   }
+
 
   private chapterTitle(id: string): string {
     return this.outline?.chapters.find((c) => c.id === id)?.title ?? '';
@@ -600,6 +597,3 @@ function words(n: number): string {
   return `${numberFormat.format(n)} ${n === 1 ? 'word' : 'words'}`;
 }
 
-function motionMs(): number {
-  return cssNumber('--dur-glide');
-}

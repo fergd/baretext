@@ -18,29 +18,24 @@
   transition: opacity var(--dur-panel) var(--ease-out), visibility 0s;
 }
 
-/* ── the board's own toolbar, under the top bar ── */
-.bt-cork-bar {
+/* ── the board's view controls, in the top bar's right cluster (Finder-style:
+   the layouts as icons, the arc with its word), divided from the view chips ── */
+.bt-cork-controls {
+  -webkit-app-region: no-drag;
   flex: none;
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  height: var(--cork-bar-h);
-  padding: 0 var(--space-8);
-  border-bottom: 1px solid var(--color-popover-border);
+  gap: var(--space-2);
+  margin-left: auto; /* (the right cluster starts here on the board) */
 }
-/* The toolbar's own buttons (the Arc). */
-.bt-cork-tool {
-  flex: none;
-  height: var(--toolbar-button);
-  padding: 0 var(--space-2);
-  border-radius: var(--toolbar-button-radius);
-  font-size: var(--text-ui);
-  color: var(--color-text-dim);
-  transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
-}
-.bt-cork-tool:hover { color: var(--color-text); background: var(--color-popover-hover); }
-
-.bt-cork-summary { margin-left: auto; font-size: var(--text-ui); color: var(--color-text-dimmer); font-variant-numeric: tabular-nums; }
+.bt-cork-controls[hidden] { display: none; }
+.bt-cork-layouts { margin-top: calc(-1 * var(--chrome-optical-offset)); }
+.bt-cork-layouts .bt-seg-item { min-width: 0; display: inline-flex; align-items: center; justify-content: center; padding: 0 var(--space-2); }
+.bt-cork-controls .bt-cork-arc-toggle { width: auto; gap: var(--space-1); padding: 0 var(--space-2); font-size: var(--text-ui); }
+/* In the status bar on the board: its totals, in place of the word count. */
+.bt-cork-summary { font-variant-numeric: tabular-nums; }
+.bt-cork-summary[hidden],
+.bt-app[data-view='corkboard'] [data-ref='words'] { display: none; }
 
 /* The cards' area: it scrolls; the toolbar stays. */
 .bt-cork-board { flex: 1 1 auto; min-height: 0; overflow: auto; padding: var(--space-8) var(--space-8) var(--space-16); outline: none; }
@@ -184,11 +179,26 @@
 
 /* ── the story arc (DECISIONS §27): the whole book at a glance, beside the
    board — across the top in Columns, down the left in Rows ── */
-.bt-cork-arc { display: none; position: absolute; padding: var(--space-2); pointer-events: none; }
-.bt-corkboard[data-arc='true'] .bt-cork-arc { display: block; }
+.bt-cork-arc {
+  position: absolute;
+  padding: var(--space-2);
+  pointer-events: none;
+  /* In and out as the side panels do: fading, sliding a little from its edge. */
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity var(--dur-sidebar) var(--ease-sidebar), translate var(--dur-sidebar) var(--ease-sidebar), visibility 0s linear var(--dur-sidebar);
+}
+.bt-corkboard[data-layout='columns'] .bt-cork-arc { translate: 0 calc(-1 * var(--space-3)); }
+.bt-corkboard[data-layout='rows'] .bt-cork-arc { translate: calc(-1 * var(--space-3)) 0; }
+.bt-corkboard[data-arc='true'] .bt-cork-arc {
+  visibility: visible;
+  opacity: 1;
+  translate: none;
+  transition: opacity var(--dur-sidebar) var(--ease-sidebar), translate var(--dur-sidebar) var(--ease-sidebar), visibility 0s;
+}
 .bt-cork-arc svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-.bt-corkboard[data-layout='columns'] .bt-cork-arc { top: calc(var(--cork-bar-h) + var(--space-3)); left: var(--space-8); right: var(--space-8); height: var(--cork-arc); }
-.bt-corkboard[data-layout='rows'] .bt-cork-arc { top: calc(var(--cork-bar-h) + var(--space-8)); bottom: var(--space-8); left: var(--space-4); width: var(--cork-arc); }
+.bt-corkboard[data-layout='columns'] .bt-cork-arc { top: var(--space-3); left: var(--space-8); right: var(--space-8); height: var(--cork-arc); }
+.bt-corkboard[data-layout='rows'] .bt-cork-arc { top: var(--space-8); bottom: var(--space-8); left: var(--space-4); width: var(--cork-arc); }
 /* Room for it: the board starts below it, or right of it. */
 .bt-corkboard[data-arc='true'][data-layout='columns'] .bt-cork-board { margin-top: calc(var(--space-3) + var(--cork-arc)); }
 .bt-corkboard[data-arc='true'][data-layout='rows'] .bt-cork-board { margin-left: calc(var(--space-4) + var(--cork-arc)); }
@@ -199,14 +209,19 @@
 .bt-arc-curve { fill: none; stroke: var(--color-text-dimmer); stroke-width: 1.5; stroke-linejoin: round; }
 /* Where a beat usually falls (hollow); the scene marked as it (filled), joined to it. */
 .bt-arc-ideal { fill: var(--color-page); stroke: var(--color-text-dimmer); stroke-width: 1.25; pointer-events: all; }
-.bt-arc-mark { fill: var(--color-accent); pointer-events: all; }
-.bt-arc-drift { stroke: var(--color-accent); stroke-width: 1.25; stroke-dasharray: 2 3; }
+.bt-arc-mark { fill: var(--color-beat); pointer-events: all; }
+/* Each point is a way to its place on the board. */
+.bt-arc-ideal, .bt-arc-mark { cursor: pointer; outline: none; transition: stroke-width var(--dur-fast) var(--ease-out); }
+.bt-arc-ideal:is(:hover, :focus-visible) { stroke: var(--color-text); stroke-width: 2; }
+.bt-arc-mark:is(:hover, :focus-visible) { stroke: var(--color-beat); stroke-width: 4; }
+.bt-arc-drift { fill: none; stroke: var(--color-beat); stroke-width: 2; stroke-dasharray: 2 3; stroke-linecap: round; }
 /* No structure yet: the way to choose one, where the arc would be. */
 .bt-cork-arc-choose { display: none; position: absolute; inset: 0; margin: auto; width: max-content; height: var(--toolbar-button); padding: 0 var(--space-2); border-radius: var(--toolbar-button-radius); font-size: var(--text-ui); color: var(--color-text-dim); pointer-events: all; }
 .bt-cork-arc-choose:hover { color: var(--color-text); background: var(--color-popover-hover); }
 .bt-cork-arc[data-empty='true'] .bt-cork-arc-choose { display: block; }
 .bt-cork-arc[data-empty='true'] { border: 1px dashed var(--color-popover-border); border-radius: var(--popover-radius); }
 .bt-cork-arc-toggle[aria-pressed='true'] { color: var(--color-text); background: var(--color-popover-active); }
+.bt-app[data-mode='sprinter'] .bt-cork-controls { visibility: hidden; }
 
 /* The last place in each chapter: add a scene. */
 .bt-cork-add {
@@ -248,7 +263,7 @@
   overflow: hidden;
   border-radius: var(--toolbar-button-radius);
   background: var(--color-beat-wash);
-  color: var(--color-accent);
+  color: var(--color-beat);
   line-height: var(--space-5);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -260,7 +275,10 @@
   flex: none;
   display: flex;
   gap: var(--space-1);
-  margin-left: auto;
+  /* At the far right, divided from what acts on the view (notes; the board's controls). */
+  margin-left: var(--space-2);
+  padding-left: var(--space-3);
+  border-left: 1px solid var(--color-popover-border);
   margin-top: calc(-1 * var(--chrome-optical-offset));
 }
 .bt-view-tab {
@@ -276,6 +294,7 @@
 .bt-view-tab[aria-selected='true'] { color: var(--color-text); background: var(--color-popover-active); }
 
 /* On the corkboard: what acts on the page steps aside. */
-.bt-app[data-view='corkboard'] :is(.bt-spine, .bt-spine-tip, [data-ref='sidebar'], [data-ref='notes-button'], [data-ref='typewriter'], [data-ref='focus']) { visibility: hidden; }
+.bt-app[data-view='corkboard'] :is(.bt-spine, .bt-spine-tip, [data-ref='sidebar'], [data-ref='typewriter'], [data-ref='focus']) { visibility: hidden; }
+.bt-app[data-view='corkboard'] [data-ref='notes-button'] { display: none; } /* (the board's controls take its place) */
 /* In Sprinter there are no other views. */
 .bt-app[data-mode='sprinter'] .bt-view-tabs { visibility: hidden; }
