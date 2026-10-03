@@ -7,19 +7,14 @@
 
 import type { CorkboardLayout, MenuItem } from '../shared/bridge';
 import type { ChapterEntry, Outline, SceneEntry } from './outline';
-import { sceneDisplayName } from './outline';
 import { Arming } from './arming';
 import { BoardDrag } from './corkboard-drag';
-import { numberFormat } from './dom';
 import { glideFrom, glideMotion, measure } from './motion';
-import { PLUS } from './icons';
-import { beatName, structureOf } from './structures';
+import { structureOf } from './structures';
+import { boardSummary, chapterSection } from './cork-cards';
 import { beatMenu, chosenBeat, CHOOSE_STRUCTURE } from './beat-menu';
 import { ArcStrip, weighBook } from './arc';
 import { InlineEdit } from './inline-edit';
-
-/** Below this, a scene is shown as a draft. */
-export const DRAFT_WORDS = 20;
 
 export interface CorkboardHost {
   /** Open a scene in the manuscript (the board closes). */
@@ -74,7 +69,6 @@ const LAYOUTS: [CorkboardLayout, string, string][] = [
 ];
 const ARC_ICON = ICON('<path d="M1.5 12.5C5 12.5 7 4 10.5 4S13.5 10 14.5 12.5" stroke-linecap="round"/>');
 
-const words = (n: number) => `${numberFormat.format(n)} ${n === 1 ? 'word' : 'words'}`;
 
 export class Corkboard {
   readonly el: HTMLElement;
@@ -314,106 +308,16 @@ export class Corkboard {
     const hadFocus = this.board.contains(document.activeElement);
     const [scrollTop, scrollLeft] = [this.board.scrollTop, this.board.scrollLeft];
     const notes = this.h.noteCounts();
-    const sections = outline.chapters.map((chapter) => {
-      const section = document.createElement('section');
-      section.className = 'bt-cork-chapter';
-      section.dataset.id = chapter.id;
-      section.setAttribute('aria-label', `Chapter ${chapter.number}`);
-      const head = document.createElement('header');
-      head.className = 'bt-cork-chapter-head';
-      const chapterWords = chapter.scenes.reduce((n, s) => n + s.words, 0);
-      head.append(
-        Object.assign(document.createElement('span'), { className: 'bt-cork-chapter-number', textContent: String(chapter.number) }),
-        Object.assign(document.createElement('h2'), { className: 'bt-cork-chapter-title', textContent: chapter.title || 'Untitled' }),
-        Object.assign(document.createElement('span'), { className: 'bt-cork-chapter-meta', textContent: `${chapter.scenes.length} ${chapter.scenes.length === 1 ? 'scene' : 'scenes'} · ${words(chapterWords)}` }),
-      );
-      const grid = document.createElement('div');
-      grid.className = 'bt-cork-grid';
-      grid.setAttribute('role', 'list');
-      grid.append(...chapter.scenes.map((scene) => this.cardFor(scene, notes.get(scene.id) ?? 0)), this.addTile(chapter));
-      section.append(head, grid);
-      return section;
-    });
+    const structure = this.h.structure();
+    const sections = outline.chapters.map((chapter) => chapterSection(chapter, notes, structure));
     this.board.replaceChildren(...sections);
     this.drawArc();
     [this.board.scrollTop, this.board.scrollLeft] = [scrollTop, scrollLeft]; // a refresh never moves the board
     this.showArming();
-    const scenes = outline.chapters.reduce((n, c) => n + c.scenes.length, 0);
-    this.summary.textContent = `${outline.chapters.length} ${outline.chapters.length === 1 ? 'chapter' : 'chapters'} · ${scenes} ${scenes === 1 ? 'scene' : 'scenes'} · ${words(outline.words)}`;
+    this.summary.textContent = boardSummary(outline);
     if (!this.card(this.focusId)) this.focusId = this.cards()[0]?.dataset.id ?? null;
     this.setTabStop();
     if (hadFocus) this.card(this.focusId)?.focus({ preventScroll: true });
-  }
-
-  private cardFor(scene: SceneEntry, noteCount: number): HTMLElement {
-    const card = document.createElement('article');
-    card.className = 'bt-cork-card';
-    card.setAttribute('role', 'listitem');
-    card.dataset.id = scene.id;
-    const draft = scene.words < DRAFT_WORDS;
-    card.dataset.draft = String(draft);
-    card.setAttribute('aria-label', `${scene.label} ${sceneDisplayName(scene)}, ${draft ? 'draft' : words(scene.words)}`);
-
-    const head = document.createElement('div');
-    head.className = 'bt-cork-card-head';
-    const heading = document.createElement('h3');
-    heading.className = 'bt-cork-card-heading';
-    const title = document.createElement('button');
-    title.type = 'button';
-    title.className = 'bt-cork-card-title';
-    title.dataset.action = 'rename';
-    title.dataset.unnamed = String(!scene.name);
-    title.tabIndex = -1; // the card is the tab stop; R or F2 renames
-    title.textContent = sceneDisplayName(scene);
-    title.title = 'Rename  R';
-    heading.append(title);
-    const open = document.createElement('button');
-    open.type = 'button';
-    open.className = 'bt-cork-action';
-    open.dataset.action = 'open';
-    open.tabIndex = -1; // the card is the tab stop; ↵ opens
-    open.textContent = 'Open';
-    open.setAttribute('aria-label', `Open ${scene.label} in the manuscript`);
-    const more = document.createElement('button');
-    more.type = 'button';
-    more.className = 'bt-cork-action bt-cork-more';
-    more.dataset.action = 'menu';
-    more.tabIndex = -1; // (the menu key, or right-click, from the keyboard)
-    more.textContent = '⋯';
-    more.title = 'Open, mark as, rename, copy, delete';
-    more.setAttribute('aria-label', `Actions for ${scene.label}`);
-    // Asked to confirm a delete: the card says how.
-    const armed = Object.assign(document.createElement('span'), { className: 'bt-cork-armed', textContent: 'Delete? ⌫ again' });
-    head.append(Object.assign(document.createElement('span'), { className: 'bt-cork-card-number', textContent: scene.label }), heading, armed, open, more);
-
-    const opening = document.createElement('p');
-    opening.className = 'bt-cork-card-opening';
-    opening.textContent = scene.opening;
-
-    const foot = document.createElement('div');
-    foot.className = 'bt-cork-card-foot';
-    foot.append(Object.assign(document.createElement('span'), { className: 'bt-cork-card-words', textContent: draft ? 'Draft' : words(scene.words) }));
-    if (noteCount) foot.append(Object.assign(document.createElement('span'), { className: 'bt-cork-card-notes', textContent: `${noteCount} ${noteCount === 1 ? 'note' : 'notes'}` }));
-    if (scene.beat) {
-      const beat = beatName(this.h.structure(), scene.beat);
-      foot.append(Object.assign(document.createElement('span'), { className: 'bt-cork-card-beat', textContent: beat }));
-      card.setAttribute('aria-label', `${card.getAttribute('aria-label')}, ${beat}`);
-    }
-
-    card.append(head, opening, foot);
-    return card;
-  }
-
-  /** The last place in a chapter: a tile that adds a scene. */
-  private addTile(chapter: ChapterEntry): HTMLElement {
-    const add = document.createElement('button');
-    add.type = 'button';
-    add.className = 'bt-cork-add';
-    add.dataset.addScene = chapter.id;
-    add.tabIndex = -1; // (N adds one from the keyboard)
-    add.setAttribute('aria-label', `New scene in chapter ${chapter.number}`);
-    add.innerHTML = `${PLUS}<span>New scene</span>`;
-    return add;
   }
 
   // ── what can be done to a card ──

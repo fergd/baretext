@@ -19,15 +19,8 @@ import {
   moveScene,
   deleteChapter,
   deleteScene,
-  closeParked,
-  moveToColdStorage,
-  openParked,
   parkedKey,
-  restoreFromColdStorage,
-  addNoteAnchor,
   anchorsIn,
-  describeAnchor,
-  removeNoteAnchor,
   restoreManuscript,
   sceneDepth,
   schema,
@@ -39,7 +32,7 @@ import {
   bookSetupOf,
 } from '@baretext/editor';
 import type { AppearancePrefs, BaretextBridge, MenuCommand, OpenedDocument } from '../shared/bridge';
-import { currentScene, outlineOf, sceneAt, sceneDisplayName } from './outline';
+import { currentScene, outlineOf, sceneDisplayName } from './outline';
 import { Spine } from './spine';
 import { OutlinePanel, type OutlinePresence } from './outline-panel';
 import { FindPanel } from './find';
@@ -48,6 +41,9 @@ import { AppearancePanel, readAppearance, sampleFrom, setAppearance } from './ap
 import { BookActions } from './book-actions';
 import { Status } from './status';
 import { PageEdits } from './page-edits';
+import { Notes } from './notes';
+import { ColdStorage } from './cold-storage';
+import { Navigation } from './navigation';
 import { BookViews } from './views';
 import { Sprinter } from './sprinter';
 import { Palette, type PaletteView } from './palette';
@@ -56,13 +52,9 @@ import { SelectionToolbar } from './toolbar';
 import { Typewriter } from './typewriter';
 import { Saver } from './saving';
 import { installTestHooks } from './test-hooks';
-import { NotesStore } from './notes-store';
-import { MarginNotes } from './margin-notes';
-import { NotesPanel } from './notes-panel';
-import type { Motion } from './sidebar-motion';
-import { newId } from '@baretext/format';
+import { moveColumns, type SideColumn } from './sidebar-motion';
 import { SNOWFLAKE } from './icons';
-import { cssNumber, cssValue, numberFormat } from './dom';
+import { cssNumber, numberFormat } from './dom';
 
 declare global {
   interface Window {
@@ -82,8 +74,6 @@ let view: EditorView | null = null;
 let filePath: string | null = null;
 let lastKeyNav = 0;
 /** Reading back: the writer scrolled by hand, so "where you are" follows the scroll, not the caret. */
-let reading = false;
-let readingHere: ReturnType<typeof currentScene> = null;
 
 // ── current-scene highlight (makes its margin number distinguishable) ──
 const currentScenePlugin = new Plugin({
@@ -121,7 +111,7 @@ function refreshChrome() {
     const parked = parkedKey.getState(state);
     const open = parked ? outline.parked.find((p) => p.id === parked) ?? null : null;
     if (open) { refreshParked(open, outline); return; }
-    const here = (reading && readingHere) || currentScene(state);
+    const here = navigation.here(state);
     // The count in the number face, the word in the interface face.
     showWords(outline.words, state.doc.attrs.target);
     $('title').textContent = state.doc.firstChild!.textContent || 'Untitled';
@@ -148,136 +138,36 @@ function refreshParked(open: ReturnType<typeof outlineOf>['parked'][number], out
   outlinePanel.update(outline, view!.state.doc.firstChild!.textContent, open.id, null);
 }
 
-// ── Cold Storage: a parked scene opens on the page; Esc goes back ──
-/** Where the writer was in the manuscript when a parked scene opened. */
-let parkedReturn: { pos: number; scroll: number } | null = null;
+// ── Cold Storage: a parked scene opens on the page; Esc goes back (DECISIONS §14) ──
+const cold = new ColdStorage({
+  view: () => view,
+  scroller,
+  app,
+  beforeOpen: () => { palette.close(); find.close(); },
+  changed: () => syncOutline(),
+  pageChanged: () => notes.margin.refresh(), // (another page: its notes, not the manuscript's)
+  navigate: (id) => navigate(id),
+  toast,
+});
+const leaveParked = cold.leave;
 
-function openParkedScene(id: string) {
-  if (!view) return;
-  if (!parkedKey.getState(view.state)) parkedReturn = { pos: view.state.selection.head, scroll: scroller.scrollTop };
-  palette.close();
-  find.close();
-  if (!openParked(id)(view.state, view.dispatch)) return;
-  scroller.scrollTop = 0;
-  view.focus();
-}
-
-/** Close the parked scene; `returnToPlace` puts the writer back where they were (else the caller moves them). */
-function leaveParked(returnToPlace = true) {
-  if (!view || !parkedKey.getState(view.state)) return;
-  const back = parkedReturn;
-  parkedReturn = null;
-  closeParked(returnToPlace ? back?.pos ?? null : null)(view.state, view.dispatch);
-  if (returnToPlace && back) scroller.scrollTop = back.scroll;
-  view.focus();
-}
-
-function parkScene(id: string) {
-  if (!view) return;
-  const outline = outlineOf(view.state.doc);
-  const scene = outline.chapters.flatMap((c) => c.scenes).find((s) => s.id === id);
-  if (!scene || !moveToColdStorage(id)(view.state, view.dispatch)) return;
-  syncOutline();
-  toast(`Moved ${scene.label}${scene.name ? ` “${scene.name}”` : ''} to Cold Storage. ⌘Z undoes it.`);
-}
-
-function restoreScene(id: string, chapterId?: string, index?: number) {
-  if (!view) return;
-  const parked = outlineOf(view.state.doc).parked.find((p) => p.id === id);
-  const wasOpen = parkedKey.getState(view.state) === id;
-  if (!parked) return;
-  if (wasOpen) parkedReturn = null; // it goes into the manuscript and the writer follows it there
-  if (!restoreFromColdStorage(id, chapterId, index)(view.state, view.dispatch)) return;
-  syncOutline();
-  const placed = outlineOf(view.state.doc).chapters.flatMap((c) => c.scenes).find((s) => s.id === id);
-  if (wasOpen && placed) navigate(id); // it was on the page: follow it into the manuscript
-  toast(`Restored ${parked.name ? `“${parked.name}”` : 'the scene'}${placed ? ` as ${placed.label}` : ''}. ⌘Z undoes it.`);
-}
-
-// ── navigation controller: one path for every "go to scene" ──
-function navigate(sceneId: string): boolean {
-  if (!view) return false;
-  if (app.dataset.view === 'corkboard') setView('manuscript');
-  leaveParked(false); // going somewhere in the manuscript
-  const scene = outlineOf(view.state.doc).chapters.flatMap((c) => c.scenes).find((s) => s.id === sceneId);
-  if (!scene) return false; // a deleted target never jumps elsewhere
-  // Land on the scene's first line of prose, not in its name.
-  const node = view.state.doc.nodeAt(scene.pos)!;
-  let firstParagraph = scene.pos + 1;
-  node.forEach((child, offset) => {
-    if (firstParagraph === scene.pos + 1 && child.type === schema.nodes.scene_heading) firstParagraph = scene.pos + 1 + offset + child.nodeSize;
-  });
-  const sel = Selection.findFrom(view.state.doc.resolve(firstParagraph), 1, true);
-  if (!sel) return false;
-  const before = scroller.scrollTop;
-  view.dispatch(view.state.tr.setSelection(sel).setMeta('navigation', true));
-  if (typewriter.enabled) {
-    typewriter.recenter(false);
-  } else {
-    const dom = view.nodeDOM(scene.pos) as HTMLElement | null;
-    if (dom) {
-      const top = dom.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
-      scroller.scrollTop += top - 64;
-    }
-  }
-  jumpMotion(scroller.scrollTop - before);
-  view.focus();
-  return true;
-}
-
-/**
- * The scroll position is already final; only the page's paint moves. Nearby
- * targets glide into place (FLIP); distant ones slide in a short way and
- * fade up, so crossing half a book never becomes a long, dizzying scroll.
- */
-function jumpMotion(delta: number) {
-  const duration = cssNumber('--dur-jump');
-  if (!duration || Math.abs(delta) < 1) return;
-  const easing = cssValue('--ease-jump', 'ease-out');
-  const near = Math.abs(delta) <= scroller.clientHeight * 1.5;
-  const frames = near
-    ? [{ transform: `translateY(${delta}px)` }, { transform: 'translateY(0)' }]
-    : [{ transform: `translateY(${Math.sign(delta) * 32}px)`, opacity: 0.3 }, { transform: 'translateY(0)', opacity: 1 }];
-  page.animate(frames, { duration, easing });
-}
-
-// ── reading back: the spine and breadcrumb follow a hand scroll ──
-function startReading() {
-  reading = true;
-}
-let readingFrame = 0;
-scroller.addEventListener('scroll', () => {
-  if (!reading || readingFrame) return;
-  readingFrame = requestAnimationFrame(() => {
-    readingFrame = 0;
-    if (!view || !reading) return;
-    // The scene at the middle of the window is the one being read.
-    const box = scroller.getBoundingClientRect();
-    const column = view.dom.getBoundingClientRect();
-    const hit = view.posAtCoords({ left: (column.left + column.right) / 2, top: box.top + box.height / 2 });
-    if (!hit) return;
-    const here = sceneAt(view.state.doc, hit.pos, true);
-    if (here && here.scene.id !== readingHere?.scene.id) {
-      readingHere = here;
-      refreshChrome();
-    }
-  });
-}, { passive: true });
-scroller.addEventListener('wheel', startReading, { passive: true });
+// ── navigation: one path for every "go to scene"; reading back follows a hand scroll ──
+const navigation = new Navigation({
+  view: () => view,
+  scroller,
+  page,
+  typewriter: () => typewriter,
+  toManuscript: () => {
+    if (app.dataset.view === 'corkboard') setView('manuscript');
+    leaveParked(false);
+  },
+  readingMoved: () => refreshChrome(),
+});
+const navigate = navigation.go;
 
 const spine = new Spine($('spine'), (id) => navigate(id));
 
 /** Open notes per scene id (the outline's rows and the corkboard's cards show them). */
-function openNoteCounts(): Map<string, number> {
-  const counts = new Map<string, number>();
-  if (!view) return counts;
-  const anchors = anchorsIn(view.state.doc);
-  for (const n of notes.all) {
-    const scene = !n.resolved && anchors.get(n.id)?.scene;
-    if (scene) counts.set(scene, (counts.get(scene) ?? 0) + 1);
-  }
-  return counts;
-}
 
 // ── outline: a column beside the page, opened deliberately (button, ⌘\, menu) ──
 const outlinePanel = new OutlinePanel($('workspace'), {
@@ -300,10 +190,10 @@ const outlinePanel = new OutlinePanel($('workspace'), {
     if (moved) syncOutline();
     return moved;
   },
-  park: (id) => parkScene(id),
-  openParked: (id) => openParkedScene(id),
-  restore: (id, chapterId, index) => restoreScene(id, chapterId, index),
-  noteCounts: () => openNoteCounts(),
+  park: (id) => cold.park(id),
+  openParked: (id) => cold.open(id),
+  restore: (id, chapterId, index) => cold.restore(id, chapterId, index),
+  noteCounts: () => notes.counts(),
   deleteScene: (id) => deleteFromOutline(id, 'scene'),
   deleteChapter: (id) => deleteFromOutline(id, 'chapter'),
   onPresence: (presence: OutlinePresence) => {
@@ -358,30 +248,13 @@ function newChapter(): string | null {
 /** Give the outline the manuscript as it is now, not as of the last painted frame. */
 function syncOutline() {
   if (!view) return;
-  const here = (reading && readingHere) || currentScene(view.state);
+  const here = navigation.here(view.state);
   outlinePanel.update(outlineOf(view.state.doc), view.state.doc.firstChild!.textContent, here?.scene.id ?? null, here?.chapter.id ?? null);
 }
 
 
-/**
- * The column opens or closes: the layout changes at once, then the column
- * slides and the page glides from where it was to its new center (FLIP),
- * so nothing in the manuscript is laid out again during the motion.
- */
-interface SideColumn { motion(open: boolean, m: Motion): void }
-function sidebarMotion(columns: SideColumn[], open: boolean, change: () => void, animate = true) {
-  const before = page.getBoundingClientRect().left;
-  keepCaretLine(change);
-  const duration = animate ? cssNumber('--dur-sidebar') : 0;
-  const easing = cssValue('--ease-sidebar', 'ease-out');
-  const follow = cssValue('--ease-sidebar-follow', easing);
-  for (const c of columns) c.motion(open, { duration, easing, follow });
-  const dx = before - page.getBoundingClientRect().left;
-  if (duration && Math.abs(dx) >= 1) {
-    page.animate([{ transform: `translateX(${dx}px)` }, { transform: 'translateX(0)' }], { duration, easing, composite: 'add' });
-  }
-  return duration;
-}
+/** Side columns open or close, the page gliding to its new place (see moveColumns). */
+const sidebarMotion = (columns: SideColumn[], open: boolean, change: () => void, animate = true) => moveColumns(page, columns, open, change, keepCaretLine, animate);
 
 function setOutlinePinned(pinned: boolean, persist = true, animate = true) {
   sidebarMotion([outlinePanel], pinned, () => {
@@ -396,129 +269,28 @@ const saver = new Saver(bridge, () => view, () => filePath, $('save-state'), app
 const toolbar = new SelectionToolbar($('workspace'), scroller, () => view, () => runCommand('add-note'));
 const find = new FindPanel($('workspace'), scroller, () => view, () => snapshotNow('Before Replace All'));
 
-// ── notes: floating beside their passages, and a panel on the right ──
-const notes = new NotesStore(bridge, () => view, (message) => toast(message, 'error'));
-const margin = new MarginNotes(page, scroller, {
+// ── notes: floating beside their passages, and a panel on the right (DECISIONS §16) ──
+const notes = new Notes({
+  bridge,
   view: () => view,
-  store: notes,
-  openInPanel: (id) => setNotesPanel(true, () => notesPanel.focusNote(id)),
-  discard: (id) => discardNote(id),
-  toEditor: () => focusWriting(),
-});
-const notesPanel = new NotesPanel($('workspace'), {
-  view: () => view,
-  store: notes,
-  show: (id) => showNote(id),
-  remove: (id) => discardNote(id),
-  toEditor: () => focusWriting(),
-  onPresence: (open) => {
+  page,
+  scroller,
+  workspace: $('workspace'),
+  app,
+  toast,
+  toPage: () => focusWriting(),
+  typewriterOn: () => typewriter.enabled,
+  slide: (open, change, animate) => sidebarMotion([notes.panel], open, change, animate),
+  parked: { open: (id) => cold.open(id), leave: () => cold.leave(false) },
+  changed: (open) => {
+    outlinePanel.notesChanged();
+    $('notes-badge').textContent = open ? String(open) : '';
+  },
+  presence: (open) => {
     $('notes-button').setAttribute('aria-pressed', String(open));
     $('notes-button').setAttribute('aria-label', open ? 'Hide notes' : 'Show notes');
   },
 });
-notes.onChange(() => {
-  outlinePanel.notesChanged();
-  const open = notes.all.filter((n) => !n.resolved).length;
-  $('notes-badge').textContent = open ? String(open) : '';
-});
-
-/**
- * Open or close the notes panel. The floating notes hand off to it: they
- * fade out (drifting toward the panel) and, as they finish, it slides in;
- * closing, it slides out and they drift back in as it settles — one
- * motion, not two. `then` runs once the panel is open (or closed).
- */
-let notesHandoff: { queued: Array<() => void>; cancel(): void } | null = null;
-function setNotesPanel(open: boolean, then?: () => void) {
-  if (notesHandoff) {
-    if (open) { if (then) notesHandoff.queued.push(then); return; } // already on its way
-    notesHandoff.cancel(); // changed their mind mid-fade: the cards come back
-    then?.();
-    return;
-  }
-  if (open === notesPanel.isOpen) { then?.(); return; }
-  const out = open && marginShowsNotes() && margin.el.childElementCount > 0 ? cssNumber('--dur-notes-out') : 0;
-  if (out) {
-    // The cards fade where they are; the page makes room only once they've gone.
-    const handoff = { queued: then ? [then] : [], cancel: () => { notesHandoff = null; void margin.fade(true, 0); } };
-    notesHandoff = handoff;
-    void margin.fade(false, out).then((done) => {
-      if (notesHandoff !== handoff || !done) return;
-      notesHandoff = null;
-      slideNotesPanel(true);
-      for (const f of handoff.queued) f();
-    });
-    return;
-  }
-  slideNotesPanel(open);
-  then?.();
-}
-
-function slideNotesPanel(open: boolean) {
-  const slide = sidebarMotion([notesPanel], open, () => {
-    app.dataset.notes = open ? 'open' : 'closed';
-    notesPanel.setOpen(open);
-  }, app.dataset.focus !== 'true');
-  margin.refresh();
-  if (!open && marginShowsNotes()) void margin.fade(true, cssNumber('--dur-notes-in'), slide * 0.6);
-}
-
-/** The notes panel is open, or on its way. */
-function notesPanelWanted(): boolean {
-  return notesPanel.isOpen || !!notesHandoff;
-}
-
-/** Margin cards are shown in manuscript mode, but not with the panel open, in typewriter or focus mode, or without room. */
-function marginShowsNotes(): boolean {
-  return !notesPanel.isOpen && !typewriter.enabled && app.dataset.focus !== 'true' && !margin.isCompact;
-}
-
-/** Open a note where it can be seen: its card in the margin, or the panel. */
-function revealNote(id: string, focus: boolean) {
-  if (marginShowsNotes()) { margin.setActive(id, focus); return; }
-  setNotesPanel(true, () => notesPanel.focusNote(id));
-}
-
-/**
- * Add a note: about the selected passage (⇧⌘M, the toolbar, the palette),
- * or a general one when nothing is selected. It opens ready to type.
- */
-function addNote() {
-  if (!view) return;
-  if (view.state.selection.empty) {
-    setNotesPanel(true, () => notesPanel.newGeneral());
-    return;
-  }
-  const id = newId();
-  if (!addNoteAnchor(id)(view.state, view.dispatch)) {
-    toast('A note goes on a passage within one scene. Select some text in a scene first.');
-    return;
-  }
-  notes.create(describeAnchor(view.state.doc, anchorsIn(view.state.doc).get(id)!), id);
-  revealNote(id, true);
-}
-
-/** A note and its anchor go (deleted, or left empty). */
-function discardNote(id: string) {
-  if (view) removeNoteAnchor(id)(view.state, view.dispatch);
-  notes.remove(id);
-  margin.setActive(null);
-}
-
-/** Go to a note's passage: on the page (opening its parked scene if need be), its card active. */
-function showNote(id: string) {
-  if (!view) return;
-  const a = anchorsIn(view.state.doc).get(id);
-  if (!a) return;
-  const parked = outlineOf(view.state.doc).parked.some((p) => p.id === a.scene);
-  if (parked) openParkedScene(a.scene); else leaveParked(false);
-  const range = anchorsIn(view.state.doc).get(id)!;
-  view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, range.from)).scrollIntoView());
-  const dom = view.domAtPos(range.from).node as HTMLElement;
-  (dom.nodeType === 1 ? dom : dom.parentElement)?.scrollIntoView({ block: 'center' });
-  view.focus();
-  margin.setActive(id);
-}
 
 /** A point-in-time snapshot of the manuscript as it is now (before a risky change). */
 function snapshotNow(reason: string) {
@@ -537,7 +309,7 @@ const book = new BookActions({
   bridge,
   view: () => view,
   filePath: () => filePath,
-  exportableNotes: () => notes.all.filter((n) => !n.resolved && n.body),
+  exportableNotes: () => notes.exportable(),
   change: (command) => outsideChange(command),
   toast,
   onClose: () => focusWriting(),
@@ -551,7 +323,7 @@ const views = new BookViews({
   view: () => view,
   edits,
   navigate: (id) => navigate(id),
-  noteCounts: () => openNoteCounts(),
+  noteCounts: () => notes.counts(),
   deleteScene: (id) => deleteFromOutline(id, 'scene'),
   bookSettings: () => book.openSetup(),
   toast,
@@ -615,11 +387,11 @@ let beforeSprint: { outline: boolean; notes: boolean; focus: boolean } | null = 
 function setMode(mode: 'manuscript' | 'sprinter') {
   if (app.dataset.mode === mode) return;
   if (mode === 'sprinter') {
-    beforeSprint = { outline: outlinePanel.presence === 'pinned', notes: notesPanelWanted(), focus: app.dataset.focus === 'true' };
+    beforeSprint = { outline: outlinePanel.presence === 'pinned', notes: notes.panelWanted, focus: app.dataset.focus === 'true' };
     palette.close();
     find.close();
     if (beforeSprint.outline) setOutlinePinned(false, false);
-    if (beforeSprint.notes) setNotesPanel(false);
+    if (beforeSprint.notes) notes.setPanel(false);
     app.dataset.mode = 'sprinter';
     if (!beforeSprint.focus) setFocus(true, false);
     showWords(sprinter.page.words());
@@ -629,13 +401,13 @@ function setMode(mode: 'manuscript' | 'sprinter') {
     app.dataset.mode = 'manuscript';
     if (before && !before.focus) setFocus(false);
     if (before?.outline) setOutlinePinned(true, false);
-    if (before?.notes) setNotesPanel(true);
+    if (before?.notes) notes.setPanel(true);
     refreshChrome();
   }
   syncTypewriterSwitch();
   bridge.modeChanged(mode);
   view?.setProps({}); // re-evaluates `editable`
-  margin.refresh();
+  notes.margin.refresh();
   focusWriting();
 }
 
@@ -667,29 +439,10 @@ function dispatch(this: EditorView, tr: Transaction) {
   const before = this.state;
   const next = before.apply(tr);
   this.updateState(next);
-  // Writing or moving the caret hands "where you are" back to the caret.
-  if (reading && (next.doc !== before.doc || !next.selection.eq(before.selection))) {
-    reading = false;
-    readingHere = null;
-  }
-  const parkedNow = parkedKey.getState(next);
-  if (parkedNow !== parkedKey.getState(before)) {
-    app.dataset.parked = String(!!parkedNow);
-    margin.refresh(); // another page: its notes, not the manuscript's
-    // Closed some other way than Back (its scene deleted): return to where the writer was.
-    const back = parkedNow ? null : parkedReturn;
-    parkedReturn = parkedNow ? parkedReturn : null;
-    if (back) requestAnimationFrame(() => {
-      if (!view || parkedKey.getState(view.state)) return;
-      const sel = Selection.findFrom(view.state.doc.resolve(Math.min(back.pos, view.state.doc.content.size)), -1, true);
-      if (sel) view.dispatch(view.state.tr.setSelection(sel));
-      scroller.scrollTop = back.scroll;
-    });
-  }
+  navigation.stateChanged(before, next);
+  cold.stateChanged(before, next);
   if (next.doc !== before.doc) {
     notes.textChanged();
-    margin.refresh();
-    notesPanel.refresh();
     saver.changed();
     typewriter.recenter(true);
   } else if (!next.selection.eq(before.selection)) {
@@ -734,8 +487,7 @@ function load(doc: OpenedDocument) {
   const name = doc.filePath.split('/').pop() ?? doc.filePath;
   $('filename').textContent = name;
   saver.reset(view.state.doc);
-  margin.setActive(null);
-  void notes.load(doc.filePath);
+  notes.load(doc.filePath);
   if (doc.notice) toast(doc.notice, 'error');
   else if (doc.importedFrom) {
     const original = doc.importedFrom.split('/').pop();
@@ -756,22 +508,13 @@ function load(doc: OpenedDocument) {
 }
 
 // Clicking a note's passage brings its note forward (in the margin, or the panel when there's no room).
-page.addEventListener('click', (e) => {
-  // The innermost open note's passage (notes may overlap; resolved ones read as plain text).
-  const anchor = [...document.elementsFromPoint(e.clientX, e.clientY)].find((el) => el.classList.contains('bt-note-anchor') && !notes.get((el as HTMLElement).dataset.note!)?.resolved) as HTMLElement | undefined;
-  if (!anchor) return;
-  const id = anchor.dataset.note!;
-  const note = notes.get(id);
-  if (!note || note.resolved) return;
-  if (marginShowsNotes()) margin.setActive(id);
-  else revealNote(id, true);
-});
+page.addEventListener('click', (e) => notes.pressAt(e.clientX, e.clientY));
 
 // Clicking any non-text space places the caret on the nearest line (spec §4.4.2).
 scroller.addEventListener('mousedown', (e) => {
   if (!view || e.button !== 0) return;
   // The scrollbar: a hand scroll, never a caret placement.
-  if (e.target === scroller && e.offsetX >= scroller.clientWidth) { startReading(); return; }
+  if (e.target === scroller && e.offsetX >= scroller.clientWidth) { navigation.startReading(); return; }
   // A margin note's own clicks (its text box, Cancel, Save, Resolve) stay in the note.
   if ((e.target as HTMLElement).closest('.bt-margin-notes')) return;
   // An unnamed scene's ornament (or an unnamed first scene's number): name that scene.
@@ -831,11 +574,11 @@ function applyAppearance(p: AppearancePrefs) {
 }
 const FOCUS_HINT = 'Esc or ⌘. to leave focus';
 function setFocus(on: boolean, hint = true) {
-  if (on && (outlinePanel.el.contains(document.activeElement) || notesPanel.el.contains(document.activeElement))) focusWriting();
+  if (on && (outlinePanel.el.contains(document.activeElement) || notes.panel.el.contains(document.activeElement))) focusWriting();
   // The open side columns step aside (or come back) with the rest of the chrome.
   const columns: SideColumn[] = [];
   if (app.dataset.outline === 'pinned') columns.push(outlinePanel);
-  if (notesPanel.isOpen) columns.push(notesPanel);
+  if (notes.panel.isOpen) columns.push(notes.panel);
   if (columns.length && app.dataset.focus !== String(on)) sidebarMotion(columns, !on, () => { app.dataset.focus = String(on); });
   app.dataset.focus = String(on);
   // Focus mode is entered (the button goes with the rest of the chrome) and
@@ -891,9 +634,9 @@ function runCommand(command: MenuCommand) {
     case 'goto': togglePalette(jumpView(commands)); break;
     case 'find': palette.close(); leaveParked(); find.open(false); break;
     case 'find-replace': palette.close(); leaveParked(); find.open(true); break;
-    case 'add-note': addNote(); break;
-    case 'notes': setNotesPanel(!notesPanelWanted()); break;
-    case 'park-scene': { const here = currentScene(view.state); if (here) parkScene(here.scene.id); break; }
+    case 'add-note': notes.add(); break;
+    case 'notes': notes.setPanel(!notes.panelWanted); break;
+    case 'park-scene': { const here = currentScene(view.state); if (here) cold.park(here.scene.id); break; }
     case 'find-next': find.next(1); break;
     case 'find-prev': find.next(-1); break;
     case 'appearance': palette.close(); find.close(); history.close(); appearance.open(); break;
@@ -941,7 +684,7 @@ const commands: CommandContext = {
   mode: () => (sprinter.active ? 'sprinter' : 'manuscript'),
   timer: () => ({ running: sprinter.timer.running, paused: sprinter.timer.paused, hidden: sprinter.timer.hidden }),
   leaveParked: () => leaveParked(),
-  restoreParked: () => { const id = view && parkedKey.getState(view.state); if (id) restoreScene(id); },
+  restoreParked: () => cold.restoreOpen(),
 };
 
 /** A palette key closes its own view, switches from the other, or opens. */
@@ -988,7 +731,7 @@ window.addEventListener('keydown', (e) => {
 // signal: ProseMirror cancels every Esc in the editor.) Never during IME.
 window.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape' || e.isComposing) return;
-  if (view && parkedKey.getState(view.state)) { e.preventDefault(); leaveParked(); return; } // back to the manuscript first
+  if (cold.openId) { e.preventDefault(); leaveParked(); return; } // back to the manuscript first
   if (app.dataset.focus !== 'true') return;
   e.preventDefault();
   setFocus(false);
@@ -1006,11 +749,11 @@ $('filename').addEventListener('click', () => filePath && bridge.revealInFinder(
 $('parked-label').insertAdjacentHTML('afterbegin', SNOWFLAKE);
 for (const ref of ['parked-restore', 'parked-back']) $(ref).addEventListener('mousedown', (e) => e.preventDefault());
 $('parked-back').addEventListener('click', () => leaveParked());
-$('parked-restore').addEventListener('click', () => { const id = view && parkedKey.getState(view.state); if (id) restoreScene(id); });
+$('parked-restore').addEventListener('click', () => cold.restoreOpen());
 
 bridge.onMenu(runCommand);
 bridge.onDocumentOpened(load);
-bridge.onFlushRequest(async () => (await Promise.all([saver.saveNow(), notes.flush(), sprinter.flush()])).every(Boolean));
+bridge.onFlushRequest(async () => (await Promise.all([saver.saveNow(), notes.store.flush(), sprinter.flush()])).every(Boolean));
 
 // ── start ──
 // Every launch starts in the default mode: typewriter and focus mode are
@@ -1037,7 +780,7 @@ installTestHooks({
   exporting: () => ({ open: book.exportOpen, prefs: book.exportPrefs }),
   book: () => ({ open: book.setupOpen, setup: view ? bookSetupOf(view.state.doc) : null }),
   outline: () => ({ presence: outlinePanel.presence, focused: outlinePanel.el.contains(document.activeElement) }),
-  notes: () => ({ all: notes.all.map((n) => ({ ...n })), panel: notesPanel.isOpen, compact: margin.isCompact, anchors: view ? [...anchorsIn(view.state.doc).keys()] : [] }),
+  notes: () => ({ all: notes.store.all.map((n) => ({ ...n })), panel: notes.panel.isOpen, compact: notes.margin.isCompact, anchors: view ? [...anchorsIn(view.state.doc).keys()] : [] }),
   sprints: () => ({ open: sprinter.libraryOpen }),
   sprint: () => sprinter.state(),
 });

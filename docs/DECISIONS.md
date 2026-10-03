@@ -1021,8 +1021,15 @@ book is past what a URL can carry).
 - `index.ts` is the composition root: it builds the parts and wires them
   through small host interfaces; a concern with its own state lives in its
   own module — `BookActions` (setup, export, print), `BookViews` (the view
-  chips, the corkboard and its wiring), `PageEdits` (changes that keep the
-  writer's place), `Status` (toasts, the word count).
+  chips, the corkboard and its wiring), `Notes` (store, margin cards, panel
+  and the hand-off between them), `ColdStorage` (parking, restoring, and
+  the way back), `Navigation` (every "go to scene"; reading back),
+  `PageEdits` (changes that keep the writer's place), `Status` (toasts, the
+  word count). What stays in `index.ts` is the root's own work: building the
+  parts, the editor's load and dispatch, the command router, key routing.
+- Components separate building from behaviour where it helps: the
+  corkboard's DOM is built in `cork-cards.ts`, its behaviour in
+  `corkboard.ts`; side columns move through `moveColumns`.
 - Shared primitives, one each: `motion.ts` (FLIP: `measure`, `glideFrom`,
   `flash`, `glideMotion` from the tokens) for everything that moves into
   place; `InlineEdit` for a name edited in place (outline rows, cards);
