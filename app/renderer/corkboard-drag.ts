@@ -1,9 +1,12 @@
-// Drag to reorder on the corkboard (DECISIONS §24): a card, or a chapter by
-// its header. A lifted copy follows the pointer; an accent bar shows where it
-// will land — between cards along the reading direction (across a row of
-// cards, down a column), between chapters across it; the board scrolls near
-// its edges; on drop everything glides to its new place. Esc, or dropping
-// where it started, changes nothing.
+// Drag to reorder on the corkboard (DECISIONS §24, §28): a card, a group (by
+// its frame or name), or a chapter by its header. A lifted copy follows the
+// pointer; an accent bar shows where it will land — between cards along the
+// reading direction (across a row of cards, down a column), between chapters
+// across it. A card dropped inside a group's container joins the group there
+// (the container lights up); dropped on a card's middle, it joins that card
+// (a group forms, or grows); dropped anywhere else it is in no group (that is
+// how it leaves one). The board scrolls near its edges; on drop everything
+// glides to its new place. Esc, or dropping where it started, changes nothing.
 
 import type { CorkboardLayout } from '../shared/bridge';
 import type { Outline } from './outline';
@@ -23,8 +26,12 @@ export interface BoardDragHost {
   outline(): Outline | null;
   /** False while something else owns the pointer (an inline rename). */
   canDrag(): boolean;
-  /** Move, then redraw at once; false if nothing moved. */
-  moveScene(sceneId: string, chapterId: string, index: number): boolean;
+  // Each moves, then redraws at once; false if nothing moved.
+  /** A card to a place, in a group there (null: in none). */
+  placeScene(sceneId: string, chapterId: string, index: number, group: string | null): boolean;
+  /** A card onto another: placed after it, the two grouped. */
+  joinGroup(sceneId: string, targetId: string): boolean;
+  moveGroup(groupId: string, chapterId: string, index: number): boolean;
   moveChapter(chapterId: string, index: number): boolean;
 }
 
@@ -34,12 +41,18 @@ interface Drop {
   index: number;
   /** It would land where it already is. */
   noop: boolean;
-  /** The bar, in viewport coordinates. */
-  bar: DOMRect;
+  /** The bar, in viewport coordinates (none when dropped on a card). */
+  bar: DOMRect | null;
+  /** A card: the group it lands in (null: none). */
+  group?: string | null;
+  /** A card dropped on another's middle: that card (they join). */
+  join?: string;
+  /** What lights up to take it: the group's container, or the card it joins. */
+  into?: HTMLElement;
 }
 
 interface Drag {
-  kind: 'scene' | 'chapter';
+  kind: 'scene' | 'group' | 'chapter';
   id: string;
   /** What stays behind, dimmed (a card, or a chapter's section). */
   source: HTMLElement;
@@ -83,17 +96,20 @@ export class BoardDrag {
   private onPointerDown(e: PointerEvent) {
     if (e.button !== 0 || !this.h.canDrag()) return;
     const target = e.target as HTMLElement;
-    if (target.closest('input, [data-action="open"], [data-action="menu"], .bt-cork-add')) return;
+    if (target.closest('input, [data-action="open"], [data-action="menu"], [data-action="group-menu"], .bt-cork-add')) return;
+    // A card; else a group (its frame, its name); else a chapter (its header).
     const card = target.closest<HTMLElement>('.bt-cork-card');
-    const head = card ? null : target.closest<HTMLElement>('.bt-cork-chapter-head');
-    const what = card ?? head;
+    const group = card ? null : target.closest<HTMLElement>('.bt-cork-group');
+    const head = card || group ? null : target.closest<HTMLElement>('.bt-cork-chapter-head');
+    const what = card ?? group ?? head;
+    const kind: Drag['kind'] = card ? 'scene' : group ? 'group' : 'chapter';
     if (!what) return;
     const start = { x: e.clientX, y: e.clientY };
     const pointer = e.pointerId; // (the drag follows the pointer that began it, no other)
     const move = (ev: PointerEvent) => {
       if (ev.pointerId !== pointer) return;
       if (this.drag) this.dragTo(ev.clientX, ev.clientY);
-      else if (Math.hypot(ev.clientX - start.x, ev.clientY - start.y) > DRAG_THRESHOLD) this.start(what, card ? 'scene' : 'chapter', start, ev);
+      else if (Math.hypot(ev.clientX - start.x, ev.clientY - start.y) > DRAG_THRESHOLD) this.start(what, kind, start, ev);
     };
     const end = (ev: PointerEvent) => {
       if (ev.pointerId !== pointer) return;
@@ -108,13 +124,13 @@ export class BoardDrag {
   }
 
   private start(what: HTMLElement, kind: Drag['kind'], at: { x: number; y: number }, e: PointerEvent) {
-    const source = kind === 'scene' ? what : what.closest<HTMLElement>('.bt-cork-chapter')!;
-    const id = kind === 'scene' ? what.dataset.id! : source.dataset.id!;
+    const source = kind === 'chapter' ? what.closest<HTMLElement>('.bt-cork-chapter')! : what;
+    const id = kind === 'scene' ? what.dataset.id! : kind === 'group' ? what.dataset.group! : source.dataset.id!;
     const box = what.getBoundingClientRect();
     const ghost = what.cloneNode(true) as HTMLElement;
     ghost.classList.add('bt-cork-ghost');
     // A picture only: nothing finds it as the card or chapter it copies.
-    for (const el of [ghost, ...ghost.querySelectorAll('*')]) for (const attr of ['role', 'tabindex', 'data-id', 'data-action', 'aria-label']) el.removeAttribute(attr);
+    for (const el of [ghost, ...ghost.querySelectorAll('*')]) for (const attr of ['role', 'tabindex', 'data-id', 'data-group', 'data-action', 'aria-label']) el.removeAttribute(attr);
     ghost.style.width = `${box.width}px`;
     ghost.style.height = `${box.height}px`;
     source.dataset.dragging = 'true';
@@ -135,8 +151,10 @@ export class BoardDrag {
     const d = this.drag!;
     d.last = { x, y };
     place(d.ghost, this.h.root, x - d.grab.x, y - d.grab.y);
-    d.drop = d.kind === 'scene' ? this.sceneDrop(d.id, x, y) : this.chapterDrop(d.id, x, y);
+    d.drop = d.kind === 'scene' ? this.sceneDrop(d.id, x, y) : d.kind === 'group' ? this.groupDrop(d.id, x, y) : this.chapterDrop(d.id, x, y);
     this.showBar(d.drop);
+    this.showInto(d.drop);
+    d.ghost.dataset.join = String(!!d.drop?.join && !d.drop.noop); // (over a card's middle, it steps back: the card it joins shows)
     // Near the board's edges, it scrolls (either way).
     const box = this.h.board.getBoundingClientRect();
     const speed = (p: number, lo: number, hi: number) => (p < lo + EDGE ? p - (lo + EDGE) : p > hi - EDGE ? p - (hi - EDGE) : 0);
@@ -156,7 +174,8 @@ export class BoardDrag {
   /**
    * A card lands before another card of the chapter nearest the pointer, or
    * at its end (its last tile). Along the reading direction a card is passed
-   * once the pointer is beyond its middle.
+   * once the pointer is beyond its middle. On another card's middle it joins
+   * that card; inside a group's container it joins the group, at that place.
    */
   private sceneDrop(sceneId: string, x: number, y: number): Drop | null {
     const outline = this.h.outline();
@@ -164,21 +183,63 @@ export class BoardDrag {
     const section = this.nearestSection(x, y);
     if (!source || !section) return null;
     const chapterId = section.dataset.id!;
+    const chapter = outline!.chapters.find((c) => c.id === chapterId)!;
     const same = chapterId === source.id;
     if (!same && source.scenes.length === 1) return null; // a chapter always keeps a scene
-    const grid = section.querySelector<HTMLElement>('.bt-cork-grid')!;
-    const slots = [...grid.querySelectorAll<HTMLElement>('.bt-cork-card, .bt-cork-add')]; // the cards, then the tile
-    const rows = this.h.layout() === 'rows';
-    const passed = (r: DOMRect) => (rows ? y >= r.bottom || (y >= r.top && x >= r.left + r.width / 2) : y >= r.top + r.height / 2);
-    let slot = 0;
-    while (slot < slots.length - 1 && passed(slots[slot]!.getBoundingClientRect())) slot++;
     const fromIndex = source.scenes.findIndex((s) => s.id === sceneId);
-    const index = same && slot > fromIndex ? slot - 1 : slot;
-    // The bar: in the gap before the slot's card (beside it in rows, above it in columns).
+    const fromGroup = source.scenes[fromIndex]!.group;
+    const grid = section.querySelector<HTMLElement>('.bt-cork-grid')!;
+    // On another card's middle: they join.
+    const onto = [...grid.querySelectorAll<HTMLElement>('.bt-cork-card')].find((c) => c.dataset.id !== sceneId && middleOf(c.getBoundingClientRect(), x, y));
+    if (onto) {
+      const at = chapter.scenes.findIndex((s) => s.id === onto.dataset.id);
+      const already = !!fromGroup && chapter.scenes[at]!.group === fromGroup && same && fromIndex === at + 1;
+      return { chapterId, index: at, noop: already, bar: null, join: onto.dataset.id, into: onto };
+    }
+    const slots = [...grid.querySelectorAll<HTMLElement>('.bt-cork-card, .bt-cork-add')]; // the cards (a group's too), then the tile
+    const rows = this.h.layout() === 'rows';
+    let slot = 0;
+    while (slot < slots.length - 1 && passed(slots[slot]!.getBoundingClientRect(), x, y, rows)) slot++;
+    let index = same && slot > fromIndex ? slot - 1 : slot;
+    // Inside a group's container: in that group, within its span.
+    const box = [...grid.querySelectorAll<HTMLElement>('.bt-cork-group')].find((g) => contains(g.getBoundingClientRect(), x, y)) ?? null;
+    const group = box?.dataset.group ?? null;
+    if (group) {
+      const others = chapter.scenes.filter((s) => s.id !== sceneId);
+      const first = others.findIndex((s) => s.group === group);
+      const last = others.length - 1 - [...others].reverse().findIndex((s) => s.group === group);
+      if (first >= 0) index = Math.max(first, Math.min(index, last + 1));
+    }
     const r = slots[slot]!.getBoundingClientRect();
     const half = gapOf(grid, rows ? 'column' : 'row') / 2;
     const bar = rows ? new DOMRect(r.left - half, r.top, 0, r.height) : new DOMRect(r.left, r.top - half, r.width, 0);
-    return { chapterId, index, noop: same && index === fromIndex, bar };
+    return { chapterId, index, noop: same && index === fromIndex && group === fromGroup, bar, group, ...(box ? { into: box } : {}) };
+  }
+
+  /**
+   * A group lands between the cards and groups of the chapter nearest the
+   * pointer — never inside another group (it lands before or after it).
+   */
+  private groupDrop(groupId: string, x: number, y: number): Drop | null {
+    const outline = this.h.outline();
+    const source = outline?.chapters.find((c) => c.scenes.some((s) => s.group === groupId));
+    const section = this.nearestSection(x, y);
+    if (!source || !section) return null;
+    const chapterId = section.dataset.id!;
+    const members = source.scenes.filter((s) => s.group === groupId).length;
+    if (chapterId !== source.id && source.scenes.length === members) return null; // a chapter always keeps a scene
+    const grid = section.querySelector<HTMLElement>('.bt-cork-grid')!;
+    // The chapter as units: each card outside a group, each other group, then the tile.
+    const units = [...grid.children].filter((u): u is HTMLElement => u instanceof HTMLElement && u.dataset.group !== groupId);
+    const rows = this.h.layout() === 'rows';
+    let slot = 0;
+    while (slot < units.length - 1 && passed(units[slot]!.getBoundingClientRect(), x, y, rows)) slot++;
+    const index = units.slice(0, slot).reduce((n, u) => n + (u.classList.contains('bt-cork-group') ? u.querySelectorAll('.bt-cork-card').length : 1), 0);
+    const first = source.scenes.findIndex((s) => s.group === groupId);
+    const r = units[slot]!.getBoundingClientRect();
+    const half = gapOf(grid, rows ? 'column' : 'row') / 2;
+    const bar = rows ? new DOMRect(r.left - half, r.top, 0, r.height) : new DOMRect(r.left, r.top - half, r.width, 0);
+    return { chapterId, index, noop: chapterId === source.id && index === first, bar };
   }
 
   /** A chapter lands before or after another: across the chapters (down in rows, along in columns), past their middles. */
@@ -218,18 +279,25 @@ export class BoardDrag {
     return [...this.h.board.querySelectorAll<HTMLElement>('.bt-cork-chapter')];
   }
 
+  /** What lights up to take the card: a group's container, or the card it would join. */
+  private showInto(drop: Drop | null) {
+    for (const el of this.h.board.querySelectorAll<HTMLElement>('[data-drop-into]')) delete el.dataset.dropInto;
+    if (drop?.into && !drop.noop) drop.into.dataset.dropInto = drop.join ? 'join' : 'group';
+  }
+
   private showBar(drop: Drop | null) {
-    const shown = !!drop && !drop.noop;
+    const shown = !!drop?.bar && !drop.noop;
     const appearing = shown && this.bar.dataset.visible !== 'true';
     this.bar.dataset.visible = String(shown);
     if (!shown) return;
     const thick = cssNumber('--cork-drop-w');
-    const vertical = drop.bar.width === 0;
+    const b = drop.bar!;
+    const vertical = b.width === 0;
     // Appearing, it fades in where it is; from one gap to the next, it glides.
     if (appearing) this.bar.style.transitionProperty = 'opacity';
-    place(this.bar, this.h.root, drop.bar.left - (vertical ? thick / 2 : 0), drop.bar.top - (vertical ? 0 : thick / 2));
-    this.bar.style.width = `${vertical ? thick : drop.bar.width}px`;
-    this.bar.style.height = `${vertical ? drop.bar.height : thick}px`;
+    place(this.bar, this.h.root, b.left - (vertical ? thick / 2 : 0), b.top - (vertical ? 0 : thick / 2));
+    this.bar.style.width = `${vertical ? thick : b.width}px`;
+    this.bar.style.height = `${vertical ? b.height : thick}px`;
     if (appearing) { void this.bar.offsetWidth; this.bar.style.transitionProperty = ''; }
   }
 
@@ -242,13 +310,14 @@ export class BoardDrag {
     delete d.source.dataset.dragging;
     delete this.h.root.dataset.dragging;
     this.bar.remove();
+    this.showInto(null);
     this.swallowClick = true;
     setTimeout(() => { this.swallowClick = false; }, 0);
     const { ms, easing } = glideMotion();
     const drop = commit && d.drop && !d.drop.noop ? d.drop : null;
     if (!drop) {
       // Nothing moves: the lifted copy settles back where it came from.
-      const home = (d.kind === 'scene' ? d.source : head(d.source)).getBoundingClientRect();
+      const home = (d.kind === 'chapter' ? head(d.source) : d.source).getBoundingClientRect();
       const root = this.h.root.getBoundingClientRect();
       if (ms) d.ghost.animate([{}, { left: `${home.left - root.left}px`, top: `${home.top - root.top}px` }], { duration: ms, easing }).onfinish = () => d.ghost.remove();
       else d.ghost.remove();
@@ -256,9 +325,12 @@ export class BoardDrag {
     }
     // FLIP: remember where everything was, move, then let each glide to its new place.
     const before = measure(this.items());
-    before.set(d.kind === 'scene' ? d.id : `chapter:${d.id}`, d.ghost.getBoundingClientRect());
+    if (d.kind !== 'group') before.set(d.kind === 'scene' ? d.id : `chapter:${d.id}`, d.ghost.getBoundingClientRect()); // (a group's cards glide from where they were)
     d.ghost.remove();
-    const moved = d.kind === 'scene' ? this.h.moveScene(d.id, drop.chapterId, drop.index) : this.h.moveChapter(d.id, drop.index);
+    const moved = d.kind === 'chapter' ? this.h.moveChapter(d.id, drop.index)
+      : d.kind === 'group' ? this.h.moveGroup(d.id, drop.chapterId, drop.index)
+      : drop.join ? this.h.joinGroup(d.id, drop.join)
+      : this.h.placeScene(d.id, drop.chapterId, drop.index, drop.group ?? null);
     if (moved) this.glide(before, d.kind, d.id);
   }
 
@@ -282,7 +354,9 @@ export class BoardDrag {
       flash(landed && head(landed));
     } else {
       glideFrom(before, this.items());
-      flash(this.h.board.querySelector<HTMLElement>(`.bt-cork-card[data-id="${CSS.escape(movedId)}"]`));
+      flash(kind === 'group'
+        ? this.h.board.querySelector<HTMLElement>(`.bt-cork-group[data-group="${CSS.escape(movedId)}"]`)
+        : this.h.board.querySelector<HTMLElement>(`.bt-cork-card[data-id="${CSS.escape(movedId)}"]`));
     }
   }
 }
@@ -299,3 +373,14 @@ function place(el: HTMLElement, root: HTMLElement, x: number, y: number) {
 function gapOf(el: HTMLElement, axis: 'row' | 'column'): number {
   return parseFloat(getComputedStyle(el)[axis === 'row' ? 'rowGap' : 'columnGap']) || 0;
 }
+
+/** Along the reading direction, the pointer is past this card (or unit): past its middle (rows: across, on its line; columns: down). */
+function passed(r: DOMRect, x: number, y: number, rows: boolean): boolean {
+  return rows ? y >= r.bottom || (y >= r.top && x >= r.left + r.width / 2) : y >= r.top + r.height / 2;
+}
+
+const contains = (r: DOMRect, x: number, y: number) => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+
+/** The middle of a card, where a card dropped joins it: its central 40% each way (nearer its edges, a drop places beside it). */
+const JOIN_ZONE = 0.2;
+const middleOf = (r: DOMRect, x: number, y: number) => Math.abs(x - (r.left + r.width / 2)) < r.width * JOIN_ZONE && Math.abs(y - (r.top + r.height / 2)) < r.height * JOIN_ZONE;

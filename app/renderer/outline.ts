@@ -16,6 +16,8 @@ export interface SceneEntry {
   opening: string;
   /** The story beat it is marked as (DECISIONS §27), or null. */
   beat: string | null;
+  /** The group it's in (DECISIONS §28: its id), or null. */
+  group: string | null;
 }
 
 export interface ChapterEntry {
@@ -43,6 +45,8 @@ export interface Outline {
   /** Cold Storage, newest first. */
   parked: ParkedEntry[];
   parkedWords: number;
+  /** Scene groups' names, by group id (an unnamed group has none). */
+  groupNames: Readonly<Record<string, string>>;
 }
 
 /** How much of a scene's opening a card holds (it clamps to its lines). */
@@ -99,6 +103,7 @@ export function outlineOf(doc: PMNode): Outline {
         words: facts.words,
         opening: facts.opening,
         beat: child.attrs.beat,
+        group: child.attrs.link,
       });
     });
     chapters.push(entry);
@@ -121,7 +126,7 @@ export function outlineOf(doc: PMNode): Outline {
       from: origin ? { chapter: chapter?.number ?? null, index: origin.index } : null,
     });
   });
-  const outline = { signature: structureSignature(doc), chapters, words, parked, parkedWords };
+  const outline = { signature: structureSignature(doc), chapters, words, parked, parkedWords, groupNames: doc.attrs.groups ?? {} };
   outlines.set(doc, outline);
   return outline;
 }

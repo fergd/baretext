@@ -45,6 +45,7 @@ import { Notes } from './notes';
 import { ColdStorage } from './cold-storage';
 import { Navigation } from './navigation';
 import { BookViews } from './views';
+import { PassageCopy } from './copy';
 import { Sprinter } from './sprinter';
 import { Palette, type PaletteView } from './palette';
 import { commandsView, jumpView, type CommandContext } from './palette-commands';
@@ -196,6 +197,8 @@ const outlinePanel = new OutlinePanel($('workspace'), {
   noteCounts: () => notes.counts(),
   deleteScene: (id) => deleteFromOutline(id, 'scene'),
   deleteChapter: (id) => deleteFromOutline(id, 'chapter'),
+  copy: { scene: (id) => copy.scene(id), chapter: (id) => copy.chapter(id) },
+  popupMenu: (items) => bridge.popupMenu(items),
   onPresence: (presence: OutlinePresence) => {
     const open = presence === 'pinned';
     $('sidebar').setAttribute('aria-pressed', String(open));
@@ -316,6 +319,9 @@ const book = new BookActions({
 });
 
 // ── views of the book: the manuscript, the corkboard (⇧⌘C; DECISIONS §24) ──
+// Copying a scene, a chapter or a group as text (DECISIONS §28).
+const copy = new PassageCopy({ bridge, view: () => view, toast });
+
 const views = new BookViews({
   app,
   workspace: $('workspace'),
@@ -326,7 +332,7 @@ const views = new BookViews({
   noteCounts: () => notes.counts(),
   deleteScene: (id) => deleteFromOutline(id, 'scene'),
   bookSettings: () => book.openSetup(),
-  toast,
+  copy,
   beforeBoard: () => {
     if (sprinter.active) return false; // (Sprinter has no other views)
     palette.close();
@@ -643,6 +649,8 @@ function runCommand(command: MenuCommand) {
     case 'history': palette.close(); find.close(); void history.open(false); break;
     case 'export': palette.close(); find.close(); book.openExport(); break;
     case 'print': palette.close(); void book.print(); break;
+    case 'copy-scene': { const here = navigation.here(view.state); if (here) copy.scene(here.scene.id); break; }
+    case 'copy-chapter': { const here = navigation.here(view.state); if (here) copy.chapter(here.chapter.id); break; }
     case 'book-settings': palette.close(); find.close(); book.openSetup(); break;
     case 'corkboard': palette.close(); setView(corkboard.isOpen ? 'manuscript' : 'corkboard'); break;
     case 'sprint': palette.close(); find.close(); sprinter.openSetup(); break;

@@ -3,7 +3,7 @@
 // marked structural so the structure guard lets it through, and never
 // changes any text but its own.
 
-import type { Node as PMNode } from 'prosemirror-model';
+import type { Fragment, Node as PMNode } from 'prosemirror-model';
 import { Selection, TextSelection, type Command, type EditorState, type Transaction } from 'prosemirror-state';
 import { closeHistory } from 'prosemirror-history';
 import { newChapter, newScene } from '@baretext/format';
@@ -122,8 +122,16 @@ export const addChapter = (afterId?: string): Command => (state, dispatch) => {
  * own text. One undo step.
  */
 export function relocate(state: EditorState, from: number, node: PMNode, target: (doc: PMNode) => number, insert: PMNode = node): Transaction {
+  return relocateSpan(state, from, from + node.nodeSize, target, insert);
+}
+
+/**
+ * Move the span `from`–`to` (whole nodes: a scene, or a run of them) to
+ * where `target` says in the document without it, as one structural step;
+ * a caret inside it travels with it (one straddling its edge collapses).
+ */
+export function relocateSpan(state: EditorState, from: number, to: number, target: (doc: PMNode) => number, insert: PMNode | Fragment = state.doc.slice(from, to).content): Transaction {
   const sel = state.selection;
-  const to = from + node.nodeSize;
   const inside = sel.from > from && sel.to < to;
   const tr = state.tr.delete(from, to);
   const at = target(tr.doc);
@@ -152,6 +160,14 @@ export function sceneSlot(doc: PMNode, chapterAt: number, index: number): number
  * scenes never move this way.
  */
 export const moveScene = (sceneId: string, toChapterId: string, index: number): Command => (state, dispatch) => {
+  const tr = moveSceneTr(state, sceneId, toChapterId, index);
+  if (!tr) return false;
+  if (dispatch) dispatch(tr);
+  return true;
+};
+
+/** The move of `moveScene`, as a transaction to build on (null: refused, or already there). */
+export function moveSceneTr(state: EditorState, sceneId: string, toChapterId: string, index: number): Transaction | null {
   let from = -1;
   let fromChapter = '';
   let fromIndex = -1;
@@ -167,18 +183,14 @@ export const moveScene = (sceneId: string, toChapterId: string, index: number): 
       }
     });
   });
-  if (from < 0 || chapterPos(state.doc, toChapterId) < 0) return false;
-  if (siblings === 1) return false; // a chapter always keeps a scene
+  if (from < 0 || chapterPos(state.doc, toChapterId) < 0) return null;
+  if (siblings === 1 && toChapterId !== fromChapter) return null; // a chapter always keeps a scene
   const target = state.doc.nodeAt(chapterPos(state.doc, toChapterId))!;
   const room = toChapterId === fromChapter ? siblings - 1 : target.childCount - 1;
   const at = Math.max(0, Math.min(index, room));
-  if (toChapterId === fromChapter && at === fromIndex) return false;
-  if (dispatch) {
-    const node = state.doc.nodeAt(from)!;
-    dispatch(relocate(state, from, node, (doc) => sceneSlot(doc, chapterPos(doc, toChapterId), at)));
-  }
-  return true;
-};
+  if (toChapterId === fromChapter && at === fromIndex) return null;
+  return relocate(state, from, state.doc.nodeAt(from)!, (doc) => sceneSlot(doc, chapterPos(doc, toChapterId), at));
+}
 
 /** Move a chapter (with all its scenes) to `index` among the chapters (as they are once it has left). */
 export const moveChapter = (chapterId: string, index: number): Command => (state, dispatch) => {

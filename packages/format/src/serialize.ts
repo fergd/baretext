@@ -47,6 +47,8 @@ export interface Bookkeeping {
   origins?: Record<string, [string, number]>;
   /** Story beats: scene id → beat id. Omitted when there are none. */
   beats?: Record<string, string>;
+  /** Scene groups' names: group id → name. Omitted when there are none. */
+  groups?: Record<string, string>;
 }
 
 // Characters that are markup anywhere in a line.
@@ -221,6 +223,7 @@ export function serialize(input: Manuscript): string {
   if (Object.keys(origins).length) book.origins = origins as Record<string, [string, number]>;
   const beats = Object.fromEntries(allScenes.filter((s) => s.beat !== undefined).map((s) => [s.id, s.beat!]));
   if (Object.keys(beats).length) book.beats = beats;
+  if (m.groups) book.groups = { ...m.groups };
   out.push(`<!-- baretext ${JSON.stringify(book)} -->`, '');
   return out.join('\n');
 }

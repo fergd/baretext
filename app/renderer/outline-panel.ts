@@ -11,6 +11,7 @@ import { BOOK_TITLE } from '@baretext/editor';
 import { Arming } from './arming';
 import { sceneDisplayName, type Outline } from './outline';
 import { OutlineDrag } from './outline-drag';
+import type { MenuItem } from '../shared/bridge';
 import { InlineEdit } from './inline-edit';
 import { CHEVRON, PLUS, RESTORE, SNOWFLAKE, TRASH } from './icons';
 import { slideColumn, type Motion } from './sidebar-motion';
@@ -78,6 +79,9 @@ export class OutlinePanel {
       noteCounts: () => Map<string, number>;
       /** Presence changed (the shell lays itself out around it). */
       onPresence: (presence: OutlinePresence) => void;
+      /** A row's menu (right-click): copy its scene's or chapter's text. */
+      copy: { scene(id: string): void; chapter(id: string): void };
+      popupMenu: (items: MenuItem[]) => Promise<string | null>;
     },
   ) {
     this.el = document.createElement('aside');
@@ -121,6 +125,16 @@ export class OutlinePanel {
     this.tree.addEventListener('mousedown', (e) => {
       if ((e.target as HTMLElement).closest('input')) return; // the rename field takes focus
       if (!this.el.contains(document.activeElement)) e.preventDefault();
+    });
+    // Right-click a scene or chapter row: copy its text (DECISIONS §28).
+    this.tree.addEventListener('contextmenu', (e) => {
+      const row = (e.target as HTMLElement).closest<HTMLElement>('.bt-outline-row');
+      const kind = row?.dataset.kind;
+      if (!row || (kind !== 'scene' && kind !== 'chapter')) return;
+      e.preventDefault();
+      void this.actions.popupMenu([{ id: 'copy', label: kind === 'scene' ? 'Copy scene' : 'Copy chapter' }]).then((choice) => {
+        if (choice === 'copy') this.actions.copy[kind](row.dataset.id!);
+      });
     });
     this.tree.addEventListener('dblclick', (e) => {
       const row = (e.target as HTMLElement).closest<HTMLElement>('.bt-outline-row');

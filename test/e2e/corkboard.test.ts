@@ -579,3 +579,104 @@ test('the Arc without a structure offers to choose one; in Rows it runs down the
     await app.close();
   }
 });
+
+// ── copying text (DECISIONS §28) ──
+
+const SHORT = serialize({
+  title: 'T', coldStorage: [],
+  chapters: [
+    { id: 'c1x', title: 'Arrival', scenes: [
+      { id: 's1x', name: null, link: null, blocks: [p('The boat left.')] },
+      { id: 's2x', name: null, link: null, blocks: [p('By October.')] },
+      { id: 's3x', name: 'The log', link: null, blocks: [p('Wind, sea.')] },
+    ] },
+    { id: 'c2x', title: '', scenes: [{ id: 's4x', name: null, link: null, blocks: [p('Later.')] }] },
+  ],
+});
+const CHAPTER_ONE = 'Chapter 1: Arrival\n\nThe boat left.\n\n* * *\n\nBy October.\n\nThe log\n\nWind, sea.';
+
+test('Copy chapter: right-click its header on the board — its title, then its scenes, as text', async () => {
+  const { app, page } = await launch({ file: { name: 'S.md', content: SHORT }, env: { BARETEXT_MENU_PICK: 'copy-chapter' } });
+  try {
+    await page.keyboard.press('Meta+Shift+C');
+    await page.click('.bt-cork-chapter[data-id="c1x"] .bt-cork-chapter-title', { button: 'right' });
+    await expect(page.locator('.bt-toast')).toHaveText('Copied chapter 1 “Arrival”.');
+    expect(await app.evaluate(({ clipboard }) => clipboard.readText())).toBe(CHAPTER_ONE);
+    expect(await app.evaluate(async ({ clipboard }) => (await clipboard.read()).flatMap((item) => item.types))).toContain('text/html'); // (and rich text, for word processors)
+  } finally {
+    await app.close();
+  }
+});
+
+test('Copy scene / Copy chapter from the Edit menu: where the writer is; and from the outline (right-click)', async () => {
+  const { app, page } = await launch({ file: { name: 'S.md', content: SHORT }, env: { BARETEXT_MENU_PICK: 'copy' } });
+  try {
+    await page.evaluate(() => (window as any).__baretext.navigate('s4x'));
+    const menu = (label: string) => app.evaluate(({ Menu }, l) => Menu.getApplicationMenu()!.items.find((i) => i.label === 'Edit')!.submenu!.items.find((i) => i.label === l)!.click(), label);
+    await menu('Copy Chapter');
+    await expect.poll(() => app.evaluate(({ clipboard }) => clipboard.readText())).toBe('Chapter 2\n\nLater.');
+    await menu('Copy Scene');
+    await expect.poll(() => app.evaluate(({ clipboard }) => clipboard.readText())).toBe('Scene 2.1\n\nLater.');
+
+    await page.keyboard.press('Meta+\\'); // the outline
+    await page.click('.bt-outline-row[data-id="c1x"]', { button: 'right' });
+    await expect.poll(() => app.evaluate(({ clipboard }) => clipboard.readText())).toBe(CHAPTER_ONE);
+  } finally {
+    await app.close();
+  }
+});
+
+// ── scene groups (DECISIONS §28) ──
+
+const groups = (page: Page) => page.$$eval('.bt-cork-chapter', (ss) => ss.map((s) => [...s.querySelectorAll<HTMLElement>('.bt-cork-grid > *')].map((u) => (u.classList.contains('bt-cork-group')
+  ? `[${[...u.querySelectorAll<HTMLElement>('.bt-cork-card')].map((c) => c.dataset.id).join(' ')}]`
+  : u.dataset.id ?? '+')).join(' ')).join(' | '));
+
+test('groups by dragging: a card on a card forms one; into its frame joins; out leaves; the group drags as one — each undoable', async () => {
+  const { app, page } = await launch({ file: { name: 'L.md', content: BOOK } });
+  try {
+    await page.keyboard.press('Meta+Shift+C');
+    expect(await groups(page)).toBe('s1x s2x s3x + | s4x s5x +');
+    await drag(page, '.bt-cork-card[data-id="s3x"]', centre, '.bt-cork-card[data-id="s1x"]');
+    expect(await groups(page)).toBe('[s1x s3x] s2x + | s4x s5x +');
+    await drag(page, '.bt-cork-card[data-id="s4x"]', (b) => ({ x: b.x + b.width - 8, y: b.y + b.height - 4 }), '.bt-cork-group');
+    expect(await groups(page)).toBe('[s1x s3x s4x] s2x + | s5x +');
+    await drag(page, '.bt-cork-card[data-id="s1x"]', leftOf, '.bt-cork-card[data-id="s5x"]');
+    expect(await groups(page)).toBe('[s3x s4x] s2x + | s1x s5x +');
+    await drag(page, '.bt-cork-group .bt-cork-group-name', leftOf, '.bt-cork-card[data-id="s5x"]');
+    expect(await groups(page)).toBe('s2x + | s1x [s3x s4x] s5x +');
+    await page.keyboard.press('Meta+Z');
+    await expect.poll(() => groups(page)).toBe('[s3x s4x] s2x + | s1x s5x +');
+  } finally {
+    await app.close();
+  }
+});
+
+test('a group is named in place, copied and ungrouped from its menu; from the keyboard a card groups with the next', async () => {
+  const marked = BOOK; // (no groups yet)
+  const first = await launch({ file: { name: 'L.md', content: marked }, env: { BARETEXT_MENU_PICK: 'group-next' } });
+  try {
+    const { page } = first;
+    await page.keyboard.press('Meta+Shift+C');
+    await page.locator('.bt-cork-card[data-id="s1x"]').focus();
+    await page.keyboard.press('ContextMenu');
+    await expect.poll(() => groups(page)).toBe('[s1x s2x] s3x + | s4x s5x +');
+    await page.click('.bt-cork-group .bt-cork-group-name');
+    await page.keyboard.type('Arrival, twice');
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.bt-cork-group .bt-cork-group-name')).toHaveText('Arrival, twice');
+    expect(await page.evaluate(() => (window as any).__baretext.model().groups)).toEqual({ [await page.$eval('.bt-cork-group', (g) => (g as HTMLElement).dataset.group!)]: 'Arrival, twice' });
+  } finally {
+    await first.app.close();
+  }
+  const again = await launch({ reuse: { userData: first.userData, saveDir: first.saveDir }, env: { BARETEXT_MENU_PICK: 'copy' } });
+  try {
+    const { app, page } = again;
+    await page.keyboard.press('Meta+Shift+C');
+    await expect(page.locator('.bt-cork-group .bt-cork-group-name')).toHaveText('Arrival, twice'); // (saved, and read back)
+    await page.click('.bt-cork-group [data-action="group-menu"]');
+    await expect.poll(() => app.evaluate(({ clipboard }) => clipboard.readText())).toMatch(/^Arrival, twice\n\nThe boat left her on the jetty\./);
+  } finally {
+    await again.app.close();
+  }
+});

@@ -35,12 +35,23 @@ export interface CorkboardHost {
   addScene(chapterId: string): string | null;
   /** Delete a scene (already confirmed: two steps). */
   deleteScene(sceneId: string): void;
-  /** Copy a scene, with its title, as rich and plain text. */
+  /** Copy a scene's text (with its title), or a chapter's. */
   copyScene(sceneId: string): void;
-  /** Move a scene to `index` among a chapter's scenes (as they are once it has left); false if nothing moved. */
-  moveScene(sceneId: string, chapterId: string, index: number): boolean;
-  /** Move a chapter to `index` among the chapters; false if nothing moved. */
+  copyChapter(chapterId: string): void;
+  // Moves and groups (DECISIONS §24, §28); each false if nothing changed.
+  /** A scene to `index` among a chapter's scenes (as they are once it has left), in group `group` there (null: in none). */
+  placeScene(sceneId: string, chapterId: string, index: number, group: string | null): boolean;
+  /** A scene placed right after another, the two in one group (the other's, or a new one). */
+  joinGroup(sceneId: string, targetId: string): boolean;
+  /** A group's scenes, as one, to `index` among a chapter's scenes (as they are once it has left). */
+  moveGroup(groupId: string, chapterId: string, index: number): boolean;
+  /** A chapter to `index` among the chapters. */
   moveChapter(chapterId: string, index: number): boolean;
+  renameGroup(groupId: string, name: string): boolean;
+  /** Its scenes stay where they are, in no group. */
+  ungroup(groupId: string): boolean;
+  /** Copy a group's scenes' text. */
+  copyGroup(sceneIds: string[], name: string | null): void;
   /** A native context menu; the chosen item's id. */
   popupMenu(items: MenuItem[]): Promise<string | null>;
   /** The book's story structure (its id), if it has one. */
@@ -63,6 +74,10 @@ const ACTIONS: { action: Exclude<CardAction, 'new-scene'>; label: string; menuKe
 
 // The view's controls, Finder-style: the layouts as icons (named in their tooltips), the arc with its word.
 const ICON = (body: string) => `<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+/** The card menu's group items (DECISIONS §28). */
+const GROUP_NEXT = 'group-next';
+const LEAVE_GROUP = 'leave-group';
+
 const LAYOUTS: [CorkboardLayout, string, string][] = [
   ['rows', 'Rows', ICON('<rect x="2" y="3" width="5" height="4" rx="1"/><rect x="9" y="3" width="5" height="4" rx="1"/><rect x="2" y="9" width="5" height="4" rx="1"/><rect x="9" y="9" width="5" height="4" rx="1"/>')],
   ['columns', 'Columns', ICON('<rect x="2" y="2.5" width="3" height="11" rx="1"/><rect x="6.5" y="2.5" width="3" height="7" rx="1"/><rect x="11" y="2.5" width="3" height="9" rx="1"/>')],
@@ -127,6 +142,7 @@ export class Corkboard {
     this.showArc(arc);
     // The arc fits its strip (drawn again when the window resizes); its band follows the scrolling.
     new ResizeObserver(() => this.drawArcSoon()).observe(this.arc.el);
+    new ResizeObserver(() => this.fitGroups()).observe(this.board); // (the cards rewrap: groups span anew)
     this.board.addEventListener('scroll', () => this.drawArcSoon(), { passive: true });
     this.drag = new BoardDrag({
       root: this.el,
@@ -134,7 +150,9 @@ export class Corkboard {
       layout: () => this.layout,
       outline: () => this.outline,
       canDrag: () => !this.editing,
-      moveScene: (id, chapterId, index) => this.moved(this.h.moveScene(id, chapterId, index), id),
+      placeScene: (id, chapterId, index, group) => this.moved(this.h.placeScene(id, chapterId, index, group), id),
+      joinGroup: (id, targetId) => this.moved(this.h.joinGroup(id, targetId), id),
+      moveGroup: (id, chapterId, index) => this.moved(this.h.moveGroup(id, chapterId, index), this.focusId),
       moveChapter: (id, index) => this.moved(this.h.moveChapter(id, index), this.focusId),
     });
 
@@ -143,6 +161,9 @@ export class Corkboard {
       const target = e.target as HTMLElement;
       const add = target.closest<HTMLElement>('[data-add-scene]');
       if (add) { this.newScene(add.dataset.addScene!); return; }
+      const group = target.closest<HTMLElement>('.bt-cork-group');
+      if (group && target.closest('[data-action="rename-group"]') && e.detail === 1) { this.renameGroup(group.dataset.group!); return; }
+      if (group && target.closest('[data-action="group-menu"]')) { void this.groupMenu(group.dataset.group!); return; }
       const card = target.closest<HTMLElement>('.bt-cork-card');
       if (!card || target.closest('input')) return;
       if (target.closest('[data-action="open"]')) this.h.open(card.dataset.id!);
@@ -151,6 +172,8 @@ export class Corkboard {
       else this.focusCard(card.dataset.id!); // a click only gives the card the keyboard
     });
     this.el.addEventListener('contextmenu', (e) => {
+      const head = (e.target as HTMLElement).closest<HTMLElement>('.bt-cork-chapter-head');
+      if (head) { e.preventDefault(); void this.chapterMenu(head.closest<HTMLElement>('.bt-cork-chapter')!.dataset.id!); return; }
       const card = (e.target as HTMLElement).closest<HTMLElement>('.bt-cork-card');
       if (!card || (e.target as HTMLElement).closest('input')) return;
       e.preventDefault();
@@ -225,9 +248,26 @@ export class Corkboard {
   private chooseLayout(layout: CorkboardLayout) {
     if (layout === this.layout) return;
     this.setLayout(layout);
+    this.fitGroups();
     this.h.onLayout(layout);
     this.drawArc();
     this.card(this.focusId)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+
+  /**
+   * Rows: each group spans as many of its chapter's columns as it has cards
+   * (inline with the others), or whole rows when it has more than a row
+   * holds. Columns: a stretch of the column (no span).
+   */
+  private fitGroups() {
+    const rows = this.layout === 'rows';
+    for (const grid of this.board.querySelectorAll<HTMLElement>('.bt-cork-grid')) {
+      const columns = rows ? getComputedStyle(grid).gridTemplateColumns.split(' ').length : 1;
+      for (const box of grid.querySelectorAll<HTMLElement>(':scope > .bt-cork-group')) {
+        const cards = box.querySelectorAll('.bt-cork-card').length;
+        box.style.gridColumn = !rows ? '' : cards < columns ? `span ${cards}` : '1 / -1';
+      }
+    }
   }
 
   // ── the story arc (DECISIONS §27) ──
@@ -309,8 +349,9 @@ export class Corkboard {
     const [scrollTop, scrollLeft] = [this.board.scrollTop, this.board.scrollLeft];
     const notes = this.h.noteCounts();
     const structure = this.h.structure();
-    const sections = outline.chapters.map((chapter) => chapterSection(chapter, notes, structure));
+    const sections = outline.chapters.map((chapter) => chapterSection(chapter, notes, structure, outline.groupNames));
     this.board.replaceChildren(...sections);
+    this.fitGroups();
     this.drawArc();
     [this.board.scrollTop, this.board.scrollLeft] = [scrollTop, scrollLeft]; // a refresh never moves the board
     this.showArming();
@@ -419,8 +460,76 @@ export class Corkboard {
       ...(action === 'delete' ? [{ separator: true as const }] : []),
       action === 'mark' ? { id: action, label, submenu: this.beats(id) }
         : { id: action, label: action === 'delete' && armed ? 'Delete — confirm' : label, keys: menuKeys },
+      // Its group (DECISIONS §28), from the keyboard too: join the next scene, or leave.
+      ...(action === 'copy' ? this.groupItems(id) : []),
     ]);
     this.chosen(id, await this.h.popupMenu(items));
+  }
+
+  // ── scene groups (DECISIONS §28) ──
+
+  /** A card's group items: group it with the next scene (in its chapter), or leave its group. */
+  private groupItems(id: string): MenuItem[] {
+    const chapter = this.chapterOf(id);
+    const i = chapter?.scenes.findIndex((s) => s.id === id) ?? -1;
+    const [scene, next] = [chapter?.scenes[i], chapter?.scenes[i + 1]];
+    return [
+      ...(next && (!scene?.group || next.group !== scene.group) ? [{ id: GROUP_NEXT, label: 'Group with next scene' }] : []),
+      ...(scene?.group ? [{ id: LEAVE_GROUP, label: 'Leave group' }] : []),
+    ];
+  }
+
+  private regroup(id: string, choice: typeof GROUP_NEXT | typeof LEAVE_GROUP) {
+    const chapter = this.chapterOf(id)!;
+    const i = chapter.scenes.findIndex((s) => s.id === id);
+    if (choice === GROUP_NEXT) { this.moved(this.h.joinGroup(chapter.scenes[i + 1]!.id, id), id); return; }
+    // Leaving: it steps out just after the group (a scene within a group's run is in it).
+    const others = chapter.scenes.filter((s) => s.id !== id);
+    const group = chapter.scenes[i]!.group;
+    const after = others.map((s) => s.group).lastIndexOf(group) + 1;
+    this.moved(this.h.placeScene(id, chapter.id, after, null), id);
+  }
+
+  /** The group's own menu (its ⋯): copy its text, rename it, ungroup. */
+  private async groupMenu(groupId: string) {
+    const choice = await this.h.popupMenu([
+      { id: 'copy', label: 'Copy' },
+      { id: 'rename', label: 'Rename' },
+      { separator: true },
+      { id: 'ungroup', label: 'Ungroup' },
+    ]);
+    if (!choice || !this.isOpen) return;
+    const scenes = this.outline!.chapters.flatMap((c) => c.scenes).filter((s) => s.group === groupId);
+    if (choice === 'copy') this.h.copyGroup(scenes.map((s) => s.id), this.outline!.groupNames[groupId] ?? null);
+    else if (choice === 'rename') this.renameGroup(groupId);
+    else if (choice === 'ungroup') this.moved(this.h.ungroup(groupId), this.focusId);
+  }
+
+  /** Name a group in place (its label becomes a field). */
+  private renameGroup(groupId: string) {
+    const label = this.board.querySelector<HTMLElement>(`.bt-cork-group[data-group="${CSS.escape(groupId)}"] .bt-cork-group-name`);
+    if (!label || this.editing) return;
+    const edit = new InlineEdit({
+      value: this.outline!.groupNames[groupId] ?? '',
+      placeholder: 'Group',
+      label: 'Name of the group',
+      className: 'bt-cork-group-rename bt-field',
+      onDone: (save, value) => {
+        this.editing = null;
+        if (save) this.h.renameGroup(groupId, value);
+        this.rendered = null; // (its label comes back)
+        this.refresh();
+      },
+    });
+    this.editing = { id: groupId, edit, byClick: false };
+    label.replaceWith(edit.input);
+    edit.focus();
+  }
+
+  /** A chapter's menu (right-click its header). */
+  private async chapterMenu(chapterId: string) {
+    const choice = await this.h.popupMenu([{ id: 'copy-chapter', label: 'Copy chapter' }]);
+    if (choice === 'copy-chapter' && this.isOpen) this.h.copyChapter(chapterId);
   }
 
   private beats(id: string): MenuItem[] {
@@ -431,7 +540,8 @@ export class Corkboard {
   private chosen(id: string, choice: string | null) {
     if (!choice || !this.isOpen) return;
     const beat = chosenBeat(choice);
-    if (choice === CHOOSE_STRUCTURE) this.h.bookSettings();
+    if (choice === GROUP_NEXT || choice === LEAVE_GROUP) this.regroup(id, choice);
+    else if (choice === CHOOSE_STRUCTURE) this.h.bookSettings();
     else if (beat !== undefined) this.h.setBeat(id, beat);
     else this.act(choice as CardAction, id);
   }

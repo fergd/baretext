@@ -274,3 +274,35 @@ describe('story beats (DECISIONS §27)', () => {
     expect(back.coldStorage[0]!.beat).toBe('climax');
   });
 });
+
+describe('scene groups (DECISIONS §28)', () => {
+  const grouped = (): Manuscript => {
+    const m = emptyManuscript('B');
+    const scene = (id: string, link: string | null) => ({ id, name: null, link, blocks: [{ type: 'paragraph' as const, content: [{ text: id }] }] });
+    m.chapters[0]!.scenes = [scene('a', 'g1'), scene('b', 'g1'), scene('c', null)];
+    m.groups = { g1: 'Letters' };
+    return m;
+  };
+
+  it('a group’s name is kept in the bookkeeping, by its id', () => {
+    const m = grouped();
+    const text = serialize(m);
+    expect(text).toMatch(/"groups":\{"g1":"Letters"\}/);
+    expect(parse(text).manuscript.groups).toEqual({ g1: 'Letters' });
+    expect(verifyRoundTrip(m)).toBe(text);
+  });
+
+  it('a name whose group has no scenes left is dropped; a book without names writes none', () => {
+    const m = grouped();
+    m.groups = { g1: 'Letters', gone: 'Old' };
+    expect(canonicalize(m).groups).toEqual({ g1: 'Letters' });
+    expect(serialize(emptyManuscript('B'))).not.toMatch(/groups/);
+  });
+
+  it('a name is one line; a hand-edited one that isn’t a name is dropped', () => {
+    const m = grouped();
+    m.groups = { g1: 'a\nb' };
+    expect(validate(m).join()).toMatch(/group/);
+    expect(parse(serialize(grouped()).replace('"Letters"', '7')).manuscript.groups).toBeUndefined();
+  });
+});

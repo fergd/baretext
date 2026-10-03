@@ -48,7 +48,7 @@ export function chapterToNode(c: Chapter): PMNode {
 
 export function modelToDoc(m: Manuscript): PMNode {
   const { author = null, structure = null, target = null } = bookSetup(m);
-  const doc = schema.nodes.doc!.create({ author, structure, target }, [
+  const doc = schema.nodes.doc!.create({ author, structure, target, groups: m.groups ?? null }, [
     schema.nodes.book_title!.create(null, plain(m.title)),
     ...m.chapters.map(chapterToNode),
     schema.nodes.cold_storage!.create(null, m.coldStorage.map(sceneToNode)),
@@ -118,5 +118,5 @@ export function docToModel(doc: PMNode): Manuscript {
     }
   });
   const { author, structure, target } = doc.attrs;
-  return { title, ...bookSetup({ author: author ?? undefined, structure: structure ?? undefined, target: target ?? undefined }), chapters, coldStorage };
+  return { title, ...bookSetup({ author: author ?? undefined, structure: structure ?? undefined, target: target ?? undefined }), ...(doc.attrs.groups ? { groups: { ...doc.attrs.groups } } : {}), chapters, coldStorage };
 }

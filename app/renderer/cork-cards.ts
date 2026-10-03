@@ -28,8 +28,8 @@ function cardButton(className: string, action: string, text: string, props: Part
   return b;
 }
 
-/** A chapter: its header (number, title, totals), then its cards and the tile that adds one. */
-export function chapterSection(chapter: ChapterEntry, notes: Map<string, number>, structure: string | null): HTMLElement {
+/** A chapter: its header (number, title, totals), then its cards (a group's inside its container) and the tile that adds one. */
+export function chapterSection(chapter: ChapterEntry, notes: Map<string, number>, structure: string | null, groupNames: Readonly<Record<string, string>> = {}): HTMLElement {
   const section = el('section', 'bt-cork-chapter');
   section.dataset.id = chapter.id;
   section.setAttribute('aria-label', `Chapter ${chapter.number}`);
@@ -37,7 +37,16 @@ export function chapterSection(chapter: ChapterEntry, notes: Map<string, number>
     el('span', 'bt-cork-chapter-number', { textContent: String(chapter.number) }),
     el('h2', 'bt-cork-chapter-title', { textContent: chapter.title || 'Untitled' }),
     el('span', 'bt-cork-chapter-meta', { textContent: `${count(chapter.scenes.length, 'scene')} · ${words(chapter.scenes.reduce((n, s) => n + s.words, 0))}` }));
-  const grid = el('div', 'bt-cork-grid', {}, ...chapter.scenes.map((s) => sceneCard(s, notes.get(s.id) ?? 0, structure)), addTile(chapter));
+  const items: HTMLElement[] = [];
+  for (let i = 0; i < chapter.scenes.length;) {
+    const group = chapter.scenes[i]!.group;
+    let end = i + 1;
+    while (group && chapter.scenes[end]?.group === group) end++;
+    const cards = chapter.scenes.slice(i, end).map((s) => sceneCard(s, notes.get(s.id) ?? 0, structure));
+    items.push(...(group ? [groupBox(group, groupNames[group] ?? null, cards)] : cards));
+    i = end;
+  }
+  const grid = el('div', 'bt-cork-grid', {}, ...items, addTile(chapter));
   grid.setAttribute('role', 'list');
   section.append(head, grid);
   return section;
@@ -69,6 +78,26 @@ export function sceneCard(scene: SceneEntry, noteCount: number, structure: strin
   card.dataset.draft = String(draft);
   card.setAttribute('aria-label', [`${scene.label} ${sceneDisplayName(scene)}`, draft ? 'draft' : words(scene.words), ...(beat ? [beat] : [])].join(', '));
   return card;
+}
+
+/**
+ * A group (DECISIONS §28): a container around its cards — which stay level
+ * with the cards beside it — its name below them (a click renames it;
+ * "Group" while it has none) and its menu (⋯).
+ */
+export function groupBox(id: string, name: string | null, cards: HTMLElement[]): HTMLElement {
+  const label = el('button', 'bt-cork-group-name', { type: 'button', textContent: name ?? 'Group', title: 'Rename' });
+  label.dataset.action = 'rename-group';
+  label.dataset.unnamed = String(!name);
+  const more = el('button', 'bt-cork-group-more', { type: 'button', textContent: '⋯', title: 'Copy, ungroup' });
+  more.dataset.action = 'group-menu';
+  more.setAttribute('aria-label', `Actions for the group${name ? ` “${name}”` : ''}`);
+  // (Its cards are its own children: on the chapter's grid, they line up with every other card.)
+  const box = el('div', 'bt-cork-group', {}, ...cards, el('div', 'bt-cork-group-foot', {}, label, more));
+  box.dataset.group = id;
+  box.setAttribute('role', 'group');
+  box.setAttribute('aria-label', name ? `Group “${name}”, ${cards.length} scenes` : `Group of ${cards.length} scenes`);
+  return box;
 }
 
 /** The last place in a chapter: a tile that adds a scene. */

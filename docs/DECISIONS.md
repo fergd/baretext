@@ -1004,6 +1004,42 @@ book is past what a URL can carry).
   screen showed a nearly flat stretch, never the shape — so the arc became
   an overview of the whole book, tied to the board by the band.
 
+## 28. Copy, scene groups, Export outline (2026-10-03, user)
+- **Copy scene and Copy chapter are musts** (user): the text, to paste into
+  an email body (a submission's opening chapters), a message or a document —
+  rich text with a plain fallback, never bookkeeping. Chapter: its title,
+  then its scenes (a named scene's name as a subheading; unnamed scenes
+  divided by a centred `* * *`).
+- **Scene groups** replace the first version's "linked scenes" (user didn't
+  like their look): scenes that belong together sit **together** — a group
+  is a run of consecutive scenes within one chapter, drawn on the board as a
+  **container** around its cards. The container is draggable (its scenes
+  move as one); a card dragged into it joins the group (placed beside the
+  others, in the manuscript too), dragged out leaves it. Unnamed by default;
+  its label is clicked to name it ("Letters"). The group's menu has Copy
+  (its scenes' text). A group never crosses a chapter boundary. Stored as
+  the scenes' shared link id (the model's existing `link`); names in the
+  bookkeeping.
+- **As built:** the container spans as many of its chapter's columns as it
+  has cards (CSS subgrid), its cards level with and as wide as the cards
+  beside it, its frame midway in the gaps; its name and ⋯ along its bottom
+  (Rows) or top (Columns). Dropping a card on another card's **middle**
+  (central 40%) joins them — the card lights up, the lifted copy steps back;
+  inside a container, it joins the group at that place (the container lights
+  up); anywhere else it is in no group. A group drags by its frame or name
+  and lands between cards and groups, never inside another. The ⋯ menu:
+  Copy, Rename, Ungroup; a card's menu adds "Group with next scene" and
+  "Leave group" (the keyboard's way). **One rule, kept in one place**: after
+  any change (board, outline, split, Cold Storage, undo) a guard puts it
+  right in the same step — a scene between two members joins them; a group
+  split apart keeps its largest run; a group of one is none; Cold Storage
+  holds none. Files from the first version (links far apart) are put right
+  as they open, their text untouched.
+- **No outline view** (spec §8.3 dropped, user). Instead **Export outline**:
+  the book's chapters, scenes, beats and word counts, as Word, PDF or
+  Markdown — from the Export panel.
+- Integrations (§7) stay on hold (user: "I want to get it right").
+
 ## 22. Code conventions (2026-10-02, audit)
 - Gates: `npm run typecheck`, `npm run lint` (oxlint, type-aware: floating
   and misused promises, needless assertions), `npx vitest run`, E2E.

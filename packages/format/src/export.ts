@@ -306,22 +306,43 @@ const blankRuns = (runs: readonly Run[]) => runs.every((r) => r.text.trim() === 
  * rich text (formatting, breaks and quotes kept) and a plain-text fallback.
  */
 export function sceneClipboard(title: string, blocks: readonly Block[]): { html: string; text: string } {
-  const htmlParts = [`<h3>${html(title)}</h3>`];
-  const textParts = [title];
+  const out = { html: [`<h3>${html(title)}</h3>`], text: [title] };
+  clipBlocks(blocks, out);
+  return { html: out.html.join(''), text: out.text.join('\n\n') };
+}
+
+/**
+ * A chapter, or a group of scenes, for the clipboard (DECISIONS §28): its
+ * heading (none for an unnamed group), then each scene — a named one under
+ * its name, unnamed ones divided by a scene break — as rich and plain text.
+ */
+export function passageClipboard(heading: string | null, scenes: readonly { name: string | null; blocks: readonly Block[] }[]): { html: string; text: string } {
+  const out = { html: heading ? [`<h2>${html(heading)}</h2>`] : [], text: heading ? [heading] : [] };
+  scenes.forEach((scene, i) => {
+    if (scene.name) { out.html.push(`<h3>${html(scene.name)}</h3>`); out.text.push(scene.name); }
+    else if (i > 0) { out.html.push(CLIP_BREAK); out.text.push('* * *'); }
+    clipBlocks(scene.blocks, out);
+  });
+  return { html: out.html.join(''), text: out.text.join('\n\n') };
+}
+
+const CLIP_BREAK = '<p style="text-align:center">* * *</p>';
+
+/** A scene's prose for the clipboard: formatting, breaks and quotes kept; blank lines dropped. */
+function clipBlocks(blocks: readonly Block[], out: { html: string[]; text: string[] }) {
   for (const b of blocks) {
     if (b.type === 'section_break') {
-      htmlParts.push('<p style="text-align:center">* * *</p>');
-      textParts.push('* * *');
+      out.html.push(CLIP_BREAK);
+      out.text.push('* * *');
     } else if (b.type === 'paragraph') {
       if (blankRuns(b.content)) continue;
-      htmlParts.push(`<p>${clipboardInline(b.content)}</p>`);
-      textParts.push(plain(b.content));
+      out.html.push(`<p>${clipboardInline(b.content)}</p>`);
+      out.text.push(plain(b.content));
     } else {
       const ps = b.paragraphs.filter((p) => !blankRuns(p));
       if (!ps.length) continue;
-      htmlParts.push(`<blockquote>${ps.map((p) => `<p>${clipboardInline(p)}</p>`).join('')}</blockquote>`);
-      textParts.push(ps.map((p) => `    ${plain(p)}`).join('\n'));
+      out.html.push(`<blockquote>${ps.map((p) => `<p>${clipboardInline(p)}</p>`).join('')}</blockquote>`);
+      out.text.push(ps.map((p) => `    ${plain(p)}`).join('\n'));
     }
   }
-  return { html: htmlParts.join(''), text: textParts.join('\n\n') };
 }

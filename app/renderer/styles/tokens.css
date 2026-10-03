@@ -273,6 +273,8 @@
   --color-note-wash: color-mix(in oklab, var(--color-note) 10%, var(--color-page));
   /* A story beat's chip on a card (DECISIONS §27): its own hue, quietly. */
   --color-beat-wash: color-mix(in oklab, var(--color-beat) 16%, transparent);
+  /* A scene group's container (DECISIONS §28): a faint lift from the board. */
+  --color-group-wash: color-mix(in oklab, var(--color-text) 4%, transparent);
   --color-note-active: color-mix(in oklab, var(--color-note) 18%, var(--color-page));
   --color-note-edge: color-mix(in srgb, var(--color-note) 60%, transparent);
   /* A note's shadow is the page's own color, darkened — never plain black,

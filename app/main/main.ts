@@ -255,6 +255,8 @@ function buildMenu() {
         { type: 'separator' },
         { role: 'cut' },
         { role: 'copy' },
+        { label: 'Copy Scene', click: () => send('copy-scene') },
+        { label: 'Copy Chapter', click: () => send('copy-chapter') },
         { role: 'paste' },
         { role: 'selectAll' },
       ],

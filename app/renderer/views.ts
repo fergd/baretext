@@ -4,14 +4,12 @@
 // it unmoved. Every change made on the board keeps the writer's place on the
 // page (PageEdits).
 
-import { addScene, moveChapter, moveScene, nodeToScene, rename, setBeat } from '@baretext/editor';
-import { sceneClipboard } from '@baretext/format';
+import { addScene, joinGroup, moveChapter, moveGroup, placeScene, rename, renameGroup, setBeat, ungroup } from '@baretext/editor';
 import type { EditorView } from 'prosemirror-view';
 import type { BaretextBridge } from '../shared/bridge';
 import { Corkboard } from './corkboard';
 import { currentScene, outlineOf } from './outline';
 import type { PageEdits } from './page-edits';
-import type { ToastKind } from './status';
 import { ViewTabs, type View } from './view-tabs';
 
 export interface BookViewsHost {
@@ -27,7 +25,8 @@ export interface BookViewsHost {
   /** Delete a scene, with the outline's own care (a snapshot first, and its message). */
   deleteScene(sceneId: string): void;
   bookSettings(): void;
-  toast(message: string, kind?: ToastKind): void;
+  /** Copy a scene's or a chapter's text. */
+  copy: { scene(id: string): void; chapter(id: string): void; group(sceneIds: string[], name: string | null): void };
   /** The board is about to show: false if it can't now (a sprint); whatever covers the page closes. */
   beforeBoard(): boolean;
   /** Back to the page: the keyboard on it. */
@@ -54,10 +53,16 @@ export class BookViews {
       rename: (id, name) => edits.outside(rename(id, name)),
       addScene: (chapterId) => (edits.outside(addScene(chapterId)) ? outlineOf(doc()).chapters.find((c) => c.id === chapterId)?.scenes.at(-1)?.id ?? null : null),
       deleteScene: (id) => edits.keepCaretLine(() => h.deleteScene(id)),
-      copyScene: (id) => void this.copyScene(id),
+      copyScene: (id) => h.copy.scene(id),
+      copyChapter: (id) => h.copy.chapter(id),
       // (A move carries the caret with its scene: the writer's place travels with it.)
-      moveScene: (id, chapterId, index) => edits.outside(moveScene(id, chapterId, index), true),
+      placeScene: (id, chapterId, index, group) => edits.outside(placeScene(id, chapterId, index, group), true),
+      joinGroup: (id, targetId) => edits.outside(joinGroup(id, targetId), true),
+      moveGroup: (id, chapterId, index) => edits.outside(moveGroup(id, chapterId, index), true),
       moveChapter: (id, index) => edits.outside(moveChapter(id, index), true),
+      renameGroup: (id, name) => edits.outside(renameGroup(id, name)),
+      ungroup: (id) => edits.outside(ungroup(id)),
+      copyGroup: (ids, name) => h.copy.group(ids, name),
       popupMenu: (items) => bridge.popupMenu(items),
       structure: () => h.view()?.state.doc.attrs.structure ?? null,
       setBeat: (id, beat) => edits.outside(setBeat(id, beat)),
@@ -86,15 +91,4 @@ export class BookViews {
     this.h.changed();
   };
 
-  /** Copy a scene, with its title, as rich text and plain text (spec §8.6). */
-  private async copyScene(id: string) {
-    const view = this.h.view();
-    if (!view) return;
-    const scene = outlineOf(view.state.doc).chapters.flatMap((c) => c.scenes).find((s) => s.id === id);
-    const node = scene && view.state.doc.nodeAt(scene.pos);
-    if (!scene || !node) return;
-    const { html, text } = sceneClipboard(scene.name || `Scene ${scene.label}`, nodeToScene(node).blocks);
-    if (await this.h.bridge.copyRich(html, text)) this.h.toast(`Copied ${scene.label}${scene.name ? ` “${scene.name}”` : ''}.`);
-    else this.h.toast('Couldn’t copy the scene.', 'error');
-  }
 }

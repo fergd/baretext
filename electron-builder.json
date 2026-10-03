@@ -1,0 +1,16 @@
+{
+  "appId": "com.baretext.app",
+  "productName": "Baretext",
+  "copyright": "© 2026 Christan Fergus",
+  "directories": { "output": "dist", "buildResources": "resources" },
+  "files": ["build/**/*", "!build/**/*.map", "!build/renderer/gallery.*", "package.json"],
+  "asar": true,
+  "npmRebuild": false,
+  "mac": {
+    "target": [{ "target": "dir", "arch": ["arm64"] }],
+    "icon": "resources/icon.icns",
+    "category": "public.app-category.productivity",
+    "identity": null,
+    "hardenedRuntime": false
+  }
+}

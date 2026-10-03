@@ -161,7 +161,7 @@
   pointer-events: none;
   scale: 1.02;
   opacity: var(--ghost-opacity);
-  animation: bt-cork-lift var(--dur-fast) var(--ease-out) both;
+  animation: bt-cork-lift var(--dur-fast) var(--ease-out) backwards; /* (not held after: it can step back over a card it would join) */
 }
 .bt-cork-ghost.bt-cork-chapter-head { padding-inline: var(--space-2); border-radius: var(--toolbar-button-radius); background: var(--color-popover); }
 @keyframes bt-cork-lift { from { scale: 1; box-shadow: none; } }
@@ -222,6 +222,66 @@
 .bt-cork-arc[data-empty='true'] { border: 1px dashed var(--color-popover-border); border-radius: var(--popover-radius); }
 .bt-cork-arc-toggle[aria-pressed='true'] { color: var(--color-text); background: var(--color-popover-active); }
 .bt-app[data-mode='sprinter'] .bt-cork-controls { visibility: hidden; }
+
+/* ── scene groups (DECISIONS §28): a container around cards that belong
+   together — a row of its own in Rows, a stretch of the column in Columns ── */
+.bt-cork-group {
+  /* Rows: as many of the chapter's columns as it has cards (fitGroups), its
+     cards on those very columns (subgrid); Columns: a stretch of the column. */
+  display: grid;
+  grid-template-columns: subgrid;
+  align-content: start;
+  gap: var(--space-2) var(--space-3);
+  /* Its frame sits midway in the gaps around it: its cards keep their columns, and start level with the cards beside them. */
+  padding: calc(var(--space-3) / 2) calc(var(--space-3) / 2) 0;
+  margin: calc(-1 * var(--space-3) / 2) calc(-1 * var(--space-3) / 2) 0;
+  border: 1px solid var(--color-popover-border);
+  border-radius: calc(var(--popover-radius) + var(--space-1));
+  background: var(--color-group-wash);
+}
+.bt-cork-group-foot { grid-column: 1 / -1; }
+.bt-cork-group-foot { display: flex; align-items: center; gap: var(--space-1); min-height: var(--space-6); margin-top: calc(-1 * var(--space-1)); }
+.bt-cork-group-name {
+  min-width: 0;
+  max-width: 100%;
+  height: var(--space-6);
+  margin-left: calc(-1 * var(--space-1));
+  padding: 0 var(--space-1);
+  overflow: hidden;
+  border-radius: var(--toolbar-button-radius);
+  font-size: var(--text-ui);
+  color: var(--color-text-dim);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: text;
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+.bt-cork-group-name[data-unnamed='true'] { color: var(--color-text-dimmer); }
+.bt-cork-group-name:hover { background: var(--color-popover-hover); }
+.bt-cork-group-more {
+  margin-left: auto;
+  height: var(--space-6);
+  padding: 0 var(--space-1);
+  border-radius: var(--toolbar-button-radius);
+  font-size: var(--text-ui);
+  letter-spacing: 0.1em;
+  color: var(--color-text-dimmer);
+}
+.bt-cork-group-more:hover { background: var(--color-popover-hover); color: var(--color-text); }
+/* Columns: a framed stretch of the column, its name and menu on top, room inside it all round. */
+.bt-corkboard[data-layout='columns'] .bt-cork-group { grid-template-columns: 1fr; margin: 0; padding: 0 var(--space-2) var(--space-2); }
+.bt-corkboard[data-layout='columns'] .bt-cork-group-foot { order: -1; margin-top: 0; }
+/* Dragging: a group goes by its frame or name; it lights up to take a card;
+   a card lights up to be joined (a group forms). */
+.bt-cork-group-foot { cursor: grab; }
+.bt-cork-group[data-dragging='true'] { opacity: 0.32; }
+.bt-cork-group[data-drop-into='group'] { border-color: var(--color-accent); background: var(--color-popover-active); }
+.bt-cork-card[data-drop-into='join'] { border-color: var(--color-accent); box-shadow: 0 0 0 2px var(--color-accent); }
+/* Over a card's middle the lifted card steps back, so the card it would join shows. */
+.bt-cork-ghost { transition: scale var(--dur-fast) var(--ease-out), opacity var(--dur-fast) var(--ease-out); }
+.bt-cork-ghost[data-join='true'] { scale: 0.7; opacity: 0.5; }
+.bt-cork-group { transition: border-color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out); }
+.bt-cork-group-rename { flex: 1 1 auto; min-width: 0; height: var(--space-6); font-size: var(--text-ui); }
 
 /* The last place in each chapter: add a scene. */
 .bt-cork-add {

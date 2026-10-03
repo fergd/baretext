@@ -26,11 +26,13 @@ import { parkedView } from './cold';
 import { structureGuard, type GuardOptions } from './structure';
 import { dropEmptySceneNames } from './naming';
 import { findHighlights } from './find';
+import { groupsGuard, keepGroups } from './groups';
 
 export * from './schema';
 export * from './convert';
 export * from './commands';
 export { bookSetupOf, setBeat, setBookSetup, type BookSetup } from './book';
+export { groupsIn, joinGroup, keepGroups, moveGroup, placeScene, renameGroup, ungroup, type GroupRun } from './groups';
 export { BOOK_TITLE, rename, addScene, addChapter, moveScene, moveChapter, deleteScene, deleteChapter } from './outline-commands';
 export { parkedKey, openParked, closeParked, moveToColdStorage, restoreFromColdStorage } from './cold';
 export { addNoteAnchor, removeNoteAnchor, anchorsIn, describeAnchor, locateAnchor, applyAnchors, type AnchorRange, type SavedAnchor } from './notes';
@@ -88,6 +90,7 @@ export function manuscriptPlugins(options: EditorOptions = {}): Plugin[] {
   const placeholders = options.placeholders ?? { book: 'Untitled', chapter: 'Untitled', scene: 'Untitled' };
   return [
     structureGuard(options),
+    groupsGuard(),
     lineBreakSanitizer(),
     parkedView(),
     dropEmptySceneNames(),
@@ -126,8 +129,11 @@ export function manuscriptPlugins(options: EditorOptions = {}): Plugin[] {
 }
 
 export function createManuscriptState(m: Manuscript, options: EditorOptions = {}): EditorState {
-  const doc = modelToDoc(m);
-  const state = EditorState.create({ doc, plugins: manuscriptPlugins(options) });
+  let state = EditorState.create({ doc: modelToDoc(m), plugins: manuscriptPlugins(options) });
+  // A book whose groups break the rule (the first version linked scenes far apart) is put right as it opens; its text is untouched.
+  const kept = keepGroups(state);
+  if (kept) state = state.apply(kept.setMeta('addToHistory', false));
+  const doc = state.doc;
   // Start on the first paragraph, not in the book title.
   let first = 0;
   doc.descendants((node, pos) => {

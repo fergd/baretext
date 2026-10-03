@@ -148,7 +148,7 @@ function outline(frame: HTMLElement): OutlinePanel {
   const d = desk(frame, { outline: true });
   const panel = new OutlinePanel(d.workspace, {
     navigate: noop, toEditor: noop, rename: () => false, addScene: noop, moveScene: () => false, moveChapter: () => false,
-    addChapter: () => null, park: noop, openParked: noop, restore: noop, deleteScene: noop, deleteChapter: noop,
+    addChapter: () => null, park: noop, openParked: noop, restore: noop, deleteScene: noop, deleteChapter: noop, copy: { scene: noop, chapter: noop }, popupMenu: () => Promise.resolve(null),
     noteCounts: () => new Map([['s1', 2]]), onPresence: noop,
   });
   panel.update(outlineOf(d.view.state.doc), book.title, 's3', 'c2');
@@ -206,7 +206,7 @@ function corkboard(frame: HTMLElement, focus: string | null, layout: CorkboardLa
   frame.dataset.view = 'corkboard';
   const board = new Corkboard(d.workspace, {
     open: noop, close: noop, noteCounts: () => new Map([['s1', 2]]), onLayout: noop, outline: () => outlineOf(d.view.state.doc),
-    rename: () => false, addScene: () => null, deleteScene: noop, copyScene: noop, moveScene: () => false, moveChapter: () => false, popupMenu: () => Promise.resolve(null),
+    rename: () => false, addScene: () => null, deleteScene: noop, copyScene: noop, copyChapter: noop, placeScene: () => false, joinGroup: () => false, moveGroup: () => false, moveChapter: () => false, renameGroup: () => false, ungroup: () => false, copyGroup: noop, popupMenu: () => Promise.resolve(null),
     structure: () => (arc ? arc.structure : 'three-act'), setBeat: () => false, bookSettings: noop, onArc: noop,
   }, layout, !!arc);
   // The top bar as the board has it: the title, the board's view controls, the view chips.
@@ -312,6 +312,8 @@ const SPECS: Spec[] = [
   { component: 'Corkboard', state: 'Arc, columns', size: [1100, 640], render: (f) => corkboard(f, null, 'columns', undefined, { structure: 'three-act' }) },
   { component: 'Corkboard', state: 'Arc, no structure', size: [1100, 640], render: (f) => corkboard(f, null, 'columns', undefined, { structure: null }) },
   { component: 'Corkboard', state: 'Dragging a card', size: [1100, 640], render: (f) => dragging(f, 'rows', '.bt-cork-card[data-id="s4"]', '.bt-cork-card[data-id="s2"]', [0.2, 0.6]) },
+  { component: 'Corkboard', state: 'Dragging a card into a group', size: [1100, 640], render: (f) => dragging(f, 'rows', '.bt-cork-card[data-id="s1"]', '.bt-cork-card[data-id="s5"]', [0.9, 0.5]) },
+  { component: 'Corkboard', state: 'Dropping a card on a card', size: [1100, 640], render: (f) => dragging(f, 'rows', '.bt-cork-card[data-id="s1"]', '.bt-cork-card[data-id="s3"]', [0.5, 0.5]) },
   { component: 'Corkboard', state: 'Dragging a chapter', size: [1100, 640], render: (f) => dragging(f, 'columns', '.bt-cork-chapter[data-id] .bt-cork-chapter-title', '.bt-cork-chapter[data-id="c3"]', [0.7, 0.1]) },
   { component: 'View chips', state: 'Manuscript', size: [600, 60], render: (f) => chips(f, 'manuscript') },
   { component: 'View chips', state: 'Corkboard', size: [600, 60], render: (f) => chips(f, 'corkboard') },

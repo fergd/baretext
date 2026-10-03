@@ -558,6 +558,11 @@ export function parse(source: string, fallbackTitle = ''): ParseResult {
       if (isOrigin(origin)) s.origin = origin;
     }
   }
+  // Scene groups' names (each only when well formed).
+  if (restorable && book!.groups && typeof book!.groups === 'object') {
+    const names = Object.entries(book!.groups as Record<string, unknown>).filter((e): e is [string, string] => ID_PATTERN.test(e[0]) && typeof e[1] === 'string' && !/[\n\r]/.test(e[1]) && !!e[1].trim());
+    if (names.length) draft.groups = Object.fromEntries(names);
+  }
   // Story beats, by scene (each only when well formed).
   if (restorable && book!.beats && typeof book!.beats === 'object') {
     for (const s of scenes) {

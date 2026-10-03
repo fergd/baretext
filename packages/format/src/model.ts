@@ -53,6 +53,8 @@ export interface Manuscript {
   structure?: string;
   /** Its target length, in words. */
   target?: number;
+  /** Scene groups' names (DECISIONS §28), by group id (a group is the scenes sharing that `link`). */
+  groups?: Record<string, string>;
   chapters: Chapter[];
   coldStorage: Scene[];
 }
@@ -61,6 +63,13 @@ export const MAX_TARGET = 10_000_000;
 /** An id made of words (a story structure's, a beat's): lowercase, joined by hyphens. */
 export const isSlug = (s: unknown): s is string => typeof s === 'string' && s.length <= 40 && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(s);
 export const isTarget = (n: unknown): n is number => Number.isInteger(n) && (n as number) >= 1 && (n as number) <= MAX_TARGET;
+
+/** The groups' names, only for groups that have scenes (and only names: blank is none). */
+function groupNames(m: Manuscript): Pick<Manuscript, 'groups'> {
+  const live = new Set(m.chapters.flatMap((c) => c.scenes.map((s) => s.link)).filter(Boolean));
+  const names = Object.entries(m.groups ?? {}).filter(([id, name]) => live.has(id) && name.trim());
+  return names.length ? { groups: Object.fromEntries(names.map(([id, name]) => [id, name.trim()])) } : {};
+}
 
 /** The book's setup, only what is set (in the order it is written); an author trimmed, blank meaning none. */
 export function bookSetup(m: Pick<Manuscript, 'author' | 'structure' | 'target'>): Pick<Manuscript, 'author' | 'structure' | 'target'> {
@@ -166,6 +175,9 @@ export function validate(m: Manuscript): string[] {
   if (m.author !== undefined && (typeof m.author !== 'string' || /[\n\r]/.test(m.author))) errors.push('book author is not one line of text');
   if (m.structure !== undefined && !isSlug(m.structure)) errors.push(`book structure ${JSON.stringify(m.structure)} is not an id`);
   if (m.target !== undefined && !isTarget(m.target)) errors.push(`book target ${String(m.target)} is not a whole number of words`);
+  for (const [id, name] of Object.entries(m.groups ?? {})) {
+    if (!ID_PATTERN.test(id) || typeof name !== 'string' || /[\n\r]/.test(name)) errors.push(`group ${JSON.stringify(id)} has an invalid name`);
+  }
   if (m.chapters.length === 0) errors.push('manuscript has no chapters');
   for (const c of m.chapters) {
     checkId(c.id, 'chapter');
@@ -187,6 +199,7 @@ export function canonicalize(m: Manuscript): Manuscript {
   return {
     title: m.title,
     ...bookSetup(m),
+    ...groupNames(m),
     chapters: m.chapters.map((c) => ({ id: c.id, title: c.title, scenes: c.scenes.map(canonicalScene) })),
     coldStorage: m.coldStorage.map(canonicalScene),
   };
@@ -204,7 +217,7 @@ export function repair(m: Manuscript): Manuscript {
     ...c,
     scenes: c.scenes.length ? c.scenes.map(fixScene) : [newScene()],
   }));
-  return { title: m.title, ...bookSetup(m), chapters: chapters.length ? chapters : [newChapter()], coldStorage: m.coldStorage.map(fixScene) };
+  return { title: m.title, ...bookSetup(m), ...(m.groups ? { groups: m.groups } : {}), chapters: chapters.length ? chapters : [newChapter()], coldStorage: m.coldStorage.map(fixScene) };
 }
 
 /** Plain text of a run list (for word counts, AI input, search). */

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { approximateWords, exportMarkdown, exportText, isExportBook, printManuscript, runningHead, sceneClipboard, type Block, type ExportBook } from '../src';
+import { approximateWords, exportMarkdown, exportText, isExportBook, passageClipboard, printManuscript, runningHead, sceneClipboard, type Block, type ExportBook } from '../src';
 
 const book = (over: Partial<ExportBook> = {}): ExportBook => ({
   title: 'The Garden',
@@ -154,5 +154,24 @@ describe('copying a scene (spec §8.6)', () => {
 
   it('as plain text: the title, then paragraphs a blank line apart; no markup', () => {
     expect(sceneClipboard('The log', blocks).text).toBe('The log\n\nShe ran fast & far.\n\n* * *\n\n    A quote.\n\nSee here.');
+  });
+});
+
+describe('copying a chapter or a group of scenes (DECISIONS §28)', () => {
+  const p = (text: string): Block => ({ type: 'paragraph', content: [{ text }] });
+  const scenes = [
+    { name: null, blocks: [p('The boat left.')] },
+    { name: null, blocks: [p('By October.')] },
+    { name: 'The log', blocks: [p('Wind, sea.')] },
+  ];
+
+  it('its heading, then each scene: unnamed ones divided by a scene break, a named one under its name', () => {
+    const { html, text } = passageClipboard('Chapter 1: Arrival', scenes);
+    expect(text).toBe('Chapter 1: Arrival\n\nThe boat left.\n\n* * *\n\nBy October.\n\nThe log\n\nWind, sea.');
+    expect(html).toBe('<h2>Chapter 1: Arrival</h2><p>The boat left.</p><p style="text-align:center">* * *</p><p>By October.</p><h3>The log</h3><p>Wind, sea.</p>');
+  });
+
+  it('without a heading (an unnamed group): just its scenes', () => {
+    expect(passageClipboard(null, scenes.slice(0, 2)).text).toBe('The boat left.\n\n* * *\n\nBy October.');
   });
 });

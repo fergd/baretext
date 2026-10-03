@@ -1,6 +1,6 @@
 {
   "name": "baretext",
-  "version": "0.1.0",
+  "version": "2.0.0",
   "private": true,
   "description": "Distraction-free writing for Mac",
   "main": "build/main/main.cjs",
@@ -12,13 +12,15 @@
     "test:e2e": "npm run build && playwright test",
     "bench": "npm run build && playwright test --config playwright.bench.config.ts",
     "lint": "oxlint --type-aware app packages",
-    "gallery": "npm run build && BARETEXT_GALLERY=1 electron ."
+    "gallery": "npm run build && BARETEXT_GALLERY=1 electron .",
+    "dist": "npm run build && electron-builder --mac"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
     "@types/node": "^26.6.3",
     "docx": "^9.8.1",
     "electron": "^44.4.5",
+    "electron-builder": "^26.15.3",
     "esbuild": "^0.28.2",
     "fast-check": "^4.10.2",
     "happy-dom": "^20.14.5",
@@ -36,5 +38,6 @@
     "typescript": "^7.0.2",
     "vitest": "^5.0.2"
   },
-  "type": "module"
+  "type": "module",
+  "productName": "Baretext"
 }

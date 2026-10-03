@@ -13,6 +13,7 @@ const p = (text: string): Block => ({ type: 'paragraph', content: [{ text }] });
 export const book: Manuscript = {
   title: 'The Lighthouse Keeper',
   structure: 'three-act',
+  groups: { g1: 'The letters' },
   coldStorage: [{ id: 'k1', name: 'The storm, first try', link: null, blocks: [p('Too much weather.')] }],
   chapters: [
     { id: 'c1', title: 'Arrival', scenes: [
@@ -21,8 +22,8 @@ export const book: Manuscript = {
     ] },
     { id: 'c2', title: 'Weather', scenes: [
       { id: 's3', name: null, link: null, blocks: [p('By October the light came late and left early.')] },
-      { id: 's4', name: 'Letters', link: null, beat: 'midpoint', blocks: [p('The first letter came in a tin, wrapped in oilcloth.')] },
-      { id: 's5', name: null, link: null, blocks: [p('She read it twice and put it back.')] },
+      { id: 's4', name: 'Letters', link: 'g1', beat: 'midpoint', blocks: [p('The first letter came in a tin, wrapped in oilcloth.')] },
+      { id: 's5', name: null, link: 'g1', blocks: [p('She read it twice and put it back.')] },
     ] },
     { id: 'c3', title: 'The Ferry', scenes: [{ id: 's6', name: null, link: null, blocks: [p('Nobody had crossed since spring.')] }] },
   ],

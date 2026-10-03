@@ -7,7 +7,7 @@ const nodes: Record<string, NodeSpec> = {
   // The book's setup (DECISIONS §26) rides on the document: null = not set.
   doc: {
     content: 'book_title chapter+ cold_storage',
-    attrs: { author: { default: null }, structure: { default: null }, target: { default: null } },
+    attrs: { author: { default: null }, structure: { default: null }, target: { default: null }, groups: { default: null } },
   },
 
   book_title: {
